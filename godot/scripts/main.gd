@@ -118,9 +118,13 @@ func _load_scene(path: String, key: String):
 	for ap in inst.find_children("*", "AnimationPlayer", true, false):
 		var names = ap.get_animation_list()
 		if names.size() > 0:
-			var a: Animation = ap.get_animation(names[0])
+			# the glb may carry every rig's action (same bone names): play this character's own, never the first by name
+			var pick: String = names[0]
+			for nm in names:
+				if String(nm).begins_with(key + "_rig"): pick = nm
+			var a: Animation = ap.get_animation(pick)
 			a.loop_mode = Animation.LOOP_LINEAR
-			ap.play(names[0])
+			ap.play(pick)
 			anims.append(ap)
 	S[key + "_node"] = inst
 

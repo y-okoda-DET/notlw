@@ -200,10 +200,11 @@ def jolts(t, fall=.35):
 
 def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
-    # reading his phone; the first knock brings his head up to the door and it stays there until well after the second
-    # he hears the first knock but only looks up at the second: a beat behind Taiga, and slower
-    look = snap(t, 6.55, .5) * (1 - ease((t - 13.0) / 1.6))
-    j = jolts(t)
+    # reading his phone. The first series of knocks: he hears it but only lifts his head a beat after it ends, slowly,
+    # and goes back to the phone; the second series brings his head up at once and it stays up
+    look = snap(t, 7.3, .9) * (1 - snap(t, 10.0, 1.2)) + snap(t, 11.0, .35)
+    look = min(1.0, look)
+    j = jolts(t) * (t > 10.9)
     C.arm_to(k, 'r', kl((-.04, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .2, -.4)))
     C.arm_to(k, 'l', kl((.2, -.02, .84)), Vector((.3, .3, 0)))
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
@@ -215,16 +216,19 @@ def pose_kiryu(k, t):
 
 def pose_taiga(tg, t):
     tl = lambda v: C.local(tg, v)
-    # holding the door shut: every knock goes through his arms; he braces harder, turns his face away
-    press = snap(t, 6.05, .35) * (1 - ease((t - 16.0) / 3.0))
+    # facing the door with both palms flat on it, head turned toward the hall. The first knock goes straight into his
+    # arms: he leans in at once and stays braced; every knock jolts him; the second series makes him lean harder
+    press = snap(t, 6.0, .3) * (1 - ease((t - 16.5) / 3.0)) + .6 * snap(t, 11.0, .3) * (1 - ease((t - 17.0) / 3.0))
+    press = min(1.0, press)
     j = jolts(t, .25)
-    C.rot_world(tg, 'spine_01', axis_local(tg, (1, 0, 0)), 9 * press - 5 * j)
-    C.rot_world(tg, 'spine_03', axis_local(tg, (1, 0, 0)), 5 * press)
-    C.arm_to(tg, 'l', tl((.1, .16 + .03 * press - .03 * j, .95 + .03 * press)), Vector((.3, .4, 0)))
-    C.arm_to(tg, 'r', tl((-.1, .16 + .03 * press - .03 * j, .95 + .03 * press)), Vector((-.3, .4, 0)))
-    C.rot_world(tg, 'head', (0, 0, 1), 20 + 30 * press + 6 * j)
-    C.rot_world(tg, 'neck_01', axis_local(tg, (1, 0, 0)), 10 * press)
-    C.grip(tg, 'l', .5); C.grip(tg, 'r', .5)
+    C.rot_world(tg, 'spine_01', axis_local(tg, (1, 0, 0)), -6 * press + 4 * j)
+    C.rot_world(tg, 'spine_03', axis_local(tg, (1, 0, 0)), -4 * press)
+    for side, sx in (('l', 1), ('r', -1)):
+        C.arm_to(tg, side, tl((sx * .19, -.27 - .01 * j, 1.22 + .02 * press - .01 * sx * noise1(t, 2, .4))), Vector((sx * .45, .1, -.35)))
+        C.palm_to(tg, side, tl((sx * .19, -.9, 1.22)))
+        C.grip(tg, side, .12)
+    C.rot_world(tg, 'head', (0, 0, 1), 62 + 14 * press + 6 * j)   # over his left shoulder, toward the hall
+    C.rot_world(tg, 'neck_01', axis_local(tg, (1, 0, 0)), 6 * press)
     idle(tg, t, 2.0, breath=.31 + .2 * press, amp=1 + .8 * press, rate=1.25)
 
 def pose_natsuki(n, t, sx, Y):
@@ -267,7 +271,7 @@ def export(path, objs):
     bpy.ops.object.select_all(action='DESELECT')
     for o in objs: o.select_set(True)
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_apply=True,
-                              export_animations=True, export_animation_mode='ACTIONS', export_yup=True,
+                              export_animations=True, export_animation_mode='ACTIVE_ACTIONS', export_yup=True,
                               export_image_format='AUTO', export_force_sampling=True, export_def_bones=False)
 
 def descendants(o):

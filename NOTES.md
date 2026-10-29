@@ -30,9 +30,11 @@
 - 貼った顔の境目が見えるときは、この塗りつぶしの範囲か、`hb`/`hp`（Tripo の頭と絵の半幅の対応）を疑う。
 - prep は 4K 画像を扱うので 2 本同時に走らせると OOM で殺される。順番に走らせる。
 - 肌の色合わせ：`cheek`（Tripo の頬、unlit の正射投影で読む）と絵の頬の中央値の比で絵を補正。
+- 夏希の屋内用（靴下）の体は `natsuki_s`（`prep_natsuki_s.py`、`n3_body.glb`）。`make_tripo('natsuki_s', label='natsuki')` のあと子の名前から `_s` を外して Godot に `natsuki_head` が見えるようにする。
 - 靴下：`C.socks(rig)` は体のテクスチャの足首より下を靴下色に塗り替えるだけ。靴の形は残る。本式は靴下版の全身画像から体を作り直す。
 
 ## Godot
+- glb は書き出し時に（同じ骨の名前なので）全員分のアクションを抱える。Godot 側は `<人物>_rig` で始まる名前のアニメーションを選ぶ（main.gd `_load_scene`）。名前順の先頭を再生すると全員が桐生の動きになる（試作９までそうなっていた）。書き出しは `export_animation_mode='ACTIVE_ACTIONS'`。
 - 書き出した pck ではもとの .glb は入っておらず、`FileAccess.file_exists` は偽になる。リソースの有無は `ResourceLoader.exists` で見る。
 - フォントは `load("res://fonts/SerifJP-Bold.otf")`。`FontFile.load_dynamic_font` は書き出した版で失敗する。
 - 人物のテクスチャは .import で `size_limit=2048` にして zip を 400MiB 以下に収める（インポート後に新しい .import が size_limit=0 で生まれるので確認する）。

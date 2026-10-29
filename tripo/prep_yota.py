@@ -211,13 +211,20 @@ def inpaint_hair(q):
     hw = np.interp(dp_, [p[0] for p in hp_pts], [p[1] for p in hp_pts])
     # the generated head is wider than the drawn one at the jaw, so the patch samples past the drawn silhouette:
     # everything there that is not skin (hair, background) is filled too
-    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 1.5)
-    feat_ = ((np.abs(np.abs(xe_) - .5) < .34) & (dp_ > -.45) & (dp_ < .22)) | ((np.abs(xe_) < .5) & (dp_ > .6) & (dp_ < 1.12))
+    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 1.75)   # the patch samples down to d = 1.45 eye spacings, times K
+    feat_ = ((np.abs(np.abs(xe_) - .5) < .34) & (dp_ > -.45) & (dp_ < .22)) | ((np.abs(xe_) < .5) & (dp_ > .6) & (dp_ < 1.12)) | ((np.abs(xe_) < .3) & (dp_ > .3) & (dp_ < .62))
     rr = q / np.maximum(q.sum(2, keepdims=True), 1e-4); rc = pc / pc.sum()
-    hair = (q.sum(2) < pc.sum() * .55) | (q.sum(2) > pc.sum() * 1.18) | (np.abs(rr - rc).sum(2) > .1)
+    lum = q.sum(2); base = _nd.median_filter(lum, size=25)
+    hair = (lum < pc.sum() * .55) | (lum > pc.sum() * 1.18) | (np.abs(rr - rc).sum(2) > .1) | (lum < base * .88)   # last: thin faint strokes
     m = zone & ~feat_ & hair
-    lab, n = _nd.label(m); sizes = _nd.sum(m, lab, range(1, n + 1))
-    m = np.isin(lab, [i + 1 for i, sz in enumerate(sizes) if sz > 300])
+    lab, n = _nd.label(m); sizes = _nd.sum(m, lab, range(1, n + 1)); objs = _nd.find_objects(lab)
+    # big patches (hair, background) and thin long strokes (the jaw outline, a strand) go; a small round mark (a mole) stays
+    keep_ = []
+    for i, (sz, sl) in enumerate(zip(sizes, objs)):
+        if sl is None: continue
+        hh, ww = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        if sz > 300 or (sz > 40 and (max(hh, ww) > 3.0 * min(hh, ww) or sz < .4 * hh * ww)): keep_.append(i + 1)   # a diagonal stroke fills little of its box
+    m = np.isin(lab, keep_)
     if not m.any(): return q
     m = _nd.binary_dilation(m, iterations=2)
     skin = zone & ~m & (q.sum(2) > pc.sum() * .7) & (np.abs(rr - rc).sum(2) < .12)

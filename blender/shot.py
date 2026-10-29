@@ -69,7 +69,7 @@ def build():
     S['k'] = C.make_tripo('kiryu')[0]
     S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
-    S['t'].location = (1.05, Y - .2, Hm.ZG); S['t'].rotation_euler.z = math.radians(-30)
+    S['t'].location = (.98, Y - .30, Hm.ZG); S['t'].rotation_euler.z = math.radians(176)   # facing the door, both hands on it
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
     lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)

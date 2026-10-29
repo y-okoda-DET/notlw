@@ -46,12 +46,16 @@ def build():
     rf.rotation_euler = (Vector((.36, 3.82, 1.5)) - Vector((.95, 2.75, 1.0))).to_track_quat('-Y', 'Z').to_euler()
     lib.area('reflector_bounce', (.93, 2.8, 1.02), (.36, 3.82, 1.5), 9, k=3000, size=(.6, .6), spread=150)
     # people
-    n = C.make_tripo('natsuki')[0]; C.socks(n); n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
+    n = C.make_tripo('natsuki_s', label='natsuki')[0]; n.location = (.36, 3.84, 0);   # indoors: the socks body
+    for ob in n.children_recursive: ob.name = ob.name.replace('natsuki_s_', 'natsuki_')
+    n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
     k = C.make_tripo('kiryu')[0]; k.location = (-.42, 4.5, 0); face(k, (.36, 3.84))
     t = C.make_tripo('taiga')[0]; t.location = (.82, Y + .17, Hm.ZG); face(t, (.2, 3.0))
     m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (1.08, 2.52, 0); face(m, (.36, 3.84))
     bpy.context.view_layer.update()
-    S['rf_l'] = rf.matrix_world @ Vector((1, .9, .05)); S['rf_r'] = rf.matrix_world @ Vector((-1, .9, .05))
+    # she grips the board by its side edges: wrists just outside each edge, palms toward the centre, fingers curling round
+    S['rf_l'] = rf.matrix_world @ Vector((-1.09, 3, .05)); S['rf_r'] = rf.matrix_world @ Vector((1.09, 3, .05))   # the board's +X is her right
+    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, .05)); S['rf_rf'] = S['rf_lf']
     S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
     roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .05, mat_basic('tapeyel', (.85, .65, .08), .5), 20)
@@ -59,10 +63,9 @@ def build():
     S.update(roll=roll, box=box)
     at(0.0)
     # props held in hands follow the bones
-    for ob, rig, bone in ((roll, n, 'hand_l'), (box, t, 'spine_03')):
+    for ob, rig, bone in ((roll, n, 'hand_r'), (box, t, 'spine_03')):
         if ob is roll:
-            hb = C.bone_head(n, 'hand_l').lerp(C.bone_head(n, 'hand_r'), .5)
-            ob.location = hb + n.matrix_world.to_3x3() @ Vector((0, -.04, -.01))
+            C.place_in_hand(roll, n, 'r', (0, .085, -.012), (0, 90, 0))   # fingers through the hole, roll across the palm
         else:
             ob.location = C.local(t, (0, -.3, 1.04)); ob.rotation_euler.z = t.rotation_euler.z
         bpy.context.view_layer.update()
@@ -75,11 +78,12 @@ TALK = ((2.0, 4.6), (9.0, 10.4), (14.5, 16.8))   # Natsuki says something to Mio
 def pose_natsuki(n, t):
     nl = lambda v: C.local(n, v)
     tilt = E.noise1(t, 4.0, .5)
-    # the tape roll held in both hands at the waist, elbows close to the body
-    C.arm_to(n, 'l', nl((.05, -.17, .98 + .01 * tilt)), Vector((.1, .3, -.5)))
-    C.arm_to(n, 'r', nl((-.05, -.17, .98 + .01 * tilt)), Vector((-.1, .3, -.5)))
+    # arms down, the tape roll hanging from the fingers of the right hand at the thigh; the left hand rests on her hip
     laugh = sum(E.snap(t, a, .35) * (1 - E.snap(t, b, .5)) for a, b in TALK)
-    C.grip(n, 'l', .55); C.grip(n, 'r', .55)
+    C.arm_to(n, 'r', nl((-.23, -.07 + .01 * tilt, .79 + .01 * laugh)), Vector((-.35, .3, 0)))
+    C.arm_to(n, 'l', nl((.2, -.1, .95)), Vector((.5, .3, -.1)))
+    C.palm_to(n, 'r', nl((-.6, -.07, .79)))   # palm inward toward the thigh, the roll hangs below
+    C.grip(n, 'r', .85); C.grip(n, 'l', .5)
     C.rot_world(n, 'head', (0, 0, 1), 8 + 6 * tilt)
     C.rot_world(n, 'neck_01', E.axis_local(n, (0, 1, 0)), 5 * laugh)
     C.rot_world(n, 'spine_03', E.axis_local(n, (1, 0, 0)), -3 * laugh)
@@ -111,7 +115,8 @@ def pose_makoto(m, t):
     C.rot_world(m, 'head', (0, 0, 1), -8 + 30 * look)
     C.arm_to(m, 'l', S['rf_l'], Vector((.3, .25, -.3)))
     C.arm_to(m, 'r', S['rf_r'], Vector((-.3, .25, -.3)))
-    C.grip(m, 'l', .7); C.grip(m, 'r', .7)
+    C.palm_to(m, 'l', S['rf_lf']); C.palm_to(m, 'r', S['rf_rf'])
+    C.grip(m, 'l', .6); C.grip(m, 'r', .6)
 
 def at(t):
     for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga), (S['m'], pose_makoto)):

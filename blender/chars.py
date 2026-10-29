@@ -24,6 +24,7 @@ def age01(years):
 SPEC = {
     'mio':     dict(g=.0, age=20, h=1.60, mus=.42, wt=.42, prop=.6, cup=.45),
     'natsuki': dict(g=.0, age=20, h=1.58, mus=.42, wt=.45, prop=.6, cup=.5),
+    'natsuki_s': dict(g=.0, age=20, h=1.58, mus=.42, wt=.45, prop=.6, cup=.5),
     'makoto':  dict(g=.0, age=19, h=1.55, mus=.4, wt=.42, prop=.55, cup=.45),
     'kiryu':   dict(g=1., age=22, h=1.76, mus=.5, wt=.42, prop=.65),
     'taiga':   dict(g=1., age=21, h=1.83, mus=.72, wt=.68, prop=.5),
@@ -276,7 +277,7 @@ def reset_pose(rig):
     bpy.context.view_layer.update()
 
 # ---------------------------------------------------------------- Tripo characters
-TRIPO = {k: f'/home/claude/tripo/{k}_prep.blend' for k in ('natsuki', 'mio', 'kiryu', 'taiga', 'yota', 'makoto')}
+TRIPO = {k: f'/home/claude/tripo/{k}_prep.blend' for k in ('natsuki', 'natsuki_s', 'mio', 'kiryu', 'taiga', 'yota', 'makoto')}   # natsuki_s: socks body (indoors)
 
 def _base_human(key):
     """MakeHuman body + game_engine rig at the character's height, unclothed, shape keys baked (weight donor)."""
