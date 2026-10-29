@@ -49,16 +49,19 @@ def build():
     n = C.make_tripo('natsuki_s', label='natsuki')[0]; n.location = (.36, 3.84, 0);   # indoors: the socks body
     for ob in n.children_recursive: ob.name = ob.name.replace('natsuki_s_', 'natsuki_')
     n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
-    k = C.make_tripo('kiryu')[0]; k.location = (-.42, 4.5, 0); face(k, (.36, 3.84))
+    k = C.make_tripo('kiryu')[0]; k.location = (-.32, 4.43, 0); k.rotation_euler.z = math.radians(205 - 180 + 8)   # squarely behind the camera, which points at yaw 205
     t = C.make_tripo('taiga')[0]; t.location = (.82, Y + .17, Hm.ZG); face(t, (.2, 3.0))
     m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (1.08, 2.52, 0); face(m, (.36, 3.84))
     bpy.context.view_layer.update()
     # she grips the board by its side edges: wrists just outside each edge, palms toward the centre, fingers curling round
-    S['rf_l'] = rf.matrix_world @ Vector((-1.09, 3, .05)); S['rf_r'] = rf.matrix_world @ Vector((1.09, 3, .05))   # the board's +X is her right
-    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, .05)); S['rf_rf'] = S['rf_lf']
+    # the board faces Natsuki along its local -Y (scale .006 -> 1 unit = 6 mm); Makoto stands on the +Y (back) side.
+    # Board local +X points away from her (toward -x world), so her LEFT hand takes the board's +X edge.
+    # Wrists 2 cm outside each edge and 8 cm behind the board, a little below centre; palms face the board's centre
+    S['rf_l'] = rf.matrix_world @ Vector((1.07, 13, -.3)); S['rf_r'] = rf.matrix_world @ Vector((-1.07, 13, -.3))
+    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.3)); S['rf_rf'] = S['rf_lf']
     S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
-    roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .05, mat_basic('tapeyel', (.85, .65, .08), .5), 20)
+    roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .058, mat_basic('tapeyel', (.95, .62, .04), .45), 24)   # a 115 mm roll of gaffer tape, saturated so it reads through the print
     box = prim('cube', 'carrybox', loc=(0, 0, 0), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(box, 1.25)
     S.update(roll=roll, box=box)
     at(0.0)
@@ -81,7 +84,7 @@ def pose_natsuki(n, t):
     # arms down, the tape roll hanging from the fingers of the right hand at the thigh; the left hand rests on her hip
     laugh = sum(E.snap(t, a, .35) * (1 - E.snap(t, b, .5)) for a, b in TALK)
     C.arm_to(n, 'r', nl((-.23, -.07 + .01 * tilt, .79 + .01 * laugh)), Vector((-.35, .3, 0)))
-    C.arm_to(n, 'l', nl((.2, -.1, .95)), Vector((.5, .3, -.1)))
+    C.arm_to(n, 'l', nl((.235, -.08, .96)), Vector((.5, .3, -.1))); C.palm_to(n, 'l', nl((.1, -.08, .96)))
     C.palm_to(n, 'r', nl((-.6, -.07, .79)))   # palm inward toward the thigh, the roll hangs below
     C.grip(n, 'r', .85); C.grip(n, 'l', .5)
     C.rot_world(n, 'head', (0, 0, 1), 8 + 6 * tilt)
@@ -93,10 +96,22 @@ def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
     # framing her on the camera's flip-out screen; looks up over it twice
     up = E.snap(t, 6.5, .45) * (1 - E.snap(t, 8.6, .5)) + E.snap(t, 15.2, .45) * (1 - E.snap(t, 17.0, .5))
-    C.arm_to(k, 'r', kl((-.1, -.34, 1.36 + .02 * up)), Vector((-.3, .2, -.4)))
-    C.arm_to(k, 'l', kl((.12, -.34, 1.34)), Vector((.3, .2, -.4)))
+    # his hands are on the camera on the tripod: right hand round the grip side of the body, left at the flip-out screen
+    cx, cy = -.45, 4.12
+    # the body is turned with the lens toward Natsuki (yaw 205 deg): its two sides are at +-(-.906, -.42) * 0.07
+    # he stands behind the camera (its back toward him): right hand on the near side of the body, left on the far side
+    # the body's long axis runs along yaw 205 deg: its sides are at +-(cos 205, sin 205) * .06 = +-(-.054, -.025)
+    # perpendicular... no: the sides are across the axis, at +-(-sin, cos)*.06 = +-(.025, -.054). He is north of it.
+    # body sides are across its axis (yaw 205): +-(.025, -.054) * (.06/.06); he is on its +axis side (north-east)
+    # the body (11 x 22 x 12 cm) points along yaw 205: its long sides are at +-(-.906, -.423) * .065 from the centre;
+    # he stands at its back (+axis side (.42, -.9) reversed = north-west... he is at (-.32, 4.43): north). His right
+    # hand takes the west side, the left the east side, both a little toward the back half of the body
+    # right hand rests on top of the camera body (palm down), left hand grips the tripod head under it (palm in)
+    C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
+    C.grip(k, 'r', .25, thumb=.2)
+    C.arm_to(k, 'l', Vector((cx + .045, cy + .06, 1.37)), Vector((.35, .25, -.4))); C.palm_to(k, 'l', Vector((cx, cy, 1.37)))
+    C.grip(k, 'l', .8)
     C.rot_world(k, 'neck_01', E.axis_local(k, (1, 0, 0)), 14 - 16 * up)
-    C.grip(k, 'l', .45); C.grip(k, 'r', .45)
     E.idle(k, t, 1.0, breath=.21, amp=.8, rate=.8)
 
 def pose_taiga(tg, t):
@@ -116,7 +131,7 @@ def pose_makoto(m, t):
     C.arm_to(m, 'l', S['rf_l'], Vector((.3, .25, -.3)))
     C.arm_to(m, 'r', S['rf_r'], Vector((-.3, .25, -.3)))
     C.palm_to(m, 'l', S['rf_lf']); C.palm_to(m, 'r', S['rf_rf'])
-    C.grip(m, 'l', .6); C.grip(m, 'r', .6)
+    C.grip(m, 'l', .5, thumb=.9); C.grip(m, 'r', .5, thumb=.9)   # fingers round the back edge, thumb on the face
 
 def at(t):
     for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga), (S['m'], pose_makoto)):

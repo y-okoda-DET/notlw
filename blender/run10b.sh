@@ -1,6 +1,8 @@
 #!/bin/bash
 L=/home/claude/kf/run10.log; echo "== dusk $(date +%T)" >> $L
 cd /home/claude/kf
+python3 export_godot.py > export10n.log 2>&1 || { echo NIGHT_FAIL >> $L; exit 1; }
+python3 denoise_lm.py -- /home/claude/rules/assets/lightmap.exr >> export10n.log 2>&1
 python3 export_dusk.py > export10d.log 2>&1 || { echo DUSK_FAIL >> $L; exit 1; }
 python3 denoise_lm.py -- /home/claude/rules/assets/dusk/lightmap.exr >> export10d.log 2>&1
 echo "== godot $(date +%T)" >> $L
@@ -14,8 +16,8 @@ xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x54
 R=/tmp/claude-0/-home-claude/6407adc7-bdf3-5700-ba20-4629ee47fbe1/scratchpad/rec; rm -rf $R/night $R/dusk; mkdir -p $R/night $R/dusk
 echo "== record $(date +%T)" >> $L
 for sc in night dusk; do xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 --write-movie $R/$sc/f.png --fixed-fps 24 -- --record=walk --scene=$sc --gi=baked --pexp=3.0 > $R/$sc.log 2>&1; done
-for sc in night dusk; do ffmpeg -y -loglevel error -framerate 24 -i $R/$sc/f%08d.png -c:v libx264 -pix_fmt yuv420p -crf 20 /home/claude/build/RULES_proto10_${sc}_walk.mp4; done
-sed -i 's#../build/RULES_proto9/RULES.exe#../build/RULES_proto10/RULES.exe#' export_presets.cfg
-rm -rf /home/claude/build/RULES_proto10; mkdir -p /home/claude/build/RULES_proto10
-$G --headless --path . --export-release "Windows Desktop" ../build/RULES_proto10/RULES.exe > $R/export.log 2>&1
+for sc in night dusk; do ffmpeg -y -loglevel error -framerate 24 -i $R/$sc/f%08d.png -c:v libx264 -pix_fmt yuv420p -crf 20 /home/claude/build/RULES_proto12_${sc}_walk.mp4; done
+sed -i 's#../build/RULES_proto11/RULES.exe#../build/RULES_proto12/RULES.exe#' export_presets.cfg
+rm -rf /home/claude/build/RULES_proto12; mkdir -p /home/claude/build/RULES_proto12
+$G --headless --path . --export-release "Windows Desktop" ../build/RULES_proto12/RULES.exe > $R/export.log 2>&1
 echo "== RUN10_DONE $(date +%T)" >> $L

@@ -157,7 +157,7 @@ def tripod(loc, yaw, M):
         a = k / 3 * math.tau + yaw
         cyl_between('tpleg', (x, y, 1.32), (x + math.cos(a) * .28, y + math.sin(a) * .28, .0), .011, M['metal'], 8)
     cyl_between('tpcol', (x, y, 1.3), (x, y, 1.42), .02, M['metal'], 8)
-    body = prim('cube', 'cam', loc=(x, y, 1.5), scale=(.055, .11, .06), mat=M['black']); body.rotation_euler.z = yaw
+    body = prim('cube', 'vcam_body', loc=(x, y, 1.5), scale=(.055, .11, .06), mat=M['black']); body.rotation_euler.z = yaw
     lens = cyl_between('lens', (x, y, 1.5), (x - math.sin(yaw) * .17, y + math.cos(yaw) * .17, 1.5), .042, M['rubber'], 16)
     lcd = prim('cube', 'lcd', loc=(x - .07, y, 1.51), scale=(.004, .045, .035), mat=mat_basic('lcd', (.02, .03, .03), .2, emit=(.25, .3, .35), estr=.6))
     lcd.rotation_euler.z = yaw + .9

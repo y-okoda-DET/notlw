@@ -34,6 +34,8 @@ func _ready():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--record="): record = a.substr(9)
 		if a.begins_with("--pose="): ARGS["pose"] = Array(a.substr(7).split(",")).map(func(x): return float(x))
+		if a.begins_with("--poses="):   # check stills: "x,z,yaw,pitch;x,z,yaw,pitch;..." held 1.5 s each, then quit
+			ARGS["poses"] = Array(a.substr(8).split(";")).map(func(q): return Array(q.split(",")).map(func(x): return float(x)))
 		if a.begins_with("--print="): ARGS["print"] = float(a.substr(8))
 		if a == "--nocard": CARD_TIME = 0.0
 		if a.begins_with("--riso="): PRINT_V = int(a.substr(7))
@@ -135,12 +137,18 @@ func _faces():
 		if not S.has(k + "_node"): continue
 		var head := S[k + "_node"].find_child(k + "_head", true, false) as MeshInstance3D
 		if head == null: continue
-		var src := head.get_active_material(0) as StandardMaterial3D
+		# the face is the surface whose material is named <k>_face (the head mesh also carries the hair surface)
+		var si := 0
+		for i in range(head.get_surface_override_material_count()):
+			var mm := head.get_active_material(i)
+			if mm != null and String(mm.resource_name).ends_with("_face"): si = i
+		var src := head.get_active_material(si) as StandardMaterial3D
 		var m := src.duplicate() as StandardMaterial3D
-		head.set_surface_override_material(0, m)
+		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			tex[st] = load("res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
+			var pj := "res://assets/faces/%s_%s.jpg" % [k, st]
+			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
 		faces[k] = {"mat": m, "tex": tex, "next": randf_range(1.0, 4.0), "until": 0.0, "state": "open"}
 
@@ -280,7 +288,7 @@ func _lights_dusk():
 			"sun":
 				var d := DirectionalLight3D.new()
 				d.light_color = Color(L.color[0], L.color[1], L.color[2]).linear_to_srgb()
-				d.light_energy = 3.2 * k; d.shadow_enabled = true; d.light_angular_distance = 0.8
+				d.light_energy = 2.4 * k; d.shadow_enabled = true; d.light_angular_distance = 0.8; d.light_specular = 0.3
 				d.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; d.directional_shadow_max_distance = 14.0
 				d.light_volumetric_fog_energy = 1.6
 				add_child(d)
@@ -288,7 +296,9 @@ func _lights_dusk():
 				d.look_at_from_position(Vector3.ZERO, dir, Vector3.UP if abs(dir.y) < 0.95 else Vector3.FORWARD)
 				lights.sun = d
 			"door_sky":
-				lights.doorsky = _mk_spot(L, 2.2 * k, L.spread / 2.0, 0.6, false)
+				# the sky in the doorway lights the hall, not the people: Taiga stands in it and would burn to paper white
+				lights.doorsky = _mk_spot(L, 1.1 * k, L.spread / 2.0, 0.6, false)
+				lights.doorsky.light_specular = 0.15
 			"fresnel_key":
 				lights.fres_d = _mk_spot(L, 2.6 * k, L.angle, 0.06)
 				lights.fres_d.light_volumetric_fog_energy = 2.0
@@ -540,7 +550,15 @@ func _process(dt):
 	if lights.has("fres"):
 		var dip: float = 1.0 - 0.55 * p.call(lt, LIGHTNING_T + 0.15, 0.12) - 0.25 * p.call(lt, LIGHTNING_T + 0.4, 0.08)
 		lights.fres.light_energy = 9.0 * (1.0 + 0.03 * sin(t * 6.1) + 0.02 * sin(t * 17.3)) * dip
-	if record != "" and t > CARD_TIME + 15.0: get_tree().quit()
+	if ARGS.has("poses"):
+		var idx := int(t / 1.5)
+		if idx >= ARGS["poses"].size(): get_tree().quit()
+		elif idx != S.get("pose_idx", -1):
+			S["pose_idx"] = idx
+			var q = ARGS["poses"][idx]
+			player.global_position = Vector3(q[0], 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])
+			player.auto_path = [[0.0, q[0], q[1], q[2], q[3]], [99.0, q[0], q[1], q[2], q[3]]]; player.auto_t = 0.0
+	elif record != "" and t > CARD_TIME + 15.0: get_tree().quit()
 
 func _unhandled_input(e):
 	if e is InputEventKey and e.pressed and not e.echo:

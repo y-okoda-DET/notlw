@@ -210,8 +210,8 @@ def pose_kiryu(k, t):
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
     C.rot_world(k, 'head', (0, 0, 1), 22 * look)
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
-    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)))
-    C.grip(k, 'r', .8); C.grip(k, 'l', .3)
+    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)), limit=170)
+    C.grip(k, 'r', .55, thumb=.25); C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
 def pose_taiga(tg, t):
@@ -224,10 +224,13 @@ def pose_taiga(tg, t):
     C.rot_world(tg, 'spine_01', axis_local(tg, (1, 0, 0)), -6 * press + 4 * j)
     C.rot_world(tg, 'spine_03', axis_local(tg, (1, 0, 0)), -4 * press)
     for side, sx in (('l', 1), ('r', -1)):
-        C.arm_to(tg, side, tl((sx * .19, -.27 - .01 * j, 1.22 + .02 * press - .01 * sx * noise1(t, 2, .4))), Vector((sx * .45, .1, -.35)))
+        C.arm_to(tg, side, tl((sx * .19, -.235 - .01 * j, 1.22 + .02 * press - .01 * sx * noise1(t, 2, .4))), Vector((sx * .45, .1, -.35)))
         C.palm_to(tg, side, tl((sx * .19, -.9, 1.22)))
-        C.grip(tg, side, .12)
-    C.rot_world(tg, 'head', (0, 0, 1), 62 + 14 * press + 6 * j)   # over his left shoulder, toward the hall
+        C.grip(tg, side, .04, thumb=.0)
+    # over his left shoulder, toward the hall: the turn is shared between neck and head, as a real turn is (a head
+    # turned 70 deg on an unturned neck shears the skin between them)
+    C.rot_world(tg, 'neck_01', (0, 0, 1), 26 + 6 * press + 2 * j)
+    C.rot_world(tg, 'head', (0, 0, 1), 36 + 8 * press + 4 * j)
     C.rot_world(tg, 'neck_01', axis_local(tg, (1, 0, 0)), 6 * press)
     idle(tg, t, 2.0, breath=.31 + .2 * press, amp=1 + .8 * press, rate=1.25)
 
@@ -314,6 +317,12 @@ if __name__ == '__main__':
             src = f'{lib.FACES_S}/{k}_{st}.png'
             if k == 'natsuki' and st == 'talk': src = f'{lib.FACES_S}/natsuki_talk_open.png'
             if k in C.TRIPO: src = f'/home/claude/tripo/{k}_{st}.png'   # tinted to the Tripo skin
+            ht = f'/home/claude/tripo/{k}_headtex_{st}.png'
+            if os.path.exists(ht):   # face baked into the head texture: ship the whole head texture per state, at 2048
+                from PIL import Image as _PI
+                _PI.open(ht).convert('RGB').resize((2048, 2048), _PI.LANCZOS).save(f'{OUT}/faces/{k}_{st}.jpg', quality=92)
+                if os.path.exists(f'{OUT}/faces/{k}_{st}.png'): os.remove(f'{OUT}/faces/{k}_{st}.png')
+                continue
             shutil.copy(src, f'{OUT}/faces/{k}_{st}.png')
     json.dump(dict(slit_x=sx, YF=Y, ZG=Hm.ZG, cam0=list(shot.CAM0), fps=FPS, loop=LOOP, knocks=KNOCKS,
                    mark=[.35, 3.75, 0]), open(f'{OUT}/scene.json', 'w'), indent=1)

@@ -240,6 +240,11 @@ def arm_to(rig, side, hand_world, elbow_out=Vector((0, .15, -.3))):
     pole = (rig.matrix_world.to_3x3() @ Vector(elbow_out))
     pole = (pole - dn * pole.dot(dn)).normalized()
     elbow = sh + dn * a + pole * hgt
+    # the elbow never crosses the chest: keep it on its own side of the body's midline (local x), at least 4 cm out
+    sx_ = 1 if side == 'l' else -1
+    el = rig.matrix_world.inverted() @ elbow
+    if sx_ * el.x < .04:
+        el.x = sx_ * .04; elbow = rig.matrix_world @ el
     aim(rig, 'upperarm' + s, elbow)
     aim(rig, 'lowerarm' + s, sh + dn * D)
 
@@ -484,7 +489,7 @@ def make_tripo(key, label=None):
     parts = {}
     for o in dst.objects:
         lib.link(o); parts[o.name] = o
-    body = parts[f'{key}_body']; hair = parts[f'{key}_hair']; face = parts[f'{key}_head']
+    body = parts[f'{key}_body']; face = parts[f'{key}_head']; hair = parts.get(f'{key}_hair')   # newer preps bake the face into the head: no hair object
     bpy.context.view_layer.update()
     # match the skeleton to the generated pose: wrists and ankles where the mesh has them
     V = [v.co for v in body.data.vertices]
@@ -506,18 +511,18 @@ def make_tripo(key, label=None):
     _apply_pose_as_rest(rig, [donor])
     _transfer_weights_gated(donor, body, rig)
     hz = bone_head(rig, 'head').z; nz = bone_head(rig, 'neck_01').z
-    for ob in (hair, face):
+    for ob in [o for o in (hair, face) if o is not None]:
         gh = ob.vertex_groups.new(name='head'); gn = ob.vertex_groups.new(name='neck_01'); gs = ob.vertex_groups.new(name='spine_03')
         for v in ob.data.vertices:
             z = v.co.z
-            th = min(1, max(0, (z - (hz - .045)) / .05)); th = th * th * (3 - 2 * th)
-            ts = min(1, max(0, (nz + .01 - z) / .04))
+            th = min(1, max(0, (z - (hz - .07)) / .09)); th = th * th * (3 - 2 * th)   # head/neck blend over 9 cm: a turn twists the neck, not a 1 cm ring
+            ts = min(1, max(0, (nz + .01 - z) / .05))
             if th > 0: gh.add([v.index], th, 'REPLACE')
             rest = 1 - th
             if rest > 0:
                 gn.add([v.index], rest * (1 - ts), 'REPLACE')
                 if ts > 0: gs.add([v.index], rest * ts, 'REPLACE')
-    for ob in (body, hair, face):
+    for ob in [o for o in (body, hair, face) if o is not None]:
         ob.name = {body: f'{label}_body', hair: f'{label}_hair', face: f'{label}_head'}[ob]
         mw = ob.matrix_world.copy(); ob.parent = rig; ob.matrix_world = mw
         am = ob.modifiers.new('rig', 'ARMATURE'); am.object = rig
@@ -612,8 +617,10 @@ def socks(rig, color=(.86, .86, .83), ankle=.10):
             src.image = im
             print(f'socks: {ob.name} {n} shoe polys repainted')
 
-def palm_to(rig, side, target):
-    """Turn the forearm (hand roll) so the palm faces the world point `target` as far as the forearm axis allows."""
+def palm_to(rig, side, target, limit=100.0):
+    """Turn the forearm (hand roll) so the palm faces the world point `target` as far as the forearm axis allows.
+    `limit` caps the total twist (deg); the default is the anatomical range, a bent arm held in front of the body can
+    use more because the shoulder contributes."""
     bpy.context.view_layer.update()
     M = hand_frame(rig, side); R = M.to_3x3().normalized()
     axis = R @ Vector((0, 1, 0)); palm = -(R @ Vector((0, 0, 1)))
@@ -622,5 +629,8 @@ def palm_to(rig, side, target):
     if palm.length < 1e-6 or want.length < 1e-6: return
     ang = math.degrees(palm.normalized().angle(want.normalized()))
     if palm.cross(want).dot(axis) < 0: ang = -ang
-    rot_world(rig, f'lowerarm_{side}', axis, ang * .55)      # share the twist between forearm and hand
-    rot_world(rig, f'hand_{side}', axis, ang * .45)
+    # a forearm pronates/supinates about 80 deg each way, the wrist adds ~25: beyond that the hand only looks
+    # as if it belonged to the other arm. Clamp, and let the pose fall short of the target instead
+    ang = max(-limit, min(limit, ang))
+    rot_world(rig, f'lowerarm_{side}', axis, ang * .75)
+    rot_world(rig, f'hand_{side}', axis, ang * .25)

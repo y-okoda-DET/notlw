@@ -69,7 +69,7 @@ def build():
     S['k'] = C.make_tripo('kiryu')[0]
     S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
-    S['t'].location = (.98, Y - .30, Hm.ZG); S['t'].rotation_euler.z = math.radians(176)   # facing the door, both hands on it
+    S['t'].location = (.98, Y - .33, Hm.ZG); S['t'].rotation_euler.z = math.radians(176)   # facing the door, both hands on it
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
     lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)
@@ -117,9 +117,9 @@ def at(t):
     look_up = ease((t - 4.5) / .5) * (1 - ease((t - 7.0) / .8))
     C.rot_world(k, 'neck_01', k.matrix_world.to_3x3().normalized() @ Vector((1, 0, 0)), -16 + 22 * look_up)
     C.rot_world(k, 'head', (0, 0, 1), 10 * look_up)
-    C.grip(k, 'r', .8); C.grip(k, 'l', .3)
+    C.grip(k, 'r', .55, thumb=.25); C.grip(k, 'l', .3)
     bpy.context.view_layer.update()
-    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)))
+    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)), limit=170)
     C.place_in_hand(S['kphone'], k, 'r', (0, .055, -.016), (90, 0, 0))
     head = C.bone_head(k, 'head') + Vector((0, 0, .1))
     S['kphone_l'].location = S['kphone'].matrix_world.translation + S['kphone'].matrix_world.to_quaternion() @ Vector((0, -.03, 0))
