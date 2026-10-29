@@ -267,11 +267,12 @@ def rot_world(rig, bone, axis, deg):
     M = rig.matrix_world @ pb.matrix; h = M.translation
     R = Matrix.Rotation(math.radians(deg), 4, Vector(axis))
     pb.matrix = rig.matrix_world.inverted() @ (Matrix.Translation(h) @ R @ Matrix.Translation(-h) @ M)
+    pb.scale = (1, 1, 1)   # the setter's decomposition leaves a little scale on bones whose rest frame is not orthonormal; it compounds
     bpy.context.view_layer.update()
 
 def reset_pose(rig):
     for pb in rig.pose.bones:
-        pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0); pb.location = (0, 0, 0)
+        pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0); pb.location = (0, 0, 0); pb.scale = (1, 1, 1)
     bpy.context.view_layer.update()
 
 # ---------------------------------------------------------------- Tripo characters
@@ -609,3 +610,16 @@ def socks(rig, color=(.86, .86, .83), ankle=.10):
             im.filepath_raw = f'/home/claude/tripo/{name}.png'; im.file_format = 'PNG'; im.save()
             src.image = im
             print(f'socks: {ob.name} {n} shoe polys repainted')
+
+def palm_to(rig, side, target):
+    """Turn the forearm (hand roll) so the palm faces the world point `target` as far as the forearm axis allows."""
+    bpy.context.view_layer.update()
+    M = hand_frame(rig, side); R = M.to_3x3().normalized()
+    axis = R @ Vector((0, 1, 0)); palm = -(R @ Vector((0, 0, 1)))
+    want = Vector(target) - M.translation
+    palm -= axis * palm.dot(axis); want -= axis * want.dot(axis)
+    if palm.length < 1e-6 or want.length < 1e-6: return
+    ang = math.degrees(palm.normalized().angle(want.normalized()))
+    if palm.cross(want).dot(axis) < 0: ang = -ang
+    rot_world(rig, f'lowerarm_{side}', axis, ang * .55)      # share the twist between forearm and hand
+    rot_world(rig, f'hand_{side}', axis, ang * .45)

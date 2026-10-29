@@ -209,6 +209,7 @@ def pose_kiryu(k, t):
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
     C.rot_world(k, 'head', (0, 0, 1), 22 * look)
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
+    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)))
     C.grip(k, 'r', .8); C.grip(k, 'l', .3)
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
@@ -240,10 +241,16 @@ def bake_action(rig, fn):
     rig.animation_data_create()
     act = bpy.data.actions.new(f'{rig.name}_loop'); rig.animation_data.action = act
     n = int(LOOP * FPS)
+    prev = {}
     for f in range(n + 1):
         t = f / FPS
         C.reset_pose(rig); fn(t)
         for pb in rig.pose.bones:
+            # keep each bone's quaternion on the same hemisphere as the previous frame: a sign flip between two keys
+            # would interpolate through zero (the mesh blows up to infinity in the exported animation)
+            q = pb.rotation_quaternion.copy()
+            if pb.name in prev and q.dot(prev[pb.name]) < 0: q = -q; pb.rotation_quaternion = q
+            prev[pb.name] = q
             pb.keyframe_insert('rotation_quaternion', frame=f + 1)
     # linear between keys; the snaps already live in the sampled data
     try:

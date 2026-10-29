@@ -119,6 +119,7 @@ def at(t):
     C.rot_world(k, 'head', (0, 0, 1), 10 * look_up)
     C.grip(k, 'r', .8); C.grip(k, 'l', .3)
     bpy.context.view_layer.update()
+    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)))
     C.place_in_hand(S['kphone'], k, 'r', (0, .055, -.016), (90, 0, 0))
     head = C.bone_head(k, 'head') + Vector((0, 0, .1))
     S['kphone_l'].location = S['kphone'].matrix_world.translation + S['kphone'].matrix_world.to_quaternion() @ Vector((0, -.03, 0))
