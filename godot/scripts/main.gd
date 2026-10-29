@@ -51,7 +51,7 @@ func _ready():
 	_environment()
 	_load_scene(BASE + "env.glb", "env")
 	for n in CHARS:
-		if FileAccess.file_exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
+		if ResourceLoader.exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
