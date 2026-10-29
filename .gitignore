@@ -1,0 +1,10 @@
+blender/export_tex/
+blender/film/
+blender/final/
+blender/frames/
+blender/out/
+blender/t_anim_*/
+blender/*.log
+godot/.godot/
+godot/assets/
+__pycache__/

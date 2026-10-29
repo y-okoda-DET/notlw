@@ -24,5 +24,7 @@ A_CUT = {c['A_CUT']}
     s = re.sub(r"hp_pts = \[.*\]", "hp_pts = " + json.dumps(c['hp']).replace('[[','[(').replace(']]',')]').replace('], [','), ('), s)
     s = re.sub(r"K = 1\.0", f"K = {c['K']}", s)
     s = re.sub(r"bc_s = np.array\(\[[^\]]*\]\)", f"bc_s = np.array({c['cheek']})", s)
+    if key == 'yota':   # no closed-eyes / talking drawings yet: open stands in for closed, the smile for talking
+        s = s.replace("(('open', 'yota_open'), ('closed', 'yota_closed'), ('talk', 'yota_talk'))", "(('open', 'yota_open'), ('closed', 'yota_open'), ('talk', 'yota_smile'))")
     open(f'/home/claude/tripo/prep_{key}.py', 'w').write(s)
     print('wrote', key)

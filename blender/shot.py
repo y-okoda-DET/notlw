@@ -52,9 +52,9 @@ def build():
     wet = mat_basic('wetknit', (.09, .09, .1), .3)
     nk = C.make_tripo('natsuki')   # Tripo-generated body and head (see tripo/prep_natsuki.py)
     S['n'] = nk[0]; nk[0].location = (S['slit_x'] + .06, Y + .26, Hm.ZG); nk[0].rotation_euler.z = math.pi
+    C.wet(nk[0], (.42, .44, .5), .28)   # she has been standing in the rain
     # her phone
-    S['nphone'] = prim('cube', 'nphone', loc=(0, 0, 0), scale=(.026, .004, .052), mat=mat_basic('nph', (.6, .8, 1), .3, emit=kelvin(9000), estr=7))
-    S['nphone'].visible_shadow = False
+    S['nphone'] = C.phone('nphone', kelvin(9000), 7)
     S['nphone_l'] = lib.point('nphone_light', (0, 0, 0), 2.0, k=9000, radius=.02)
     # rain streaks outside (instanced as one mesh so it's cheap to move)
     random.seed(4); verts = []; faces = []
@@ -70,8 +70,7 @@ def build():
     S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
     S['t'].location = (1.05, Y - .2, Hm.ZG); S['t'].rotation_euler.z = math.radians(-30)
-    S['kphone'] = prim('cube', 'kphone', loc=(0, 0, 0), scale=(.026, .004, .052), mat=mat_basic('kph', (.6, .8, 1), .3, emit=kelvin(8500), estr=5))
-    S['kphone'].visible_shadow = False
+    S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
     lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)
     S['cam'] = lib.camera(tuple(CAM0), tuple(TGT0), lens=18)
@@ -106,11 +105,10 @@ def at(t):
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
     C.arm_to(n, 'r', Vector((sx + .1, Y + .14, 1.02 + .02 * math.sin(t * 3))), Vector((-.3, .2, -.4)))
     C.rot_world(n, 'neck_01', (1, 0, 0), 8)
+    C.grip(n, 'r', .8); C.grip(n, 'l', .15)
     bpy.context.view_layer.update()
-    ph = C.bone_tail(n, 'hand_r')
-    S['nphone'].location = ph + Vector((0, -.02, .02)); S['nphone'].rotation_euler = (math.radians(-65), 0, 0)
-    S['nphone_l'].location = ph + Vector((0, -.06, .05))
-    S['nphone'].data.materials[0].node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = 7 if t > 5.8 else 3
+    C.place_in_hand(S['nphone'], n, 'r', (0, .055, -.016), (90, 0, 0))
+    S['nphone_l'].location = S['nphone'].matrix_world.translation + S['nphone'].matrix_world.to_quaternion() @ Vector((0, -.04, 0))
     # ---- Kiryu: phone, looks up at the knock, back down
     k = S['k']; C.reset_pose(k)
     kl = lambda v: C.local(k, v)
@@ -119,10 +117,11 @@ def at(t):
     look_up = ease((t - 4.5) / .5) * (1 - ease((t - 7.0) / .8))
     C.rot_world(k, 'neck_01', k.matrix_world.to_3x3().normalized() @ Vector((1, 0, 0)), -16 + 22 * look_up)
     C.rot_world(k, 'head', (0, 0, 1), 10 * look_up)
-    ph = C.bone_tail(k, 'hand_r')
-    S['kphone'].location = ph + Vector((0, -.015, .01)); S['kphone'].rotation_euler = (math.radians(-55), 0, math.radians(-14))
+    C.grip(k, 'r', .8); C.grip(k, 'l', .3)
+    bpy.context.view_layer.update()
+    C.place_in_hand(S['kphone'], k, 'r', (0, .055, -.016), (90, 0, 0))
     head = C.bone_head(k, 'head') + Vector((0, 0, .1))
-    S['kphone_l'].location = ph + Vector((0, -.03, .03))
+    S['kphone_l'].location = S['kphone'].matrix_world.translation + S['kphone'].matrix_world.to_quaternion() @ Vector((0, -.03, 0))
     S['kphone_l'].rotation_euler = (head - S['kphone_l'].location).to_track_quat('-Z', 'Y').to_euler()
     # ---- Taiga: back to the door, hands behind; flinches into it at the knocks
     tg_ = S['t']; C.reset_pose(tg_)

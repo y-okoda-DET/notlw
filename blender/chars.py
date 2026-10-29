@@ -521,3 +521,91 @@ def make_tripo(key, label=None):
         am = ob.modifiers.new('rig', 'ARMATURE'); am.object = rig
     bpy.data.objects.remove(donor)
     return rig, body
+
+# ---------------------------------------------------------------- hands
+FINGERS = ('index', 'middle', 'ring', 'pinky')
+
+def grip(rig, side, amount=1.0, thumb=.6):
+    """Curl the fingers (0 = open, 1 = closed fist). Rotates each finger joint about its local X."""
+    s = f'_{side}'
+    for f in FINGERS:
+        for j, deg in (('01', 55), ('02', 70), ('03', 45)):
+            pb = rig.pose.bones.get(f'{f}_{j}{s}')
+            if pb is None: continue
+            pb.rotation_mode = 'XYZ'
+            pb.rotation_euler.x += math.radians(deg * amount)
+    for j, deg in (('01', 20), ('02', 35), ('03', 25)):
+        pb = rig.pose.bones.get(f'thumb_{j}{s}')
+        if pb is None: continue
+        pb.rotation_mode = 'XYZ'
+        pb.rotation_euler.x += math.radians(deg * amount * thumb)
+
+def hand_frame(rig, side):
+    """World matrix of the hand bone (origin at the wrist; Y along the bone toward the fingers)."""
+    bpy.context.view_layer.update()
+    return rig.matrix_world @ rig.pose.bones[f'hand_{side}'].matrix
+
+def place_in_hand(ob, rig, side, offset=(0, .07, 0), rot=(0, 0, 0)):
+    """Put an object in the palm: offset and rotation are in the hand bone's frame (Y toward the fingers,
+    Z out of the back of the hand, X across the palm)."""
+    m = hand_frame(rig, side) @ Matrix.Translation(Vector(offset)) @ __import__('mathutils').Euler([math.radians(a) for a in rot]).to_matrix().to_4x4()
+    ob.matrix_world = m @ Matrix.Diagonal((*ob.scale, 1))   # keep the object's own size
+
+def phone(name, screen_k, strength):
+    """A phone: dark body, the screen a bright plane on its -Y face (the face that lands palm-outward in place_in_hand)."""
+    from lib import prim, mat_basic
+    body = prim('cube', name, loc=(0, 0, 0), scale=(.034, .004, .072), mat=mat_basic(name + '_body', (.05, .05, .06), .35))
+    body.visible_shadow = False
+    scr = prim('plane', name + '_scr', loc=(0, -1.02, 0), rot=(math.radians(90), 0, 0), scale=(.9, .92, 1),
+               mat=mat_basic(name + '_glow', (.6, .8, 1), .3, emit=screen_k, estr=strength))
+    scr.visible_shadow = False
+    scr.parent = body   # local to the body, so the cube's scale (0.034, 0.004, 0.072) applies
+    return body
+
+def wet(rig, tint=(.45, .45, .5), rough=.3):
+    """Rain-soaked: every Tripo material on this character gets darker and shinier (the tint is baked on export)."""
+    for ob in rig.children_recursive:
+        if ob.type != 'MESH': continue
+        for m in ob.data.materials:
+            if m is None or not m.use_nodes: continue
+            p = m.node_tree.nodes.get('Principled BSDF')
+            if p is None: continue
+            p.inputs['Roughness'].default_value = rough
+            src = p.inputs['Base Color'].links[0].from_node if p.inputs['Base Color'].links else None
+            if src is None or src.type != 'TEX_IMAGE': continue
+            mix = m.node_tree.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'; mix.inputs['Factor'].default_value = 1.0
+            mix.inputs['B'].default_value = (*tint, 1)
+            m.node_tree.links.new(src.outputs['Color'], mix.inputs['A']); m.node_tree.links.new(mix.outputs['Result'], p.inputs['Base Color'])
+
+def socks(rig, color=(.86, .86, .83), ankle=.10):
+    """Indoors nobody wears shoes: the shoe part of the Tripo body texture (everything below the ankle) is repainted as
+    a plain sock, keeping the baked shading. Writes <image>_socks.png next to the Tripo texture."""
+    from PIL import Image, ImageDraw
+    import numpy as np
+    for ob in rig.children_recursive:
+        if ob.type != 'MESH' or not ob.name.endswith('_body'): continue
+        me = ob.data; uv = me.uv_layers[0]
+        for m in ob.data.materials:
+            if m is None or not m.use_nodes: continue
+            p = m.node_tree.nodes.get('Principled BSDF')
+            src = p.inputs['Base Color'].links[0].from_node if p and p.inputs['Base Color'].links else None
+            if src is None or src.type != 'TEX_IMAGE': continue
+            img = src.image; w, h = img.size
+            mask = Image.new('L', (w, h), 0); dr = ImageDraw.Draw(mask)
+            n = 0
+            for poly in me.polygons:
+                if all(me.vertices[vi].co.z < ankle for vi in poly.vertices):
+                    pts = [(uv.data[li].uv.x * w, (1 - uv.data[li].uv.y) * h) for li in poly.loop_indices]
+                    dr.polygon(pts, fill=255, outline=255); n += 1
+            if n == 0: continue
+            buf = np.empty(w * h * 4, np.float32); img.pixels.foreach_get(buf); px = buf.reshape(h, w, 4)
+            mk = np.asarray(mask, np.float32)[::-1] / 255        # blender rows start at the bottom
+            lum = px[..., :3].mean(2, keepdims=True)
+            ref = np.median(lum[mk > .5]) if (mk > .5).any() else .5
+            sock = np.clip(np.array(color, np.float32) * np.clip(lum / max(ref, 1e-3), .55, 1.12), 0, 1)
+            px[..., :3] = px[..., :3] * (1 - mk[..., None]) + sock * mk[..., None]
+            name = img.name.rsplit('.', 1)[0] + '_socks'
+            im = bpy.data.images.new(name, w, h, alpha=False); im.pixels.foreach_set(px.ravel())
+            im.filepath_raw = f'/home/claude/tripo/{name}.png'; im.file_format = 'PNG'; im.save()
+            src.image = im
+            print(f'socks: {ob.name} {n} shoe polys repainted')

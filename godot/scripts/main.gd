@@ -50,8 +50,8 @@ func _ready():
 	S = JSON.parse_string(FileAccess.get_file_as_string(BASE + "scene.json"))
 	_environment()
 	_load_scene(BASE + "env.glb", "env")
-	for n in ["kiryu", "taiga", "natsuki"]:
-		_load_scene(BASE + "%s.glb" % n, n)
+	for n in CHARS:
+		if FileAccess.file_exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -124,9 +124,11 @@ func _load_scene(path: String, key: String):
 			anims.append(ap)
 	S[key + "_node"] = inst
 
+const CHARS := ["kiryu", "taiga", "natsuki", "makoto"]
 var faces := {}   # key -> {mat, tex:{open,closed,talk}, next_blink, blink_until}
 func _faces():
-	for k in ["kiryu", "taiga", "natsuki"]:
+	for k in CHARS:
+		if not S.has(k + "_node"): continue
 		var head := S[k + "_node"].find_child(k + "_head", true, false) as MeshInstance3D
 		if head == null: continue
 		var src := head.get_active_material(0) as StandardMaterial3D
@@ -201,7 +203,8 @@ func _gi():
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
 		mi.gi_mode = GeometryInstance3D.GI_MODE_STATIC
 		if String(mi.name).begins_with("rain") or String(mi.name).begins_with("slitglass"): mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	for k in ["kiryu", "taiga", "natsuki"]:
+	for k in CHARS:
+		if not S.has(k + "_node"): continue
 		for mi in S[k + "_node"].find_children("*", "MeshInstance3D", true, false): mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 	voxel_gi = VoxelGI.new()
 	voxel_gi.size = Vector3(3.8, 3.1, 6.4)
@@ -318,11 +321,11 @@ func _lights():
 	var kp := S.kiryu_node.find_child("kphone", true, false) as Node3D
 	if kp:
 		var l := SpotLight3D.new()
-		l.light_color = Color(0.82, 0.88, 1.0); l.light_energy = 0.55; l.spot_angle = 50; l.spot_range = 0.9
-		l.spot_attenuation = 1.4; l.shadow_enabled = false; l.light_volumetric_fog_energy = 0.3
+		l.light_color = Color(0.82, 0.88, 1.0); l.light_energy = 0.32; l.spot_angle = 55; l.spot_range = 0.9
+		l.spot_attenuation = 1.2; l.shadow_enabled = false; l.light_volumetric_fog_energy = 0.3
 		kp.add_child(l)
 		l.position = Vector3(0, 0, 0)
-		l.rotation_degrees = Vector3(90, 0, 0)   # out of the screen face, up toward his face
+		l.rotation_degrees = Vector3(0, 180, 0)   # the screen is the phone's +Z face (Blender -Y); a spot points down its -Z
 		lights.kphone = l
 	var np := S.natsuki_node.find_child("nphone", true, false) as Node3D
 	if np:
@@ -496,10 +499,10 @@ func _card():
 		vb.add_child(lb)
 	var foot := Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
-	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(22 * u))
+	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	foot.add_theme_color_override("font_color", ink)
-	foot.anchor_left = 0.1; foot.anchor_top = 0.88; foot.anchor_right = 0.92; foot.anchor_bottom = 0.97
+	foot.anchor_left = 0.1; foot.anchor_top = 0.855; foot.anchor_right = 0.92; foot.anchor_bottom = 0.985
 	card.add_child(foot)
 
 # ------------------------------------------------------------------ time

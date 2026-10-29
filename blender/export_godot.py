@@ -182,12 +182,12 @@ KNOCKS = (6.0, 6.28, 6.56, 11.0, 11.2, 11.4, 11.6)
 
 def axis_local(rig, v): return (rig.matrix_world.to_3x3().normalized() @ Vector(v))
 
-def idle(rig, t, seed, breath=.24, amp=1.0):
+def idle(rig, t, seed, breath=.24, amp=1.0, rate=1.0):
     """breathing, weight shift, small head drift: always on, for everyone"""
     C.rot_world(rig, 'spine_02', axis_local(rig, (1, 0, 0)), -1.1 * amp * wob(t, breath, seed))
-    C.rot_world(rig, 'pelvis', axis_local(rig, (0, 1, 0)), 1.4 * amp * noise1(t, seed, .25))
-    C.rot_world(rig, 'neck_01', axis_local(rig, (0, 0, 1)), 2.0 * amp * noise1(t, seed + 5, .6))
-    C.rot_world(rig, 'head', axis_local(rig, (1, 0, 0)), 1.5 * amp * noise1(t, seed + 9, .8))
+    C.rot_world(rig, 'pelvis', axis_local(rig, (0, 1, 0)), 1.4 * amp * noise1(t, seed, .25 * rate))
+    C.rot_world(rig, 'neck_01', axis_local(rig, (0, 0, 1)), 2.0 * amp * noise1(t, seed + 5, .6 * rate))
+    C.rot_world(rig, 'head', axis_local(rig, (1, 0, 0)), 1.5 * amp * noise1(t, seed + 9, .8 * rate))
 
 def hit(t, t0, rise=.06, fall=.35):
     """a jolt: fast eased rise, slower decay"""
@@ -201,14 +201,16 @@ def jolts(t, fall=.35):
 def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
     # reading his phone; the first knock brings his head up to the door and it stays there until well after the second
-    look = snap(t, 6.15, .4) * (1 - ease((t - 13.0) / 1.6))
+    # he hears the first knock but only looks up at the second: a beat behind Taiga, and slower
+    look = snap(t, 6.55, .5) * (1 - ease((t - 13.0) / 1.6))
     j = jolts(t)
     C.arm_to(k, 'r', kl((-.04, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .2, -.4)))
     C.arm_to(k, 'l', kl((.2, -.02, .84)), Vector((.3, .3, 0)))
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
     C.rot_world(k, 'head', (0, 0, 1), 22 * look)
-    C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -4 * j)
-    idle(k, t, 1.0, amp=1 - .7 * look)
+    C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
+    C.grip(k, 'r', .8); C.grip(k, 'l', .3)
+    idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
 def pose_taiga(tg, t):
     tl = lambda v: C.local(tg, v)
@@ -221,7 +223,8 @@ def pose_taiga(tg, t):
     C.arm_to(tg, 'r', tl((-.1, .16 + .03 * press - .03 * j, .95 + .03 * press)), Vector((-.3, .4, 0)))
     C.rot_world(tg, 'head', (0, 0, 1), 20 + 30 * press + 6 * j)
     C.rot_world(tg, 'neck_01', axis_local(tg, (1, 0, 0)), 10 * press)
-    idle(tg, t, 2.0, breath=.3 + .2 * press, amp=1 + .8 * press)
+    C.grip(tg, 'l', .5); C.grip(tg, 'r', .5)
+    idle(tg, t, 2.0, breath=.31 + .2 * press, amp=1 + .8 * press, rate=1.25)
 
 def pose_natsuki(n, t, sx, Y):
     knock = max(math.exp(-((t - k) / .05) ** 2) for k in KNOCKS)
@@ -230,7 +233,8 @@ def pose_natsuki(n, t, sx, Y):
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
     C.arm_to(n, 'r', Vector((sx + .1, Y + .14, 1.02 + .02 * wob(t, .5))), Vector((-.3, .2, -.4)))
     C.rot_world(n, 'neck_01', (1, 0, 0), 8 + 6 * up)
-    idle(n, t, 3.0, breath=.35 + .15 * up, amp=1.3)
+    C.grip(n, 'r', .8); C.grip(n, 'l', .15 + .5 * knock * up)
+    idle(n, t, 3.0, breath=.36 + .15 * up, amp=1.3, rate=1.1)
 
 def bake_action(rig, fn):
     rig.animation_data_create()
@@ -294,7 +298,7 @@ if __name__ == '__main__':
     export(f'{OUT}/env.glb', env)
     import shutil
     os.makedirs(f'{OUT}/faces', exist_ok=True)
-    for k in ('natsuki', 'kiryu', 'taiga'):
+    for k in ('natsuki', 'kiryu', 'taiga', 'makoto'):
         for st in ('open', 'closed', 'talk'):
             src = f'{lib.FACES_S}/{k}_{st}.png'
             if k == 'natsuki' and st == 'talk': src = f'{lib.FACES_S}/natsuki_talk_open.png'

@@ -41,15 +41,18 @@ def build():
     D.tripod((-.45, 4.12), math.radians(205), M)
     Hm.tape_mark(.35, 3.75, CAM[:2], 'tape_natsuki.png')
     ab = prim('cube', 'applebox', loc=(1.25, 3.3, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
-    rf = prim('cube', 'reflector', loc=(.95, 2.75, .95), scale=(.3, .006, .3), mat=mat_basic('refl', (.9, .9, .88), .7))
-    rf.rotation_euler = (Vector((.36, 3.82, 1.5)) - Vector((.95, 2.75, .95))).to_track_quat('-Y', 'Z').to_euler()
-    D.cyl_between('rf_stand', (.95, 2.78, 0), (.95, 2.78, .7), .012, M['metal'], 8)
-    lib.area('reflector_bounce', (.93, 2.8, .97), (.36, 3.82, 1.5), 9, k=3000, size=(.6, .6), spread=150)
+    # the reflector is held by Makoto (the new member helps: she holds things, lights hands), no stand
+    rf = prim('cube', 'reflector', loc=(.95, 2.75, 1.0), scale=(.3, .006, .3), mat=mat_basic('refl', (.9, .9, .88), .7))
+    rf.rotation_euler = (Vector((.36, 3.82, 1.5)) - Vector((.95, 2.75, 1.0))).to_track_quat('-Y', 'Z').to_euler()
+    lib.area('reflector_bounce', (.93, 2.8, 1.02), (.36, 3.82, 1.5), 9, k=3000, size=(.6, .6), spread=150)
     # people
-    n = C.make_tripo('natsuki')[0]; n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
+    n = C.make_tripo('natsuki')[0]; C.socks(n); n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
     k = C.make_tripo('kiryu')[0]; k.location = (-.42, 4.5, 0); face(k, (.36, 3.84))
     t = C.make_tripo('taiga')[0]; t.location = (.82, Y + .17, Hm.ZG); face(t, (.2, 3.0))
-    S.update(n=n, k=k, t=t)
+    m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (1.08, 2.52, 0); face(m, (.36, 3.84))
+    bpy.context.view_layer.update()
+    S['rf_l'] = rf.matrix_world @ Vector((1, .9, .05)); S['rf_r'] = rf.matrix_world @ Vector((-1, .9, .05))
+    S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
     roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .05, mat_basic('tapeyel', (.85, .65, .08), .5), 20)
     box = prim('cube', 'carrybox', loc=(0, 0, 0), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(box, 1.25)
@@ -76,10 +79,11 @@ def pose_natsuki(n, t):
     C.arm_to(n, 'l', nl((.05, -.17, .98 + .01 * tilt)), Vector((.1, .3, -.5)))
     C.arm_to(n, 'r', nl((-.05, -.17, .98 + .01 * tilt)), Vector((-.1, .3, -.5)))
     laugh = sum(E.snap(t, a, .35) * (1 - E.snap(t, b, .5)) for a, b in TALK)
+    C.grip(n, 'l', .55); C.grip(n, 'r', .55)
     C.rot_world(n, 'head', (0, 0, 1), 8 + 6 * tilt)
     C.rot_world(n, 'neck_01', E.axis_local(n, (0, 1, 0)), 5 * laugh)
     C.rot_world(n, 'spine_03', E.axis_local(n, (1, 0, 0)), -3 * laugh)
-    E.idle(n, t, 3.0, breath=.28, amp=1.0)
+    E.idle(n, t, 3.0, breath=.28, amp=1.0, rate=1.1)
 
 def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
@@ -88,7 +92,8 @@ def pose_kiryu(k, t):
     C.arm_to(k, 'r', kl((-.1, -.34, 1.36 + .02 * up)), Vector((-.3, .2, -.4)))
     C.arm_to(k, 'l', kl((.12, -.34, 1.34)), Vector((.3, .2, -.4)))
     C.rot_world(k, 'neck_01', E.axis_local(k, (1, 0, 0)), 14 - 16 * up)
-    E.idle(k, t, 1.0, amp=.8)
+    C.grip(k, 'l', .45); C.grip(k, 'r', .45)
+    E.idle(k, t, 1.0, breath=.21, amp=.8, rate=.8)
 
 def pose_taiga(tg, t):
     tl = lambda v: C.local(tg, v)
@@ -96,10 +101,20 @@ def pose_taiga(tg, t):
     C.arm_to(tg, 'r', tl((-.2, -.3, 1.02)), Vector((-.4, .3, -.2)))
     C.rot_world(tg, 'spine_01', E.axis_local(tg, (1, 0, 0)), -4)
     C.rot_world(tg, 'head', (0, 0, 1), -10 + 25 * E.snap(t, 11.0, .5) * (1 - E.snap(t, 13.5, .5)))
-    E.idle(tg, t, 2.0, breath=.3, amp=1.1)
+    C.grip(tg, 'l', .35); C.grip(tg, 'r', .35)
+    E.idle(tg, t, 2.0, breath=.31, amp=1.1, rate=1.25)
+
+def pose_makoto(m, t):
+    # holding the reflector on Natsuki with both hands; the board stays still, so the body breathes under fixed hands
+    E.idle(m, t, 7.0, breath=.26, amp=.7, rate=1.05)
+    look = E.snap(t, 3.2, .5) * (1 - E.snap(t, 5.0, .6)) + E.snap(t, 12.0, .5) * (1 - E.snap(t, 13.6, .6))   # glances at Kiryu
+    C.rot_world(m, 'head', (0, 0, 1), -8 + 30 * look)
+    C.arm_to(m, 'l', S['rf_l'], Vector((.3, .25, -.3)))
+    C.arm_to(m, 'r', S['rf_r'], Vector((-.3, .25, -.3)))
+    C.grip(m, 'l', .7); C.grip(m, 'r', .7)
 
 def at(t):
-    for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga)):
+    for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga), (S['m'], pose_makoto)):
         C.reset_pose(r); f(r, t)
     bpy.context.view_layer.update()
 
@@ -108,11 +123,11 @@ if __name__ == '__main__':
     for o in [o for o in bpy.data.objects if o.name.startswith(('haze', 'cam'))]: bpy.data.objects.remove(o)
     E.simplify_materials()
     chars = set()
-    for r in (S['k'], S['t'], S['n']): chars |= set(E.descendants(r))
+    for r in (S['k'], S['t'], S['n'], S['m']): chars |= set(E.descendants(r))
     E.bake_bounce([o for o in bpy.data.objects if o not in chars and o.name != 'sunset_backdrop'])
     E.dump_lights()
     rigs = {'kiryu': (S['k'], lambda t: pose_kiryu(S['k'], t)), 'taiga': (S['t'], lambda t: pose_taiga(S['t'], t)),
-            'natsuki': (S['n'], lambda t: pose_natsuki(S['n'], t))}
+            'natsuki': (S['n'], lambda t: pose_natsuki(S['n'], t)), 'makoto': (S['m'], lambda t: pose_makoto(S['m'], t))}
     for name, (rig, fn) in rigs.items(): E.bake_action(rig, fn)
     for name, (rig, fn) in rigs.items(): E.export(f'{OUT}/{name}.glb', E.descendants(rig))
     env = [o for o in bpy.data.objects if o not in chars and o.type in ('MESH', 'CURVE', 'EMPTY')]
