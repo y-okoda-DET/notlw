@@ -23,7 +23,7 @@ for ai, az in enumerate(azs):
         out = f'{S}/{name}_{ai}_{t}_'
         for f in os.listdir(S):
             if f.startswith(f'{name}_{ai}_{t}_'): os.remove(f'{S}/{f}')
-        subprocess.run(f'cd /tmp && timeout 300 xvfb-run -a -s "-screen 0 960x540x24" {G} {base} --windowed --resolution 960x540 --write-movie {out}.png --fixed-fps 24 --quit-after 12 -- --record=poses --nocard --scene={scene} --gi=baked --pexp={3.0 if light == 0 else 1.0} --print=0 --hold=99 --at={t} --chklight={light} "--poses={pose}"', shell=True, capture_output=True)
+        subprocess.run(f'cd /tmp && timeout 300 xvfb-run -a -s "-screen 0 960x540x24" {G} {base} --windowed --resolution 960x540 --write-movie {out}.png --fixed-fps 24 --quit-after 12 -- --record=poses --nocard --scene={scene} --gi=baked --pexp={os.environ.get('PEXP', 3.0 if light == 0 else 1.0)} --print={os.environ.get('PRINT','0')} --hold=99 --at={t} --chklight={light} "--poses={pose}"', shell=True, capture_output=True)
         p = f'{out}00000010.png'
         im = Image.open(p).convert('RGB') if os.path.exists(p) else Image.new('RGB', (960, 540))
         ImageDraw.Draw(im).text((8, 8), f'{name} az{az:.0f} t{t}', fill=(255, 255, 0)); tiles.append(im)

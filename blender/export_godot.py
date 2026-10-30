@@ -214,10 +214,11 @@ def pose_kiryu(k, t):
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
     # the phone first, the hand to it (chars.hold_phone): screen toward his eyes, fingers behind it, measured
     eyes = C.bone_head(k, 'head') + C.local(k, (0, -.08, .05)) - C.local(k, (0, 0, 0))
-    C.phone_grip3(k, 'r', shot.S['kphone'], eyes, kl((-.02, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .3, -.5)))
+    C.phone_grip3(k, 'r', shot.S['kphone'], eyes, kl((-.03, -.29 + .04 * look, 1.33 - .2 * look + .01 * noise1(t, 3))), Vector((-.3, .3, -.5)))
     C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
+TAIGA_LAT = {'l': .37, 'r': .30}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
 TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
 
 def pose_taiga(tg, t):
@@ -242,7 +243,7 @@ def pose_taiga(tg, t):
     lean = math.degrees(tg.rotation_euler.x)                           # the feet stay flat on the floor
     for s_ in ('l', 'r'): C.rot_world(tg, f'foot_{s_}', ax, -lean)
     for side, sx in (('l', 1), ('r', -1)):
-        w = o + ax * (sx * .33) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
+        w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
         w += n * ((door - w.y) / n.y - .004 * j)
         C.arm_to(tg, side, w, Vector((sx * .12, .1, -1.0)))
         up = (Vector((0, 0, 1)) + ax * (sx * .18)).normalized()

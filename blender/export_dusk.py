@@ -54,16 +54,16 @@ def build():
     # leans back toward Makoto by the angle up to that face), hands at the side edges low down, elbows bent at her sides
     nface = Vector((.36, 3.82, 1.5))
     ctr = C.local(m, (0, -.21, 0)); ctr.z = (C.bone_head(m, 'upperarm_l').z + C.bone_head(m, 'upperarm_r').z) / 2 - .1   # wrists at elbow height, forearms forward
-    rf = prim('cube', 'reflector', loc=tuple(ctr), scale=(.25, .006, .25), mat=mat_basic('refl', (.9, .9, .88), .7))
+    rf = prim('cube', 'reflector', loc=tuple(ctr), scale=(.2, .006, .2), mat=mat_basic('refl', (.9, .9, .88), .7))
     rf.rotation_euler = (nface - ctr).to_track_quat('-Y', 'Z').to_euler(); bpy.context.view_layer.update()
-    lib.area('reflector_bounce', tuple(ctr + (nface - ctr).normalized() * .03), tuple(nface), 9, k=3000, size=(.5, .5), spread=150)
+    lib.area('reflector_bounce', tuple(ctr + (nface - ctr).normalized() * .03), tuple(nface), 9, k=3000, size=(.4, .4), spread=150)
     print('reflector at', tuple(round(x, 2) for x in ctr), 'leans back', round(math.degrees(math.asin((nface - ctr).normalized().z)), 1), 'deg')
     # she grips the board by its side edges: wrists just outside each edge, palms toward the centre, fingers curling round
     # the board faces Natsuki along its local -Y (scale .006 -> 1 unit = 6 mm); Makoto stands on the +Y (back) side.
     # Board local +X points away from her (toward -x world), so her LEFT hand takes the board's +X edge.
     # Wrists 2 cm outside each edge and 8 cm behind the board, a little below centre; palms face the board's centre
     S['rf_l'] = rf.matrix_world @ Vector((1.07, 6, -.45)); S['rf_r'] = rf.matrix_world @ Vector((-1.07, 6, -.45))
-    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.45)); S['rf_rf'] = S['rf_lf']; S['rf'] = rf
+    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.45)); S['rf_rf'] = S['rf_lf']; S['rf'] = rf; S['rf_M'] = rf.matrix_world.copy()
     S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
     roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .058, mat_basic('tapeyel', (.95, .62, .04), .45), 24)   # a 115 mm roll of gaffer tape, saturated so it reads through the print
@@ -135,11 +135,11 @@ def pose_makoto(m, t):
     C.rot_world(m, 'head', (0, 0, 1), -8 + 30 * look)
     # each hand holds a side edge from behind as in the photos: palm and fingers under the board (on the back face,
     # which leans down toward her), the thumb round the edge
-    rf = S['rf']; R = rf.matrix_world.to_3x3().normalized()
+    RM = S['rf_M']; R = RM.to_3x3().normalized()   # the board object itself is merged away by the export cleanup
     bx = R @ Vector((1, 0, 0)); f = -(R @ Vector((0, 1, 0))); ub = R @ Vector((0, 0, 1))
     for side, sx in (('l', 1), ('r', -1)):
         out = bx * sx
-        edge = rf.matrix_world @ Vector((sx * 1.0, 0, -.45))
+        edge = RM @ Vector((sx * 1.0, 0, -.45))
         fing = (ub * .55 - out * .85).normalized()                        # fingers spread on the back face, inward and up
         wrist = edge - out * .002 - f * .021 - fing * .065                 # the palm on the back face just inside the edge
         C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))      # elbows down at her sides (armpits closed)
@@ -148,7 +148,7 @@ def pose_makoto(m, t):
         # each finger curls until it meets the back face, the thumb until it meets the front (bones + 8 mm of skin)
         key = ('mk_curl', side)
         if key not in S:
-            Mi = rf.matrix_world.inverted(); half = .006 + .008
+            Mi = RM.inverted(); half = .006 + .008
             def hits(f_):
                 for j_ in ('01', '02', '03'):
                     pb = m.pose.bones[f'{f_}_{j_}_{side}']
@@ -165,9 +165,24 @@ def pose_makoto(m, t):
                     if hits(f_): break
                     best = a_
                 amt[f_] = best; C.clear_finger(m, side, f_)
-            S[key] = amt; print('makoto curl', side, amt)
+            # the thumb: up along the outside of the side edge (aimed straight at a point beside it: never across the board)
+            for f_, a_ in amt.items():
+                if f_ != 'thumb': C.curl_finger(m, side, f_, a_)
+            C.clear_finger(m, side, 'thumb')
+            T = edge + out * .014 + ub * .06 + f * .004   # along the outside of the edge, its tip level with the front face
+            for _ in range(4):
+                h_ = C.bone_head(m, f'thumb_01_{side}'); t_ = C.bone_tail(m, f'thumb_03_{side}')
+                a1, b1 = t_ - h_, T - h_
+                if a1.cross(b1).length < 1e-6: break
+                C.rot_world(m, f'thumb_01_{side}', a1.cross(b1).normalized(), math.degrees(a1.angle(b1)))
+            amt['thumb_q'] = [m.pose.bones[f'thumb_0{j}_{side}'].rotation_quaternion.copy() for j in (1, 2, 3)]
+            amt['thumb_hits'] = hits('thumb'); amt['thumb_err_cm'] = round((C.bone_tail(m, f'thumb_03_{side}') - T).length * 100, 1)
+            S[key] = amt; print('makoto curl', side, {k_: v_ for k_, v_ in amt.items() if k_ != 'thumb_q'})
         for f_, a_ in S[key].items():
-            C.curl_finger(m, side, f_, a_, (20, 35, 25) if f_ == 'thumb' else (55, 70, 45))
+            if f_ in C.FINGERS: C.curl_finger(m, side, f_, a_, (55, 70, 45))
+        for j, q in zip((1, 2, 3), S[key]['thumb_q']):
+            pb = m.pose.bones[f'thumb_0{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = q
+        bpy.context.view_layer.update()
 
 def at(t):
     for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga), (S['m'], pose_makoto)):
@@ -187,7 +202,7 @@ if __name__ == '__main__':
     for name, (rig, fn) in rigs.items(): E.bake_action(rig, fn)
     for name, (rig, fn) in rigs.items(): E.export(f'{OUT}/{name}.glb', E.descendants(rig))
     env = [o for o in bpy.data.objects if o not in chars and o.type in ('MESH', 'CURVE', 'EMPTY')]
-    if os.environ.get('SKIP_LM'): print('env.glb: kept')
+    if os.environ.get('SKIP_LM') and not os.environ.get('ENV'): print('env.glb: kept')   # ENV=1: props moved (the lightmap may lag)
     else: E.export(f'{OUT}/env.glb', env)
     json.dump(dict(scene='dusk', YF=Hm.YF, ZG=Hm.ZG, cam0=list(CAM), fps=E.FPS, loop=E.LOOP, talk=TALK,
                    mark=[.35, 3.75, 0]), open(f'{OUT}/scene.json', 'w'), indent=1)
