@@ -134,6 +134,16 @@ func _load_scene(path: String, key: String):
 			ap.play(pick)
 			anims.append(ap)
 	S[key + "_node"] = inst
+	if key in CHARS:
+		# the generated clothes are single shells: seen through a collar or a cuff, culled back faces read as black holes
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			var m3 := mi as MeshInstance3D
+			for i in range(m3.mesh.get_surface_count()):
+				var mat := m3.get_active_material(i) as BaseMaterial3D
+				if mat != null:
+					var d := mat.duplicate() as BaseMaterial3D
+					d.cull_mode = BaseMaterial3D.CULL_DISABLED
+					m3.set_surface_override_material(i, d)
 
 const CHARS := ["kiryu", "taiga", "natsuki", "makoto"]
 var faces := {}   # key -> {mat, tex:{open,closed,talk}, next_blink, blink_until}

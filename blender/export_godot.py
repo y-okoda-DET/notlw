@@ -240,12 +240,14 @@ def pose_taiga(tg, t):
     ax = axis_local(tg, (1, 0, 0)); ax.z = 0; ax.normalize()
     door = Hm.YF - TAIGA_WRIST                                        # the wrists' plane (world y)
     eye_z = C.bone_head(tg, 'head').z + .07
+    # shoulders: the raised arms lift the generated shoulders toward the ears; drop the collarbones a little
+    for s_, sx_ in (('l', 1), ('r', -1)): C.rot_world(tg, f'clavicle_{s_}', n, -sx_ * 7)
     lean = math.degrees(tg.rotation_euler.x)                           # the feet stay flat on the floor
     for s_ in ('l', 'r'): C.rot_world(tg, f'foot_{s_}', ax, -lean)
     for side, sx in (('l', 1), ('r', -1)):
         w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
         w += n * ((door - w.y) / n.y - .004 * j)
-        up = (Vector((0, 0, 1)) + ax * (sx * .18)).normalized()
+        up = Vector((0, 0, 1))   # fingers straight up (the photo); a 10 deg outward splay read as a twisted wrist
         pz = n * C.palm_sign(tg, side)
         C.arm_hand(tg, side, w, up, pz, sx)   # the elbow goes where the forearm needs the least wringing
         C.grip(tg, side, .0, thumb=.0)

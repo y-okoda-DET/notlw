@@ -91,7 +91,19 @@ collar_z = A_CUT * H_BODY
 _av = [v.co for v in A.data.vertices if collar_z - .004 <= v.co.z <= collar_z + .004]
 _cx = sum(c.x for c in _av) / len(_av); _cy = sum(c.y for c in _av) / len(_av)
 _rim = sorted(math.hypot(c.x - _cx, c.y - _cy) for c in _av)[len(_av) // 10]    # the opening (10th percentile)
-cut(A, lambda c: c.z < collar_z + .012)
+# the body's own skin colour, read off its neck just above the collar (inside the opening) before the cut: the
+# cheek of the generated head can differ from the body's texture (Natsuki's socks body: nothing matched)
+_sa0 = albedo_sampler(A); _uv0 = A.data.uv_layers[0]; _nk = []
+for _p in A.data.polygons:
+    _c0 = _p.center
+    if collar_z + .012 < _c0.z < collar_z + .045 and math.hypot(_c0.x - _cx, _c0.y - _cy) < _rim * .95:
+        _u0 = sum((_uv0.data[li].uv for li in _p.loop_indices), Vector((0, 0))) / len(_p.loop_indices)
+        _c1 = _sa0(_u0); _nk.append(_c1 / max(_c1.sum(), 1e-4))
+del _sa0
+_body_skin = np.median(np.array(_nk), axis=0) if len(_nk) > 20 else None
+print('body neck skin samples', len(_nk), np.round(_body_skin, 3) if _body_skin is not None else None)
+CUT_UP = .003   # Natsuki's crew neck sits at collar_z; above it the generated body has skin-coloured stand-up flaps (others: .012)
+cut(A, lambda c: c.z < collar_z + CUT_UP)
 # the bare neck left on the body above the collar line is removed by colour (skin), so the cloth of the collar keeps
 # its own shape whatever its cut; the head's neck replaces it
 _sa = albedo_sampler(A); _uv = A.data.uv_layers[0]
@@ -105,8 +117,14 @@ del _sa
 # skin reference: the generated head's cheek colour (sRGB, read off an unlit render; set per person) in linear light
 _ck = np.array([.91, .776, .678]); _ck = np.where(_ck <= .04045, _ck / 12.92, ((_ck + .055) / 1.055) ** 2.4)
 _skin_ref = _ck / _ck.sum()
+# (the body's own neck colour was tried as the reference: on Natsuki's socks body it matches the cream sweater too)
 print('neck skin ratio', np.round(_skin_ref, 3))
 _gone = [i for i, r in _cs if np.abs(np.array(r) - _skin_ref).sum() < .06]
+# and by shape: anything left inside the collar's opening (the body's own neck stub and its flaps) goes; the head's
+# neck fills the opening
+NECK_GEOM = True   # Natsuki only: on Makoto it cut into the collar ribbing
+_gone = set(_gone) | {_p.index for _p in A.data.polygons if NECK_GEOM and _p.center.z > collar_z - .025 and math.hypot(_p.center.x - _cx, _p.center.y - _cy) < _rim * .9}
+_gone = sorted(_gone)
 bm = bmesh.new(); bm.from_mesh(A.data); bm.faces.ensure_lookup_table()
 bmesh.ops.delete(bm, geom=[bm.faces[i] for i in _gone], context='FACES'); bm.to_mesh(A.data); bm.free()
 print('neck skin polys removed from the body', len(_gone))
@@ -145,6 +163,7 @@ def _skinish(f):
 def _outside(f):
     p_ = f.calc_center_median(); return math.hypot(p_.x - _cx, p_.y - _cy) > _rim * 1.15
 _knot = [f for f in bm.faces if (f.calc_center_median().z > collar_z + .002 and np.abs(_fcol(f) - _ref).sum() / max(_ref.sum(), 1e-4) > .25)
+         or (NECK_GEOM and f.calc_center_median().z > collar_z + .002 and _skinish(f))   # skin-coloured stand-up bits of the generated neck above the rim
          or (f.calc_center_median().z > collar_z - .02 and _outside(f) and _skinish(f))   # skin knots on the shoulders
          or (f.calc_center_median().z > collar_z + .004 and math.hypot(f.calc_center_median().x - _cx, f.calc_center_median().y - _cy) > _rim * 1.3)]   # tabs standing up off the shoulders
 bmesh.ops.delete(bm, geom=_knot, context='FACES'); print('non-cloth faces above the collar removed', len(_knot))
@@ -200,7 +219,7 @@ def prof_at(prof, th):
 moved = 0
 # the correction stops 1.5 cm below the chin: above that the radial push reached the jaw and pulled the chin forward
 # into a point (the generated heads have round chins)
-ztop = min(zc + .045, zA_chin - .03); span = max(ztop - zc - .005, .01)   # ends well under the jaw: pushed up to it, the neck flared into a shelf along the jawline (Kiryu)
+ztop = max(min(zc + .045, zA_chin - .03), zc + .02); span = max(ztop - zc - .005, .01)   # ends well under the jaw: pushed up to it, the neck flared into a shelf along the jawline (Kiryu)
 print('neck marry top above collar (cm)', round((ztop - zc) * 100, 1))
 for v in B.data.vertices:
     z = v.co.z
@@ -499,6 +518,10 @@ print('face texels', int((mapx >= 0).sum()), 'painted', int(wmask.sum()))
 from scipy import ndimage as _nd2
 wsoft = _nd2.gaussian_filter(wmask, 28) * wmask   # ~1 mm feather at the rim, where the drawing meets the generated skin
 wsoft = np.clip((wsoft - .2) / .8, 0, 1)
+# under the jaw the drawing hands over to the generated skin gradually (from below the lips to under the chin), so no
+# edge of the painted patch lies along the jawline (the line seen under Kiryu's jaw from below)
+_dmap = np.where(mapy >= 0, (mapy - pey) / pe, 0)
+wsoft *= np.clip((1.85 - _dmap) / .5, 0, 1)
 up = lambda m: cv2.resize(m, (BK, BK), interpolation=cv2.INTER_LINEAR)
 MX, MY, WW = up(mapx), up(mapy), up(wsoft)
 WW[(MX < 0) | (MY < 0)] = 0
