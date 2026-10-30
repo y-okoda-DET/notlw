@@ -40,13 +40,12 @@ unzip -o t.tpz -d tt && mv tt/templates/* ~/.local/share/godot/export_templates/
 画面なしで動かすので `xvfb-run` が必要。まとめて：`apt-get install -y xvfb ffmpeg zip fonts-noto-cjk fonts-noto-cjk-extra`。
 **フォントは書き出しで必須**：hall.py の貼り紙（地下・発電機）が `NotoSansCJK-Medium.ttc` を使い、これは `fonts-noto-cjk-extra` にしか入っていない。ないと export_godot.py が落ちる。
 
-### Godot の描画方式（2026-10-30 にわかったこと。未決）
-GPU がないので、この環境の Godot は Vulkan を作れず OpenGL（互換）に落ちる（起動時に `switching to OpenGL 3`）。
-このとき **VoxelGI の焼き込み（build.sh の `--bake-gi`）は空になる**（assets/gi.res が約400バイト。ログに `_get_data (scene/3d/voxel_gi.cpp)` のエラー）。
-空の gi.res が pck に入るので、ユーザーの PC で VoxelGI を選んでも照り返しが出ていない可能性がある（試作17で同じだったかは確かめていない）。
-`apt-get install -y mesa-vulkan-drivers`（CPU で描く Vulkan）を入れると、Godot は Forward+ で動き、gi.res が正しく焼ける（約6MB）。
-ただし close.py の確認画も Forward+ の見え方（体積の霧など）に変わる。入れるかどうかはユーザーの判断待ち（docs/次の作業.md）。
-入れていない環境で一時的に Vulkan を止めるには `VK_ICD_FILENAMES=/nonexistent.json` を付ける。
+### Godot の描画方式（必須：CPU で描く Vulkan を入れる）
+`apt-get install -y mesa-vulkan-drivers`
+前の作業環境（試作17まで）にはこれが入っていて、Godot は Vulkan（llvmpipe）の Forward+ で動いていた（起動時のログ：`Vulkan … Forward+ … llvmpipe`）。
+VoxelGI の焼き込み（gi.res、約6MB）も、確認画（close.py）も、すべてこの状態で作った。
+入れないと Godot は OpenGL（互換）に落ち、VoxelGI の焼き込みが空（約400バイト）のまま Windows 版に入る。確認画の見え方も変わる。
+確かめ方：Godot の起動ログに `Forward+` と出ること、build のあと assets/gi.res と assets/dusk/gi.res が数MBあること。
 
 ## 4. フォント
 Noto Serif CJK（`fonts-noto-cjk`）。`godot/fonts/SerifJP-Bold.otf` は使う文字だけ抜き出したもの。
