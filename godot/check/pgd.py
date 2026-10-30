@@ -26,7 +26,7 @@ for f in C.FINGERS+('thumb',):
     pts[f]=[C.bone_head(k,f'{f}_01_r')]+[C.bone_tail(k,f'{f}_0{j}_r') for j in (1,2,3)]
 out={}
 for nm,p in (('screen',c+n*.4),('back',c-n*.4),('eye',C.bone_head(k,'head')+Vector((0,0,.08)))):
-    cam=lib.camera(tuple(p),tuple(c),lens=45); lib.render(f'/home/claude/kf/pgd_{nm}.png',samples=4,res=(500,500))
+    cam=lib.camera(tuple(p),tuple(c),lens=45); lib.render(f'/home/claude/work/pgd_{nm}.png',samples=4,res=(500,500))
     camo=bpy.context.scene.camera
     out[nm]={key:[tuple(w2c(bpy.context.scene,camo,q))[:3] for q in v] for key,v in pts.items()}
-json.dump(out,open('/home/claude/kf/pgd.json','w'))
+json.dump(out,open('/home/claude/work/pgd.json','w'))

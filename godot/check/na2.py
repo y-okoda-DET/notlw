@@ -12,4 +12,4 @@ for o in bpy.data.objects:
 lv=X.E.axis_local(n,(1,0,0)); fw=X.E.axis_local(n,(0,-1,0))
 nk=C.bone_head(n,'neck_01')
 for nm,p in (('game',Vector((0.71,3.28,1.55))),('game2',Vector((0.6,3.4,1.45)))):
-    lib.camera(tuple(p),tuple(nk),lens=50); lib.render(f'/home/claude/kf/na_{nm}.png',samples=8,res=(400,400))
+    lib.camera(tuple(p),tuple(nk),lens=50); lib.render(f'/home/claude/work/na_{nm}.png',samples=8,res=(400,400))

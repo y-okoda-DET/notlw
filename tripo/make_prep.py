@@ -31,3 +31,13 @@ A_CUT = {c['A_CUT']}
         s = s.replace("(('open', 'yota_open'), ('closed', 'yota_closed'), ('talk', 'yota_talk'))", "(('open', 'yota_open'), ('closed', 'yota_open'), ('talk', 'yota_smile'))")
     open(f'/home/claude/tripo/prep_{key}.py', 'w').write(s)
     print('wrote', key)
+
+# Natsuki indoors (socks body n3, the same head): the template with her socks-body measurements
+s = src
+for a_, b_ in (("A_HEIGHT = .9778", "A_HEIGHT = .9799"), ("A_CHIN = .840", "A_CHIN = .845"), ("A_CUT = .826", "A_CUT = .828"), ("n2_body.glb", "n3_body.glb")):
+    assert a_ in s, a_; s = s.replace(a_, b_)
+s = s.replace('natsuki', 'natsuki_s')
+s = s.replace('faces_style/natsuki_s_', 'faces_style/natsuki_').replace("['natsuki_s']", "['natsuki']")
+s = s.replace("(('open', 'natsuki_s_open'), ('closed', 'natsuki_s_closed'), ('talk', 'natsuki_s_talk_open'))", "(('open', 'natsuki_open'), ('closed', 'natsuki_closed'), ('talk', 'natsuki_talk_open'))")
+s = "# socks version of Natsuki (indoors, dusk): the same head, the body generated from the socks images (generated from prep_natsuki.py)\n" + s
+open('/home/claude/tripo/prep_natsuki_s.py', 'w').write(s); print('wrote natsuki_s')

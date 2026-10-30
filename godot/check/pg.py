@@ -21,4 +21,4 @@ nt=ph.data.materials[0].node_tree; em=nt.nodes.new('ShaderNodeEmission'); em.inp
 bpy.context.scene.view_settings.view_transform='Standard'
 side=(M.to_3x3().col[0]).normalized()
 for nm,p in (('screen',c+n*.4),('back',c-n*.4),('edge',c+side*.3+n*.12),('eye',C.bone_head(k,'head')+Vector((0,0,.08)))):
-    lib.camera(tuple(p),tuple(c),lens=45); lib.render(f'/home/claude/kf/pg_{nm}.png',samples=4,res=(400,400))
+    lib.camera(tuple(p),tuple(c),lens=45); lib.render(f'/home/claude/work/pg_{nm}.png',samples=4,res=(400,400))

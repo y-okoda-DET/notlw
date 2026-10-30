@@ -12,4 +12,4 @@ s=bpy.context.scene
 if s.world is None: s.world=bpy.data.worlds.new('w')
 s.world.use_nodes=True; s.world.node_tree.nodes['Background'].inputs[1].default_value=1
 for nm,p in (('a',Vector((0.71,3.28,1.55))),('b',nk+Vector((.5,-.3,.1))),('c',nk+Vector((.3,.5,.1)))):
-    lib.camera(tuple(p),tuple(nk),lens=50); lib.render(f'/home/claude/kf/gn_{nm}.png',samples=4,res=(400,400))
+    lib.camera(tuple(p),tuple(nk),lens=50); lib.render(f'/home/claude/work/gn_{nm}.png',samples=4,res=(400,400))

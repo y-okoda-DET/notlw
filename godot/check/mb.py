@@ -33,4 +33,4 @@ hr=C.bone_head(m,'hand_r')+ub*.05; hl=C.bone_head(m,'hand_l')+ub*.05
 views=(('r_out',hr-bx*.4+f*.05,hr),('r_front',hr+f*.4-bx*.05,hr),('r_her',hr-f*.4+Vector((0,0,.1)),hr),('l_out',hl+bx*.4+f*.05,hl),('l_front',hl+f*.4,hl),('l_her',hl-f*.4+Vector((0,0,.1)),hl))
 views2=(('front',c+fh*1.6+Vector((0,0,.2))),('side',c+sd*1.6+Vector((0,0,.1))),('eye',C.bone_head(m,'head')+Vector((0,0,.08))-fh*.05),('back3q',c-fh*1.3+sd*.7+Vector((0,0,.5))))
 for nm,p,tg_ in views:
-    lib.camera(tuple(p),tuple(tg_),lens=35); lib.render(f'/home/claude/kf/mb_{nm}.png',samples=4,res=(400,400))
+    lib.camera(tuple(p),tuple(tg_),lens=35); lib.render(f'/home/claude/work/mb_{nm}.png',samples=4,res=(400,400))

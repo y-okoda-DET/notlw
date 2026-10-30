@@ -20,4 +20,4 @@ me=body.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
 print('TD max skin y past door (cm)', round((max((body.matrix_world@v.co).y for v in me.vertices)-Hm.YF)*100,1))
 h=C.bone_head(tg,'spine_03'); x=tg.location.x
 for nm,p in (('side',Vector((x-2.4,h.y,1.2))),('back',Vector((x+.3,h.y-2.6,1.5))),('q',Vector((x-1.1,h.y-1.5,1.5)))):
-    lib.camera(tuple(p),(x,h.y+.1,1.15),lens=35); lib.render(f'/home/claude/kf/td_{nm}.png',samples=16,res=(500,600))
+    lib.camera(tuple(p),(x,h.y+.1,1.15),lens=35); lib.render(f'/home/claude/work/td_{nm}.png',samples=16,res=(500,600))

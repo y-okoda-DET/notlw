@@ -17,5 +17,5 @@ s=bpy.context.scene
 if s.world is None: s.world=bpy.data.worlds.new('w')
 s.world.use_nodes=True; s.world.node_tree.nodes['Background'].inputs[1].default_value=1
 c=ph[0].matrix_world.translation
-lib.camera(tuple(c+Vector((0,-.5,.1))),tuple(c),lens=50); lib.render('/home/claude/kf/glbk_a.png',samples=4,res=(400,400))
-lib.camera(tuple(c+Vector((-.5,0,.1))),tuple(c),lens=50); lib.render('/home/claude/kf/glbk_b.png',samples=4,res=(400,400))
+lib.camera(tuple(c+Vector((0,-.5,.1))),tuple(c),lens=50); lib.render('/home/claude/work/glbk_a.png',samples=4,res=(400,400))
+lib.camera(tuple(c+Vector((-.5,0,.1))),tuple(c),lens=50); lib.render('/home/claude/work/glbk_b.png',samples=4,res=(400,400))

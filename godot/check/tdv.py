@@ -21,8 +21,8 @@ bones=['upperarm','lowerarm','hand']
 out={}
 x=tg.location.x; yc=tg.location.y+.3
 for nm,p in (('side',Vector((x-3.0,yc,1.0))),('back',Vector((x,yc-3.2,1.2)))):
-    lib.camera(tuple(p),(x,yc,.95),lens=35); lib.render(f'/home/claude/kf/tv_{nm}.png',samples=4,res=(450,600))
+    lib.camera(tuple(p),(x,yc,.95),lens=35); lib.render(f'/home/claude/work/tv_{nm}.png',samples=4,res=(450,600))
     cam=bpy.context.scene.camera
     out[nm]={s:[tuple(w2c(bpy.context.scene,cam,q))[:2] for q in [C.bone_head(tg,f'upperarm_{s}'),C.bone_head(tg,f'lowerarm_{s}'),C.bone_head(tg,f'hand_{s}'),C.bone_tail(tg,f'middle_03_{s}')]] for s in 'lr'}
     out[nm]['door']=[tuple(w2c(bpy.context.scene,cam,Vector((x,Hm.YF,z))))[:2] for z in (0,2.2)]
-json.dump(out,open('/home/claude/kf/tv.json','w'))
+json.dump(out,open('/home/claude/work/tv.json','w'))

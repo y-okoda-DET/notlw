@@ -11,4 +11,4 @@ for o in bpy.data.objects:
     if o.type in ('MESH','CURVE') and o.name not in keep: o.hide_render=True
 lv=X.E.axis_local(n,(1,0,0)); fw=X.E.axis_local(n,(0,-1,0))
 for nm,p in (('top',el+fw*.5+lv*.25+Vector((0,0,.7))),('side',el+lv*.8+fw*.2+Vector((0,0,.1))),('back',el-fw*.7+lv*.4+Vector((0,0,.3)))):
-    lib.camera(tuple(p),tuple(el),lens=40); lib.render(f'/home/claude/kf/na_{nm}.png',samples=8,res=(400,400))
+    lib.camera(tuple(p),tuple(el),lens=40); lib.render(f'/home/claude/work/na_{nm}.png',samples=8,res=(400,400))

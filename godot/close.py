@@ -12,7 +12,7 @@ light = float(sys.argv[8]) if len(sys.argv) > 8 else 0.0
 G = '/home/claude/godot/Godot_v4.4.1-stable_linux.x86_64'
 src = os.environ.get('PCK')
 base = f'--main-pack {src}' if src else '--path /home/claude/rules'
-S = '/tmp/claude-0/-home-claude/6407adc7-bdf3-5700-ba20-4629ee47fbe1/scratchpad/close'; os.makedirs(S, exist_ok=True)
+S = '/home/claude/work/close'; os.makedirs(S, exist_ok=True)
 tx, tz = bx, -by
 tiles = []
 for ai, az in enumerate(azs):
@@ -30,4 +30,4 @@ for ai, az in enumerate(azs):
 cols = len(ts); rows = len(azs)
 o = Image.new('RGB', (960 * cols, 540 * rows))
 for i, im in enumerate(tiles): o.paste(im, ((i % cols) * 960, (i // cols) * 540))
-o.save(f'/home/claude/kf/close_{name}.png'); print('OK', f'/home/claude/kf/close_{name}.png')
+o.save(f'/home/claude/work/close_{name}.png'); print('OK', f'/home/claude/work/close_{name}.png')
