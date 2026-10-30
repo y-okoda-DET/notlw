@@ -16,7 +16,7 @@ S_HEAD = 0.38
 A_CHIN = 0.857
 B_CHIN = 0.442
 B_EYE_Z = 0.649; B_EYE_X = -0.009; B_EYED = 0.183
-B_CUT = 0.2
+B_CUT = 0.16
 NECK_K = 0.88
 A_CUT = 0.812
 
@@ -70,7 +70,7 @@ A.data.materials[0].name = 'makoto_tripo_body'; B.data.materials[0].name = 'mako
 
 # ---- place
 A.data.transform(__import__('mathutils').Matrix.Diagonal((H_BODY, H_BODY, H_BODY, 1)))
-cut(B, lambda c: c.z > B_CUT)
+cut(B, lambda c: c.z > min(B_CUT, .02))   # keep the whole neck; the world-z cut at the collar decides later
 for v in B.data.vertices:
     if v.co.z < .19: v.co.z = .19 - (.19 - v.co.z) * NECK_K
 # neck centre of each, so the head sits on the neck front-to-back
@@ -83,7 +83,102 @@ zA_chin = A_CHIN * H_BODY
 dz = zA_chin - B_CHIN * S_HEAD
 ya = slice_center(A, (A_CUT - .012) * H_BODY, (A_CUT + .004) * H_BODY, .05)
 B.data.transform(__import__('mathutils').Matrix.Translation((-B_EYE_X * S_HEAD, ya - yb * S_HEAD, dz)))
-cut(A, lambda c: c.z < A_CUT * H_BODY)
+# A_CUT was read at the collar's rim. A flat cut there leaves the collar as a tube with a sliced top; instead the body is
+# cut 3 cm higher and the bare neck above the rim (everything narrower than the rim's opening) is removed, so the
+# collar keeps its own rounded top and the head's neck goes down inside it
+collar_z = A_CUT * H_BODY
+_av = [v.co for v in A.data.vertices if collar_z - .004 <= v.co.z <= collar_z + .004]
+_cx = sum(c.x for c in _av) / len(_av); _cy = sum(c.y for c in _av) / len(_av)
+_rim = sorted(math.hypot(c.x - _cx, c.y - _cy) for c in _av)[len(_av) // 10]    # the opening (10th percentile)
+# the body's own skin colour, read off its neck just above the collar (inside the opening) before the cut: the
+# cheek of the generated head can differ from the body's texture (Natsuki's socks body: nothing matched)
+_sa0 = albedo_sampler(A); _uv0 = A.data.uv_layers[0]; _nk = []
+for _p in A.data.polygons:
+    _c0 = _p.center
+    if collar_z + .012 < _c0.z < collar_z + .045 and math.hypot(_c0.x - _cx, _c0.y - _cy) < _rim * .95:
+        _u0 = sum((_uv0.data[li].uv for li in _p.loop_indices), Vector((0, 0))) / len(_p.loop_indices)
+        _c1 = _sa0(_u0); _nk.append(_c1 / max(_c1.sum(), 1e-4))
+del _sa0
+_body_skin = np.median(np.array(_nk), axis=0) if len(_nk) > 20 else None
+print('body neck skin samples', len(_nk), np.round(_body_skin, 3) if _body_skin is not None else None)
+CUT_UP = .012   # Natsuki's crew neck sits at collar_z; above it the generated body has skin-coloured stand-up flaps (others: .012)
+cut(A, lambda c: c.z < collar_z + CUT_UP)
+# the bare neck left on the body above the collar line is removed by colour (skin), so the cloth of the collar keeps
+# its own shape whatever its cut; the head's neck replaces it
+_sa = albedo_sampler(A); _uv = A.data.uv_layers[0]
+_cs = []
+for _p in A.data.polygons:
+    if _p.center.z < collar_z - .03: continue
+    _u = sum((_uv.data[li].uv for li in _p.loop_indices), Vector((0, 0))) / len(_p.loop_indices)
+    _c = _sa(_u); _r = _c / max(_c.sum(), 1e-4)
+    _cs.append((_p.index, _r))
+del _sa
+# skin reference: the generated head's cheek colour (sRGB, read off an unlit render; set per person) in linear light
+_ck = np.array([0.945, 0.804, 0.702]); _ck = np.where(_ck <= .04045, _ck / 12.92, ((_ck + .055) / 1.055) ** 2.4)
+_skin_ref = _ck / _ck.sum()
+# (the body's own neck colour was tried as the reference: on Natsuki's socks body it matches the cream sweater too)
+print('neck skin ratio', np.round(_skin_ref, 3))
+_gone = [i for i, r in _cs if np.abs(np.array(r) - _skin_ref).sum() < .06]
+# and by shape: anything left inside the collar's opening (the body's own neck stub and its flaps) goes; the head's
+# neck fills the opening
+NECK_GEOM = False   # Natsuki only: on Makoto it cut into the collar ribbing
+_gone = set(_gone) | {_p.index for _p in A.data.polygons if NECK_GEOM and _p.center.z > collar_z - .025 and math.hypot(_p.center.x - _cx, _p.center.y - _cy) < _rim * .9}
+_gone = sorted(_gone)
+bm = bmesh.new(); bm.from_mesh(A.data); bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[bm.faces[i] for i in _gone], context='FACES'); bm.to_mesh(A.data); bm.free()
+print('neck skin polys removed from the body', len(_gone))
+print('collar rim r', round(_rim, 4))
+# drop the little islands the cut leaves behind (bits of the generated jaw or neck)
+bm = bmesh.new(); bm.from_mesh(A.data); bm.verts.ensure_lookup_table()
+seen = set(); small = []; comps = []
+for v in bm.verts:
+    if v.index in seen: continue
+    stack = [v]; comp = []
+    while stack:
+        u = stack.pop()
+        if u.index in seen: continue
+        seen.add(u.index); comp.append(u)
+        for e in u.link_edges: stack.append(e.other_vert(u))
+    if min(u.co.z for u in comp) > collar_z - .04: comps.append(comp)   # only bits at the neck cut, never shells elsewhere (sleeves)
+# a shell at the neck stays only if it is cloth: its colour must match the shirt just below the collar (the generated
+# body carries hair-tip and skin shells there that read as a brown ruff)
+_sa = albedo_sampler(A); _uvl = bm.loops.layers.uv[0]
+def _fcol(f): return _sa(sum((l[_uvl].uv for l in f.loops), Vector((0, 0))) / len(f.loops))
+_ref = np.median(np.array([_fcol(f) for f in bm.faces if collar_z - .09 < f.calc_center_median().z < collar_z - .05]), axis=0)
+for comp in comps:
+    fs = {f for u in comp for f in u.link_faces}
+    col = np.median(np.array([_fcol(f) for f in fs]), axis=0) if fs else _ref * 0
+    d = np.abs(col - _ref).sum() / max(_ref.sum(), 1e-4)
+    if len(comp) < 200 or d > .25: small += comp
+    else:   # cloth, but the generated shells crumple up above the collar's rim into a ruff: keep only what lies below it
+        small += [u for u in comp if u.co.z > collar_z + .001]
+        print('collar shell kept', len(comp), round(float(d), 3), 'clipped', sum(u.co.z > collar_z + .001 for u in comp))
+print('shirt ref', np.round(_ref, 3))
+bmesh.ops.delete(bm, geom=small, context='VERTS')
+# above the collar's rim only shirt-coloured cloth stays (skin and hair knots of the generated neck go), then crumbs
+bm.faces.ensure_lookup_table()
+def _skinish(f):
+    c_ = _fcol(f); return np.abs(c_ / max(c_.sum(), 1e-4) - _skin_ref).sum() < .07
+def _outside(f):
+    p_ = f.calc_center_median(); return math.hypot(p_.x - _cx, p_.y - _cy) > _rim * 1.15
+_knot = [f for f in bm.faces if (f.calc_center_median().z > collar_z + .002 and np.abs(_fcol(f) - _ref).sum() / max(_ref.sum(), 1e-4) > .25)
+         or (NECK_GEOM and f.calc_center_median().z > collar_z + .002 and _skinish(f))   # skin-coloured stand-up bits of the generated neck above the rim
+         or (f.calc_center_median().z > collar_z - .02 and _outside(f) and _skinish(f))   # skin knots on the shoulders
+         or (f.calc_center_median().z > collar_z + .004 and math.hypot(f.calc_center_median().x - _cx, f.calc_center_median().y - _cy) > _rim * 1.3)]   # tabs standing up off the shoulders
+bmesh.ops.delete(bm, geom=_knot, context='FACES'); print('non-cloth faces above the collar removed', len(_knot))
+del _sa
+bm.verts.ensure_lookup_table(); seen = set(); small = []
+for v in bm.verts:
+    if v.index in seen: continue
+    stack = [v]; comp = []
+    while stack:
+        u = stack.pop()
+        if u.index in seen: continue
+        seen.add(u.index); comp.append(u)
+        for e in u.link_edges: stack.append(e.other_vert(u))
+    if len(comp) < 200 and min(u.co.z for u in comp) > collar_z - .04: small += comp
+bmesh.ops.delete(bm, geom=small, context='VERTS'); bm.to_mesh(A.data); bm.free(); print('body islands removed verts', len(small))
+cut(B, lambda c: c.z > collar_z - .022)   # the head's neck stops 22 mm inside the collar
 # straighten the cut collar edge
 bm = bmesh.new(); bm.from_mesh(A.data)
 for _ in range(30):
@@ -98,9 +193,7 @@ print('head offset', dz, 'neck y', ya, yb * S_HEAD)
 # ---- marry the head's neck to the body's collar: the two were generated separately, so at the collar the neck is a
 # different width and sits a little off. Pull the neck's ring at the cut onto the collar ring (just inside it) and
 # fade the correction out 6 cm up the neck, so the join is a smooth neck instead of a step
-zc = A_CUT * H_BODY
-ring = [v.co.copy() for v in A.data.vertices if v.co.z > (A_CUT - .02) * H_BODY]
-cx_ = sum(c.x for c in ring) / len(ring); cy_ = sum(c.y for c in ring) / len(ring)
+zc = collar_z; cx_ = _cx; cy_ = _cy
 NB = 48
 def polar_profile(cos_, zlo, zhi):
     acc = [[] for _ in range(NB)]
@@ -114,19 +207,27 @@ def polar_profile(cos_, zlo, zhi):
             while prof[(i + j) % NB] is None and prof[(i - j) % NB] is None: j += 1
             vals = [p for p in (prof[(i + j) % NB], prof[(i - j) % NB]) if p is not None]; prof[i] = sum(vals) / len(vals)
     return prof
-r_body = polar_profile(ring, zc - .02, zc + .01)
+# the body's ring is measured at the very top of its cut (the collar's rim; lower down the sweater flares out), and
+# the neck is fitted 8 % inside it, so it disappears into the collar instead of standing on it
+ring = [v.co.copy() for v in A.data.vertices if collar_z - .006 <= v.co.z <= collar_z + .001 and math.hypot(v.co.x - _cx, v.co.y - _cy) < _rim * 1.25]
+r_body = polar_profile(ring, zc - .006, zc + .001)
 r_head = polar_profile([v.co for v in B.data.vertices], zc - .006, zc + .006)
 def prof_at(prof, th):
     f = (th + math.pi) / math.tau * NB; i = int(f) % NB; t = f - int(f)
     return prof[i] * (1 - t) + prof[(i + 1) % NB] * t
 moved = 0
+# the correction stops 1.5 cm below the chin: above that the radial push reached the jaw and pulled the chin forward
+# into a point (the generated heads have round chins)
+ztop = max(min(zc + .045, zA_chin - .03), zc + .02); span = max(ztop - zc - .005, .01)   # ends well under the jaw: pushed up to it, the neck flared into a shelf along the jawline (Kiryu)
+print('neck marry top above collar (cm)', round((ztop - zc) * 100, 1))
 for v in B.data.vertices:
     z = v.co.z
-    if z > zc + .06: continue
-    w = 1.0 if z <= zc + .005 else 1 - ((z - zc - .005) / .055) ** 2 * (3 - 2 * (z - zc - .005) / .055)
+    if z > ztop: continue
+    u_ = (z - zc - .005) / span
+    w = 1.0 if z <= zc + .005 else 1 - u_ * u_ * (3 - 2 * u_)
     th = math.atan2(v.co.y - cy_, v.co.x - cx_); r = math.hypot(v.co.x - cx_, v.co.y - cy_)
     if r < 1e-6: continue
-    rn = r + (.965 * prof_at(r_body, th) - prof_at(r_head, th)) * w
+    rn = r + (.98 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # filling the opening
     v.co.x = cx_ + math.cos(th) * rn; v.co.y = cy_ + math.sin(th) * rn; moved += 1
 print('neck married to collar: verts', moved, 'collar r', round(sum(r_body) / NB, 4), 'neck r', round(sum(r_head) / NB, 4))
 
@@ -278,7 +379,7 @@ def inpaint_hair(q):
     hw = np.interp(dp_, [p[0] for p in hp_pts], [p[1] for p in hp_pts])
     # the generated head is wider than the drawn one at the jaw, so the patch samples past the drawn silhouette:
     # everything there that is not skin (hair, background) is filled too
-    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 1.75)   # the patch samples down to d = 1.45 eye spacings, times K
+    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 2.1)   # down to the bottom of the painted patch (d 1.95)   # the patch samples down to d = 1.45 eye spacings, times K
     feat_ = ((np.abs(np.abs(xe_) - .5) < .34) & (dp_ > -.45) & (dp_ < .22)) | ((np.abs(xe_) < .5) & (dp_ > .6) & (dp_ < 1.12)) | ((np.abs(xe_) < .3) & (dp_ > .3) & (dp_ < .62))
     rr = q / np.maximum(q.sum(2, keepdims=True), 1e-4); rc = pc / pc.sum()
     lum = q.sum(2); base = _nd.median_filter(lum, size=25)
@@ -299,8 +400,29 @@ def inpaint_hair(q):
     f = q[idx[0], idx[1]]
     f = np.dstack([_nd.gaussian_filter(f[..., i], 5) for i in range(3)])
     out = q.copy(); out[m] = f[m]; print('inpainted hair px', int(m.sum())); return out
+# below the lower lip the drawing shades the jaw's underside and draws its outline; painted onto the 3D jaw that
+# shading reads as a ledge along the jawline. Lift it to the cheek's brightness (keeping the hue), fading in from
+# the lower lip down to the chin
+def lift_jaw(q):
+    h, w = q.shape[:2]; yy, xx = np.mgrid[0:h, 0:w]
+    xe_ = (xx - pex) / pe; dp_ = (yy - pey) / pe
+    hw = np.interp(dp_, [p[0] for p in hp_pts], [p[1] for p in hp_pts])
+    lum = q.sum(2); ref = pc.sum()
+    k = np.clip((dp_ - 1.15) / .2, 0, 1) * ((np.abs(xe_) < hw * 1.4) & (dp_ < 2.2))
+    rr = q / np.maximum(lum[..., None], 1e-4); rc = pc / pc.sum()
+    skinish = np.abs(rr - rc).sum(2) < .16
+    gain = np.clip(ref / np.maximum(lum, 1e-4), 1.0, 1.6)
+    gain = _nd.gaussian_filter(gain, 3)
+    # a smooth skin fill from the lifted skin pixels only (normalised blur): the outline stroke itself is not skin
+    # coloured, so it is replaced rather than lifted
+    lifted = np.clip(q * gain[..., None], 0, 1); wsk = skinish.astype(np.float32)
+    num = np.dstack([_nd.gaussian_filter(lifted[..., i] * wsk, 6) for i in range(3)]); den = _nd.gaussian_filter(wsk, 6)[..., None]
+    fill = np.where(den > 1e-3, num / np.maximum(den, 1e-3), lifted)
+    a = k[..., None]
+    out = q * (1 - a) + fill * a
+    print('jaw shade lifted px', int((a[..., 0] > .5).sum())); return out
 for st, src in (('open', 'makoto_open'), ('closed', 'makoto_closed'), ('talk', 'makoto_talk')):
-    q = inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255)
+    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
     _I.fromarray((np.clip(q * tint, 0, 1) * 255).astype(np.uint8)).save(f'{T}/makoto_{st}.png')
 # ---- the generated head's UV atlas is thousands of tiny charts: after decimation each triangle spans a few texels
 # and anything painted into it smears. The whole front of the head (the face oval, painted or not) gets one flat
@@ -395,6 +517,10 @@ print('face texels', int((mapx >= 0).sum()), 'painted', int(wmask.sum()))
 from scipy import ndimage as _nd2
 wsoft = _nd2.gaussian_filter(wmask, 28) * wmask   # ~1 mm feather at the rim, where the drawing meets the generated skin
 wsoft = np.clip((wsoft - .2) / .8, 0, 1)
+# under the jaw the drawing hands over to the generated skin gradually (from below the lips to under the chin), so no
+# edge of the painted patch lies along the jawline (the line seen under Kiryu's jaw from below)
+_dmap = np.where(mapy >= 0, (mapy - pey) / pe, 0)
+wsoft *= np.clip((1.85 - _dmap) / .5, 0, 1)
 up = lambda m: cv2.resize(m, (BK, BK), interpolation=cv2.INTER_LINEAR)
 MX, MY, WW = up(mapx), up(mapy), up(wsoft)
 WW[(MX < 0) | (MY < 0)] = 0
@@ -413,7 +539,8 @@ t = fm.node_tree.nodes.new('ShaderNodeTexImage'); t.image = bpy.data.images.load
 fm.node_tree.links.new(t.outputs[0], pb.inputs['Base Color'])
 if has_nm:
     nt2 = fm.node_tree.nodes.new('ShaderNodeTexImage'); nt2.image = bpy.data.images.load(f'{T}/makoto_head_bakenrm.png'); nt2.image.colorspace_settings.name = 'Non-Color'
-    nmn = fm.node_tree.nodes.new('ShaderNodeNormalMap'); fm.node_tree.links.new(nt2.outputs[0], nmn.inputs['Color']); fm.node_tree.links.new(nmn.outputs[0], pb.inputs['Normal'])
+    nmn = fm.node_tree.nodes.new('ShaderNodeNormalMap'); nmn.inputs['Strength'].default_value = .2   # the generated normals carry a ledge along the jaw (Kiryu); the face is drawn, it needs little relief
+    fm.node_tree.links.new(nt2.outputs[0], nmn.inputs['Color']); fm.node_tree.links.new(nmn.outputs[0], pb.inputs['Normal'])
 B.data.materials.append(fm)
 for p in B.data.polygons: p.material_index = 1 if p.index in oval else 0
 B.name = 'makoto_head'

@@ -134,6 +134,16 @@ func _load_scene(path: String, key: String):
 			ap.play(pick)
 			anims.append(ap)
 	S[key + "_node"] = inst
+	if key in CHARS:
+		# the generated clothes are single shells: seen through a collar or a cuff, culled back faces read as black holes
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			var m3 := mi as MeshInstance3D
+			for i in range(m3.mesh.get_surface_count()):
+				var mat := m3.get_active_material(i) as BaseMaterial3D
+				if mat != null:
+					var d := mat.duplicate() as BaseMaterial3D
+					d.cull_mode = BaseMaterial3D.CULL_DISABLED
+					m3.set_surface_override_material(i, d)
 
 const CHARS := ["kiryu", "taiga", "natsuki", "makoto"]
 var faces := {}   # key -> {mat, tex:{open,closed,talk}, next_blink, blink_until}
@@ -152,7 +162,8 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var pj := "res://assets/faces/%s_%s.jpg" % [k, st]
+			var fk: String = "natsuki_s" if (SCENE == "dusk" and k == "natsuki") else k   # her indoor head has its own UV layout
+			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
 		faces[k] = {"mat": m, "tex": tex, "next": randf_range(1.0, 4.0), "until": 0.0, "state": "open"}
@@ -247,7 +258,7 @@ func _gi():
 	for k in ["fres", "blue", "sky"]:
 		if lights.has(k): lights[k].light_indirect_energy = 2.0
 	_lightmap()
-	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", "sdfgi"), 2))
+	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", "voxel"), 1))
 
 # modes: 0 baked bounce (Blender lightmap)  1 VoxelGI  2 SDFGI  3 none
 const GI_NAMES := ["焼き込み", "VoxelGI", "SDFGI", "なし"]

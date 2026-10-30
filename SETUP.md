@@ -56,15 +56,10 @@ mkdir -p /home/claude/kf/out /home/claude/build /home/claude/rules_movie/st
 
 ## 6. 一通り動くか確かめる
 ```
-cd /home/claude/tripo && python3 prep_natsuki.py        # 頭と体をつなぐ（約5分）
-cd /home/claude/kf && python3 export_godot.py           # 夜を書き出す（ライトマップ込みで約15分）
-python3 denoise_lm.py -- /home/claude/rules/assets/lightmap.exr
-python3 export_dusk.py && python3 denoise_lm.py -- /home/claude/rules/assets/dusk/lightmap.exr
-cd /home/claude/rules && G=/home/claude/godot/Godot_v4.4.1-stable_linux.x86_64
-$G --headless --path . --import
-xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=night
-xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=dusk
-$G --headless --path . --export-release "Windows Desktop" ../build/RULES_proto/RULES.exe
+cd /home/claude/tripo && python3 make_prep.py           # 雛形 prep_natsuki.py から各人物の prep_*.py を作る（雛形を直したら必ず実行）
+for k in makoto natsuki_s natsuki kiryu taiga; do python3 prep_$k.py; done   # 1本ずつ（同時に走らせるとメモリ不足）
+/home/claude/kf/run17.sh                                # 夜・夕方の書き出し→光の焼き込み→Godot取り込み→Windows版（約40分）
 ```
-書き出した Windows 版を動かして確認する（`$G --main-pack ../build/RULES_proto/RULES.pck ...`）。
-確認用の静止画は `--record=still --nocard --gi=baked --pose=x,z,yaw,pitch --write-movie ...` で撮る（main.gd の引数を参照）。
+run17.sh の中の版の番号（RULES_proto17）と export_presets.cfg の書き出し先は、新しい試作のたびに変える。
+人物だけを直したときは `SKIP_LM=1 python3 export_godot.py`（光の焼き込みを飛ばす。小道具が動いたら `ENV=1` も）。
+確認画は godot/close.py（書き出した pck から、位置・方位・時刻を指定して撮る。`PCK=... PRINT=1` で網点あり）。
