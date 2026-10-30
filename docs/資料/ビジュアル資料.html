@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<style>
+@page { size: 297mm 210mm; margin: 0; }
+:root { --paper:#F1ECDF; --blue:#0078BF; --orange:#FF6C2F; --teal:#1E4A4A; --ink:#14304A; --mute:#5D6B75; }
+* { box-sizing: border-box; }
+html,body { margin:0; padding:0; background:var(--paper); }
+body { font-family:"Noto Serif CJK JP", serif; color:var(--ink); font-size:9.6pt; line-height:1.6; }
+.page { width:297mm; height:210mm; padding:13mm 15mm 11mm; position:relative; page-break-after:always; overflow:hidden; background:var(--paper); }
+.folio { position:absolute; bottom:6mm; left:15mm; right:15mm; display:flex; justify-content:space-between; font-size:7.5pt; color:var(--mute); letter-spacing:.08em; border-top:0.4pt solid var(--ink); padding-top:1.5mm; }
+h1 { font-size:34pt; margin:0; letter-spacing:.1em; line-height:1.2; }
+h2 { font-size:17pt; margin:0 0 1mm; letter-spacing:.06em; }
+.sec { font-size:8pt; color:var(--orange); letter-spacing:.2em; margin-bottom:1mm; }
+.lead { font-size:9.5pt; color:var(--mute); margin:0 0 5mm; max-width:200mm; }
+h3 { font-size:10.5pt; margin:0 0 1.5mm; color:var(--blue); letter-spacing:.04em; }
+p { margin:0 0 2mm; }
+ul { margin:0; padding-left:4mm; } li { margin-bottom:1.2mm; }
+b { color:var(--ink); }
+.cap { font-size:7.5pt; color:var(--mute); margin-top:1mm; line-height:1.4; }
+img { display:block; width:100%; }
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+.g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:4mm; }
+.g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; }
+.rule { border-top:0.8pt solid var(--ink); margin:3mm 0; }
+.cover { padding:0; }
+.cover .art { position:absolute; inset:0 0 auto 0; height:150mm; }
+.cover .art img { height:150mm; object-fit:cover; }
+.cover .title { position:absolute; left:15mm; bottom:14mm; right:15mm; display:flex; justify-content:space-between; align-items:flex-end; }
+.cover .sub { font-size:10pt; color:var(--mute); letter-spacing:.1em; }
+.swatch { display:flex; gap:4mm; margin:2mm 0 4mm; }
+.sw { flex:1; }
+.sw .chip { height:22mm; border:0.4pt solid var(--ink); }
+.sw .lbl { font-size:7.5pt; margin-top:1mm; line-height:1.35; }
+table { border-collapse:collapse; width:100%; font-size:8.6pt; }
+th,td { border-bottom:0.4pt solid var(--ink); padding:1.6mm 2mm; text-align:left; vertical-align:top; }
+th { font-size:7.5pt; color:var(--mute); font-weight:normal; letter-spacing:.08em; border-bottom:0.8pt solid var(--ink); }
+.faces { display:grid; grid-template-columns:repeat(6,1fr); gap:3mm; }
+.face img { aspect-ratio:1; object-fit:cover; }
+.face .n { font-size:9pt; margin-top:1mm; } .face .k { font-size:7pt; color:var(--mute); }
+.trio { display:grid; grid-template-columns:repeat(5,1fr); gap:4mm; }
+.trio .row { display:grid; grid-template-columns:repeat(3,1fr); gap:1mm; }
+.models { display:grid; grid-template-columns:22mm repeat(4,1fr); gap:2mm; align-items:center; }
+.models .who { font-size:9.5pt; }
+.models .who small { display:block; font-size:7pt; color:var(--mute); }
+.tag { display:inline-block; font-size:7pt; border:0.5pt solid var(--orange); color:var(--orange); padding:0 1.5mm; margin-right:1mm; letter-spacing:.06em; }
+.ph { display:grid; grid-template-columns:repeat(4,1fr); gap:3mm; }
+.ph img { height:44mm; object-fit:cover; }
+.no { color:var(--orange); }
+</style></head><body>
+
+<!-- 1 表紙 -->
+<section class="page cover">
+  <div class="art"><img src="img/g_night_wide.jpg"></div>
+  <div class="title">
+    <div><div class="sec">ビジュアル資料　段階0 確定版</div><h1>ルールズ</h1><div class="sub">（仮題）　歩行型の心理ホラー</div></div>
+    <div class="sub" style="text-align:right">2026年10月31日<br>試作17 時点</div>
+  </div>
+</section>
+
+<!-- 2 方向性 -->
+<section class="page">
+  <div class="sec">01　方向性</div><h2>2色のリソグラフ刷り</h2>
+  <p class="lead">映画サークルの手刷り冊子のように、全編を2色で刷る。網点の粒は毎コマ入れ替わり、版はわずかにずれ動く。画面全体にかける処理なので、実時間の描画でも同じ画になる。</p>
+  <div class="g2" style="grid-template-columns:1.05fr 1fr">
+    <div>
+      <h3>インクと紙</h3>
+      <div class="swatch">
+        <div class="sw"><div class="chip" style="background:#F1ECDF"></div><div class="lbl">紙<br>#F1ECDF</div></div>
+        <div class="sw"><div class="chip" style="background:#0078BF"></div><div class="lbl">Riso Blue<br>#0078BF</div></div>
+        <div class="sw"><div class="chip" style="background:#FF6C2F"></div><div class="lbl">Fluorescent Orange<br>#FF6C2F</div></div>
+        <div class="sw"><div class="chip" style="background:#1E4A4A"></div><div class="lbl">重ね刷りの青緑<br>（2版が重なった所）</div></div>
+      </div>
+      <h3>刷りの決まり</h3>
+      <ul>
+        <li>三段の刷り：紙の白／青／重ね刷りの青緑。中間調は刷らず紙を残し、暗部はベタの青で形を刷る。</li>
+        <li>刷りの明るさ：夜 1.8、夕方 1.3。網点は画面全体で同じ細かさ。</li>
+        <li>全編に同じ処理をかける。証言パートだけ刷り分ける案は採らない。</li>
+        <li>夜は青の中にオレンジの光だまり、夕方はオレンジの中に青の影。2色の対比で時間帯を見せる。</li>
+        <li>照り返しは VoxelGI（夕方・夜とも）。カメラは18コマが標準。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>使わない記号</h3>
+      <p>作品の中に理由がない限り、次のものはすべて使わない。</p>
+      <ul>
+        <li>PS1風、低解像度と粒子ノイズ、隠すための低解像度</li>
+        <li>懐中電灯一灯、一点透視の廊下</li>
+        <li>彩度落とし（「暗い映像にノイズを乗せた」画）</li>
+      </ul>
+      <div class="rule"></div>
+      <h3>合格の基準</h3>
+      <p>A.MAZE Awards にノミネートされる水準。「ホラーゲームとして成立している」は不合格。<b>この画を見ただけで、どの作品かわかる</b>ことが合格ライン。</p>
+      <div class="rule"></div>
+      <h3>UI</h3>
+      <p>UIはすべて作品世界の中の物にする（章カード＝インタビューの質問、手書きの絵コンテ、メモ、ファインダー）。中央寄せの角丸ボタン、グラデーション、汎用サンセリフ、「スタート／設定」の定型配置、カード型レイアウトは使わない。</p>
+    </div>
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>2</span></div>
+</section>
+
+<!-- 3 画面 -->
+<section class="page">
+  <div class="sec">02　画面</div><h2>試作17の画面（段階0 確定）</h2>
+  <p class="lead">書き出した Windows 版そのものから、網点ありの普段の見え方で撮ったもの。</p>
+  <div class="g2" style="gap:4mm">
+    <div><img src="img/g_night_wide.jpg"><div class="cap">第2章 23時　廊下。手前に桐生（スマホ）、奥の扉を大河が押さえる。</div></div>
+    <div><img src="img/g_dusk_wide.jpg"><div class="cap">第1章 夕方　撮影準備。三脚のカメラに桐生、手前に夏希、戸口に箱を持つ大河。</div></div>
+    <div class="g2" style="gap:3mm">
+      <div><img src="img/g_taiga_door.jpg"><div class="cap">大河　扉を押さえる（夜）</div></div>
+      <div><img src="img/g_kiryu_phone.jpg"><div class="cap">桐生　スマホを読む（夜）</div></div>
+    </div>
+    <div class="g2" style="gap:3mm">
+      <div><img src="img/g_makoto.jpg"><div class="cap">真琴　レフ板を持つ（夕方）</div></div>
+      <div><img src="img/g_kiryu_cam.jpg"><div class="cap">桐生　カメラを構える（夕方）</div></div>
+    </div>
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>3</span></div>
+</section>
+
+<!-- 4 人物 -->
+<section class="page">
+  <div class="sec">03　人物</div><h2>登場人物と描いた顔</h2>
+  <p class="lead">顔はキャラ寄り。はっきりした輪郭線とフラットな塗りのセミリアルで、網点の下でも表情が読めるようにする。描いた顔の絵を Tripo の頭の質感に焼き込む。</p>
+  <div class="faces">
+    <div class="face"><img src="img/f_mio_open.jpg"><div class="n">澪（主人公）</div><div class="k">プレイヤー視点のため画面には出ない</div></div>
+    <div class="face"><img src="img/f_natsuki_open.jpg"><div class="n">夏希</div><div class="k">重い黒のボブ、左目の下のほくろ</div></div>
+    <div class="face"><img src="img/f_kiryu_open.jpg"><div class="n">桐生</div><div class="k">少し長い波打つ髪、無精ひげ</div></div>
+    <div class="face"><img src="img/f_taiga_open.jpg"><div class="n">大河</div><div class="k">短髪、太い首と眉</div></div>
+    <div class="face"><img src="img/f_makoto_open.jpg"><div class="n">真琴</div><div class="k">肩までの髪を耳にかける</div></div>
+    <div class="face"><img src="img/f_yota_smile.jpg"><div class="n">陽太（一年前の死者）</div><div class="k">第7章と劇中映像で使う</div></div>
+  </div>
+  <table style="margin-top:4mm">
+    <tr><th style="width:15%">人物</th><th style="width:27%">人物像</th><th style="width:26%">感染した台本</th><th>いまの場面と服</th></tr>
+    <tr><td>澪</td><td>「ちゃんとした子」として信頼されている</td><td>『ハロウィン』（ファイナルガール）</td><td>画面に出ない</td></tr>
+    <tr><td>夏希</td><td>澪をサークルに誘った親友</td><td>なし（台本を拒否した唯一の人物）</td><td>夜：外、雨に濡れた服、靴／夕方：家の中、靴下</td></tr>
+    <tr><td>桐生</td><td>監督。サークルの中心</td><td>『スクリーム』『キャビン』</td><td>夜：スマホ／夕方：三脚のカメラ。チェックのシャツ</td></tr>
+    <tr><td>大河</td><td>体育会系で面倒見がいい</td><td>『ナイト・オブ・ザ・リビングデッド』</td><td>夜：扉を押さえる／夕方：戸口で箱を持つ</td></tr>
+    <tr><td>真琴</td><td>今年入った新入り、看護学科</td><td>『遊星からの物体X』</td><td>夕方：レフ板を持つ。白いシャツ、靴下</td></tr>
+    <tr><td>陽太</td><td>いたずら好きの盛り上げ役</td><td>—</td><td>今の2場面には出ない</td></tr>
+  </table>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>4</span></div>
+</section>
+
+<!-- 5 顔の差分 -->
+<section class="page">
+  <div class="sec">03　人物</div><h2>顔の差分（目を開けた／閉じた／話している）</h2>
+  <p class="lead">まばたきと口の動きは、この絵の差し替えで行う。開いた目と閉じた目は、全員で頭の位置が一致している。</p>
+  <div class="trio">
+    <div><div class="row"><img src="img/f_natsuki_open.jpg"><img src="img/f_natsuki_closed.jpg"><img src="img/f_natsuki_talk.jpg"></div><div class="cap">夏希</div></div>
+    <div><div class="row"><img src="img/f_kiryu_open.jpg"><img src="img/f_kiryu_closed.jpg"><img src="img/f_kiryu_talk.jpg"></div><div class="cap">桐生</div></div>
+    <div><div class="row"><img src="img/f_taiga_open.jpg"><img src="img/f_taiga_closed.jpg"><img src="img/f_taiga_talk.jpg"></div><div class="cap">大河</div></div>
+    <div><div class="row"><img src="img/f_makoto_open.jpg"><img src="img/f_makoto_closed.jpg"><img src="img/f_makoto_talk.jpg"></div><div class="cap">真琴</div></div>
+    <div><div class="row"><img src="img/f_mio_open.jpg"><img src="img/f_mio_closed.jpg"><img src="img/f_mio_talk.jpg"></div><div class="cap">澪</div></div>
+  </div>
+  <div class="g2" style="margin-top:5mm; grid-template-columns:42mm 1fr; gap:6mm">
+    <div><div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:1mm"><img src="img/f_yota_open.jpg"><img src="img/f_yota_smile.jpg"></div><div class="cap">陽太（無表情・笑顔）</div></div>
+    <div>
+      <h3>まだないもの</h3>
+      <ul><li>陽太の「目を閉じた」「話している」版。陽太が画面に出る段階で用意する。</li></ul>
+      <h3 style="margin-top:3mm">顔の作り方の要点</h3>
+      <ul>
+        <li>画像生成（ChatGPT）で、全身4方向・頭4方向を作り、Tripo（H3.1・多視点）で体と頭を別々に立体にする。</li>
+        <li>頭の正面だけを別の展開にし、Tripo の色の上に描いた顔を1mmのぼかしで重ねて焼き込む。</li>
+        <li>描いた顔の線が暗がりでも残るよう、顔に当たる光の影響を弱める。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>5</span></div>
+</section>
+
+<!-- 6 モデル -->
+<section class="page">
+  <div class="sec">03　人物</div><h2>人物モデル　頭と首まわり（4方向）</h2>
+  <p class="lead">確認用の光で撮ったもの（刷りなし）。左から 正面／見上げ／真横／後ろから回り込み。頭と体は別々に生成し、首を襟の中でなじませている。</p>
+  <div class="models">
+    <div class="who">桐生<small>kiryu</small></div><img src="img/m_kiryu_front.jpg"><img src="img/m_kiryu_up.jpg"><img src="img/m_kiryu_side.jpg"><img src="img/m_kiryu_back.jpg">
+    <div class="who">大河<small>taiga</small></div><img src="img/m_taiga_front.jpg"><img src="img/m_taiga_up.jpg"><img src="img/m_taiga_side.jpg"><img src="img/m_taiga_back.jpg">
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>6</span></div>
+</section>
+<section class="page">
+  <div class="sec">03　人物</div><h2>人物モデル　頭と首まわり（4方向）</h2>
+  <p class="lead">夏希は家の中用の靴下版。真琴の襟の後ろの布のギザギザは、段階0の残りとして後で直す。</p>
+  <div class="models">
+    <div class="who">夏希<small>natsuki_s</small></div><img src="img/m_natsuki_s_front.jpg"><img src="img/m_natsuki_s_up.jpg"><img src="img/m_natsuki_s_side.jpg"><img src="img/m_natsuki_s_back.jpg">
+    <div class="who">真琴<small>makoto</small></div><img src="img/m_makoto_front.jpg"><img src="img/m_makoto_up.jpg"><img src="img/m_makoto_side.jpg"><img src="img/m_makoto_back.jpg">
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>7</span></div>
+</section>
+
+<!-- 8 間取り -->
+<section class="page">
+  <div class="sec">04　舞台</div><h2>間取り（たたき台 v4）</h2>
+  <p class="lead">『ナイト・オブ・ザ・リビングデッド』（1968）の農家の骨格を借りて、日本の山の貸別荘として作り直す。外観（ログハウス／白い下見板張りの洋館風）は未決。</p>
+  <img src="img/plan_v4.jpg" style="margin-top:2mm">
+  <div class="cap">点線＝窓（すべて板で塞げる）　オレンジ＝外への出入口・地下への扉　灰色の点線＝上り階段の下にある地下への階段</div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>8</span></div>
+</section>
+
+<section class="page">
+  <div class="sec">04　舞台</div><h2>間取りの意図</h2>
+  <div class="g2" style="margin-top:4mm; gap:9mm">
+    <div>
+      <h3>NOTLD から借りたもの</h3>
+      <ul>
+        <li><b>家の中心に、上りと下りの階段を重ねる</b>：2階への階段の真下に地下への階段。「上に逃げるか、地下にこもるか」の対立を家の真ん中に形として置く（大河と真琴の対立）。</li>
+        <li><b>左右に部屋が分かれる</b>：西に居間（上映会、薪ストーブ、鹿の剥製）と食堂、東に書斎（和室、剥製、机）と台所。</li>
+        <li><b>台所の脇に食品庫と勝手口</b>：工具箱に金槌と釘（板打ちの材料）。裏ポーチに薪と灯油。</li>
+        <li><b>部屋の雰囲気</b>：腰壁、窓を塞ぐ不揃いの板、曇りガラスの室内扉、額の絵。</li>
+        <li><b>非常放送はラジオだけ</b>（テレビは置かない）。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>日本の別荘として変えたもの</h3>
+      <ul>
+        <li><b>正面玄関が物語の要</b>：土間、上がり框の段差、細い窓のある扉。23時の扉の場面の舞台。外にポーチ（夏希が立つ）、南東の私道に夏希の車。</li>
+        <li><b>玄関の真上は2階の階段ホール</b>：南の窓からポーチと車がいちばんよく見える。</li>
+        <li><b>暖炉→薪ストーブ</b>：煙突は居間の西の外壁沿い。</li>
+        <li><b>敷地は東へ下る斜面</b>：地下室の東の壁だけが地上に出る。</li>
+        <li><b>地下の小窓＝排気口</b>：第2章で外から板で塞ぐと排気も塞がり、第3章で発電機を動かすと地下に排気がこもる（大河の死因）。</li>
+        <li><b>閂の扉</b>：地下の階段の下、内側から閉める。<b>トイレ</b>は1階の廊下の奥だけ。</li>
+        <li><b>2階</b>：寝室1〜3、洗面・浴室、吹抜け。「階段を上り切った所」は NOTLD の引用に使える。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>9</span></div>
+</section>
+
+<!-- 10 ポーズ -->
+<section class="page">
+  <div class="sec">05　演技</div><h2>持ち方・押し方の参考写真</h2>
+  <p class="lead">手の形の正解は、言葉の条件ではなく写真から取る。新しい持ち方・動作が出てきたら、同じように正面・横・本人の目の写真を撮る。</p>
+  <div class="ph">
+    <div><img src="img/p_スマホ_正面.jpg"><div class="cap">スマホ　正面</div></div>
+    <div><img src="img/p_スマホ_背面.jpg"><div class="cap">スマホ　背面</div></div>
+    <div><img src="img/p_スマホ_親指側.jpg"><div class="cap">スマホ　親指側</div></div>
+    <div><img src="img/p_スマホ_低い位置.jpg"><div class="cap">スマホ　低い位置から</div></div>
+    <div><img src="img/p_扉_1.jpg"><div class="cap">扉を押さえる</div></div>
+    <div><img src="img/p_扉_2.jpg"><div class="cap">扉を押さえる（別角度）</div></div>
+    <div><img src="img/p_板_正面.jpg"><div class="cap">板を持つ　正面</div></div>
+    <div><img src="img/p_板_横.jpg"><div class="cap">板を持つ　横</div></div>
+  </div>
+  <div class="g3" style="margin-top:4mm; gap:6mm">
+    <div><h3>スマホ（桐生・夏希）</h3><p>縦長のまま手のひらに乗せる。指はほぼまっすぐ背面に並び、指先が向こうの縁から少しのぞく。親指は手前の長い辺に沿う。</p></div>
+    <div><h3>扉（大河）</h3><p>体ごと前に傾け、目の高さで両手を扉に。指はまっすぐ上、肩幅より外、腕はほぼ伸ばす。頭は肩越しに廊下へ。</p></div>
+    <div><h3>レフ板（真琴）</h3><p>手のひらを内側に向けて左右の縁を持ち、縁を親指と人差し指で挟む。肘は下、脇を閉じる。</p></div>
+  </div>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>10</span></div>
+</section>
+
+<!-- 11 指針 -->
+<section class="page">
+  <div class="sec">05　演技と小道具</div><h2>動き・カメラ・小道具の指針</h2>
+  <div class="g3" style="margin-top:4mm; gap:7mm">
+    <div>
+      <h3>演技</h3>
+      <ul>
+        <li><b>Mouthwashing 寄り</b>：動きは最小限。待機中はゆったり、出来事は突然に。</li>
+        <li>急な局面は、アニメーションの速さではなく、ポーズの切り替え（途中のコマを省く）、カット、カメラ、音で見せる。</li>
+        <li>走る・もみ合うなどの大きな動作は画面の外に出す（ゾンビを見せない「カット演出」と同じ）。</li>
+        <li><b>止まって見える人物は不可</b>：呼吸、体重の移し替え、視線の揺れを全員に入れる。リズムと反応の遅れは人ごとに変える。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>カメラ（プレイヤーの視点）</h3>
+      <ul>
+        <li>足を運んで歩いている感覚。レールの上を滑る動きは不可。</li>
+        <li>視点の動きは18コマが標準。</li>
+        <li>物語上の理由がない見づらさは作らない（明るい場面でも）。</li>
+        <li>横画面のみ。縦画面のUIは作らない。</li>
+      </ul>
+      <h3 style="margin-top:4mm">時代</h3>
+      <ul>
+        <li>2020年ごろ。作中で年は明示しない。</li>
+        <li>テープ式のビデオカメラとデッキは、サークルが「ファウンドフッテージっぽく」撮るためにあえて使う古い機材。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>小道具と家</h3>
+      <ul>
+        <li>網点の下で見えるのは輪郭、明暗の塊、大きな特徴。そこに手間をかける。</li>
+        <li>物語の小道具（定点カメラ、三脚、テープ、デッキ、ラジオ、発電機、スマホ）は動く部品まで作り込み、手書きのラベルやガムテープなどサークルの痕跡を足す。</li>
+        <li>生活感の物は、実物をスマホで3Dスキャンして作る。足りない物は Tripo。</li>
+        <li>家は「コピペ」に見せない。丸太を一本ずつ変え、汚れ・傷・日焼け・貼り紙・テープの跡を足す。「誰かが住んでいた家」に見えること。</li>
+        <li>家の中の人は靴下、外にいる人は靴。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="rule" style="margin-top:6mm"></div>
+  <h3>未決（ビジュアル）</h3>
+  <ul>
+    <li><span class="tag">次に決める</span>外観：ログハウスか、白い下見板張りの洋館風か。同じ間取りで両案を組み、外観と、廊下から玄関を見た画（刷りあり）を並べて決める。</li>
+    <li><span class="tag">段階0の残り</span>桐生のあごの境目（下から見上げると線が見える）、真琴の襟の後ろの布のギザギザ。</li>
+    <li><span class="tag">段階2</span>時間帯ごとの光（夕方、20時の停電、23時、2時、3時半、夜明け）。第4章のFPSのHUDと、第11章のテープ再生。</li>
+  </ul>
+  <div class="folio"><span>ルールズ　ビジュアル資料</span><span>11</span></div>
+</section>
+</body></html>
