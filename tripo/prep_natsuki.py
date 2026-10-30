@@ -91,11 +91,29 @@ collar_z = A_CUT * H_BODY
 _av = [v.co for v in A.data.vertices if collar_z - .004 <= v.co.z <= collar_z + .004]
 _cx = sum(c.x for c in _av) / len(_av); _cy = sum(c.y for c in _av) / len(_av)
 _rim = sorted(math.hypot(c.x - _cx, c.y - _cy) for c in _av)[len(_av) // 10]    # the opening (10th percentile)
-cut(A, lambda c: c.z < collar_z + .012 and not (c.z > collar_z - .002 and math.hypot(c.x - _cx, c.y - _cy) < _rim * 1.18))
+cut(A, lambda c: c.z < collar_z + .012)
+# the bare neck left on the body above the collar line is removed by colour (skin), so the cloth of the collar keeps
+# its own shape whatever its cut; the head's neck replaces it
+_sa = albedo_sampler(A); _uv = A.data.uv_layers[0]
+_cs = []
+for _p in A.data.polygons:
+    if _p.center.z < collar_z - .03: continue
+    _u = sum((_uv.data[li].uv for li in _p.loop_indices), Vector((0, 0))) / len(_p.loop_indices)
+    _c = _sa(_u); _r = _c / max(_c.sum(), 1e-4)
+    _cs.append((_p.index, _r))
+del _sa
+# skin reference: the generated head's cheek colour (sRGB, read off an unlit render; set per person) in linear light
+_ck = np.array([.91, .776, .678]); _ck = np.where(_ck <= .04045, _ck / 12.92, ((_ck + .055) / 1.055) ** 2.4)
+_skin_ref = _ck / _ck.sum()
+print('neck skin ratio', np.round(_skin_ref, 3))
+_gone = [i for i, r in _cs if np.abs(np.array(r) - _skin_ref).sum() < .06]
+bm = bmesh.new(); bm.from_mesh(A.data); bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[bm.faces[i] for i in _gone], context='FACES'); bm.to_mesh(A.data); bm.free()
+print('neck skin polys removed from the body', len(_gone))
 print('collar rim r', round(_rim, 4))
 # drop the little islands the cut leaves behind (bits of the generated jaw or neck)
 bm = bmesh.new(); bm.from_mesh(A.data); bm.verts.ensure_lookup_table()
-seen = set(); small = []
+seen = set(); small = []; comps = []
 for v in bm.verts:
     if v.index in seen: continue
     stack = [v]; comp = []
@@ -104,7 +122,43 @@ for v in bm.verts:
         if u.index in seen: continue
         seen.add(u.index); comp.append(u)
         for e in u.link_edges: stack.append(e.other_vert(u))
-    if len(comp) < 2500 and min(u.co.z for u in comp) > collar_z - .04: small += comp   # only bits left at the neck cut, never shells elsewhere (sleeves)
+    if min(u.co.z for u in comp) > collar_z - .04: comps.append(comp)   # only bits at the neck cut, never shells elsewhere (sleeves)
+# a shell at the neck stays only if it is cloth: its colour must match the shirt just below the collar (the generated
+# body carries hair-tip and skin shells there that read as a brown ruff)
+_sa = albedo_sampler(A); _uvl = bm.loops.layers.uv[0]
+def _fcol(f): return _sa(sum((l[_uvl].uv for l in f.loops), Vector((0, 0))) / len(f.loops))
+_ref = np.median(np.array([_fcol(f) for f in bm.faces if collar_z - .09 < f.calc_center_median().z < collar_z - .05]), axis=0)
+for comp in comps:
+    fs = {f for u in comp for f in u.link_faces}
+    col = np.median(np.array([_fcol(f) for f in fs]), axis=0) if fs else _ref * 0
+    d = np.abs(col - _ref).sum() / max(_ref.sum(), 1e-4)
+    if len(comp) < 200 or d > .25: small += comp
+    else:   # cloth, but the generated shells crumple up above the collar's rim into a ruff: keep only what lies below it
+        small += [u for u in comp if u.co.z > collar_z + .001]
+        print('collar shell kept', len(comp), round(float(d), 3), 'clipped', sum(u.co.z > collar_z + .001 for u in comp))
+print('shirt ref', np.round(_ref, 3))
+bmesh.ops.delete(bm, geom=small, context='VERTS')
+# above the collar's rim only shirt-coloured cloth stays (skin and hair knots of the generated neck go), then crumbs
+bm.faces.ensure_lookup_table()
+def _skinish(f):
+    c_ = _fcol(f); return np.abs(c_ / max(c_.sum(), 1e-4) - _skin_ref).sum() < .07
+def _outside(f):
+    p_ = f.calc_center_median(); return math.hypot(p_.x - _cx, p_.y - _cy) > _rim * 1.15
+_knot = [f for f in bm.faces if (f.calc_center_median().z > collar_z + .002 and np.abs(_fcol(f) - _ref).sum() / max(_ref.sum(), 1e-4) > .25)
+         or (f.calc_center_median().z > collar_z - .02 and _outside(f) and _skinish(f))   # skin knots on the shoulders
+         or (f.calc_center_median().z > collar_z + .004 and math.hypot(f.calc_center_median().x - _cx, f.calc_center_median().y - _cy) > _rim * 1.3)]   # tabs standing up off the shoulders
+bmesh.ops.delete(bm, geom=_knot, context='FACES'); print('non-cloth faces above the collar removed', len(_knot))
+del _sa
+bm.verts.ensure_lookup_table(); seen = set(); small = []
+for v in bm.verts:
+    if v.index in seen: continue
+    stack = [v]; comp = []
+    while stack:
+        u = stack.pop()
+        if u.index in seen: continue
+        seen.add(u.index); comp.append(u)
+        for e in u.link_edges: stack.append(e.other_vert(u))
+    if len(comp) < 200 and min(u.co.z for u in comp) > collar_z - .04: small += comp
 bmesh.ops.delete(bm, geom=small, context='VERTS'); bm.to_mesh(A.data); bm.free(); print('body islands removed verts', len(small))
 cut(B, lambda c: c.z > collar_z - .022)   # the head's neck stops 22 mm inside the collar
 # straighten the cut collar edge
@@ -150,7 +204,7 @@ for v in B.data.vertices:
     w = 1.0 if z <= zc + .005 else 1 - ((z - zc - .005) / .075) ** 2 * (3 - 2 * (z - zc - .005) / .075)
     th = math.atan2(v.co.y - cy_, v.co.x - cx_); r = math.hypot(v.co.x - cx_, v.co.y - cy_)
     if r < 1e-6: continue
-    rn = r + (.93 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # just inside the opening
+    rn = r + (.98 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # filling the opening
     v.co.x = cx_ + math.cos(th) * rn; v.co.y = cy_ + math.sin(th) * rn; moved += 1
 print('neck married to collar: verts', moved, 'collar r', round(sum(r_body) / NB, 4), 'neck r', round(sum(r_head) / NB, 4))
 

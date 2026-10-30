@@ -42,9 +42,6 @@ def build():
     Hm.tape_mark(.35, 3.75, CAM[:2], 'tape_natsuki.png')
     ab = prim('cube', 'applebox', loc=(1.25, 3.3, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
     # the reflector is held by Makoto (the new member helps: she holds things, lights hands), no stand
-    rf = prim('cube', 'reflector', loc=(.95, 2.75, 1.0), scale=(.3, .006, .3), mat=mat_basic('refl', (.9, .9, .88), .7))
-    rf.rotation_euler = (Vector((.36, 3.82, 1.5)) - Vector((.95, 2.75, 1.0))).to_track_quat('-Y', 'Z').to_euler()
-    lib.area('reflector_bounce', (.93, 2.8, 1.02), (.36, 3.82, 1.5), 9, k=3000, size=(.6, .6), spread=150)
     # people
     n = C.make_tripo('natsuki_s', label='natsuki')[0]; n.location = (.36, 3.84, 0);   # indoors: the socks body
     for ob in n.children_recursive: ob.name = ob.name.replace('natsuki_s_', 'natsuki_')
@@ -53,12 +50,20 @@ def build():
     t = C.make_tripo('taiga')[0]; t.location = (.82, Y + .17, Hm.ZG); face(t, (.2, 3.0))
     m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (1.08, 2.52, 0); face(m, (.36, 3.84))
     bpy.context.view_layer.update()
+    # the reflector, held as in the reference photos: in front of her belly, its face toward Natsuki's face (so it
+    # leans back toward Makoto by the angle up to that face), hands at the side edges low down, elbows bent at her sides
+    nface = Vector((.36, 3.82, 1.5))
+    ctr = C.local(m, (0, -.21, 0)); ctr.z = (C.bone_head(m, 'upperarm_l').z + C.bone_head(m, 'upperarm_r').z) / 2 - .1   # wrists at elbow height, forearms forward
+    rf = prim('cube', 'reflector', loc=tuple(ctr), scale=(.25, .006, .25), mat=mat_basic('refl', (.9, .9, .88), .7))
+    rf.rotation_euler = (nface - ctr).to_track_quat('-Y', 'Z').to_euler(); bpy.context.view_layer.update()
+    lib.area('reflector_bounce', tuple(ctr + (nface - ctr).normalized() * .03), tuple(nface), 9, k=3000, size=(.5, .5), spread=150)
+    print('reflector at', tuple(round(x, 2) for x in ctr), 'leans back', round(math.degrees(math.asin((nface - ctr).normalized().z)), 1), 'deg')
     # she grips the board by its side edges: wrists just outside each edge, palms toward the centre, fingers curling round
     # the board faces Natsuki along its local -Y (scale .006 -> 1 unit = 6 mm); Makoto stands on the +Y (back) side.
     # Board local +X points away from her (toward -x world), so her LEFT hand takes the board's +X edge.
     # Wrists 2 cm outside each edge and 8 cm behind the board, a little below centre; palms face the board's centre
-    S['rf_l'] = rf.matrix_world @ Vector((1.07, 13, -.3)); S['rf_r'] = rf.matrix_world @ Vector((-1.07, 13, -.3))
-    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.3)); S['rf_rf'] = S['rf_lf']
+    S['rf_l'] = rf.matrix_world @ Vector((1.07, 6, -.45)); S['rf_r'] = rf.matrix_world @ Vector((-1.07, 6, -.45))
+    S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.45)); S['rf_rf'] = S['rf_lf']; S['rf'] = rf
     S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
     roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .058, mat_basic('tapeyel', (.95, .62, .04), .45), 24)   # a 115 mm roll of gaffer tape, saturated so it reads through the print
@@ -128,10 +133,41 @@ def pose_makoto(m, t):
     E.idle(m, t, 7.0, breath=.26, amp=.7, rate=1.05)
     look = E.snap(t, 3.2, .5) * (1 - E.snap(t, 5.0, .6)) + E.snap(t, 12.0, .5) * (1 - E.snap(t, 13.6, .6))   # glances at Kiryu
     C.rot_world(m, 'head', (0, 0, 1), -8 + 30 * look)
-    C.arm_to(m, 'l', S['rf_l'], Vector((.3, .25, -.3)))
-    C.arm_to(m, 'r', S['rf_r'], Vector((-.3, .25, -.3)))
-    C.palm_to(m, 'l', S['rf_lf']); C.palm_to(m, 'r', S['rf_rf'])
-    C.grip(m, 'l', .5, thumb=.9); C.grip(m, 'r', .5, thumb=.9)   # fingers round the back edge, thumb on the face
+    # each hand holds a side edge from behind as in the photos: palm and fingers under the board (on the back face,
+    # which leans down toward her), the thumb round the edge
+    rf = S['rf']; R = rf.matrix_world.to_3x3().normalized()
+    bx = R @ Vector((1, 0, 0)); f = -(R @ Vector((0, 1, 0))); ub = R @ Vector((0, 0, 1))
+    for side, sx in (('l', 1), ('r', -1)):
+        out = bx * sx
+        edge = rf.matrix_world @ Vector((sx * 1.0, 0, -.45))
+        fing = (ub * .55 - out * .85).normalized()                        # fingers spread on the back face, inward and up
+        wrist = edge - out * .002 - f * .021 - fing * .065                 # the palm on the back face just inside the edge
+        C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))      # elbows down at her sides (armpits closed)
+        pz = f * C.palm_sign(m, side)
+        C.set_hand_frame(m, side, fing, pz); C.settle_forearm(m, side); C.set_hand_frame(m, side, fing, pz)
+        # each finger curls until it meets the back face, the thumb until it meets the front (bones + 8 mm of skin)
+        key = ('mk_curl', side)
+        if key not in S:
+            Mi = rf.matrix_world.inverted(); half = .006 + .008
+            def hits(f_):
+                for j_ in ('01', '02', '03'):
+                    pb = m.pose.bones[f'{f_}_{j_}_{side}']
+                    for q in (m.matrix_world @ pb.head, (m.matrix_world @ pb.head + m.matrix_world @ pb.tail) / 2, m.matrix_world @ pb.tail):
+                        l_ = Mi @ q
+                        if abs(l_.x) < 1.0 and abs(l_.z) < 1.0 and abs(l_.y * .006) < half: return True
+                return False
+            amt = {}
+            for f_ in C.FINGERS + ('thumb',):
+                best = 0.0
+                for st in range(0, 17):
+                    a_ = st * .05; C.clear_finger(m, side, f_)
+                    C.curl_finger(m, side, f_, a_, (20, 35, 25) if f_ == 'thumb' else (55, 70, 45))
+                    if hits(f_): break
+                    best = a_
+                amt[f_] = best; C.clear_finger(m, side, f_)
+            S[key] = amt; print('makoto curl', side, amt)
+        for f_, a_ in S[key].items():
+            C.curl_finger(m, side, f_, a_, (20, 35, 25) if f_ == 'thumb' else (55, 70, 45))
 
 def at(t):
     for r, f in ((S['n'], pose_natsuki), (S['k'], pose_kiryu), (S['t'], pose_taiga), (S['m'], pose_makoto)):

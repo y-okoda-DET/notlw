@@ -214,29 +214,43 @@ def pose_kiryu(k, t):
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
     # the phone first, the hand to it (chars.hold_phone): screen toward his eyes, fingers behind it, measured
     eyes = C.bone_head(k, 'head') + C.local(k, (0, -.08, .05)) - C.local(k, (0, 0, 0))
-    C.phone_grip(k, 'r', shot.S['kphone'], eyes, kl((-.02, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .3, -.5)))
+    C.phone_grip3(k, 'r', shot.S['kphone'], eyes, kl((-.02, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .3, -.5)))
     C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
+TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
+
 def pose_taiga(tg, t):
-    tl = lambda v: C.local(tg, v)
-    # facing the door with both palms flat on it, head turned toward the hall. The first knock goes straight into his
-    # arms: he leans in at once and stays braced; every knock jolts him; the second series makes him lean harder
+    """Pushing the door shut, laid out from the reference photos: the whole body a diagonal (feet back, leaning in,
+    set in shot.build), palms flat on the door at eye height, fingers up and spread, hands wider than the shoulders,
+    arms almost straight with the elbows down, head turned over his left shoulder toward the hall. The first knock
+    goes straight into his arms; every knock jolts him; the second series makes him lean harder."""
     press = snap(t, 6.0, .3) * (1 - ease((t - 16.5) / 3.0)) + .6 * snap(t, 11.0, .3) * (1 - ease((t - 17.0) / 3.0))
     press = min(1.0, press)
     j = jolts(t, .25)
-    C.rot_world(tg, 'spine_01', axis_local(tg, (1, 0, 0)), -6 * press + 4 * j)
-    C.rot_world(tg, 'spine_03', axis_local(tg, (1, 0, 0)), -4 * press)
-    for side, sx in (('l', 1), ('r', -1)):
-        C.arm_to(tg, side, tl((sx * .19, -.235 - .01 * j, 1.22 + .02 * press - .01 * sx * noise1(t, 2, .4))), Vector((sx * .45, .1, -.35)))
-        C.palm_to(tg, side, tl((sx * .19, -.9, 1.22)))
-        C.grip(tg, side, .04, thumb=.0)
-    # over his left shoulder, toward the hall: the turn is shared between neck and head, as a real turn is (a head
-    # turned 70 deg on an unturned neck shears the skin between them)
+    C.rot_world(tg, 'spine_01', axis_local(tg, (1, 0, 0)), -3 * press + 3 * j)
+    C.rot_world(tg, 'spine_03', axis_local(tg, (1, 0, 0)), -3 * press)
     C.rot_world(tg, 'neck_01', (0, 0, 1), 26 + 6 * press + 2 * j)
     C.rot_world(tg, 'head', (0, 0, 1), 36 + 8 * press + 4 * j)
     C.rot_world(tg, 'neck_01', axis_local(tg, (1, 0, 0)), 6 * press)
     idle(tg, t, 2.0, breath=.31 + .2 * press, amp=1 + .8 * press, rate=1.25)
+    o = tg.matrix_world.translation
+    n = axis_local(tg, (0, -1, 0)); n.z = 0; n.normalize()          # toward the door
+    ax = axis_local(tg, (1, 0, 0)); ax.z = 0; ax.normalize()
+    door = Hm.YF - TAIGA_WRIST                                        # the wrists' plane (world y)
+    eye_z = C.bone_head(tg, 'head').z + .07
+    lean = math.degrees(tg.rotation_euler.x)                           # the feet stay flat on the floor
+    for s_ in ('l', 'r'): C.rot_world(tg, f'foot_{s_}', ax, -lean)
+    for side, sx in (('l', 1), ('r', -1)):
+        w = o + ax * (sx * .33) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
+        w += n * ((door - w.y) / n.y - .004 * j)
+        C.arm_to(tg, side, w, Vector((sx * .12, .1, -1.0)))
+        up = (Vector((0, 0, 1)) + ax * (sx * .18)).normalized()
+        pz = n * C.palm_sign(tg, side)
+        C.set_hand_frame(tg, side, up, pz); C.settle_forearm(tg, side); C.set_hand_frame(tg, side, up, pz)
+        C.grip(tg, side, .0, thumb=.0)
+        for f, a in (('index', -6), ('middle', 0), ('ring', 5), ('pinky', 11)):
+            C.rot_world(tg, f'{f}_01_{side}', n, sx * a)
 
 def pose_natsuki(n, t, sx, Y):
     knock = max(math.exp(-((t - k) / .05) ** 2) for k in KNOCKS)

@@ -69,7 +69,7 @@ def build():
     S['k'] = C.make_tripo('kiryu')[0]
     S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
-    S['t'].location = (.98, Y - .33, Hm.ZG); S['t'].rotation_euler.z = math.radians(176)   # facing the door, both hands on it
+    S['t'].location = (.98, Y - .9, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
     lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)
@@ -118,7 +118,7 @@ def at(t):
     C.rot_world(k, 'head', (0, 0, 1), 10 * look_up)
     C.grip(k, 'l', .3)
     eyes = C.bone_head(k, 'head') + C.local(k, (0, -.08, .05)) - C.local(k, (0, 0, 0))
-    C.phone_grip(k, 'r', S['kphone'], eyes, kl((-.02, -.3, 1.22)), Vector((-.3, .3, -.5)))
+    C.phone_grip3(k, 'r', S['kphone'], eyes, kl((-.02, -.3, 1.22)), Vector((-.3, .3, -.5)))
     head = C.bone_head(k, 'head') + Vector((0, 0, .1))
     S['kphone_l'].location = S['kphone'].matrix_world.translation + S['kphone'].matrix_world.to_quaternion() @ Vector((0, -.03, 0))
     S['kphone_l'].rotation_euler = (head - S['kphone_l'].location).to_track_quat('-Z', 'Y').to_euler()
