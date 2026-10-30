@@ -511,17 +511,33 @@ def make_tripo(key, label=None):
     _apply_pose_as_rest(rig, [donor])
     _transfer_weights_gated(donor, body, rig)
     hz = bone_head(rig, 'head').z; nz = bone_head(rig, 'neck_01').z
+    # one rule for the whole neck, on the head mesh AND the body's collar: by height alone, so the two meshes move
+    # together when the neck turns. Below the collar top: spine_03. Up the neck over 7 cm: neck_01. Then head.
+    zc = max(v.co.z for v in body.data.vertices)          # the body's cut, just above the collar
+    def neck_w(z):
+        th = min(1, max(0, (z - (hz - .07)) / .09)); th = th * th * (3 - 2 * th)
+        ts = min(1, max(0, (zc + .005 - z) / .03)); ts = ts * ts * (3 - 2 * ts)   # spine below the collar top
+        tn = (1 - th) * (1 - ts)
+        return th, tn, (1 - th) * ts
     for ob in [o for o in (hair, face) if o is not None]:
         gh = ob.vertex_groups.new(name='head'); gn = ob.vertex_groups.new(name='neck_01'); gs = ob.vertex_groups.new(name='spine_03')
         for v in ob.data.vertices:
-            z = v.co.z
-            th = min(1, max(0, (z - (hz - .07)) / .09)); th = th * th * (3 - 2 * th)   # head/neck blend over 9 cm: a turn twists the neck, not a 1 cm ring
-            ts = min(1, max(0, (nz + .01 - z) / .05))
+            th, tn, tsp = neck_w(v.co.z)
             if th > 0: gh.add([v.index], th, 'REPLACE')
-            rest = 1 - th
-            if rest > 0:
-                gn.add([v.index], rest * (1 - ts), 'REPLACE')
-                if ts > 0: gs.add([v.index], rest * ts, 'REPLACE')
+            if tn > 0: gn.add([v.index], tn, 'REPLACE')
+            if tsp > 0: gs.add([v.index], tsp, 'REPLACE')
+    # the body's top 4 cm (the collar) takes the same rule in place of the transferred weights
+    names = {g.name: g for g in body.vertex_groups}
+    for nm in ('head', 'neck_01', 'spine_03'):
+        if nm not in names: names[nm] = body.vertex_groups.new(name=nm)
+    for v in body.data.vertices:
+        if v.co.z < zc - .04: continue
+        th, tn, tsp = neck_w(v.co.z)
+        for g in body.vertex_groups:
+            if g.name not in ('head', 'neck_01', 'spine_03'):
+                try: g.remove([v.index])
+                except RuntimeError: pass
+        names['head'].add([v.index], th, 'REPLACE'); names['neck_01'].add([v.index], tn, 'REPLACE'); names['spine_03'].add([v.index], tsp, 'REPLACE')
     for ob in [o for o in (body, hair, face) if o is not None]:
         ob.name = {body: f'{label}_body', hair: f'{label}_hair', face: f'{label}_head'}[ob]
         mw = ob.matrix_world.copy(); ob.parent = rig; ob.matrix_world = mw
@@ -532,20 +548,48 @@ def make_tripo(key, label=None):
 # ---------------------------------------------------------------- hands
 FINGERS = ('index', 'middle', 'ring', 'pinky')
 
+_PALM_SIGN = {}
+def palm_sign(rig, side):
+    """+1 if the palm is on the hand bone's +Z side, -1 if on -Z. Measured from where the thumb grows: the thumb
+    sits on the palm side of the hand. (On the MakeHuman game_engine rig this is +Z, the opposite of the Blender
+    convention; assuming the convention put phones on the back of the hand.)"""
+    key = (rig.name, side)
+    if key not in _PALM_SIGN:
+        bpy.context.view_layer.update()
+        R = hand_frame(rig, side).to_3x3().normalized(); hb = hand_frame(rig, side).translation
+        t = R.transposed() @ (bone_tail(rig, f'thumb_02_{side}') - hb)
+        _PALM_SIGN[key] = 1.0 if t.z > 0 else -1.0
+    return _PALM_SIGN[key]
+
+def palm_dir(rig, side):
+    """World direction the palm faces."""
+    R = hand_frame(rig, side).to_3x3().normalized()
+    return (R @ Vector((0, 0, 1))) * palm_sign(rig, side)
+
+def curl_finger(rig, side, finger, amount, degs=(55, 70, 45)):
+    """Bend a finger toward the palm by `amount` (0..1) of `degs` per joint, about the world axis that is
+    perpendicular to the finger and to the palm normal. Works whatever the finger bones' rest roll is."""
+    bpy.context.view_layer.update()
+    palm = palm_dir(rig, side)
+    for j, deg in zip(('01', '02', '03'), degs):
+        pb = rig.pose.bones.get(f'{finger}_{j}_{side}')
+        if pb is None: continue
+        bpy.context.view_layer.update()
+        M = rig.matrix_world @ pb.matrix; fdir = (M.to_3x3() @ Vector((0, 1, 0))).normalized()
+        axis = fdir.cross(palm)
+        if axis.length < 1e-6: continue
+        rot_world(rig, f'{finger}_{j}_{side}', axis.normalized(), deg * amount)
+
 def grip(rig, side, amount=1.0, thumb=.6):
     """Curl the fingers (0 = open, 1 = closed fist). Rotates each finger joint about its local X."""
-    s = f'_{side}'
-    for f in FINGERS:
-        for j, deg in (('01', 55), ('02', 70), ('03', 45)):
-            pb = rig.pose.bones.get(f'{f}_{j}{s}')
-            if pb is None: continue
-            pb.rotation_mode = 'XYZ'
-            pb.rotation_euler.x += math.radians(deg * amount)
-    for j, deg in (('01', 20), ('02', 35), ('03', 25)):
-        pb = rig.pose.bones.get(f'thumb_{j}{s}')
-        if pb is None: continue
-        pb.rotation_mode = 'XYZ'
-        pb.rotation_euler.x += math.radians(deg * amount * thumb)
+    for f in FINGERS: curl_finger(rig, side, f, amount)
+    curl_finger(rig, side, 'thumb', amount * thumb, (20, 35, 25))
+
+def grip_phone(rig, side):
+    """One-handed phone hold: index and middle lie along the back of the phone, ring and pinky curl under its lower
+    edge, the thumb rests along the near edge of the screen."""
+    for f, amt in (('index', .3), ('middle', .4), ('ring', .85), ('pinky', 1.0)): curl_finger(rig, side, f, amt)
+    curl_finger(rig, side, 'thumb', .35, (20, 35, 25))
 
 def hand_frame(rig, side):
     """World matrix of the hand bone (origin at the wrist; Y along the bone toward the fingers)."""
@@ -555,13 +599,14 @@ def hand_frame(rig, side):
 def place_in_hand(ob, rig, side, offset=(0, .07, 0), rot=(0, 0, 0)):
     """Put an object in the palm: offset and rotation are in the hand bone's frame (Y toward the fingers,
     Z out of the back of the hand, X across the palm)."""
-    m = hand_frame(rig, side) @ Matrix.Translation(Vector(offset)) @ __import__('mathutils').Euler([math.radians(a) for a in rot]).to_matrix().to_4x4()
+    H = hand_frame(rig, side); Hn = Matrix.Translation(H.translation) @ H.to_3x3().normalized().to_4x4()   # the rig's height scale must not leak into the object
+    m = Hn @ Matrix.Translation(Vector(offset)) @ __import__('mathutils').Euler([math.radians(a) for a in rot]).to_matrix().to_4x4()
     ob.matrix_world = m @ Matrix.Diagonal((*ob.scale, 1))   # keep the object's own size
 
 def phone(name, screen_k, strength):
     """A phone: dark body, the screen a bright plane on its -Y face (the face that lands palm-outward in place_in_hand)."""
     from lib import prim, mat_basic
-    body = prim('cube', name, loc=(0, 0, 0), scale=(.034, .004, .072), mat=mat_basic(name + '_body', (.05, .05, .06), .35))
+    body = prim('cube', name, loc=(0, 0, 0), scale=(.037, .004, .078), mat=mat_basic(name + '_body', (.05, .05, .06), .35))
     body.visible_shadow = False
     scr = prim('plane', name + '_scr', loc=(0, -1.02, 0), rot=(math.radians(90), 0, 0), scale=(.9, .92, 1),
                mat=mat_basic(name + '_glow', (.6, .8, 1), .3, emit=screen_k, estr=strength))
@@ -623,7 +668,7 @@ def palm_to(rig, side, target, limit=100.0):
     use more because the shoulder contributes."""
     bpy.context.view_layer.update()
     M = hand_frame(rig, side); R = M.to_3x3().normalized()
-    axis = R @ Vector((0, 1, 0)); palm = -(R @ Vector((0, 0, 1)))
+    axis = R @ Vector((0, 1, 0)); palm = (R @ Vector((0, 0, 1))) * palm_sign(rig, side)
     want = Vector(target) - M.translation
     palm -= axis * palm.dot(axis); want -= axis * want.dot(axis)
     if palm.length < 1e-6 or want.length < 1e-6: return
@@ -634,3 +679,350 @@ def palm_to(rig, side, target, limit=100.0):
     ang = max(-limit, min(limit, ang))
     rot_world(rig, f'lowerarm_{side}', axis, ang * .75)
     rot_world(rig, f'hand_{side}', axis, ang * .25)
+
+# ---------------------------------------------------------------- object-first holds
+def set_hand_frame(rig, side, y_dir, z_dir):
+    """Orient the hand bone directly: Y (toward the fingers) and Z (out of the back of the hand) in world space.
+    The forearm is not touched, so call this after arm_to; the wrist joint absorbs the difference."""
+    pb = rig.pose.bones[f'hand_{side}']; bpy.context.view_layer.update()
+    M = rig.matrix_world @ pb.matrix; h = M.translation
+    y = Vector(y_dir).normalized(); z = Vector(z_dir); z = (z - y * z.dot(y)).normalized(); x = y.cross(z)
+    R = Matrix(((x.x, y.x, z.x), (x.y, y.y, z.y), (x.z, y.z, z.z))).to_4x4()
+    pb.matrix = rig.matrix_world.inverted() @ (Matrix.Translation(h) @ R)
+    pb.scale = (1, 1, 1); bpy.context.view_layer.update()
+
+def settle_forearm(rig, side, limit=80.0):
+    """Rotate the forearm about its own axis toward the hand's roll (pronation / supination), so the wrist does not
+    carry the whole twist. The hand's world orientation is restored by the caller."""
+    bpy.context.view_layer.update()
+    fa = rig.pose.bones[f'lowerarm_{side}']; hd = rig.pose.bones[f'hand_{side}']
+    F = (rig.matrix_world @ fa.matrix).to_3x3().normalized(); H = (rig.matrix_world @ hd.matrix).to_3x3().normalized()
+    axis = F @ Vector((0, 1, 0))
+    fz = F @ Vector((0, 0, 1)); hz = H @ Vector((0, 0, 1))
+    fz -= axis * fz.dot(axis); hz -= axis * hz.dot(axis)
+    if fz.length < 1e-6 or hz.length < 1e-6: return
+    ang = math.degrees(fz.normalized().angle(hz.normalized()))
+    if fz.cross(hz).dot(axis) < 0: ang = -ang
+    rot_world(rig, f'lowerarm_{side}', axis, max(-limit, min(limit, ang)))
+
+def finger_tips(rig, side):
+    bpy.context.view_layer.update()
+    return {f: rig.matrix_world @ rig.pose.bones[f'{f}_03_{side}'].tail for f in FINGERS + ('thumb',)}
+
+_CURL = {}
+def hold_phone(rig, side, phone, face_point, hand_target, elbow_out, screen_tilt=0.0):
+    """The phone comes first: its back rests on the fingers, its screen faces `face_point`. The hand is then set to
+    it: wrist at `hand_target`, palm normal = screen normal, fingers along the phone's long axis, curled so the
+    fingertips meet the far long edge. Returns the fingertip-to-screen distances (negative = behind the screen)."""
+    arm_to(rig, side, hand_target, elbow_out)
+    bpy.context.view_layer.update()
+    w = Vector(hand_target)
+    n = (Vector(face_point) - w).normalized()                       # screen normal: toward the face
+    # the phone's long axis continues the forearm (bottom of the phone toward the elbow): the wrist stays nearly straight
+    elbow = bone_head(rig, f'lowerarm_{side}'); fdir = (w - elbow).normalized()
+    along = (fdir - n * fdir.dot(n)).normalized()
+    if screen_tilt: along = Matrix.Rotation(math.radians(screen_tilt), 4, n.cross(along)) @ along
+    # fingers run across the phone (its short axis), from the thumb side to the far edge
+    sx = 1 if side == 'l' else -1
+    across = along.cross(n) * sx
+    # the phone lies ON THE PALM: the back of the hand (+Z) points away from the face, the palm (-Z) toward it, and
+    # the phone sits on the palm side with its screen facing the same way the palm does (toward the face)
+    ps = palm_sign(rig, side)
+    set_hand_frame(rig, side, across, n * ps)          # hand +Z = n*ps  ->  palm (= +Z*ps) faces n
+    settle_forearm(rig, side); set_hand_frame(rig, side, across, n * ps)
+    # the phone lies on the fingers' first segments: its centre is 2 cm in front of the palm (hand thickness) and
+    # 5 cm along the fingers from the wrist, and its near long edge sits at the finger roots, so the curled fingers
+    # come up behind its far edge, not in front of the screen
+    # measured on this rig: the palm surface is 3.6 cm from the hand bone (the mesh is ~8 cm thick around it), the
+    # finger roots ~9 cm along the bone. The phone's back rests on the palm's fingers-side half.
+    HW = phone.scale.x; HL = phone.scale.z
+    pd = palm_dir(rig, side)   # measured from the thumb, not assumed
+    n = pd   # the screen faces the way the palm faces
+    centre = w + pd * (.030 + phone.scale.y) + across * .058
+    # phone local: X short, Y thickness (screen on -Y), Z long. Build its world basis: -Y -> n, Z -> along, X -> across
+    along = (along - n * along.dot(n)).normalized(); across = along.cross(n) * sx
+    # a right-handed basis (a left-handed one is decomposed with a negative scale and one axis flips on assignment):
+    # Y = -n (screen side), Z = along; X follows as Y x Z. If that X points away from the fingers, flip Z (the
+    # phone's top/bottom), which does not matter for the hold.
+    Y = -n; Z = along; X = Y.cross(Z)
+    if X.dot(across) < 0: Z = -Z; X = Y.cross(Z)
+    B = Matrix(((X.x, Y.x, Z.x), (X.y, Y.y, Z.y), (X.z, Y.z, Z.z))).to_4x4()
+    if phone.parent is None:   # once parented to the hand bone (for export) it rides along; re-assigning would collapse its scale
+        phone.matrix_world = Matrix.Translation(centre) @ B @ Matrix.Diagonal((*phone.scale, 1))
+    # curl: each finger's three joints bend until its tip reaches the far edge plane (across = +HW) without
+    # crossing the screen plane; a short search per finger
+    # curl each finger as far as it can without any joint coming in front of the screen plane, so the fingers wrap
+    # the phone's far edge; the curl is applied to all four, the pinky and ring reach furthest round
+    key = (rig.name, side)
+    for f in FINGERS:
+        if key in _CURL and f in _CURL[key]:   # the hand/phone relation is rigid: the curl found once is reused on every frame
+            curl_finger(rig, side, f, _CURL[key][f]); continue
+        best = 0.0
+        def reset_f():
+            for j in ('01', '02', '03'):
+                pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0); pb.scale = (1, 1, 1)
+        for step in range(0, 21):
+            amt = step / 20
+            reset_f(); curl_finger(rig, side, f, amt); bpy.context.view_layer.update()
+            pts = [rig.matrix_world @ rig.pose.bones[f'{f}_{j}_{side}'].tail for j in ('01', '02', '03')]
+            # the phone rests on the fingers: no joint may enter the phone's slab (back face at -thick, screen at +thick)
+            thick = phone.scale.y
+            # a finger may rise above the phone's back only outside its outline (round the far edge); inside the
+            # outline it must stay under the back face
+            inside = lambda p: abs((p - centre).dot(across)) < HW - .002 and abs((p - centre).dot(along)) < HL + .004
+            # a joint may be anywhere behind the phone, and may rise beside its far edge; it may not enter the slab
+            # from behind while under the phone, and never rise above the screen plane
+            if any(((p - centre).dot(n) > -thick - .003 and inside(p)) or (p - centre).dot(n) > thick + .002 for p in pts): break
+            best = amt
+        reset_f(); curl_finger(rig, side, f, best)
+        _CURL.setdefault(key, {})[f] = best
+    # the thumb rests along the phone's near long edge: uncurled it stands up from the palm, so its base is rotated
+    # toward the hand's edge (about the finger direction) until the whole thumb lies below the screen plane
+    for j in ('01', '02', '03'):
+        pb = rig.pose.bones[f'thumb_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0); pb.scale = (1, 1, 1)
+    bpy.context.view_layer.update()
+    for step in range(0, 25):
+        pts = [rig.matrix_world @ rig.pose.bones[f'thumb_{j}_{side}'].tail for j in ('01', '02', '03')]
+        if all((p - centre).dot(n) < phone.scale.y - .003 for p in pts): break
+        rot_world(rig, f'thumb_01_{side}', across, -5.0 * sx)   # lay it down toward the near edge
+    curl_finger(rig, side, 'thumb', .25, (20, 35, 25))
+    bpy.context.view_layer.update()
+    tips = finger_tips(rig, side)
+    return {f: round((t - centre).dot(n), 4) for f, t in tips.items()}   # < -thick: under the phone (good); > +thick: over the screen (bad)
+
+# ---------------------------------------------------------------- a real one-hand phone grip
+_GRIP = {}
+def _palm_frame(rig, side):
+    """Hand frame with z toward the palm (measured): returns (origin, ex, ey, ez) in world."""
+    bpy.context.view_layer.update()
+    H = hand_frame(rig, side); R = H.to_3x3().normalized(); ps = palm_sign(rig, side)
+    ey = R @ Vector((0, 1, 0)); ez = (R @ Vector((0, 0, 1))) * ps; ex = ey.cross(ez)
+    return H.translation.copy(), ex, ey, ez
+
+def _seg_dist(p, a, b):
+    ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
+    return (a + ab * t - p).length
+
+def phone_grip(rig, side, phone, face_point, hand_target, elbow_out, alpha=25.0):
+    """Hold a phone the way a person reads one, one-handed. In the hand's own frame (x across the palm toward the
+    index side, y toward the fingertips, z out of the palm):
+      - the phone's back sits just off the palm and the straight fingers (measured from the mesh, thumb excluded),
+        its screen faces out of the palm; its long axis runs across the palm, top end toward the index finger,
+        tilted `alpha` deg toward the fingertips
+      - the four fingers lie under it and curl up round its far long edge (never into it, never over the screen)
+      - the thumb comes over the near long edge and rests its pad on the screen near that edge
+    The arm then puts the screen toward `face_point`. Solved once per rig (the grip is rigid in the hand frame)."""
+    sx = 1 if side == 'l' else -1
+    arm_to(rig, side, hand_target, elbow_out)
+    key = (rig.name, side)
+    HW, HT, HL = phone.scale.x, phone.scale.y, phone.scale.z   # half width, half thickness, half length
+    a = math.radians(alpha)
+    u_h = Vector((math.cos(a), math.sin(a), 0.0))      # phone long axis in palm frame
+    v_h = Vector((0.0, 0.0, 1.0)).cross(u_h)           # short axis, pointing toward the fingertips side
+    if key not in _GRIP:
+        # 1. measure the palm/finger surface under the footprint, with straight fingers, thumb excluded
+        for f in FINGERS + ('thumb',):
+            for j in ('01', '02', '03'):
+                pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0)
+        o, ex, ey, ez = _palm_frame(rig, side)
+        loc = lambda p: Vector(((p - o).dot(ex), (p - o).dot(ey), (p - o).dot(ez)))
+        body = [ob for ob in rig.children_recursive if ob.name.endswith('_body')][0]
+        me = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+        th = [(bone_head(rig, f'thumb_{j}_{side}'), bone_tail(rig, f'thumb_{j}_{side}')) for j in ('02', '03')]
+        others = [(bone_head(rig, b), bone_tail(rig, b)) for b in [f'{f}_{j}_{side}' for f in FINGERS for j in ('01', '02', '03')] + [f'hand_{side}']]
+        pts = []
+        for v in me.vertices:
+            p = body.matrix_world @ v.co
+            if (p - o).length > .16: continue
+            dt = min(_seg_dist(p, a_, b_) for a_, b_ in th); do = min(_seg_dist(p, a_, b_) for a_, b_ in others)
+            if dt < do: continue
+            pts.append(loc(p))
+        # footprint centre: across the finger bases, the near edge over the palm, the far edge at the middle phalanges
+        y_roots = sum(loc(bone_head(rig, f'{f}_01_{side}')).y for f in FINGERS) / 4
+        x_mid = sum(loc(bone_head(rig, f'{f}_01_{side}')).x for f in FINGERS) / 4
+        c = Vector((x_mid + .03, y_roots + .005, 0.0))
+        # fingers reach ~8 cm past their roots: the phone's far long edge goes out to the middle joints, so the last
+        # joints can curl round it (measured: index middle joint ~5.5 cm past the root)
+        c += v_h * (.058 - HW)
+        inside = lambda p, m=0.0: abs((p - c).dot(u_h)) < HL + m and abs((p - c).dot(v_h)) < HW + m
+        surf = max(p.z for p in pts if inside(Vector((p.x, p.y, 0.0))))
+        c.z = surf + .004 + HT                       # back 4 mm off the skin
+        back, screen = c.z - HT, c.z + HT
+        # 2. fingers: curl each until the tip has come round the far edge, without entering the phone or the screen
+        curls = {}
+        for f in FINGERS:
+            best, best_s = 0.0, 1e9
+            for step in range(0, 26):
+                amt = step / 25
+                for j in ('01', '02', '03'):
+                    pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+                curl_finger(rig, side, f, amt)
+                js = [loc(rig.matrix_world @ rig.pose.bones[f'{f}_{j}_{side}'].tail) for j in ('01', '02', '03')]
+                # (the margins must stay below the 4 mm gap between skin and phone, or no finger can bend at all)
+                # nothing inside the phone; nothing over the screen's face (beside the phone a finger may rise freely)
+                bad = any(inside(Vector((q.x, q.y, 0)), .002) and back - .002 < q.z < screen + .002 for q in js) or any(inside(Vector((q.x, q.y, 0)), -.004) and q.z > screen for q in js)
+                if bad: break
+                tip = js[-1]
+                # the fingertip should end up touching the far long edge from outside, level with the phone's middle
+                s = math.hypot((tip - c).dot(v_h) - (HW + .007), tip.z - (back + HT))
+                if s < best_s: best, best_s = amt, s
+            curls[f] = best
+            for j in ('01', '02', '03'):
+                rig.pose.bones[f'{f}_{j}_{side}'].rotation_quaternion = (1, 0, 0, 0)
+            curl_finger(rig, side, f, best)
+        # 3. thumb: swing it down over the near edge (about the palm x axis) and curl, pad onto the screen
+        bestT, bestS = (0.0, 0.0), 1e9
+        for sw in range(0, 13):
+            for cu in range(0, 11):
+                for j in ('01', '02', '03'):
+                    pb = rig.pose.bones[f'thumb_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+                o2, ex2, _, _ = _palm_frame(rig, side)
+                rot_world(rig, f'thumb_01_{side}', ex2, -5.0 * sw)
+                curl_finger(rig, side, 'thumb', cu / 10, (20, 35, 25))
+                js = [loc(rig.matrix_world @ rig.pose.bones[f'thumb_{j}_{side}'].tail) for j in ('01', '02', '03')]
+                if any(inside(Vector((q.x, q.y, 0)), .002) and back - .002 < q.z < screen + .002 for q in js): continue
+                tip = js[-1]
+                near = (tip - c).dot(v_h) + HW            # 0 at the near edge, + toward the middle
+                s = abs(tip.z - (screen + .008)) * 3 + abs(near - .018) + (0 if inside(Vector((tip.x, tip.y, 0))) else .05)
+                if s < bestS: bestT, bestS = (sw, cu), s
+        _GRIP[key] = dict(c=c, curls=curls, thumb=bestT, back=back, screen=screen)
+        print('phone_grip solved', key, 'curls', {k: round(v, 2) for k, v in curls.items()}, 'thumb', bestT, 'back z', round(back, 4))
+    g = _GRIP[key]
+    # 4. orient the hand so the screen (palm direction) faces the face, phone top continuing the forearm
+    w = Vector(hand_target); n = (Vector(face_point) - w).normalized()
+    elbow = bone_head(rig, f'lowerarm_{side}'); fdir = (w - elbow); fdir = (fdir - n * fdir.dot(n)).normalized()
+    # palm-frame x = phone top rotated back by alpha: choose ex so the phone's long axis u continues the forearm
+    up_dir = fdir                                    # world direction for u
+    ex_w = (Matrix.Rotation(-a, 4, n) @ up_dir)       # u = cos a ex + sin a ey  ->  ex = u rotated by -a about n
+    ey_w = n.cross(ex_w)
+    ps = palm_sign(rig, side)
+    set_hand_frame(rig, side, ey_w, n * ps); settle_forearm(rig, side); set_hand_frame(rig, side, ey_w, n * ps)
+    for f in FINGERS:
+        for j in ('01', '02', '03'):
+            pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0)
+        curl_finger(rig, side, f, g['curls'][f])
+    for j in ('01', '02', '03'):
+        pb = rig.pose.bones[f'thumb_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0)
+    o, ex, ey, ez = _palm_frame(rig, side)
+    rot_world(rig, f'thumb_01_{side}', ex, -5.0 * g['thumb'][0]); curl_finger(rig, side, 'thumb', g['thumb'][1] / 10, (20, 35, 25))
+    o, ex, ey, ez = _palm_frame(rig, side)
+    c = g['c']; cw = o + ex * c.x + ey * c.y + ez * c.z
+    u = ex * u_h.x + ey * u_h.y; v = ez.cross(u)
+    if phone.parent is None:
+        Y = -ez; Z = u; X = Y.cross(Z)               # phone: -Y = screen = palm side; Z = long axis
+        B = Matrix(((X.x, Y.x, Z.x), (X.y, Y.y, Z.y), (X.z, Y.z, Z.z))).to_4x4()
+        phone.matrix_world = Matrix.Translation(cw) @ B @ Matrix.Diagonal((*phone.scale, 1))
+    bpy.context.view_layer.update()
+    return g
+
+def phone_grip2(rig, side, phone, face_point, hand_target, elbow_out):
+    """One-handed reading grip, built from the hand: the fingers take a natural curl (index least, pinky most), the
+    phone's back is laid on the pads of their middle segments (a plane fitted through them, 8 mm off the bone toward
+    the palm = skin), its far long edge just inside the fingertip joints so the tips hook round it, its bottom end on
+    the pinky; the thumb lies along the near long edge with its tip on the screen. Then the arm turns the whole hand
+    so the screen faces `face_point`. Solved once per rig in the hand's own frame."""
+    arm_to(rig, side, hand_target, elbow_out)
+    key = (rig.name, side, 'g2')
+    curls = {'index': .42, 'middle': .5, 'ring': .58, 'pinky': .66}
+    def pose_fingers():
+        for f in FINGERS + ('thumb',):
+            for j in ('01', '02', '03'):
+                pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0)
+        for f, a in curls.items(): curl_finger(rig, side, f, a)
+    HW, HT, HL = phone.scale.x, phone.scale.y, phone.scale.z
+    if key not in _GRIP:
+        pose_fingers()
+        o, ex, ey, ez = _palm_frame(rig, side)
+        loc = lambda p: Vector(((p - o).dot(ex), (p - o).dot(ey), (p - o).dot(ez)))
+        pads = []
+        for f in ('index', 'middle', 'ring'):
+            a_, b_ = bone_head(rig, f'{f}_02_{side}'), bone_tail(rig, f'{f}_02_{side}')
+            pads.append(loc((a_ + b_) / 2))
+        tips = [loc(bone_head(rig, f'{f}_03_{side}')) for f in ('index', 'middle', 'ring')]
+        # plane through the three pads; its normal points out of the palm side (+z)
+        nrm = (pads[1] - pads[0]).cross(pads[2] - pads[0]).normalized()
+        if nrm.z < 0: nrm = -nrm
+        # the fingers' pads face the phone: skin 8 mm from the bone line, toward +nrm
+        pad_c = sum(pads, Vector()) / 3 + nrm * .008
+        # long axis: along the line of finger pads (index -> ring), projected into the plane
+        u = (pads[0] - pads[2]); u = (u - nrm * u.dot(nrm)).normalized()
+        v = nrm.cross(u)                                    # short axis
+        if v.dot(sum(tips, Vector()) / 3 - pad_c) < 0: v = -v    # v points toward the fingertips side
+        # far long edge just inside the tip joints, so the last segments hook round it
+        tip_v = sum((t - pad_c).dot(v) for t in tips) / 3
+        c = pad_c + nrm * HT + v * (tip_v - .006 - HW)
+        # slide along u so the phone's bottom end sits by the pinky and the top stands out past the index
+        pink = loc(bone_head(rig, f'pinky_02_{side}'))
+        c += u * ((pink - c).dot(u) + HL - .025)
+        # each finger: the most curl (up to twice its natural amount) with no joint inside the phone or over its
+        # screen; tips are allowed to stand up beside the far edge
+        inside = lambda p, m: abs((p - c).dot(u)) < HL + m and abs((p - c).dot(v)) < HW + m
+        fc = {}
+        for f in FINGERS:
+            best = 0.0
+            for step in range(0, 31):
+                amt = step / 30 * min(1.0, curls[f] * 2)
+                for j in ('01', '02', '03'):
+                    pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+                curl_finger(rig, side, f, amt)
+                js = [loc(rig.matrix_world @ rig.pose.bones[f'{f}_{j}_{side}'].tail) for j in ('01', '02', '03')]
+                if any(inside(q, .001) and (q - c).dot(nrm) > -HT - .006 for q in js): break
+                best = amt
+            fc[f] = best
+        _GRIP[key] = dict(c=c, u=u, v=v, n=nrm, fc=fc)
+        print('phone_grip2 solved', key, 'n', [round(x, 2) for x in nrm], 'curls', {k: round(x, 2) for k, x in fc.items()})
+    g = _GRIP[key]
+    # orient the hand: the phone's screen normal (g.n in the palm frame) must point at the face, and the phone's long
+    # axis should rise away from the hand (its top away from the wrist), as when reading
+    w = Vector(hand_target); want_n = (Vector(face_point) - w).normalized()
+    elbow = bone_head(rig, f'lowerarm_{side}'); fdir = (w - elbow); fdir = (fdir - want_n * fdir.dot(want_n)).normalized()
+    # current palm frame -> world rotation that takes (g.n, g.u) to (want_n, fdir)
+    o, ex, ey, ez = _palm_frame(rig, side)
+    P = Matrix((ex, ey, ez)).transposed()                  # palm-frame -> world (columns)
+    n_w = P @ g['n']; u_w = P @ g['u']
+    def basis(a, b):
+        a = a.normalized(); b = (b - a * b.dot(a)).normalized(); return Matrix((a, b, a.cross(b))).transposed()
+    Rw = basis(want_n, fdir) @ basis(n_w, u_w).transposed()
+    H = hand_frame(rig, side).to_3x3().normalized()
+    newH = Rw @ H
+    set_hand_frame(rig, side, newH @ Vector((0, 1, 0)), newH @ Vector((0, 0, 1)))
+    settle_forearm(rig, side); set_hand_frame(rig, side, newH @ Vector((0, 1, 0)), newH @ Vector((0, 0, 1)))
+    pose_fingers()
+    for f in FINGERS:
+        for j in ('01', '02', '03'):
+            pb = rig.pose.bones[f'{f}_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+        curl_finger(rig, side, f, g['fc'][f])
+    # thumb: lay it along the near long edge, tip onto the screen near that edge (searched once)
+    o, ex, ey, ez = _palm_frame(rig, side)
+    P = Matrix((ex, ey, ez)).transposed()
+    c_w = o + P @ g['c']; n_w = P @ g['n']; u_w = P @ g['u']; v_w = P @ g['v']
+    tkey = key + ('thumb',)
+    if tkey not in _GRIP:
+        best, bs = (0, 0, 0), 1e9
+        for sw in range(-10, 11):
+            for tw in range(-8, 9):
+                for cu in range(0, 9, 2):
+                    for j in ('01', '02', '03'):
+                        pb = rig.pose.bones[f'thumb_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+                    o2, ex2, ey2, ez2 = _palm_frame(rig, side)
+                    rot_world(rig, f'thumb_01_{side}', ex2, 6.0 * sw); rot_world(rig, f'thumb_01_{side}', ey2, 6.0 * tw)
+                    curl_finger(rig, side, 'thumb', cu / 8, (20, 35, 25))
+                    js = [rig.matrix_world @ rig.pose.bones[f'thumb_{j}_{side}'].tail for j in ('01', '02', '03')]
+                    inside = lambda p, m: abs((p - c_w).dot(u_w)) < HL + m and abs((p - c_w).dot(v_w)) < HW + m
+                    if any(inside(p, .002) and (p - c_w).dot(n_w) > -HT - .003 for p in js): continue   # not in it, not over the screen
+                    tip = js[-1]
+                    target = c_w - v_w * (HW + .009) + n_w * HT          # pad against the near long edge, level with the screen
+                    s = (tip - target).length
+                    if s < bs: best, bs = (sw, tw, cu), s
+        _GRIP[tkey] = best; print('thumb', best, 'err cm', round(bs * 100, 1))
+    sw, tw, cu = _GRIP[tkey]
+    for j in ('01', '02', '03'):
+        pb = rig.pose.bones[f'thumb_{j}_{side}']; pb.rotation_quaternion = (1, 0, 0, 0)
+    o2, ex2, ey2, ez2 = _palm_frame(rig, side)
+    rot_world(rig, f'thumb_01_{side}', ex2, 6.0 * sw); rot_world(rig, f'thumb_01_{side}', ey2, 6.0 * tw)
+    curl_finger(rig, side, 'thumb', cu / 8, (20, 35, 25))
+    if phone.parent is None:
+        Y = -n_w; Z = u_w; X = Y.cross(Z)
+        B = Matrix(((X.x, Y.x, Z.x), (X.y, Y.y, Z.y), (X.z, Y.z, Z.z))).to_4x4()
+        phone.matrix_world = Matrix.Translation(c_w) @ B @ Matrix.Diagonal((*phone.scale, 1))
+    bpy.context.view_layer.update()

@@ -71,7 +71,7 @@ A.data.materials[0].name = 'natsuki_tripo_body'; B.data.materials[0].name = 'nat
 
 # ---- place
 A.data.transform(__import__('mathutils').Matrix.Diagonal((H_BODY, H_BODY, H_BODY, 1)))
-cut(B, lambda c: c.z > B_CUT)
+cut(B, lambda c: c.z > min(B_CUT, .02))   # keep the whole neck; the world-z cut at the collar decides later
 for v in B.data.vertices:
     if v.co.z < .19: v.co.z = .19 - (.19 - v.co.z) * NECK_K
 # neck centre of each, so the head sits on the neck front-to-back
@@ -84,7 +84,29 @@ zA_chin = A_CHIN * H_BODY
 dz = zA_chin - B_CHIN * S_HEAD
 ya = slice_center(A, (A_CUT - .012) * H_BODY, (A_CUT + .004) * H_BODY, .05)
 B.data.transform(__import__('mathutils').Matrix.Translation((-B_EYE_X * S_HEAD, ya - yb * S_HEAD, dz)))
-cut(A, lambda c: c.z < A_CUT * H_BODY)
+# A_CUT was read at the collar's rim. A flat cut there leaves the collar as a tube with a sliced top; instead the body is
+# cut 3 cm higher and the bare neck above the rim (everything narrower than the rim's opening) is removed, so the
+# collar keeps its own rounded top and the head's neck goes down inside it
+collar_z = A_CUT * H_BODY
+_av = [v.co for v in A.data.vertices if collar_z - .004 <= v.co.z <= collar_z + .004]
+_cx = sum(c.x for c in _av) / len(_av); _cy = sum(c.y for c in _av) / len(_av)
+_rim = sorted(math.hypot(c.x - _cx, c.y - _cy) for c in _av)[len(_av) // 10]    # the opening (10th percentile)
+cut(A, lambda c: c.z < collar_z + .012 and not (c.z > collar_z - .002 and math.hypot(c.x - _cx, c.y - _cy) < _rim * 1.18))
+print('collar rim r', round(_rim, 4))
+# drop the little islands the cut leaves behind (bits of the generated jaw or neck)
+bm = bmesh.new(); bm.from_mesh(A.data); bm.verts.ensure_lookup_table()
+seen = set(); small = []
+for v in bm.verts:
+    if v.index in seen: continue
+    stack = [v]; comp = []
+    while stack:
+        u = stack.pop()
+        if u.index in seen: continue
+        seen.add(u.index); comp.append(u)
+        for e in u.link_edges: stack.append(e.other_vert(u))
+    if len(comp) < 2500 and min(u.co.z for u in comp) > collar_z - .04: small += comp   # only bits left at the neck cut, never shells elsewhere (sleeves)
+bmesh.ops.delete(bm, geom=small, context='VERTS'); bm.to_mesh(A.data); bm.free(); print('body islands removed verts', len(small))
+cut(B, lambda c: c.z > collar_z - .022)   # the head's neck stops 22 mm inside the collar
 # straighten the cut collar edge
 bm = bmesh.new(); bm.from_mesh(A.data)
 for _ in range(30):
@@ -99,9 +121,7 @@ print('head offset', dz, 'neck y', ya, yb * S_HEAD)
 # ---- marry the head's neck to the body's collar: the two were generated separately, so at the collar the neck is a
 # different width and sits a little off. Pull the neck's ring at the cut onto the collar ring (just inside it) and
 # fade the correction out 6 cm up the neck, so the join is a smooth neck instead of a step
-zc = A_CUT * H_BODY
-ring = [v.co.copy() for v in A.data.vertices if v.co.z > (A_CUT - .02) * H_BODY]
-cx_ = sum(c.x for c in ring) / len(ring); cy_ = sum(c.y for c in ring) / len(ring)
+zc = collar_z; cx_ = _cx; cy_ = _cy
 NB = 48
 def polar_profile(cos_, zlo, zhi):
     acc = [[] for _ in range(NB)]
@@ -115,7 +135,10 @@ def polar_profile(cos_, zlo, zhi):
             while prof[(i + j) % NB] is None and prof[(i - j) % NB] is None: j += 1
             vals = [p for p in (prof[(i + j) % NB], prof[(i - j) % NB]) if p is not None]; prof[i] = sum(vals) / len(vals)
     return prof
-r_body = polar_profile(ring, zc - .02, zc + .01)
+# the body's ring is measured at the very top of its cut (the collar's rim; lower down the sweater flares out), and
+# the neck is fitted 8 % inside it, so it disappears into the collar instead of standing on it
+ring = [v.co.copy() for v in A.data.vertices if collar_z - .006 <= v.co.z <= collar_z + .001 and math.hypot(v.co.x - _cx, v.co.y - _cy) < _rim * 1.25]
+r_body = polar_profile(ring, zc - .006, zc + .001)
 r_head = polar_profile([v.co for v in B.data.vertices], zc - .006, zc + .006)
 def prof_at(prof, th):
     f = (th + math.pi) / math.tau * NB; i = int(f) % NB; t = f - int(f)
@@ -123,11 +146,11 @@ def prof_at(prof, th):
 moved = 0
 for v in B.data.vertices:
     z = v.co.z
-    if z > zc + .06: continue
-    w = 1.0 if z <= zc + .005 else 1 - ((z - zc - .005) / .055) ** 2 * (3 - 2 * (z - zc - .005) / .055)
+    if z > zc + .08: continue
+    w = 1.0 if z <= zc + .005 else 1 - ((z - zc - .005) / .075) ** 2 * (3 - 2 * (z - zc - .005) / .075)
     th = math.atan2(v.co.y - cy_, v.co.x - cx_); r = math.hypot(v.co.x - cx_, v.co.y - cy_)
     if r < 1e-6: continue
-    rn = r + (.965 * prof_at(r_body, th) - prof_at(r_head, th)) * w
+    rn = r + (.93 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # just inside the opening
     v.co.x = cx_ + math.cos(th) * rn; v.co.y = cy_ + math.sin(th) * rn; moved += 1
 print('neck married to collar: verts', moved, 'collar r', round(sum(r_body) / NB, 4), 'neck r', round(sum(r_head) / NB, 4))
 

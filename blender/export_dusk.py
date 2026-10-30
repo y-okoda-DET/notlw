@@ -151,7 +151,8 @@ if __name__ == '__main__':
     for name, (rig, fn) in rigs.items(): E.bake_action(rig, fn)
     for name, (rig, fn) in rigs.items(): E.export(f'{OUT}/{name}.glb', E.descendants(rig))
     env = [o for o in bpy.data.objects if o not in chars and o.type in ('MESH', 'CURVE', 'EMPTY')]
-    E.export(f'{OUT}/env.glb', env)
+    if os.environ.get('SKIP_LM'): print('env.glb: kept')
+    else: E.export(f'{OUT}/env.glb', env)
     json.dump(dict(scene='dusk', YF=Hm.YF, ZG=Hm.ZG, cam0=list(CAM), fps=E.FPS, loop=E.LOOP, talk=TALK,
                    mark=[.35, 3.75, 0]), open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

@@ -23,6 +23,8 @@ var ARGS := {}
 static var PRINT_V := 2              # 1: first print, 2: second print (V switches)
 static var PRINT_EXP := {"night": 1.8, "dusk": 1.3}   # the printer's exposure per scene; - and = adjust
 static var SET := {}             # every setting survives N (scene switch reloads the tree)
+static var DUSK_K := {"sun": 1.0, "sky": 1.0, "key": 1.0}   # 夕方の光の強さ（太陽／戸口の空／フレネル）: 7-8, 9-0, [-] keys
+static var DUSK_BASE := {}       # the lights' designed energies, to scale from
 static var SCENE := ""            # "night" (第2章 23:00) or "dusk" (第1章 夕方); N switches
 var BASE := "res://assets/"
 var door_pivot: Node3D
@@ -34,6 +36,9 @@ func _ready():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--record="): record = a.substr(9)
 		if a.begins_with("--pose="): ARGS["pose"] = Array(a.substr(7).split(",")).map(func(x): return float(x))
+		if a.begins_with("--hold="): ARGS["hold"] = a.substr(7)
+		if a.begins_with("--at="): ARGS["at"] = a.substr(5)
+		if a.begins_with("--chklight="): ARGS["chklight"] = a.substr(11)
 		if a.begins_with("--poses="):   # check stills: "x,z,yaw,pitch;x,z,yaw,pitch;..." held 1.5 s each, then quit
 			ARGS["poses"] = Array(a.substr(8).split(";")).map(func(q): return Array(q.split(",")).map(func(x): return float(x)))
 		if a.begins_with("--print="): ARGS["print"] = float(a.substr(8))
@@ -288,7 +293,8 @@ func _lights_dusk():
 			"sun":
 				var d := DirectionalLight3D.new()
 				d.light_color = Color(L.color[0], L.color[1], L.color[2]).linear_to_srgb()
-				d.light_energy = 2.4 * k; d.shadow_enabled = true; d.light_angular_distance = 0.8; d.light_specular = 0.3
+				d.light_energy = 2.4 * k * DUSK_K.sun; d.shadow_enabled = true; d.light_angular_distance = 0.8; d.light_specular = 0.3
+				DUSK_BASE["sun"] = 2.4 * k
 				d.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; d.directional_shadow_max_distance = 14.0
 				d.light_volumetric_fog_energy = 1.6
 				add_child(d)
@@ -297,10 +303,10 @@ func _lights_dusk():
 				lights.sun = d
 			"door_sky":
 				# the sky in the doorway lights the hall, not the people: Taiga stands in it and would burn to paper white
-				lights.doorsky = _mk_spot(L, 1.1 * k, L.spread / 2.0, 0.6, false)
-				lights.doorsky.light_specular = 0.15
+				lights.doorsky = _mk_spot(L, 1.1 * k * DUSK_K.sky, L.spread / 2.0, 0.6, false)
+				lights.doorsky.light_specular = 0.15; DUSK_BASE["sky"] = 1.1 * k
 			"fresnel_key":
-				lights.fres_d = _mk_spot(L, 2.6 * k, L.angle, 0.06)
+				lights.fres_d = _mk_spot(L, 2.6 * k * DUSK_K.key, L.angle, 0.06); DUSK_BASE["key"] = 2.6 * k
 				lights.fres_d.light_volumetric_fog_energy = 2.0
 			"reflector_bounce":
 				var r := _mk_spot(L, 0.9 * k, 70.0, 0.4, false); r.light_specular = 0.1; r.light_volumetric_fog_energy = 0.0
@@ -481,6 +487,8 @@ func _status(changed: String):
 		["print", "刷り " + (("二版" if PRINT_V == 2 else "初版") if print_on else "なし")],
 		["exp", "刷りの明るさ %.2f" % PRINT_EXP[SCENE] if PRINT_V == 2 else "刷りの明るさ －"],
 		["q", "画質 " + ("高" if quality_high else "低")]]
+	if SCENE == "dusk":
+		items.append(["sun", "太陽 %.2f" % DUSK_K.sun]); items.append(["sky", "戸口の空 %.2f" % DUSK_K.sky]); items.append(["key", "フレネル %.2f" % DUSK_K.key])
 	var parts := []
 	for it in items:
 		var c: String = ORANGE if it[0] == changed else INK
@@ -523,12 +531,19 @@ func _card():
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
 	if Engine.get_write_movie_path() != "": t = float(Engine.get_process_frames()) / 24.0
+	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
 	player.input_enabled = t > CARD_TIME - 0.4
 	var lt: float = fmod(max(t - CARD_TIME, 0.0), LOOP)
 	if t < CARD_TIME:
 		for ap in anims: ap.seek(0.0, true)
+	if ARGS.has("chklight") and float(ARGS.chklight) > 0.0 and not S.has("chklight"):
+		var cl := OmniLight3D.new(); cl.light_energy = float(ARGS.chklight); cl.omni_range = 2.5; cl.shadow_enabled = false
+		player.get_node("Head").add_child(cl); S["chklight"] = true
+	if ARGS.has("at") and not S.has("at_seeked"):
+		S["at_seeked"] = true
+		for ap in anims: ap.seek(lt, true)
 	# lightning once per loop, and the fresnel's generator hiccups with it
 	var p = func(x, c, w): return exp(-pow((x - c) / w, 2.0))
 	var bolt: float = p.call(lt, LIGHTNING_T, 0.035) + 0.6 * p.call(lt, LIGHTNING_T + 0.12, 0.03) + 0.25 * p.call(lt, LIGHTNING_T + 0.3, 0.05)
@@ -551,12 +566,14 @@ func _process(dt):
 		var dip: float = 1.0 - 0.55 * p.call(lt, LIGHTNING_T + 0.15, 0.12) - 0.25 * p.call(lt, LIGHTNING_T + 0.4, 0.08)
 		lights.fres.light_energy = 9.0 * (1.0 + 0.03 * sin(t * 6.1) + 0.02 * sin(t * 17.3)) * dip
 	if ARGS.has("poses"):
-		var idx := int(t / 1.5)
+		var hold: float = float(ARGS.get("hold", "1.5"))
+		var idx := int((t - float(ARGS.get("at", "0"))) / hold)
 		if idx >= ARGS["poses"].size(): get_tree().quit()
 		elif idx != S.get("pose_idx", -1):
 			S["pose_idx"] = idx
 			var q = ARGS["poses"][idx]
 			player.global_position = Vector3(q[0], 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])
+			if q.size() > 4: player.eye_height = q[4]; (player.get_node("Head") as Node3D).position.y = q[4]
 			player.auto_path = [[0.0, q[0], q[1], q[2], q[3]], [99.0, q[0], q[1], q[2], q[3]]]; player.auto_t = 0.0
 	elif record != "" and t > CARD_TIME + 15.0: get_tree().quit()
 
@@ -589,6 +606,22 @@ func _unhandled_input(e):
 				_save_settings()
 				SCENE = "dusk" if SCENE == "night" else "night"
 				get_tree().reload_current_scene()
+			KEY_7, KEY_8, KEY_9, KEY_0, KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
+				if SCENE == "dusk":
+					var which := "sun" if e.keycode in [KEY_7, KEY_8] else ("sky" if e.keycode in [KEY_9, KEY_0] else "key")
+					var down: bool = e.keycode in [KEY_7, KEY_9, KEY_BRACKETLEFT]
+					DUSK_K[which] = clamp(DUSK_K[which] * (0.8 if down else 1.25), 0.05, 8.0)
+					if which == "sun" and lights.has("sun"): lights.sun.light_energy = DUSK_BASE.sun * DUSK_K.sun
+					if which == "sky" and lights.has("doorsky"): lights.doorsky.light_energy = DUSK_BASE.sky * DUSK_K.sky
+					if which == "key" and lights.has("fres_d"): lights.fres_d.light_energy = DUSK_BASE.key * DUSK_K.key
+					_status(which)
+			KEY_F12:
+				# a screenshot next to the exe, named with where the player stands, so the same view can be taken again
+				var img := get_viewport().get_texture().get_image()
+				var p: Vector3 = player.global_position; var t: float = Time.get_ticks_msec() / 1000.0
+				var name := "shot_%s_x%.2f_z%.2f_yaw%.0f_pitch%.0f_t%.1f.png" % [SCENE, p.x, p.z, rad_to_deg(player.yaw), rad_to_deg(player.pitch), t]
+				var dir := OS.get_executable_path().get_base_dir() if OS.has_feature("template") else ProjectSettings.globalize_path("user://")
+				img.save_png(dir.path_join(name)); _status("")
 			KEY_F11:
 				var w := get_window()
 				w.mode = Window.MODE_WINDOWED if w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN or w.mode == Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN

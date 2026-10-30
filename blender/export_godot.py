@@ -130,10 +130,13 @@ def bake_bounce(env_objs, size=2048, samples=256):
     b = s.render.bake; b.use_pass_direct = False; b.use_pass_indirect = True; b.use_pass_color = False; b.margin = 8
     bpy.ops.object.select_all(action='DESELECT'); j.select_set(True); bpy.context.view_layer.objects.active = j
     import time; t = time.time()
-    bpy.ops.object.bake(type='DIFFUSE')
-    print('lightmap baked in', round(time.time() - t), 's')
-    img.filepath_raw = f'{OUT}/lightmap.exr'; img.file_format = 'OPEN_EXR'
-    img.save()
+    if os.environ.get('SKIP_LM'):   # only the people changed: the lightmap on disk still matches this set (same mesh -> same 'lm' UVs)
+        print('lightmap: kept the one on disk')
+    else:
+        bpy.ops.object.bake(type='DIFFUSE')
+        print('lightmap baked in', round(time.time() - t), 's')
+        img.filepath_raw = f'{OUT}/lightmap.exr'; img.file_format = 'OPEN_EXR'
+        img.save()
     for m in me.materials:
         if m is None: continue
         for n in [n for n in m.node_tree.nodes if n.name == '_lm' or (n.type == 'UVMAP' and n.uv_map == 'lm')]: m.node_tree.nodes.remove(n)
@@ -205,13 +208,14 @@ def pose_kiryu(k, t):
     look = snap(t, 7.3, .9) * (1 - snap(t, 10.0, 1.2)) + snap(t, 11.0, .35)
     look = min(1.0, look)
     j = jolts(t) * (t > 10.9)
-    C.arm_to(k, 'r', kl((-.04, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .2, -.4)))
     C.arm_to(k, 'l', kl((.2, -.02, .84)), Vector((.3, .3, 0)))
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
     C.rot_world(k, 'head', (0, 0, 1), 22 * look)
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
-    C.palm_to(k, 'r', C.bone_head(k, 'head') + C.local(k, (0, -.06, .04)) - C.local(k, (0, 0, 0)), limit=170)
-    C.grip(k, 'r', .55, thumb=.25); C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
+    # the phone first, the hand to it (chars.hold_phone): screen toward his eyes, fingers behind it, measured
+    eyes = C.bone_head(k, 'head') + C.local(k, (0, -.08, .05)) - C.local(k, (0, 0, 0))
+    C.phone_grip(k, 'r', shot.S['kphone'], eyes, kl((-.02, -.3 + .04 * look, 1.22 - .14 * look + .01 * noise1(t, 3))), Vector((-.3, .3, -.5)))
+    C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
 def pose_taiga(tg, t):
@@ -309,7 +313,8 @@ if __name__ == '__main__':
     char_objs = set()
     for name, (rig, fn) in rigs.items(): char_objs |= set(descendants(rig))
     env = [o for o in bpy.data.objects if o not in char_objs and o.type in ('MESH', 'CURVE', 'EMPTY')]
-    export(f'{OUT}/env.glb', env)
+    if os.environ.get('SKIP_LM'): print('env.glb: kept')
+    else: export(f'{OUT}/env.glb', env)
     import shutil
     os.makedirs(f'{OUT}/faces', exist_ok=True)
     for k in ('natsuki', 'kiryu', 'taiga', 'makoto'):
