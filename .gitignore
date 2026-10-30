@@ -10,3 +10,6 @@ godot/assets/
 __pycache__/
 blender/close_*.png
 blender/*.json.tmp
+tripo/*.blend1
+tripo/*_head_bakecol.png
+tripo/*_head_bakenrm.png

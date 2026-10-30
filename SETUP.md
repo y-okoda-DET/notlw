@@ -1,31 +1,52 @@
 # 作業環境の作り方（新しいチャット／新しい作業環境で最初にやること）
 
-この作業環境（Linux、GPUなし、CPU2コア、メモリ約7GB）で確かめた手順。所要 20〜40 分。
+この作業環境（Linux、GPUなし）で確かめた手順。CPU とメモリは会話ごとに違う（2コア・7GB のことも、4コア・15GB のこともあった。`nproc; free -g` で見る）。
+所要：1〜5 が約20分、6 が約1時間（4コアで prep 5本 17分、夜・夕方の書き出し 各12分、Godot の取り込みから zip まで 7分）。
+
+## 0. リポジトリを取り込む
+```
+git clone --depth 1 https://github.com/y-okoda-DET/notlw /home/claude/notlw   # 約1.9GB。timeout は10分にする
+```
 
 ## 1. Python ライブラリ
 ```
-pip install --break-system-packages bpy==5.2.3 numpy scipy pillow fonttools matplotlib
+pip install --break-system-packages bpy==5.2.3 numpy scipy pillow fonttools matplotlib "opencv-python-headless<5"
 ```
-`bpy` は Blender 5.2.3 を Python から使うための本体（約 300MB）。
+`bpy` は Blender 5.2.3 を Python から使うための本体（約 400MB）。Python 3.13 が必要（bpy 5.2 の wheel は cp313 だけ）。
+opencv（`import cv2`）は prep が顔の絵を変形するのに使う。入れ忘れると prep が全員、最後の数十秒で落ちる（2026-10-30 の検証で起きた）。
+書き出しのログに出る `ERROR Draco is not available` `MeshOptimizer is not available` `CUEW initialization failed` は無害（使っていない）。
 
 ## 2. MakeHuman（MPFB2）……人物の骨組みの元
 ```
-git clone https://github.com/makehumancommunity/mpfb2.git /home/claude/mh/mpfb2   # 使ったのは 6ff1eb3
+git clone https://github.com/makehumancommunity/mpfb2.git /home/claude/mh/mpfb2
+git -C /home/claude/mh/mpfb2 checkout 6ff1eb3   # 使ったのはこの版
 pip install --break-system-packages makehuman   # MakeHuman 1.3.x の wheel。MPFB2 が内部で使う
+mkdir -p ~/.config/blender/5.2/extensions/user_default
+ln -s /home/claude/mh/mpfb2/src/mpfb ~/.config/blender/5.2/extensions/user_default/mpfb
 ```
-MPFB2 を Blender の拡張として入れる：`/home/claude/mh/mpfb2/src/mpfb` を
-`~/.config/blender/5.2/extensions/user_default/mpfb` にコピー（または symlink）する。
+MPFB2 を Blender の拡張として入れている（`~` は /root のことが多い）。
 `blender/chars.py` の `mpfb()` が `bl_ext.user_default.mpfb` として読み込む。
 MakeHuman の体データ（base.obj とターゲット）は MPFB2 に同梱。
 
 ## 3. Godot 4.4.1
 ```
 mkdir -p /home/claude/godot && cd /home/claude/godot
-# Godot_v4.4.1-stable_linux.x86_64 を GitHub の godotengine/godot の release から取得し、実行権限を付ける
-# Windows 書き出し用テンプレート（Godot_v4.4.1-stable_export_templates.tpz）を取得し、
-# 展開して ~/.local/share/godot/export_templates/4.4.1.stable/ に置く
+R=https://github.com/godotengine/godot/releases/download/4.4.1-stable
+curl -fsSL -o g.zip $R/Godot_v4.4.1-stable_linux.x86_64.zip && unzip -o g.zip && chmod +x Godot_v4.4.1-stable_linux.x86_64
+curl -fsSL -o t.tpz $R/Godot_v4.4.1-stable_export_templates.tpz     # 約1GB。中身は zip
+mkdir -p ~/.local/share/godot/export_templates/4.4.1.stable
+unzip -o t.tpz -d tt && mv tt/templates/* ~/.local/share/godot/export_templates/4.4.1.stable/ && rm -rf tt
 ```
-画面なしで動かすので `xvfb-run` が必要。まとめて：`apt install -y xvfb ffmpeg zip fonts-noto-cjk`（フォントは作り直すときだけ使う）。
+画面なしで動かすので `xvfb-run` が必要。まとめて：`apt-get install -y xvfb ffmpeg zip fonts-noto-cjk fonts-noto-cjk-extra`。
+**フォントは書き出しで必須**：hall.py の貼り紙（地下・発電機）が `NotoSansCJK-Medium.ttc` を使い、これは `fonts-noto-cjk-extra` にしか入っていない。ないと export_godot.py が落ちる。
+
+### Godot の描画方式（2026-10-30 にわかったこと。未決）
+GPU がないので、この環境の Godot は Vulkan を作れず OpenGL（互換）に落ちる（起動時に `switching to OpenGL 3`）。
+このとき **VoxelGI の焼き込み（build.sh の `--bake-gi`）は空になる**（assets/gi.res が約400バイト。ログに `_get_data (scene/3d/voxel_gi.cpp)` のエラー）。
+空の gi.res が pck に入るので、ユーザーの PC で VoxelGI を選んでも照り返しが出ていない可能性がある（試作17で同じだったかは確かめていない）。
+`apt-get install -y mesa-vulkan-drivers`（CPU で描く Vulkan）を入れると、Godot は Forward+ で動き、gi.res が正しく焼ける（約6MB）。
+ただし close.py の確認画も Forward+ の見え方（体積の霧など）に変わる。入れるかどうかはユーザーの判断待ち（docs/次の作業.md）。
+入れていない環境で一時的に Vulkan を止めるには `VK_ICD_FILENAMES=/nonexistent.json` を付ける。
 
 ## 4. フォント
 Noto Serif CJK（`fonts-noto-cjk`）。`godot/fonts/SerifJP-Bold.otf` は使う文字だけ抜き出したもの。
@@ -61,9 +82,16 @@ cd /home/claude/tripo && python3 make_prep.py           # 雛形 prep_natsuki.py
 for k in makoto natsuki_s natsuki kiryu taiga; do python3 prep_$k.py > /home/claude/work/p_$k.log 2>&1; done   # 1本ずつ（同時だとメモリ不足）。各約2.5分
 bash /home/claude/kf/build.sh 0                         # 試作0として書き出す（約45分）。ログ /home/claude/work/build0.log
 ```
+3行はファイル（例：/home/claude/work/run0.sh）に書いて `run_in_background` で走らせる。prep の成否は各ログの最後が `SAVED` かで見る。
+**途中で作業環境が再起動されたとき**：pip・apt・/home/claude 以下は残る。build0.log の最後の `==` の行で、どこまで進んだかを見る。
+夜と夕方の書き出しが済んでいれば（`== godot` まで進んでいれば）、build.sh の `echo "== godot` 以降だけを別のファイルに写して走らせれば続きから作れる。
 **できたと判定する基準**：build0.log の最後が `== DONE` で、`_FAIL` がない。/home/claude/build/RULES_proto0/RULES.pck があり、
 `PCK=/home/claude/build/RULES_proto0/RULES.pck PRINT=1 python3 /home/claude/rules/close.py night chk -.33,3.72,1.3 .7 90 2.0 .2` で
-桐生がスマホを持っている画（/home/claude/work/close_chk.png）が撮れる。docs/段階0_確定.md の試作17と見比べて、同じに見えること。
+桐生がスマホを持っている画（/home/claude/work/close_chk.png）が撮れる。
+見え方（試作17の確認画はリポジトリにないので、言葉で書く）：真横から。右上に桐生の横顔（目を伏せて手元を見る）、画面の中ほどにスマホの画面が白く光る。
+手と体は暗くて網点の中に沈む。手まで見たいときは網点なし＋確認用の光で同じ位置を撮る：末尾に ` .2` を足して `PRINT=0`。
+正しければ、手のひらにスマホを乗せ、画面を見下ろしている。奥に大河が扉を押している（正面 az0 から撮ると見える）。
+tripo/ の `*_prep.blend` と `*_headtex_*.png` は prep で作り直される。リポジトリには段階0（試作17）の時点のものを入れてある。
 
 新しい試作は `bash /home/claude/kf/build.sh <番号>`。先に /home/claude/build/hajimeni<番号>.txt を書いておく（zip に「はじめに.txt」として入る）。
 人物だけを直したときの速い確認：`SKIP_LM=1 python3 export_godot.py`（光の焼き込みを飛ばす。小道具が動いたら `ENV=1` も）→ Godot の取り込み → close.py。
