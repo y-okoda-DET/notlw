@@ -245,10 +245,9 @@ def pose_taiga(tg, t):
     for side, sx in (('l', 1), ('r', -1)):
         w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
         w += n * ((door - w.y) / n.y - .004 * j)
-        C.arm_to(tg, side, w, Vector((sx * .12, .1, -1.0)))
         up = (Vector((0, 0, 1)) + ax * (sx * .18)).normalized()
         pz = n * C.palm_sign(tg, side)
-        C.set_hand_frame(tg, side, up, pz); C.settle_forearm(tg, side); C.set_hand_frame(tg, side, up, pz)
+        C.arm_hand(tg, side, w, up, pz, sx)   # the elbow goes where the forearm needs the least wringing
         C.grip(tg, side, .0, thumb=.0)
         for f, a in (('index', -6), ('middle', 0), ('ring', 5), ('pinky', 11)):
             C.rot_world(tg, f'{f}_01_{side}', n, sx * a)
@@ -332,11 +331,12 @@ if __name__ == '__main__':
     else: export(f'{OUT}/env.glb', env)
     import shutil
     os.makedirs(f'{OUT}/faces', exist_ok=True)
-    for k in ('natsuki', 'kiryu', 'taiga', 'makoto'):
+    for k in ('natsuki', 'natsuki_s', 'kiryu', 'taiga', 'makoto'):   # natsuki_s: her indoor (socks) head, the dusk scene
         for st in ('open', 'closed', 'talk'):
             src = f'{lib.FACES_S}/{k}_{st}.png'
             if k == 'natsuki' and st == 'talk': src = f'{lib.FACES_S}/natsuki_talk_open.png'
             if k in C.TRIPO: src = f'/home/claude/tripo/{k}_{st}.png'   # tinted to the Tripo skin
+            if not os.path.exists(src) and not os.path.exists(f'/home/claude/tripo/{k}_headtex_{st}.png'): continue
             ht = f'/home/claude/tripo/{k}_headtex_{st}.png'
             if os.path.exists(ht):   # face baked into the head texture: ship the whole head texture per state, at 2048
                 from PIL import Image as _PI

@@ -101,21 +101,15 @@ def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
     # framing her on the camera's flip-out screen; looks up over it twice
     up = E.snap(t, 6.5, .45) * (1 - E.snap(t, 8.6, .5)) + E.snap(t, 15.2, .45) * (1 - E.snap(t, 17.0, .5))
-    # his hands are on the camera on the tripod: right hand round the grip side of the body, left at the flip-out screen
+    # his hands are on the camera on the tripod (cx, cy): the right rests on top of the body, palm down; the left holds
+    # the body's left side at his left, palm in, the elbow out by his side (not in front of his stomach)
     cx, cy = -.45, 4.12
-    # the body is turned with the lens toward Natsuki (yaw 205 deg): its two sides are at +-(-.906, -.42) * 0.07
-    # he stands behind the camera (its back toward him): right hand on the near side of the body, left on the far side
-    # the body's long axis runs along yaw 205 deg: its sides are at +-(cos 205, sin 205) * .06 = +-(-.054, -.025)
-    # perpendicular... no: the sides are across the axis, at +-(-sin, cos)*.06 = +-(.025, -.054). He is north of it.
-    # body sides are across its axis (yaw 205): +-(.025, -.054) * (.06/.06); he is on its +axis side (north-east)
-    # the body (11 x 22 x 12 cm) points along yaw 205: its long sides are at +-(-.906, -.423) * .065 from the centre;
-    # he stands at its back (+axis side (.42, -.9) reversed = north-west... he is at (-.32, 4.43): north). His right
-    # hand takes the west side, the left the east side, both a little toward the back half of the body
-    # right hand rests on top of the camera body (palm down), left hand grips the tripod head under it (palm in)
+    lv = E.axis_local(k, (1, 0, 0)); lv.z = 0; lv.normalize()
     C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
     C.grip(k, 'r', .25, thumb=.2)
-    C.arm_to(k, 'l', Vector((cx + .045, cy + .06, 1.37)), Vector((.35, .25, -.4))); C.palm_to(k, 'l', Vector((cx, cy, 1.37)))
-    C.grip(k, 'l', .8)
+    lw = Vector((cx, cy, 1.49)) + lv * .1 + E.axis_local(k, (0, 1, 0)) * .03
+    C.arm_to(k, 'l', lw, Vector((.6, .2, -.5))); C.palm_to(k, 'l', Vector((cx, cy, 1.49)))
+    C.grip(k, 'l', .45, thumb=.4)
     C.rot_world(k, 'neck_01', E.axis_local(k, (1, 0, 0)), 14 - 16 * up)
     E.idle(k, t, 1.0, breath=.21, amp=.8, rate=.8)
 
@@ -132,7 +126,8 @@ def pose_makoto(m, t):
     # holding the reflector on Natsuki with both hands; the board stays still, so the body breathes under fixed hands
     E.idle(m, t, 7.0, breath=.26, amp=.7, rate=1.05)
     look = E.snap(t, 3.2, .5) * (1 - E.snap(t, 5.0, .6)) + E.snap(t, 12.0, .5) * (1 - E.snap(t, 13.6, .6))   # glances at Kiryu
-    C.rot_world(m, 'head', (0, 0, 1), -8 + 30 * look)
+    C.rot_world(m, 'neck_01', (0, 0, 1), .4 * (-8 + 30 * look))   # a turn shared by neck and head (a head turned alone shears the neck)
+    C.rot_world(m, 'head', (0, 0, 1), .6 * (-8 + 30 * look))
     # each hand holds a side edge from behind as in the photos: palm and fingers under the board (on the back face,
     # which leans down toward her), the thumb round the edge
     RM = S['rf_M']; R = RM.to_3x3().normalized()   # the board object itself is merged away by the export cleanup

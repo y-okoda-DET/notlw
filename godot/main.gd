@@ -152,7 +152,8 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var pj := "res://assets/faces/%s_%s.jpg" % [k, st]
+			var fk: String = "natsuki_s" if (SCENE == "dusk" and k == "natsuki") else k   # her indoor head has its own UV layout
+			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
 		faces[k] = {"mat": m, "tex": tex, "next": randf_range(1.0, 4.0), "until": 0.0, "state": "open"}
@@ -247,7 +248,7 @@ func _gi():
 	for k in ["fres", "blue", "sky"]:
 		if lights.has(k): lights[k].light_indirect_energy = 2.0
 	_lightmap()
-	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", "sdfgi"), 2))
+	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", "voxel"), 1))
 
 # modes: 0 baked bounce (Blender lightmap)  1 VoxelGI  2 SDFGI  3 none
 const GI_NAMES := ["焼き込み", "VoxelGI", "SDFGI", "なし"]

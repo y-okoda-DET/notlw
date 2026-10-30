@@ -198,10 +198,15 @@ def prof_at(prof, th):
     f = (th + math.pi) / math.tau * NB; i = int(f) % NB; t = f - int(f)
     return prof[i] * (1 - t) + prof[(i + 1) % NB] * t
 moved = 0
+# the correction stops 1.5 cm below the chin: above that the radial push reached the jaw and pulled the chin forward
+# into a point (the generated heads have round chins)
+ztop = min(zc + .045, zA_chin - .03); span = max(ztop - zc - .005, .01)   # ends well under the jaw: pushed up to it, the neck flared into a shelf along the jawline (Kiryu)
+print('neck marry top above collar (cm)', round((ztop - zc) * 100, 1))
 for v in B.data.vertices:
     z = v.co.z
-    if z > zc + .08: continue
-    w = 1.0 if z <= zc + .005 else 1 - ((z - zc - .005) / .075) ** 2 * (3 - 2 * (z - zc - .005) / .075)
+    if z > ztop: continue
+    u_ = (z - zc - .005) / span
+    w = 1.0 if z <= zc + .005 else 1 - u_ * u_ * (3 - 2 * u_)
     th = math.atan2(v.co.y - cy_, v.co.x - cx_); r = math.hypot(v.co.x - cx_, v.co.y - cy_)
     if r < 1e-6: continue
     rn = r + (.98 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # filling the opening
@@ -356,7 +361,7 @@ def inpaint_hair(q):
     hw = np.interp(dp_, [p[0] for p in hp_pts], [p[1] for p in hp_pts])
     # the generated head is wider than the drawn one at the jaw, so the patch samples past the drawn silhouette:
     # everything there that is not skin (hair, background) is filled too
-    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 1.75)   # the patch samples down to d = 1.45 eye spacings, times K
+    zone = (np.abs(xe_) < hw * 1.4) & (dp_ > -.2) & (dp_ < 2.1)   # down to the bottom of the painted patch (d 1.95)   # the patch samples down to d = 1.45 eye spacings, times K
     feat_ = ((np.abs(np.abs(xe_) - .5) < .34) & (dp_ > -.45) & (dp_ < .22)) | ((np.abs(xe_) < .5) & (dp_ > .6) & (dp_ < 1.12)) | ((np.abs(xe_) < .3) & (dp_ > .3) & (dp_ < .62))
     rr = q / np.maximum(q.sum(2, keepdims=True), 1e-4); rc = pc / pc.sum()
     lum = q.sum(2); base = _nd.median_filter(lum, size=25)
@@ -377,8 +382,29 @@ def inpaint_hair(q):
     f = q[idx[0], idx[1]]
     f = np.dstack([_nd.gaussian_filter(f[..., i], 5) for i in range(3)])
     out = q.copy(); out[m] = f[m]; print('inpainted hair px', int(m.sum())); return out
+# below the lower lip the drawing shades the jaw's underside and draws its outline; painted onto the 3D jaw that
+# shading reads as a ledge along the jawline. Lift it to the cheek's brightness (keeping the hue), fading in from
+# the lower lip down to the chin
+def lift_jaw(q):
+    h, w = q.shape[:2]; yy, xx = np.mgrid[0:h, 0:w]
+    xe_ = (xx - pex) / pe; dp_ = (yy - pey) / pe
+    hw = np.interp(dp_, [p[0] for p in hp_pts], [p[1] for p in hp_pts])
+    lum = q.sum(2); ref = pc.sum()
+    k = np.clip((dp_ - 1.15) / .2, 0, 1) * ((np.abs(xe_) < hw * 1.4) & (dp_ < 2.2))
+    rr = q / np.maximum(lum[..., None], 1e-4); rc = pc / pc.sum()
+    skinish = np.abs(rr - rc).sum(2) < .16
+    gain = np.clip(ref / np.maximum(lum, 1e-4), 1.0, 1.6)
+    gain = _nd.gaussian_filter(gain, 3)
+    # a smooth skin fill from the lifted skin pixels only (normalised blur): the outline stroke itself is not skin
+    # coloured, so it is replaced rather than lifted
+    lifted = np.clip(q * gain[..., None], 0, 1); wsk = skinish.astype(np.float32)
+    num = np.dstack([_nd.gaussian_filter(lifted[..., i] * wsk, 6) for i in range(3)]); den = _nd.gaussian_filter(wsk, 6)[..., None]
+    fill = np.where(den > 1e-3, num / np.maximum(den, 1e-3), lifted)
+    a = k[..., None]
+    out = q * (1 - a) + fill * a
+    print('jaw shade lifted px', int((a[..., 0] > .5).sum())); return out
 for st, src in (('open', 'natsuki_open'), ('closed', 'natsuki_closed'), ('talk', 'natsuki_talk_open')):
-    q = inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255)
+    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
     _I.fromarray((np.clip(q * tint, 0, 1) * 255).astype(np.uint8)).save(f'{T}/natsuki_{st}.png')
 # ---- the generated head's UV atlas is thousands of tiny charts: after decimation each triangle spans a few texels
 # and anything painted into it smears. The whole front of the head (the face oval, painted or not) gets one flat
@@ -491,7 +517,8 @@ t = fm.node_tree.nodes.new('ShaderNodeTexImage'); t.image = bpy.data.images.load
 fm.node_tree.links.new(t.outputs[0], pb.inputs['Base Color'])
 if has_nm:
     nt2 = fm.node_tree.nodes.new('ShaderNodeTexImage'); nt2.image = bpy.data.images.load(f'{T}/natsuki_head_bakenrm.png'); nt2.image.colorspace_settings.name = 'Non-Color'
-    nmn = fm.node_tree.nodes.new('ShaderNodeNormalMap'); fm.node_tree.links.new(nt2.outputs[0], nmn.inputs['Color']); fm.node_tree.links.new(nmn.outputs[0], pb.inputs['Normal'])
+    nmn = fm.node_tree.nodes.new('ShaderNodeNormalMap'); nmn.inputs['Strength'].default_value = .2   # the generated normals carry a ledge along the jaw (Kiryu); the face is drawn, it needs little relief
+    fm.node_tree.links.new(nt2.outputs[0], nmn.inputs['Color']); fm.node_tree.links.new(nmn.outputs[0], pb.inputs['Normal'])
 B.data.materials.append(fm)
 for p in B.data.polygons: p.material_index = 1 if p.index in oval else 0
 B.name = 'natsuki_head'

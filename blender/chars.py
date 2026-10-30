@@ -1159,3 +1159,31 @@ def phone_grip3(rig, side, phone, face_point, hand_target, elbow_out):
         B = Matrix(((X.x, Y.x, Z.x), (X.y, Y.y, Z.y), (X.z, Y.z, Z.z))).to_4x4()
         phone.matrix_world = Matrix.Translation(cw) @ B @ Matrix.Diagonal((*phone.scale, 1))
     bpy.context.view_layer.update()
+
+def forearm_twist(rig, side):
+    """Degrees the forearm would have to roll (from its rest roll) for the hand's current orientation."""
+    bpy.context.view_layer.update()
+    fa = rig.pose.bones[f'lowerarm_{side}']; hd = rig.pose.bones[f'hand_{side}']
+    F = (rig.matrix_world @ fa.matrix).to_3x3().normalized(); H = (rig.matrix_world @ hd.matrix).to_3x3().normalized()
+    axis = F @ Vector((0, 1, 0)); fz = F @ Vector((0, 0, 1)); hz = H @ Vector((0, 0, 1))
+    fz -= axis * fz.dot(axis); hz -= axis * hz.dot(axis)
+    if fz.length < 1e-6 or hz.length < 1e-6: return 0.0
+    ang = math.degrees(fz.normalized().angle(hz.normalized()))
+    return -ang if fz.cross(hz).dot(axis) < 0 else ang
+
+def arm_hand(rig, side, wrist, y_dir, z_dir, sx, drop=(0, 15, 30, 45, 60, 75, 90), settle=60.0):
+    """Arm to `wrist` with the hand oriented (fingers `y_dir`, hand +Z `z_dir`), choosing the elbow direction (from
+    straight down, 0, to straight out sideways, 90) that leaves the least roll for the forearm: the upper arm turns
+    in the shoulder, where a mesh takes it well, instead of the forearm wringing the sleeve and the elbow."""
+    best = None
+    for a in drop:
+        r = math.radians(a); pole = Vector((sx * math.sin(r), .1, -math.cos(r)))
+        reset = [(b, rig.pose.bones[b].rotation_quaternion.copy()) for b in (f'upperarm_{side}', f'lowerarm_{side}', f'hand_{side}')]
+        arm_to(rig, side, wrist, pole); set_hand_frame(rig, side, y_dir, z_dir)
+        tw = abs(forearm_twist(rig, side))
+        if best is None or tw < best[0] - 1e-3: best = (tw, pole, a)
+        for b, q in reset: rig.pose.bones[b].rotation_quaternion = q
+        bpy.context.view_layer.update()
+    arm_to(rig, side, wrist, best[1]); set_hand_frame(rig, side, y_dir, z_dir)
+    settle_forearm(rig, side, settle); set_hand_frame(rig, side, y_dir, z_dir)
+    return best
