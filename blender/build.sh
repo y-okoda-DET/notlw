@@ -14,6 +14,9 @@ python3 denoise_lm.py -- /home/claude/rules/assets/lightmap.exr >> $W/export${N}
 echo "== dusk $(date +%T)" >> $L
 python3 export_dusk.py > $W/export${N}d.log 2>&1 || { echo DUSK_FAIL >> $L; exit 1; }
 python3 denoise_lm.py -- /home/claude/rules/assets/dusk/lightmap.exr >> $W/export${N}d.log 2>&1
+# 人体の構造の確認（顔・つま先の向き、ひじ・ひざの曲がる向き、前腕のねじれ）。NG なら止める
+python3 anatomy.py > $W/anatomy${N}.log 2>&1; tail -1 $W/anatomy${N}.log >> $L
+grep -q "^ANATOMY_OK" $W/anatomy${N}.log || { grep "NG" $W/anatomy${N}.log >> $L; echo ANATOMY_FAIL >> $L; exit 1; }
 echo "== godot $(date +%T)" >> $L
 cd /home/claude/rules
 $G --headless --path . --import > /dev/null 2>&1
