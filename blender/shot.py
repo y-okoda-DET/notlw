@@ -51,7 +51,7 @@ def build():
     S['bolt'] = lib.area('lightning', (S['slit_x'] + .4, Y + 2.5, 2.2), (S['slit_x'], Y, 1.1), 0, k=16000, size=(1.5, 1.5))
     wet = mat_basic('wetknit', (.09, .09, .1), .3)
     nk = C.make_tripo('natsuki')   # Tripo-generated body and head (see tripo/prep_natsuki.py)
-    S['n'] = nk[0]; nk[0].location = (S['slit_x'] + .06, Y + .26, Hm.ZG); nk[0].rotation_euler.z = math.pi
+    S['n'] = nk[0]; nk[0].location = (S['slit_x'] - .12, Y + .26, Hm.ZG); nk[0].rotation_euler.z = 0   # facing the door, the knocking left hand at the slit (試作17 had her back to it, the arms reaching behind)
     C.wet(nk[0], (.42, .44, .5), .28)   # she has been standing in the rain
     # her phone
     S['nphone'] = C.phone('nphone', kelvin(9000), 7)
@@ -69,7 +69,7 @@ def build():
     S['k'] = C.make_tripo('kiryu')[0]
     S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
-    S['t'].location = (.82, Y - .93, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
+    S['t'].location = (.82, Y - 1.03, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
     lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)
@@ -103,8 +103,8 @@ def at(t):
     else:
         hand = Vector((hx, hy + .05 - .05 * knock, 1.42))
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
-    C.arm_to(n, 'r', Vector((sx + .1, Y + .14, 1.02 + .02 * math.sin(t * 3))), Vector((-.3, .2, -.4)))
-    C.rot_world(n, 'neck_01', (1, 0, 0), 8)
+    C.arm_to(n, 'r', Vector((sx - .17, Y + .14, 1.02 + .02 * math.sin(t * 3))), Vector((-.3, .2, -.4)))
+    C.rot_world(n, 'neck_01', (1, 0, 0), -8)
     C.grip(n, 'r', .8); C.grip(n, 'l', .15)
     bpy.context.view_layer.update()
     C.place_in_hand(S['nphone'], n, 'r', (0, .05, -.022), (90, 0, 0))

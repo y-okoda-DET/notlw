@@ -218,7 +218,8 @@ def pose_kiryu(k, t):
     C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
-TAIGA_LAT = {'l': .37, 'r': .30}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
+TAIGA_LAT = {'l': .32, 'r': .26}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
+TAIGA_HAND_UP = .10   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead)
 TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
 
 def pose_taiga(tg, t):
@@ -239,13 +240,14 @@ def pose_taiga(tg, t):
     n = axis_local(tg, (0, -1, 0)); n.z = 0; n.normalize()          # toward the door
     ax = axis_local(tg, (1, 0, 0)); ax.z = 0; ax.normalize()
     door = Hm.YF - TAIGA_WRIST                                        # the wrists' plane (world y)
-    eye_z = C.bone_head(tg, 'head').z + .07
     # shoulders: the raised arms lift the generated shoulders toward the ears; drop the collarbones a little
     for s_, sx_ in (('l', 1), ('r', -1)): C.rot_world(tg, f'clavicle_{s_}', n, -sx_ * 7)
     lean = math.degrees(tg.rotation_euler.x)                           # the feet stay flat on the floor
     for s_ in ('l', 'r'): C.rot_world(tg, f'foot_{s_}', ax, -lean)
     for side, sx in (('l', 1), ('r', -1)):
-        w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, eye_z - .09 + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
+        # hands a little above the shoulders (the photo), not overhead: raised arms wrung the forearms and opened the sleeves
+        sh_z = C.bone_head(tg, f'upperarm_{side}').z
+        w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, sh_z + TAIGA_HAND_UP + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
         w += n * ((door - w.y) / n.y - .004 * j)
         up = Vector((0, 0, 1))   # fingers straight up (the photo); a 10 deg outward splay read as a twisted wrist
         pz = n * C.palm_sign(tg, side)
@@ -259,8 +261,8 @@ def pose_natsuki(n, t, sx, Y):
     up = snap(t, 5.6, .35) * (1 - snap(t, 12.2, .6))
     hand = Vector((sx, Y + .01 + .05 * up - .06 * knock * up, 1.32 + .1 * up))
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
-    C.arm_to(n, 'r', Vector((sx + .1, Y + .14, 1.02 + .02 * wob(t, .5))), Vector((-.3, .2, -.4)))
-    C.rot_world(n, 'neck_01', (1, 0, 0), 8 + 6 * up)
+    C.arm_to(n, 'r', Vector((sx - .17, Y + .14, 1.02 + .02 * wob(t, .5))), Vector((-.3, .2, -.4)))
+    C.rot_world(n, 'neck_01', (1, 0, 0), -(8 + 6 * up))   # facing the door (-y) now: the same look up toward the slit
     C.grip(n, 'r', .8); C.grip(n, 'l', .15 + .5 * knock * up)
     idle(n, t, 3.0, breath=.36 + .15 * up, amp=1.3, rate=1.1)
 

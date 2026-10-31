@@ -89,7 +89,7 @@ def pose_natsuki(n, t):
     # arms down, the tape roll hanging from the fingers of the right hand at the thigh; the left hand rests on her hip
     laugh = sum(E.snap(t, a, .35) * (1 - E.snap(t, b, .5)) for a, b in TALK)
     C.arm_to(n, 'r', nl((-.23, -.07 + .01 * tilt, .79 + .01 * laugh)), Vector((-.35, .3, 0)))
-    C.arm_to(n, 'l', nl((.215, -.05, .80 + .01 * laugh)), Vector((.3, .3, 0))); C.palm_to(n, 'l', nl((.6, -.05, .80)))   # hanging relaxed: the generated puffy sleeve dents and tears when the elbow is bent hard (hand on hip)
+    C.arm_to(n, 'l', nl((.245, -.04, .80 + .01 * laugh)), Vector((.08, .3, 0))); C.palm_to(n, 'l', nl((.6, -.05, .80)), limit=35)   # a small roll only: turning the forearm further wrung the puffy sleeve into a step at the elbow   # hanging relaxed: the generated puffy sleeve dents and tears when the elbow is bent hard (hand on hip)
     C.palm_to(n, 'r', nl((-.6, -.07, .79)))   # palm inward toward the thigh, the roll hangs below
     C.grip(n, 'r', .85); C.grip(n, 'l', .25)
     C.rot_world(n, 'head', (0, 0, 1), 8 + 6 * tilt)

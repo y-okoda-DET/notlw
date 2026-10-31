@@ -13,8 +13,8 @@ ZG = -.18
 # person: (x, y, floor z, front azimuth in close.py terms (0 = from -y), neck z, hand z[, neck view offset])
 # the camera is the player, so walls push it: pick a neck view with room behind it (Taiga at dusk stands in the doorway)
 P = {'night': {'kiryu': (-.32, 4.02, 0, -14, 1.48, 1.15),
-               'taiga': (.82, 5.37, ZG, 176, 1.30, 1.25),
-               'natsuki': (.615, 6.56, ZG, 180, 1.38, 1.05)},
+               'taiga': (.82, 5.27, ZG, 176, 1.30, 1.25),
+               'natsuki': (.435, 6.56, ZG, 0, 1.38, 1.05)},
      'dusk': {'natsuki': (.36, 3.84, 0, 0, 1.38, .85),
               'kiryu': (-.32, 4.43, 0, 33, 1.48, 1.45),
               'taiga': (.82, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher
