@@ -5,13 +5,13 @@
 Materials are flattened to what glTF carries: base-colour image (tints baked into the file), roughness,
 emission. Anything else (box projection, vertex-colour mixes, procedurals) is baked to an image."""
 import sys, os, math, json, random
-sys.path.insert(0, '/home/claude/kf')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy, numpy as np
 from mathutils import Vector, Matrix
 import lib, shot, chars as C, hall as Hm
 
-OUT = '/home/claude/rules/assets'
-TEXOUT = '/home/claude/kf/export_tex'
+OUT = f'{P.RULES}/assets'
+TEXOUT = f'{P.KF}/export_tex'
 os.makedirs(OUT, exist_ok=True); os.makedirs(TEXOUT, exist_ok=True)
 FPS = 24; LOOP = 20.0
 
@@ -119,24 +119,35 @@ def bake_bounce(env_objs, size=2048, samples=256):
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=.004)
     bpy.ops.object.mode_set(mode='OBJECT')
+    import cache
+    s = bpy.context.scene; s.render.engine = 'CYCLES'; s.cycles.samples = samples
+    s.cycles.max_bounces = 6; s.cycles.diffuse_bounces = 4
+    b = s.render.bake; b.use_pass_direct = False; b.use_pass_indirect = True; b.use_pass_color = False; b.margin = 8
+    geo = cache.scene_key(f'lm-geo {size}', only=[j])           # the static set and its 'lm' UVs: where the texels land
+    key = cache.scene_key(f'lm {size} {samples} {geo}')         # everything the bake sees
+    print('lightmap key', key, 'geometry', geo)
+    if os.environ.get('KEYDEBUG'): sys.exit(0)
     img = bpy.data.images.new('lightmap', size, size, alpha=False, float_buffer=True)
     for m in me.materials:
         if m is None: continue
         n = m.node_tree.nodes.new('ShaderNodeTexImage'); n.image = img; n.name = '_lm'
         uvn = m.node_tree.nodes.new('ShaderNodeUVMap'); uvn.uv_map = 'lm'; m.node_tree.links.new(uvn.outputs[0], n.inputs[0])
         m.node_tree.nodes.active = n
-    s = bpy.context.scene; s.render.engine = 'CYCLES'; s.cycles.samples = samples
-    s.cycles.max_bounces = 6; s.cycles.diffuse_bounces = 4
-    b = s.render.bake; b.use_pass_direct = False; b.use_pass_indirect = True; b.use_pass_color = False; b.margin = 8
     bpy.ops.object.select_all(action='DESELECT'); j.select_set(True); bpy.context.view_layer.objects.active = j
     import time; t = time.time()
+    lm = f'{OUT}/lightmap.exr'
     if os.environ.get('SKIP_LM'):   # only the people changed: the lightmap on disk still matches this set (same mesh -> same 'lm' UVs)
         print('lightmap: kept the one on disk')
+    elif cache.get('lm', key, lm):
+        print('lightmap: cache hit', key)
+    elif os.environ.get('FAST') and cache.read('lm', 'geo_' + geo) and cache.get('lm', cache.read('lm', 'geo_' + geo), lm):
+        print('LM_STALE lightmap from an earlier bake of the same geometry (FAST=1: the people or the lights changed since)')
     else:
         bpy.ops.object.bake(type='DIFFUSE')
         print('lightmap baked in', round(time.time() - t), 's')
-        img.filepath_raw = f'{OUT}/lightmap.exr'; img.file_format = 'OPEN_EXR'
+        img.filepath_raw = lm; img.file_format = 'OPEN_EXR'
         img.save()
+        cache.put('lm', key, lm); cache.note('lm', 'geo_' + geo, key)
     for m in me.materials:
         if m is None: continue
         for n in [n for n in m.node_tree.nodes if n.name == '_lm' or (n.type == 'UVMAP' and n.uv_map == 'lm')]: m.node_tree.nodes.remove(n)
@@ -272,6 +283,15 @@ def bake_action(rig, fn):
     act = bpy.data.actions.new(f'{rig.name}_loop'); rig.animation_data.action = act
     n = int(LOOP * FPS)
     prev = {}
+    # The poses read bones and objects only, never the skinned surface: while sampling, the rig's meshes need not be
+    # deformed on every view_layer.update() (that was most of the time of an export). Their modifiers are switched
+    # back exactly as they were before anything is exported. NODEFORM=0 to sample the old way.
+    off = []
+    if os.environ.get('NODEFORM', '1') != '0':
+        for o in descendants(rig):
+            if o.type == 'MESH':
+                for md in o.modifiers:
+                    if md.show_viewport: md.show_viewport = False; off.append(md)
     for f in range(n + 1):
         t = f / FPS
         C.reset_pose(rig); fn(t); C.apply_twist(rig)
@@ -289,6 +309,8 @@ def bake_action(rig, fn):
         curves = [fc for l in act.layers for s in l.strips for cb in s.channelbags for fc in cb.fcurves]
     for fc in curves:
         for kp in fc.keyframe_points: kp.interpolation = 'LINEAR'
+    for md in off: md.show_viewport = True
+    bpy.context.view_layer.update()
     bpy.context.scene.frame_start = 1; bpy.context.scene.frame_end = n + 1
     return act
 
@@ -340,9 +362,9 @@ if __name__ == '__main__':
         for st in ('open', 'closed', 'talk'):
             src = f'{lib.FACES_S}/{k}_{st}.png'
             if k == 'natsuki' and st == 'talk': src = f'{lib.FACES_S}/natsuki_talk_open.png'
-            if k in C.TRIPO: src = f'/home/claude/tripo/{k}_{st}.png'   # tinted to the Tripo skin
-            if not os.path.exists(src) and not os.path.exists(f'/home/claude/tripo/{k}_headtex_{st}.png'): continue
-            ht = f'/home/claude/tripo/{k}_headtex_{st}.png'
+            if k in C.TRIPO: src = f'{P.TRIPO}/{k}_{st}.png'   # tinted to the Tripo skin
+            if not os.path.exists(src) and not os.path.exists(f'{P.TRIPO}/{k}_headtex_{st}.png'): continue
+            ht = f'{P.TRIPO}/{k}_headtex_{st}.png'
             if os.path.exists(ht):   # face baked into the head texture: ship the whole head texture per state, at 2048
                 from PIL import Image as _PI
                 _PI.open(ht).convert('RGB').resize((2048, 2048), _PI.LANCZOS).save(f'{OUT}/faces/{k}_{st}.jpg', quality=92)

@@ -2,7 +2,7 @@
 Clothes are offset shells of the body that share its skin weights; the head is the photo bust from lib.bust,
 parented to the head bone. Poses are given as world-space aim targets per bone chain."""
 import sys, os, math, importlib
-sys.path.insert(0, '/home/claude/kf')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy, bmesh, addon_utils
 from mathutils import Vector, Matrix, Quaternion
 import lib
@@ -282,7 +282,7 @@ def reset_pose(rig):
     bpy.context.view_layer.update()
 
 # ---------------------------------------------------------------- Tripo characters
-TRIPO = {k: f'/home/claude/tripo/{k}_prep.blend' for k in ('natsuki', 'natsuki_s', 'mio', 'kiryu', 'taiga', 'yota', 'makoto')}   # natsuki_s: socks body (indoors)
+TRIPO = {k: f'{P.TRIPO}/{k}_prep.blend' for k in ('natsuki', 'natsuki_s', 'mio', 'kiryu', 'taiga', 'yota', 'makoto')}   # natsuki_s: socks body (indoors)
 
 def _base_human(key):
     """MakeHuman body + game_engine rig at the character's height, unclothed, shape keys baked (weight donor)."""
@@ -898,7 +898,7 @@ def socks(rig, color=(.86, .86, .83), ankle=.10):
             px[..., :3] = px[..., :3] * (1 - mk[..., None]) + sock * mk[..., None]
             name = img.name.rsplit('.', 1)[0] + '_socks'
             im = bpy.data.images.new(name, w, h, alpha=False); im.pixels.foreach_set(px.ravel())
-            im.filepath_raw = f'/home/claude/tripo/{name}.png'; im.file_format = 'PNG'; im.save()
+            im.filepath_raw = f'{P.TRIPO}/{name}.png'; im.file_format = 'PNG'; im.save()
             src.image = im
             print(f'socks: {ob.name} {n} shoe polys repainted')
 

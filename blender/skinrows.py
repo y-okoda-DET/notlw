@@ -1,9 +1,10 @@
+import paths as P   # all paths: paths.env
 import json, numpy as np
 from PIL import Image
-M = json.load(open('/home/claude/kf/masks_style.json'))
+M = json.load(open(f'{P.KF}/masks_style.json'))
 def skin_rows(k):
     info = M[k]; (lx, ly), (rx, ry) = info['eyes']; d = rx - lx; ey = (ly + ry) / 2; cx = int((lx + rx) / 2)
-    im = np.asarray(Image.open(f'/home/claude/assets/faces_style/{k}_open.png').convert('RGB'), np.float32) / 255
+    im = np.asarray(Image.open(f'{P.ASSETS}/faces_style/{k}_open.png').convert('RGB'), np.float32) / 255
     ref = np.median(np.concatenate([im[int(ly + d * .45) - 10:int(ly + d * .45) + 10, int(x) - 10:int(x) + 10].reshape(-1, 3) for x in (lx, rx)]), 0)
     out = []
     for y in range(int(ey), min(im.shape[0], int(ey + 2.6 * d))):

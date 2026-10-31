@@ -3,7 +3,7 @@ Natsuki standing on the mark she has just taped, Kiryu framing her behind the ca
 with an apple box. Exported like the 23:00 scene (env.glb + one glb per character + lights.json + lightmap)
 into assets/dusk/."""
 import sys, os, math, json
-sys.path.insert(0, '/home/claude/kf')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib, door as D, hall as Hm, chars as C
@@ -11,7 +11,7 @@ import export_godot as E
 from lib import prim, mat_basic, kelvin
 from night import CAM
 
-E.OUT = OUT = '/home/claude/rules/assets/dusk'
+E.OUT = OUT = f'{P.RULES}/assets/dusk'
 os.makedirs(OUT, exist_ok=True)
 S = {}
 

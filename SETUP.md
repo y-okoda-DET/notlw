@@ -37,7 +37,7 @@ curl -fsSL -o t.tpz $R/Godot_v4.4.1-stable_export_templates.tpz     # 約1GB。�
 mkdir -p ~/.local/share/godot/export_templates/4.4.1.stable
 unzip -o t.tpz -d tt && mv tt/templates/* ~/.local/share/godot/export_templates/4.4.1.stable/ && rm -rf tt
 ```
-画面なしで動かすので `xvfb-run` が必要。まとめて：`apt-get install -y xvfb ffmpeg zip fonts-noto-cjk fonts-noto-cjk-extra`。
+画面なしで動かすので `xvfb-run` が必要。まとめて：`apt-get update && apt-get install -y xvfb ffmpeg zip fonts-noto-cjk fonts-noto-cjk-extra mesa-vulkan-drivers`（`apt-get update` を先にしないと fonts-noto-cjk-extra と mesa-vulkan-drivers が「見つからない」で落ちる。2026-10-31）。
 **フォントは書き出しで必須**：hall.py の貼り紙（地下・発電機）が `NotoSansCJK-Medium.ttc` を使い、これは `fonts-noto-cjk-extra` にしか入っていない。ないと export_godot.py が落ちる。
 
 ### Godot の描画方式（必須：CPU で描く Vulkan を入れる）
@@ -63,9 +63,17 @@ PY
 ```
 
 ## 5. パス
-スクリプトは `/home/claude/kf`（= このリポジトリの `blender/`）、`/home/claude/rules`（= `godot/`）、
-`/home/claude/tripo`（= `tripo/`）、`/home/claude/assets`（= `assets/`）を決め打ちで参照している。
-新しい環境では、リポジトリを `/home/claude/notlw` に置いたうえで symlink を張るのが一番早い：
+パスは **リポジトリの根の `paths.env` の1か所**にまとめてある（2026-10-31）。
+- リポジトリの中（blender/ godot/ tripo/ assets/ plan/）は、スクリプトの場所から自動で決まる。リポジトリはどこに置いてもよい。
+- 作業環境ごとに変わるのは3つ：`WORK`（確認画・ログ・キャッシュ）、`BUILD`（書き出した版）、`GODOT`（Godot 本体）。
+- 別の PC では、同じ書式で `paths.local.env` を作って上書きする（git に入れない）。例（ユーザーの Windows）：
+  ```
+  WORK=C:/rules/work
+  BUILD=C:/rules/build
+  GODOT=C:/rules/godot/Godot_v4.4.1-stable_win64_console.exe
+  ```
+- Python からは `import paths as P`（blender/paths.py）、bash からは `. blender/paths.sh`。中身の確認：`python3 blender/paths.py`。
+- まだ /home/claude/… を直接書いているのは、途中で使った調べ物のスクリプト（blender/t_*.py、godot/check/*.py、tripo/diag*・view_*・face_* など）と、一度きりの道具（blender/compare_house.sh、make_tex_house.py）だけ。これらのために symlink も張っておく：
 ```
 ln -s /home/claude/notlw/blender /home/claude/kf
 ln -s /home/claude/notlw/godot   /home/claude/rules
@@ -74,6 +82,8 @@ ln -s /home/claude/notlw/assets  /home/claude/assets
 ln -s /home/claude/notlw/plan    /home/claude/plan
 mkdir -p /home/claude/kf/out /home/claude/build /home/claude/work /home/claude/rules_movie/st
 ```
+- tripo/*_prep.blend の中の画像のパス：prep は保存の前に相対パスにする（2026-10-31 から）。リポジトリにある .blend は、次に prep を走らせるまでは /home/claude/tripo/… の絶対パスのまま。
+- Windows でそのまま走らせるには、まだ足りない：build.sh・check.sh は bash と xvfb-run（画面なしの X）を前提にしている。Windows では Git Bash か WSL が要り、xvfb-run の行は外す必要がある（試していない）。
 
 ## 6. 一通り動くか確かめる（合わせて約1時間。長い処理は run_in_background と長い timeout で走らせ、ログで終わりを確かめる）
 ```

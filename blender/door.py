@@ -1,6 +1,6 @@
 """第2章 23:00 — 扉の前の沈黙.  build(style) where style in main / doll / print."""
 import sys, math, random
-sys.path.insert(0, '/home/claude/kf')
+import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib
@@ -232,7 +232,7 @@ def build(style='main'):
     ab = prim('cube', 'applebox', loc=(.6, 4.1, .1), rot=(0, 0, .25), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
     # the empty mark: gaffer-tape X with her name, where Natsuki was supposed to stand for tonight's shot
     def tapeX(name, x, y, z, png):
-        tm = mat_image(f'tape_{name}', f'/home/claude/kf/{png}', rough=.6, bump=0)
+        tm = mat_image(f'tape_{name}', f'{P.KF}/{png}', rough=.6, bump=0)
         for r in (.6, -.6):
             o = prim('plane', 'tape', loc=(x, y, z + .0035), rot=(0, 0, r), scale=(.13, .026, 1), mat=tm)
     tapeX('n', -.08, 3.95, 0, 'tape_natsuki.png')
@@ -253,7 +253,7 @@ def cam_main():
 
 if __name__ == '__main__':
     style = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv else 'main'
-    out = sys.argv[sys.argv.index('--') + 2] if '--' in sys.argv else '/home/claude/kf/out/door_test.png'
+    out = sys.argv[sys.argv.index('--') + 2] if '--' in sys.argv else f'{P.KF}/out/door_test.png'
     spp = int(sys.argv[sys.argv.index('--') + 3]) if '--' in sys.argv else 24
     pct = int(sys.argv[sys.argv.index('--') + 4]) if '--' in sys.argv else 50
     build(style); cam_main()

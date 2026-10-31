@@ -10,7 +10,7 @@ Beats:
   10.0 end
 """
 import sys, math, random
-sys.path.insert(0, '/home/claude/kf')
+import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector, Matrix
 import lib, door as D, hall as Hm, chars as C

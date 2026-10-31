@@ -2,7 +2,7 @@
 genkan + front door on the far right, opening to the living room on the right.
 build_hall(M) returns a dict of handy anchor points."""
 import sys, os, math, random
-sys.path.insert(0, '/home/claude/kf')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib
@@ -142,7 +142,7 @@ def build_hall(M, ceiling=True, back_wall=False, cut=None, door_open=False):
         o = prim('cube', 'understair', loc=(ST_X1 - .03, (y0 + y1) / 2, hgt / 2), scale=(.025, (y1 - y0) / 2, hgt / 2), mat=M['trim'] if STYLE == 'siding' else M['door']); lib.uv_box(o, 1.0)
     for a, b in ((ST_Y0 + 1.1, 2.5), (2.5, yd0), (yd1, ST_Y1)): under_panel(a, b)
     bd = prim('cube', 'basement_door', loc=(ST_X1 - .02, (yd0 + yd1) / 2, .85), scale=(.02, (yd1 - yd0) / 2 - .01, .85), mat=M['door']); lib.uv_box(bd, 1.0, offset=(.3, 0))
-    nt = mat_image('note', note_tex('/home/claude/kf/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)
+    nt = mat_image('note', note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)
     n = prim('plane', 'note', loc=(ST_X1 + .005, 3.7, 1.35), rot=(math.pi / 2, 0, math.pi / 2), scale=(.09, .12, 1), mat=nt)
     lv = prim('cube', 'bd_lever', loc=(ST_X1 + .02, yd0 + .08, .95), scale=(.012, .05, .01), mat=M['chrome'])
     # ---- front door (slit window, left of centre)
@@ -181,10 +181,10 @@ def genkan_props(M, shoes=4, umbrellas=6):
 
 def tape_mark(x, y, cam_xy, name_png):
     """Gaffer-tape X plus a short strip with the name, turned to read from the camera."""
-    xm = mat_image('tapeX', '/home/claude/kf/tape_blank.png', rough=.6, bump=0)
+    xm = mat_image('tapeX', f'{P.KF}/tape_blank.png', rough=.6, bump=0)
     for k, r in enumerate((.62, -.62)):
         prim('plane', 'tapeX', loc=(x, y, .004 + k * .0008), rot=(0, 0, r), scale=(.13, .026, 1), mat=xm)
     ang = math.atan2(y - cam_xy[1], x - cam_xy[0]) - math.pi / 2
-    nm = mat_image('tapeN', f'/home/claude/kf/{name_png}', rough=.6, bump=0)
+    nm = mat_image('tapeN', f'{P.KF}/{name_png}', rough=.6, bump=0)
     off = Vector((math.cos(ang + math.pi / 2), math.sin(ang + math.pi / 2), 0)) * -.21
     prim('plane', 'tapeN', loc=(x + off.x, y + off.y, .0045), rot=(0, 0, ang), scale=(.2, .0375, 1), mat=nm)

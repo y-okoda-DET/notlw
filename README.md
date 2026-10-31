@@ -23,7 +23,7 @@
 ## 書き出したデータ（godot/assets）は入れていない
 `godot/assets/`（家と人物の glb、ライトマップ、顔の差し替え画像）は Blender スクリプトから作り直せるので入れていない。作り直し方：
 `bash blender/build.sh <試作の番号>`（SETUP.md の 6）
-（スクリプト内のパスは作業環境の /home/claude/… を前提にしている。別の場所で使うときは書き換える）
+（パスはリポジトリの根の paths.env の1か所。別の PC では paths.local.env で上書きする。SETUP.md 5）
 
 ## 大きなファイルの扱い
 Git LFS は使っていない（この作業環境から LFS の保存先に接続できないため）。Tripo の元モデル（1つ約60MB）は通常の git で入っている。

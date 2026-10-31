@@ -5,11 +5,11 @@ object with UVs that project the drawn portrait (eyes matched, jaw outline match
 swap open / closed / talking faces exactly as before.  Output: mio_prep.blend"""
 import bpy, bmesh, sys, math
 import numpy as np
-sys.path.insert(0, '/home/claude/kf')
+import os; sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender')); import paths as P   # all paths: paths.env
 from mathutils import Vector
 import json
 
-T = '/home/claude/tripo'
+T = P.TRIPO
 A_HEIGHT = 0.9788
 H_BODY = 1.6 / A_HEIGHT
 S_HEAD = 0.34
@@ -313,7 +313,7 @@ for p in me.polygons:
 bc = np.median(np.array(bc), 0)
 
 # portrait geometry
-M = json.load(open('/home/claude/kf/masks_style.json'))['mio']
+M = json.load(open(f'{P.KF}/masks_style.json'))['mio']
 (plx, ply), (prx, pry) = M['eyes']; pe = prx - plx; pex = (plx + prx) / 2; pey = (ply + pry) / 2
 # half-width of the face (in eye spacings) along the vertical, for the Tripo head (hb) and the portrait (hp)
 hb_pts = [(-0.3, 0.92), (0, 0.92), (0.5, 0.91), (0.8, 0.78), (1.0, 0.64), (1.3, 0.36), (1.55, 0.12), (1.8, 0.1)]
@@ -334,7 +334,7 @@ def portrait_uv(co):
 # keep only polygons that land on the portrait's skin (or eyes / brows / mouth): where the portrait shows hair
 # strands or background, the generated head's own surface stays
 from PIL import Image as _I0
-_P = np.asarray(_I0.open('/home/claude/assets/faces_style/mio_open.png').convert('RGB'), np.float32) / 255
+_P = np.asarray(_I0.open(f'{P.ASSETS}/faces_style/mio_open.png').convert('RGB'), np.float32) / 255
 _pc = np.median(np.concatenate([_P[int(pey + .45 * pe) - 12:int(pey + .45 * pe) + 12, int(x) - 12:int(x) + 12].reshape(-1, 3) for x in (plx, prx)]), 0)
 def _skinlike(uv):
     x = int(uv[0] * 1254); y = int((1 - uv[1]) * 1254)
@@ -427,7 +427,7 @@ w = np.clip((w - .15) / .85, 0, 1) ** 1.5
 F = B   # the whole generated head carries the face now
 # the portrait is paler than the Tripo skin: tinted copies of open/closed/talk, matched on the cheeks
 from PIL import Image as _I
-pim = np.asarray(_I.open('/home/claude/assets/faces_style/mio_open.png').convert('RGB'), np.float32) / 255
+pim = np.asarray(_I.open(f'{P.ASSETS}/faces_style/mio_open.png').convert('RGB'), np.float32) / 255
 pc = np.median(np.concatenate([pim[int(pey + .45 * pe) - 12:int(pey + .45 * pe) + 12, int(x) - 12:int(x) + 12].reshape(-1, 3) for x in (plx, prx)]), 0)
 # tripo albedo is linear in Blender's buffer; portrait is sRGB
 bc_s = np.array([0.918, 0.767, 0.631])   # Tripo head cheeks, read off an unlit orthographic render (sRGB)
@@ -485,7 +485,7 @@ def lift_jaw(q):
     out = q * (1 - a) + fill * a
     print('jaw shade lifted px', int((a[..., 0] > .5).sum())); return out
 for st, src in (('open', 'mio_open'), ('closed', 'mio_closed'), ('talk', 'mio_talk')):
-    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
+    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'{P.ASSETS}/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
     _I.fromarray((np.clip(q * tint, 0, 1) * 255).astype(np.uint8)).save(f'{T}/mio_{st}.png')
 # ---- the generated head's UV atlas is thousands of tiny charts: after decimation each triangle spans a few texels
 # and anything painted into it smears. The whole front of the head (the face oval, painted or not) gets one flat
@@ -609,5 +609,6 @@ for p in B.data.polygons: p.material_index = 1 if p.index in oval else 0
 B.name = 'mio_head'
 for o in (A, B):
     for p in o.data.polygons: p.use_smooth = True
+bpy.ops.file.make_paths_relative()   # images by paths relative to the .blend, so the file works wherever the repo is
 bpy.ops.wm.save_as_mainfile(filepath=f'{T}/mio_prep.blend')
 print('SAVED')

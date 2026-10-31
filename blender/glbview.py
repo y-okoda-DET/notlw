@@ -1,6 +1,6 @@
 # import an exported character glb, go to a frame, render closeups. args: glb frame tx,ty,tz cx,cy,cz[;...] out
 import bpy, sys, os
-sys.path.insert(0,'/home/claude/kf')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import lib
 a=sys.argv[sys.argv.index('--')+1:]
 glb,frame,T,cams,out=a[0],int(a[1]),tuple(map(float,a[2].split(','))),a[3],a[4]

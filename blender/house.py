@@ -4,8 +4,8 @@ lit by the scene's lights in Godot).
 Footprint after plan/plan_v4.png at its rough size: 12.4 m wide (x), 10.3 m deep (y), two storeys, gable roof with
 the ridge along x, the porch in front of the front door, the stove chimney on the west (-x) wall.
 Front = +y (the front door wall, y = hall.YF). The ground is .55 m below the hall floor."""
-import sys, math, random
-sys.path.insert(0, '/home/claude/kf')
+import sys, os, math, random
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib, door as D, hall as Hm

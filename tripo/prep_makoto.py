@@ -5,11 +5,11 @@ object with UVs that project the drawn portrait (eyes matched, jaw outline match
 swap open / closed / talking faces exactly as before.  Output: makoto_prep.blend"""
 import bpy, bmesh, sys, math
 import numpy as np
-sys.path.insert(0, '/home/claude/kf')
+import os; sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender')); import paths as P   # all paths: paths.env
 from mathutils import Vector
 import json
 
-T = '/home/claude/tripo'
+T = P.TRIPO
 A_HEIGHT = 0.9799
 H_BODY = 1.55 / A_HEIGHT
 S_HEAD = 0.38
@@ -313,7 +313,7 @@ for p in me.polygons:
 bc = np.median(np.array(bc), 0)
 
 # portrait geometry
-M = json.load(open('/home/claude/kf/masks_style.json'))['makoto']
+M = json.load(open(f'{P.KF}/masks_style.json'))['makoto']
 (plx, ply), (prx, pry) = M['eyes']; pe = prx - plx; pex = (plx + prx) / 2; pey = (ply + pry) / 2
 # half-width of the face (in eye spacings) along the vertical, for the Tripo head (hb) and the portrait (hp)
 hb_pts = [(-0.3, 0.78), (0, 0.86), (0.2, 1.05), (0.4, 1.15), (0.55, 1.2), (0.7, 1.1), (0.85, 0.89), (1.0, 0.81), (1.13, 0.72), (1.3, 0.64), (1.6, 0.62)]
@@ -334,7 +334,7 @@ def portrait_uv(co):
 # keep only polygons that land on the portrait's skin (or eyes / brows / mouth): where the portrait shows hair
 # strands or background, the generated head's own surface stays
 from PIL import Image as _I0
-_P = np.asarray(_I0.open('/home/claude/assets/faces_style/makoto_open.png').convert('RGB'), np.float32) / 255
+_P = np.asarray(_I0.open(f'{P.ASSETS}/faces_style/makoto_open.png').convert('RGB'), np.float32) / 255
 _pc = np.median(np.concatenate([_P[int(pey + .45 * pe) - 12:int(pey + .45 * pe) + 12, int(x) - 12:int(x) + 12].reshape(-1, 3) for x in (plx, prx)]), 0)
 def _skinlike(uv):
     x = int(uv[0] * 1254); y = int((1 - uv[1]) * 1254)
@@ -427,7 +427,7 @@ w = np.clip((w - .15) / .85, 0, 1) ** 1.5
 F = B   # the whole generated head carries the face now
 # the portrait is paler than the Tripo skin: tinted copies of open/closed/talk, matched on the cheeks
 from PIL import Image as _I
-pim = np.asarray(_I.open('/home/claude/assets/faces_style/makoto_open.png').convert('RGB'), np.float32) / 255
+pim = np.asarray(_I.open(f'{P.ASSETS}/faces_style/makoto_open.png').convert('RGB'), np.float32) / 255
 pc = np.median(np.concatenate([pim[int(pey + .45 * pe) - 12:int(pey + .45 * pe) + 12, int(x) - 12:int(x) + 12].reshape(-1, 3) for x in (plx, prx)]), 0)
 # tripo albedo is linear in Blender's buffer; portrait is sRGB
 bc_s = np.array([0.945, 0.804, 0.702])   # Tripo head cheeks, read off an unlit orthographic render (sRGB)
@@ -485,7 +485,7 @@ def lift_jaw(q):
     out = q * (1 - a) + fill * a
     print('jaw shade lifted px', int((a[..., 0] > .5).sum())); return out
 for st, src in (('open', 'makoto_open'), ('closed', 'makoto_closed'), ('talk', 'makoto_talk')):
-    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'/home/claude/assets/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
+    q = lift_jaw(inpaint_hair(np.asarray(_I.open(f'{P.ASSETS}/faces_style/{src}.png').convert('RGB'), np.float32) / 255))
     _I.fromarray((np.clip(q * tint, 0, 1) * 255).astype(np.uint8)).save(f'{T}/makoto_{st}.png')
 # ---- the generated head's UV atlas is thousands of tiny charts: after decimation each triangle spans a few texels
 # and anything painted into it smears. The whole front of the head (the face oval, painted or not) gets one flat
@@ -609,5 +609,6 @@ for p in B.data.polygons: p.material_index = 1 if p.index in oval else 0
 B.name = 'makoto_head'
 for o in (A, B):
     for p in o.data.polygons: p.use_smooth = True
+bpy.ops.file.make_paths_relative()   # images by paths relative to the .blend, so the file works wherever the repo is
 bpy.ops.wm.save_as_mainfile(filepath=f'{T}/makoto_prep.blend')
 print('SAVED')

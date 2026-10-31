@@ -1,7 +1,8 @@
 """Generate prep_<key>.py from the Natsuki script with per-character measurements."""
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', 'blender')); import paths as P   # all paths: paths.env
 import sys, json
-CFG = json.load(open('/home/claude/tripo/chars_cfg.json'))
-src = open('/home/claude/tripo/prep_natsuki.py').read()
+CFG = json.load(open(f'{P.TRIPO}/chars_cfg.json'))
+src = open(f'{P.TRIPO}/prep_natsuki.py').read()
 import re as _re
 src = _re.sub(r'\nA\.data\.transform\([^\n]*# NIGHT_BODY[^\n]*', '', src)   # only the night body is turned back
 a = src.index("A_HEIGHT = "); b = src.index("def imp(f):")
@@ -32,7 +33,7 @@ A_CUT = {c['A_CUT']}
     if c.get('collar_ring'): s = s.replace('COLLAR_RING = False', 'COLLAR_RING = True')   # Makoto: the rim under her generated hair
     if key == 'yota':   # no closed-eyes / talking drawings yet: open stands in for closed, the smile for talking
         s = s.replace("(('open', 'yota_open'), ('closed', 'yota_closed'), ('talk', 'yota_talk'))", "(('open', 'yota_open'), ('closed', 'yota_open'), ('talk', 'yota_smile'))")
-    open(f'/home/claude/tripo/prep_{key}.py', 'w').write(s)
+    open(f'{P.TRIPO}/prep_{key}.py', 'w').write(s)
     print('wrote', key)
 
 # Natsuki indoors (socks body n3, the same head): the template with her socks-body measurements
@@ -43,4 +44,4 @@ s = s.replace('natsuki', 'natsuki_s')
 s = s.replace('faces_style/natsuki_s_', 'faces_style/natsuki_').replace("['natsuki_s']", "['natsuki']")
 s = s.replace("(('open', 'natsuki_s_open'), ('closed', 'natsuki_s_closed'), ('talk', 'natsuki_s_talk_open'))", "(('open', 'natsuki_open'), ('closed', 'natsuki_closed'), ('talk', 'natsuki_talk_open'))")
 s = "# socks version of Natsuki (indoors, dusk): the same head, the body generated from the socks images (generated from prep_natsuki.py)\n" + s
-open('/home/claude/tripo/prep_natsuki_s.py', 'w').write(s); print('wrote natsuki_s')
+open(f'{P.TRIPO}/prep_natsuki_s.py', 'w').write(s); print('wrote natsuki_s')

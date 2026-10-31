@@ -6,10 +6,18 @@
 #   3. 指摘の項目：ユーザーの言葉と撮る位置を並べた一覧から、同じ位置を「直す前」「直した後」で撮って左右に並べる
 #      （刷りあり＋刷りなし・確認用の光の2枚ずつ）。一覧の書き方は docs/手順_確認.md
 #   4. 動き（夜・夕方、同じ位置から6時刻）
-#   出力：/home/claude/work/check/ と、見る項目を並べた /home/claude/work/check/一覧.md（ここに○×を書いて確かめる）
+#   出力：$WORK/check/ と、見る項目を並べた $WORK/check/一覧.md（ここに○×を書いて確かめる）
+#
+# 速い確認（直している途中だけ。送る前は必ず FAST なしで全項目）：
+#   FAST=1 WHO=taiga,kiryu bash blender/check.sh <pck> [<直す前の pck>] [<指摘の一覧>]
+#   WHO の人物だけ（4方向と動き。夜と夕方の両方）。指摘の項目は全部撮る。刷りありの画はいつもの解像度、
+#   形を見る刷りなしの画（指摘の刷りなし・動き）は 480x270。一覧.md の先頭に「速い確認」と出る。
 set -u
-AFTER=$1; BEFORE=${2:-}; ITEMS=${3:-}
-K=/home/claude/notlw; O=/home/claude/work/check; L=$O/check.log
+. "$(dirname "$0")/paths.sh"
+AFTER=$1; BEFORE=${2:-}; ITEMS=${3:-}; FAST=${FAST:-}; WHO=${WHO:-}
+K=$REPO; O=$WORK/check; L=$O/check.log
+[ -n "$FAST" ] && [ -z "$WHO" ] && { echo "FAST=1 には WHO=人物,... が要る（例 WHO=taiga）"; exit 1; }
+LOW=; [ -n "$FAST" ] && LOW=480x270
 mkdir -p $O; rm -f $O/*.png
 echo "== start $(date +%T)" > $L
 M=$O/一覧.md
@@ -18,8 +26,12 @@ echo "# 確認の一覧（$(date '+%m/%d %H:%M')、$(basename $(dirname $AFTER))
 echo
 echo "各行に ○（問題なし）か ×（問題あり、何がどう）を書く。○ だけになるまでユーザーに送らない。"
 echo
+[ -n "$FAST" ] && { echo "**速い確認（FAST、$WHO だけ）。この一覧で送ってはいけない。送る前に FAST なしの check.sh を回す。**"; echo; }
 } > $M
 
+V4WHO="taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto"
+if [ -n "$FAST" ]; then V4WHO=; for p in taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto; do case ",$WHO," in *",${p#d},"*) V4WHO="$V4WHO $p";; esac; done; fi
+export WORK
 # 1. 構造
 echo "== anatomy $(date +%T)" >> $L
 cd $K/blender && python3 anatomy.py > $O/anatomy.log 2>&1
@@ -29,7 +41,7 @@ echo "## 1. 人体の構造（自動）：$R"
 grep "  NG" $O/anatomy.log | sed 's/^  NG /- [ ] NG：/'
 echo
 echo "## 2. 人体の構造（目で。4方向の画 v4_*.png で、人物ごとに）"
-for p in taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto; do
+for p in $V4WHO; do
   echo "- [ ] $p：顔・胸・つま先・ひざ・ズボンの前が同じ向き／ひじ・ひざが逆に曲がっていない／前腕が棒のように回っていない（ひじ側は回らず、手首側でひねる）／肩・首・手首が人のできる角度／持ち物の向き（スマホの画面は本人へ）"
 done
 echo
@@ -37,8 +49,9 @@ echo
 
 # 2. 4方向
 echo "== 4dir $(date +%T)" >> $L
-bash $K/blender/view4_glb.sh >> $L 2>&1
-cp /home/claude/work/v4/v4_*[a-z].png $O/ 2>/dev/null
+rm -f $WORK/v4/v4_*.png
+WHO="$V4WHO" bash $K/blender/view4_glb.sh >> $L 2>&1
+cp $WORK/v4/v4_*[a-z].png $O/ 2>/dev/null
 
 # 3. 指摘の項目（直す前と後を同じ位置で）
 echo "## 3. ユーザーの指摘（言葉はそのまま。直す前＝左、直した後＝右で、その点が変わったか）" >> $M
@@ -55,13 +68,13 @@ if [ -n "$ITEMS" ] && [ -f "$ITEMS" ]; then
         P=$AFTER; [ $side = before ] && P=$BEFORE
         [ -z "$P" ] && continue
         if [ $mode = print ]; then PCK=$P PRINT=1 python3 $K/godot/close.py $sc ck_${n}_${mode}_$side "$1" "$2" "$3" "$4" "${5:-0}" >> $L 2>&1
-        else PCK=$P PRINT=0 python3 $K/godot/close.py $sc ck_${n}_${mode}_$side "$1" "$2" "$3" "$4" "${5:-0}" .2 >> $L 2>&1; fi
+        else PCK=$P PRINT=0 RES=${LOW:-960x540} python3 $K/godot/close.py $sc ck_${n}_${mode}_$side "$1" "$2" "$3" "$4" "${5:-0}" .2 >> $L 2>&1; fi
       done
       python3 - "$n" "$mode" "$words" <<'PY'
 import sys, os
 from PIL import Image, ImageDraw
 n, mode, words = sys.argv[1:4]
-W = '/home/claude/work'
+W = os.environ['WORK']
 a = f'{W}/close_ck_{n}_{mode}_after.png'; b = f'{W}/close_ck_{n}_{mode}_before.png'
 ims = [Image.open(p).convert('RGB') for p in (b, a) if os.path.exists(p)]
 o = Image.new('RGB', (sum(i.width for i in ims), max(i.height for i in ims)))
@@ -79,8 +92,13 @@ echo >> $M
 
 # 4. 動き
 echo "== motion $(date +%T)" >> $L
-for sc in night dusk; do PCK=$AFTER python3 $K/godot/motion.py $sc >> $L 2>&1; done
-cp /home/claude/work/close_*_mv_*.png $O/ 2>/dev/null
+rm -f $WORK/close_*_mv_*.png
+for sc in night dusk; do
+  if [ -n "$FAST" ]; then
+    PCK=$AFTER RES=$LOW python3 $K/godot/motion.py $sc $WHO >> $L 2>&1   # motion.py skips the ones not in this scene
+  else PCK=$AFTER python3 $K/godot/motion.py $sc >> $L 2>&1; fi
+done
+cp $WORK/close_*_mv_*.png $O/ 2>/dev/null
 {
 echo "## 4. 動き（6時刻のどれか1枚でも崩れていれば ×）"
 for f in $O/close_*_mv_*.png; do echo "- [ ] $(basename $f)：首（浮く・ねじれ・刺さる）／腕（袖口が開く・裂ける・ひじの折れ）／手（指が抜ける・手首の折れ）"; done

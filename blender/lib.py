@@ -1,13 +1,14 @@
 """Shared builders for the RULES keyframes (Blender 5.2, Z-up, meters).
 Everything here is meant to survive the trip to a real-time engine:
 low-poly meshes, image or simple procedural materials, punctual lights only."""
+import paths as P   # all paths: paths.env
 import bpy, bmesh, math, json, os
 import numpy as np
 from mathutils import Vector, Matrix, Euler
 
-FACES = '/home/claude/assets/faces'
-TEX = '/home/claude/assets/tex'
-KF = '/home/claude/kf'
+FACES = f'{P.ASSETS}/faces'
+TEX = f'{P.ASSETS}/tex'
+KF = P.KF
 MASKS = json.load(open(f'{KF}/masks.json'))
 
 # ---------------------------------------------------------------- scene setup
@@ -506,7 +507,7 @@ def haze(bounds, density=.03, aniso=.35, color=(1, 1, 1)):
     return o
 
 # ---------------------------------------------------------------- drawn heads (stylised portraits), glTF friendly
-FACES_S = '/home/claude/assets/faces_style'
+FACES_S = f'{P.ASSETS}/faces_style'
 MASKS_S = json.load(open(f'{KF}/masks_style.json'))
 
 NECK_W = dict(mio=.098, natsuki=.098, makoto=.096, kiryu=.112, yota=.112, taiga=.125)

@@ -41,6 +41,10 @@ func _ready():
 		if a.begins_with("--chklight="): ARGS["chklight"] = a.substr(11)
 		if a.begins_with("--poses="):   # check stills: "x,z,yaw,pitch;x,z,yaw,pitch;..." held 1.5 s each, then quit
 			ARGS["poses"] = Array(a.substr(8).split(";")).map(func(q): return Array(q.split(",")).map(func(x): return float(x)))
+		if a.begins_with("--shots="):   # check stills in one run: "x,z,yaw,pitch,eye,t;..." each its own fresh moment (see _shot_tick)
+			ARGS["shots"] = Array(a.substr(8).split(";")).map(func(q): return Array(q.split(",")).map(func(x): return float(x)))
+		if a.begins_with("--shotframes="): ARGS["shotframes"] = int(a.substr(13))
+		if a == "--shotkeepfog": ARGS["shotkeepfog"] = true
 		if a.begins_with("--print="): ARGS["print"] = float(a.substr(8))
 		if a == "--nocard": CARD_TIME = 0.0
 		if a.begins_with("--riso="): PRINT_V = int(a.substr(7))
@@ -378,11 +382,12 @@ func _rain():
 	sh.code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled, blend_add;
-void vertex() { VERTEX.y -= mod(TIME * 7.5, 0.9); }
+uniform float toff = 0.0;
+void vertex() { VERTEX.y -= mod((TIME + toff) * 7.5, 0.9); }
 void fragment() { ALBEDO = vec3(0.32, 0.4, 0.55); ALPHA = 0.6; }
 """
 	var m := ShaderMaterial.new(); m.shader = sh
-	r.material_override = m
+	r.material_override = m; S["rain_mat"] = m
 
 # ------------------------------------------------------------------ collision (Blender plan, metres)
 func _box(center_b: Array, size_b: Array):
@@ -549,6 +554,9 @@ func _card():
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
 	if Engine.get_write_movie_path() != "": t = float(Engine.get_process_frames()) / 24.0
+	if ARGS.has("shots"):
+		t = _shot_tick()
+		if t < 0.0: return
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -583,7 +591,8 @@ func _process(dt):
 	if lights.has("fres"):
 		var dip: float = 1.0 - 0.55 * p.call(lt, LIGHTNING_T + 0.15, 0.12) - 0.25 * p.call(lt, LIGHTNING_T + 0.4, 0.08)
 		lights.fres.light_energy = 9.0 * (1.0 + 0.03 * sin(t * 6.1) + 0.02 * sin(t * 17.3)) * dip
-	if ARGS.has("poses"):
+	if ARGS.has("shots"): pass
+	elif ARGS.has("poses"):
 		var hold: float = float(ARGS.get("hold", "1.5"))
 		var idx := int((t - float(ARGS.get("at", "0"))) / hold)
 		if idx >= ARGS["poses"].size(): get_tree().quit()
@@ -594,6 +603,46 @@ func _process(dt):
 			if q.size() > 4: player.eye_height = q[4]; (player.get_node("Head") as Node3D).position.y = q[4]
 			player.auto_path = [[0.0, q[0], q[1], q[2], q[3]], [99.0, q[0], q[1], q[2], q[3]]]; player.auto_t = 0.0
 	elif record != "" and t > CARD_TIME + 15.0: get_tree().quit()
+
+# Several check stills from one start of the game (the start is most of the time of a still). Each shot gets the frames a
+# fresh run would have had: the same clock (frames counted from its own start), the print's and the rain's shader time
+# moved back by the frames before it, the anims seeked again, a new player body (made on the last, unused frame of the
+# shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
+# same unused frame). Returns the clock, or -1 when done.
+func _shot_tick() -> float:
+	var per: int = ARGS.get("shotframes", 12)
+	var F: int = Engine.get_process_frames()
+	if not S.has("shot_f0"):
+		S["shot_f0"] = F; print("SHOTS ", ARGS["shots"].size())   # close.py looks for this: an older pck ignores --shots
+	var idx: int = (F - int(S.shot_f0)) / per
+	if idx >= ARGS["shots"].size():
+		get_tree().quit(); return -1.0
+	var k: int = F - idx * per   # the frame count a fresh run of this shot would have (its start frames included)
+	if idx != S.get("shot_idx", -1):
+		S["shot_idx"] = idx
+		var q = ARGS["shots"][idx]
+		ARGS["at"] = str(q[5]); S.erase("at_seeked")
+		player.global_position = Vector3(q[0], 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])
+		player.eye_height = q[4]; (player.get_node("Head") as Node3D).position.y = q[4]
+		player.auto_path = [[0.0, q[0], q[1], q[2], q[3]], [99.0, q[0], q[1], q[2], q[3]]]; player.auto_t = 0.0
+		var off: float = -float(idx * per) / 24.0
+		if riso: riso.set_shader_parameter("time_offset", off)
+		if S.has("rain_mat"): S.rain_mat.set_shader_parameter("toff", off)
+		if S.has("shot_fog"): env.volumetric_fog_enabled = S.shot_fog
+	if not S.has("shot_fog"): S["shot_fog"] = env.volumetric_fog_enabled
+	if F - int(S.shot_f0) - idx * per == 9: S["shot_p9"] = player.global_position
+	if F - int(S.shot_f0) - idx * per == 10:   # the frame close.py keeps: is the camera (the player) still moving?
+		var p: Vector3 = player.global_position
+		var m: float = (p - S.shot_p9).length()
+		print("SHOTPOS ", idx, " ", p.x, " ", p.y, " ", p.z, " ", 1 if player.is_on_floor() else 0, " ", m)
+	if F - int(S.shot_f0) - idx * per == per - 1 and idx + 1 < ARGS["shots"].size():
+		# a new body at the spawn point, so the next shot's physics starts as a fresh run's does (the camera is the
+		# player: where walls push it and how it falls back depends on the body's state)
+		var cam_mode = player.cam_mode
+		remove_child(player); player.free(); _player(); player.cam_mode = cam_mode; S.erase("chklight")
+		if not ARGS.has("shotkeepfog"): env.volumetric_fog_enabled = false
+	return float(k) / 24.0
+
 
 func _unhandled_input(e):
 	if e is InputEventKey and e.pressed and not e.echo:

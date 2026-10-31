@@ -1,6 +1,6 @@
 """Keyframe: 第2章 23:00 扉の前の沈黙 (main direction: the house lit like a film set)."""
 import sys, math
-sys.path.insert(0, '/home/claude/kf')
+import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib, door as D, hall as Hm
@@ -63,7 +63,7 @@ def cam():
 
 if __name__ == '__main__':
     a = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    out = a[0] if a else '/home/claude/kf/out/night_t.png'
+    out = a[0] if a else f'{P.KF}/out/night_t.png'
     spp = int(a[1]) if len(a) > 1 else 24; pct = int(a[2]) if len(a) > 2 else 50
     exp = float(a[3]) if len(a) > 3 else 1.0
     build(); cam()

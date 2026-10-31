@@ -3,7 +3,7 @@ For each person, two close.py sheets over the same 6 loop times (before / during
   <scene>_mv_<person>_neck : the neck and collar from the rear-side (120 deg off the face)
   <scene>_mv_<person>_hand : the arms and hands from the front-side (35 deg off the face)
 Shapes are judged here (no halftone, check light); the print look is judged on the usual sheets.
-PCK / PRINT / PEXP pass through to close.py. ~4 min a person."""
+PCK / PRINT / PEXP / RES pass through to close.py. Each sheet is one start of the game (close.py)."""
 import sys, os, subprocess
 scene = sys.argv[1]
 TIMES = {'night': '2.0,6.3,8.5,11.3,14.0,19.0',   # knocks 6.0-6.56 and 11.0-11.6, Kiryu looks 7.3-10, Taiga up 5.6-12.2
@@ -19,7 +19,7 @@ P = {'night': {'kiryu': (-.32, 4.02, 0, -14, 1.48, 1.15),
               'kiryu': (-.32, 4.43, 0, 33, 1.48, 1.45),
               'taiga': (.82, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher
               'makoto': (1.08, 2.52, 0, -151, 1.38, 1.15)}}
-who = sys.argv[2].split(',') if len(sys.argv) > 2 else list(P[scene])
+who = [k for k in sys.argv[2].split(',') if k in P[scene]] if len(sys.argv) > 2 else list(P[scene])   # names not in this scene are skipped
 C = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'close.py')
 env = dict(os.environ); env.setdefault('PRINT', '0')
 for k in who:

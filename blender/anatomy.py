@@ -4,11 +4,12 @@ At rest: the toes and the chin must point the same way as the skeleton's front (
 Over the loop (every 4th frame): elbows and knees bend only the anatomical way, the forearm bone itself rolls little
 (the twist bone does the turning, gradually toward the wrist), and the twist stays within what a forearm can turn.
 Prints one line per check and NG lines for failures; the last line is ANATOMY_OK or ANATOMY_NG <count>."""
+import paths as P   # all paths: paths.env
 import sys, os, math, glob
 import bpy
 from mathutils import Vector
 
-A = '/home/claude/rules/assets'
+A = f'{P.RULES}/assets'
 files = [a for a in sys.argv[1:] if a.endswith('.glb')] or \
     [f'{A}/{k}.glb' for k in ('natsuki', 'kiryu', 'taiga')] + [f'{A}/dusk/{k}.glb' for k in ('natsuki', 'kiryu', 'taiga', 'makoto')]
 ROLL_MAX = 45      # deg the forearm bone may roll about its own axis (the elbow end barely turns in a real arm)
