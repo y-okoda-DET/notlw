@@ -15,17 +15,17 @@ ZG = -.18
 # the v4 house (blender/stage.py)
 P = {'night': {'kiryu': (-.32, 4.37, 0, -14, 1.48, 1.15),
                'taiga': (.26, 5.27, ZG, 176, 1.30, 1.25),
-               'natsuki': (-.665, 6.56, ZG, 0, 1.38, 1.05)},
-     'dusk': {'natsuki': (.36, 4.19, 0, 0, 1.38, .85),
+               'natsuki': (-.665, 6.56, ZG, 0, 1.38, 1.05, 120, -15)},   # hand: from inside, past the door's edge to the slit
+     'dusk': {'natsuki': (.36, 4.19, 0, 0, 1.38, .85, 160, -35),   # the stair is on her left front: views from the right and behind
               'kiryu': (-.32, 4.78, 0, 33, 1.48, 1.45),
               'taiga': (.26, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher
-              'makoto': (.95, 3.86, 0, -119, 1.38, 1.15)}}
+              'makoto': (.95, 3.86, 0, -119, 1.38, 1.15, 299)}}   # cornered by the stair and the east wall: the neck from the genkan side
 who = [k for k in sys.argv[2].split(',') if k in P[scene]] if len(sys.argv) > 2 else list(P[scene])   # names not in this scene are skipped
 C = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'close.py')
 env = dict(os.environ); env.setdefault('PRINT', '0')
 for k in who:
     x, y, z0, f, zn, zh, *o = P[scene][k]
-    for part, z, d, az, dh in (('neck', zn, .7, f + (o[0] if o else 120), .05), ('hand', zh, 1.1, f + 35, .15)):
+    for part, z, d, az, dh in (('neck', zn, .7, f + (o[0] if o else 120), .05), ('hand', zh, 1.1, f + (o[1] if len(o) > 1 else 35), .15)):
         r = subprocess.run(['python3', C, scene, f'{scene}_mv_{k}_{part}', f'{x},{y},{z0 + z:.2f}', str(d), str(az % 360),
                             TIMES[scene], str(dh), str(LIGHT[scene])], env=env, capture_output=True, text=True)
         print(k, part, r.stdout.strip().splitlines()[-1] if r.stdout.strip() else 'NO_OUTPUT ' + r.stderr[-300:], flush=True)

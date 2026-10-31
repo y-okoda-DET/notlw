@@ -17,7 +17,7 @@ KIRYU_N = (-.32, 4.37)                        # 23:00: reading his phone
 NATSUKI_D = (.36, 4.19)
 MAKOTO_D = (.95, 3.86)                        # holding the reflector on Natsuki, just in front of the stair's foot
 FRESNEL = (-.5, 2.9)                          # in the walkway by the living-room door, aimed at the mark
-APPLEBOX = (.95, 4.55)
+APPLEBOX = (-.6, 3.85)                        # by the walkway's mouth, out of the way of the views of Makoto
 TAIGA_D = (DOOR_C + .06, YF + .17)            # in the doorway with an apple box
 TAIGA_N = (DOOR_C + .06, YF - 1.03)           # leaning into the shut door
 SHOECAB_TOP = (H4.X(5.77), H4.Y(.7), ZG + .91)
@@ -31,5 +31,6 @@ def scene_json(scene, boxes):
         props = [[*NATSUKI_D, .24], [*KIRYU_D, .22], [*TRIPOD_D, .26], [*FRESNEL, .32], [*APPLEBOX, .22], [*MAKOTO_D, .2], [*TAIGA_D, .3]]
     else:
         props = [[*KIRYU_N, .24], [*TAIGA_N, .3], [*TRIPOD_N, .26], [*FRESNEL, .32], [*APPLEBOX, .22], [HALL[0] + .2, 5.15, .14]]
+    boxes = boxes + [dict(c=[DOOR_C, YF + .95, ZG - .28], s=[2.8, 1.8, .5])]   # the porch outside the door (the ext deck has no collider)
     return dict(boxes=boxes, props=props, spawn=list(PLAYER), look=list(PLAYER_LOOK), gi_box=[list(GI_BOX[0]), list(GI_BOX[1])],
                 mark=[*MARK, 0])

@@ -37,6 +37,7 @@ def build():
     p.inputs['Base Color'].default_value = (0, 0, 0, 1)
     bd = prim('plane', 'sunset_backdrop', loc=(DC + .14, Y + 9, 1.6), rot=(math.pi / 2, 0, 0), scale=(8, 8 * 876 / 1358, 1), mat=sky)
     bd.visible_shadow = False
+    bpy.data.objects.remove(bd)   # v4: the exterior's sky ring (外観スレッド, r 28 m) is the backdrop; the sheet stood inside the wood and shaded the front
     S['sun'] = lib.sun('sun', (0, 0, 0), 14, k=2200, angle=.8)
     S['sun'].rotation_euler = Vector((.3, -.95, -.25)).to_track_quat('-Z', 'Y').to_euler()
     w = s.world.node_tree.nodes['Background']; w.inputs[0].default_value = (*kelvin(3400), 1); w.inputs[1].default_value = .35
@@ -44,7 +45,6 @@ def build():
     if os.environ.get('EXT'):   # the look comparison: the whole outside of the house, the sky ring replaces the backdrop
         import house; house.build_exterior(M)
         k_ = 20 / 9   # the sunset sheet pushed back to 20 m (same size seen from the hall), out of the outside views' way
-        bd.location = (DC + .14, Y + 20, 1.5 + .1 * k_); bd.scale = (8 * k_, 8 * 876 / 1358 * k_, 1)
     D.fresnel(St.FRESNEL, 2.0, (*St.MARK, 0), M, energy=160, size=30)
     D.tripod(St.TRIPOD_D, math.radians(205), M)
     Hm.tape_mark(*St.MARK, CAM[:2], 'tape_natsuki.png')
