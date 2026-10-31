@@ -631,6 +631,8 @@ func _unhandled_input(e):
 				var img := get_viewport().get_texture().get_image()
 				var p: Vector3 = player.global_position; var t: float = Time.get_ticks_msec() / 1000.0
 				var name := "shot_%s_x%.2f_z%.2f_yaw%.0f_pitch%.0f_t%.1f.png" % [SCENE, p.x, p.z, rad_to_deg(player.yaw), rad_to_deg(player.pitch), t]
+				if SCENE == "dusk":   # the dusk light set with 7/8, 9/0, [ ] goes into the name, to become the defaults
+					name = name.replace(".png", "_sun%.2f_sky%.2f_key%.2f.png" % [DUSK_K.sun, DUSK_K.sky, DUSK_K.key])
 				var dir := OS.get_executable_path().get_base_dir() if OS.has_feature("template") else ProjectSettings.globalize_path("user://")
 				img.save_png(dir.path_join(name)); _status("")
 			KEY_F11:

@@ -189,6 +189,51 @@ for _ in range(30):
             if len(ns) == 2: nb[v] = (ns[0].co + ns[1].co) / 2
     for v, c in nb.items(): v.co = v.co.lerp(c, .5)
 bm.to_mesh(A.data); bm.free()
+# where the generated body's own hair lay over the back of the collar (Makoto), the cut leaves a sawtooth rim with
+# loose tabs: neighbour smoothing cannot untangle it. Instead the rim height is read per direction around the neck,
+# smoothed round the ring, everything above it goes and the new rim is laid on that curve. Per person (Kiryu's shirt
+# collar stands up and must keep its shape)
+COLLAR_RING = True
+if COLLAR_RING:
+    RB = 72
+    bm = bmesh.new(); bm.from_mesh(A.data); bm.verts.ensure_lookup_table()
+    def _ang(c_): return int((math.atan2(c_.y - _cy, c_.x - _cx) + math.pi) / math.tau * RB) % RB
+    near = lambda c_: math.hypot(c_.x - _cx, c_.y - _cy) < _rim * 1.6 and c_.z > collar_z - .04
+    zs_ = [[] for _ in range(RB)]
+    for v in bm.verts:
+        if v.is_boundary and near(v.co) and math.hypot(v.co.x - _cx, v.co.y - _cy) < _rim * 1.3: zs_[_ang(v.co)].append(v.co.z)
+    zr = np.array([np.percentile(a, 50) if a else np.nan for a in zs_])
+    if np.isnan(zr).all(): zr[:] = collar_z
+    idx_ = np.arange(RB); ok_ = ~np.isnan(zr)
+    zr = np.interp(idx_, idx_[ok_], zr[ok_], period=RB)
+    from scipy import ndimage as _nd0
+    zr = _nd0.gaussian_filter1d(zr, 4, mode='wrap')
+    def _zr(c_):
+        f_ = (math.atan2(c_.y - _cy, c_.x - _cx) + math.pi) / math.tau * RB - .5; i_ = int(math.floor(f_)); t_ = f_ - i_
+        return zr[i_ % RB] * (1 - t_) + zr[(i_ + 1) % RB] * t_
+    above = [f for f in bm.faces if near(f.calc_center_median()) and f.calc_center_median().z > _zr(f.calc_center_median()) + .003]
+    bmesh.ops.delete(bm, geom=above, context='FACES')
+    # what the cut leaves standing alone (strips one or two faces wide) would read as spikes: peel them
+    for _ in range(6):
+        thin = [f for f in bm.faces if near(f.calc_center_median()) and sum(e.is_boundary for e in f.edges) >= 2]
+        if not thin: break
+        bmesh.ops.delete(bm, geom=thin, context='FACES')
+    loose = [v for v in bm.verts if not v.link_faces]; bmesh.ops.delete(bm, geom=loose, context='VERTS')
+    bm.verts.ensure_lookup_table(); seen_ = set(); crumbs = []
+    for v in bm.verts:
+        if v.index in seen_: continue
+        st_ = [v]; comp_ = []
+        while st_:
+            u = st_.pop()
+            if u.index in seen_: continue
+            seen_.add(u.index); comp_.append(u); st_ += [e.other_vert(u) for e in u.link_edges]
+        if len(comp_) < 300 and all(near(u.co) for u in comp_): crumbs += comp_
+    bmesh.ops.delete(bm, geom=crumbs, context='VERTS')
+    snapped = 0
+    for v in bm.verts:
+        if v.is_boundary and near(v.co) and math.hypot(v.co.x - _cx, v.co.y - _cy) < _rim * 1.3 and abs(v.co.z - _zr(v.co)) < .02: v.co.z = _zr(v.co); snapped += 1
+    bm.to_mesh(A.data); bm.free()
+    print('collar ring: faces above removed', len(above), 'rim verts snapped', snapped, 'rim z range (cm)', round((zr.max() - zr.min()) * 100, 2))
 print('head offset', dz, 'neck y', ya, yb * S_HEAD)
 # ---- marry the head's neck to the body's collar: the two were generated separately, so at the collar the neck is a
 # different width and sits a little off. Pull the neck's ring at the cut onto the collar ring (just inside it) and
@@ -211,10 +256,16 @@ def polar_profile(cos_, zlo, zhi):
 # the neck is fitted 8 % inside it, so it disappears into the collar instead of standing on it
 ring = [v.co.copy() for v in A.data.vertices if collar_z - .006 <= v.co.z <= collar_z + .001 and math.hypot(v.co.x - _cx, v.co.y - _cy) < _rim * 1.25]
 r_body = polar_profile(ring, zc - .006, zc + .001)
-r_head = polar_profile([v.co for v in B.data.vertices], zc - .006, zc + .006)
 def prof_at(prof, th):
     f = (th + math.pi) / math.tau * NB; i = int(f) % NB; t = f - int(f)
     return prof[i] * (1 - t) + prof[(i + 1) % NB] * t
+# the head's neck is read just inside the collar, where nothing but neck is; at the rim itself a low-set chin can
+# already reach down (Kiryu: chin and rim at nearly the same height), and pulling the chin onto the collar ring left a
+# vertical crease down the chin. Anything well outside that neck (the chin) is left alone below
+r_neck = polar_profile([v.co for v in B.data.vertices], zc - .020, zc - .008)
+def _rn(c_):
+    return prof_at(r_neck, math.atan2(c_.y - cy_, c_.x - cx_))
+r_head = polar_profile([v.co for v in B.data.vertices if math.hypot(v.co.x - cx_, v.co.y - cy_) < 1.3 * _rn(v.co)], zc - .006, zc + .006)
 moved = 0
 # the correction stops 1.5 cm below the chin: above that the radial push reached the jaw and pulled the chin forward
 # into a point (the generated heads have round chins)
@@ -227,6 +278,7 @@ for v in B.data.vertices:
     w = 1.0 if z <= zc + .005 else 1 - u_ * u_ * (3 - 2 * u_)
     th = math.atan2(v.co.y - cy_, v.co.x - cx_); r = math.hypot(v.co.x - cx_, v.co.y - cy_)
     if r < 1e-6: continue
+    rk = prof_at(r_neck, th); w *= min(1.0, max(0.0, (1.35 * rk - r) / (.25 * rk)))   # neck only, never the chin
     rn = r + (.98 * prof_at(r_body, th) - prof_at(r_head, th)) * w   # filling the opening
     v.co.x = cx_ + math.cos(th) * rn; v.co.y = cy_ + math.sin(th) * rn; moved += 1
 print('neck married to collar: verts', moved, 'collar r', round(sum(r_body) / NB, 4), 'neck r', round(sum(r_head) / NB, 4))
@@ -342,11 +394,22 @@ nbr = {}
 for e in me.edges:
     a_, b_ = e.vertices
     if a_ in fverts and b_ in fverts: nbr.setdefault(a_, []).append(b_); nbr.setdefault(b_, []).append(a_)
-mov = [vi for vi in fverts if vi not in rim and vi in nbr and (
-       (abs(abs(co[vi, 0] / eyed) - .5) < .3 and -.18 < d_of(co[vi, 2]) < .16) or (abs(co[vi, 0] / eyed) < .45 and .75 < d_of(co[vi, 2]) < 1.1))]
+# the strength fades out over the last part of each box: a hard box edge left a step in the surface (the vertical
+# crease from the mouth corner down the chin, seen on Kiryu from below)
+def _relief_w(x, z):
+    xe_, d_ = abs(x / eyed), d_of(z)
+    ramp = lambda a, w_: min(1.0, max(0.0, a / w_))
+    we = ramp(.3 - abs(xe_ - .5), .12) * ramp(min(d_ + .18, .16 - d_), .08)
+    wm = ramp(.45 - xe_, .2) * ramp(min(d_ - .75, 1.1 - d_), .12)
+    s_ = max(we, wm); return s_ * s_ * (3 - 2 * s_)
+mov = {}
+for vi in fverts:
+    if vi in rim or vi not in nbr: continue
+    s_ = _relief_w(co[vi, 0], co[vi, 2])
+    if s_ > 0: mov[vi] = s_
 for _ in range(24):
     ny = {vi: co[[*nbr[vi]], 1].mean() for vi in mov}
-    for vi, y in ny.items(): co[vi, 1] = co[vi, 1] * .5 + y * .5
+    for vi, y in ny.items(): co[vi, 1] = co[vi, 1] * (1 - .5 * mov[vi]) + y * .5 * mov[vi]
 for vi in mov: me.vertices[vi].co.y = co[vi, 1]
 me.update()
 # per-vertex blend weight: 1 inside the face, feathered over a few rings toward its edge (never painted outside it)

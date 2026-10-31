@@ -347,7 +347,7 @@
    0.631
   ]
  },
- "makoto": {
+ "makoto": {"collar_ring": true, 
   "A_HEIGHT": 0.9799,
   "H": 1.55,
   "S_HEAD": 0.38,

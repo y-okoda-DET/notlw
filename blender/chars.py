@@ -1,7 +1,7 @@
 """Characters built from the MakeHuman base mesh (MPFB2, CC0 assets) + game_engine rig (Godot-compatible).
 Clothes are offset shells of the body that share its skin weights; the head is the photo bust from lib.bust,
 parented to the head bone. Poses are given as world-space aim targets per bone chain."""
-import sys, math, importlib
+import sys, os, math, importlib
 sys.path.insert(0, '/home/claude/kf')
 import bpy, bmesh, addon_utils
 from mathutils import Vector, Matrix, Quaternion
@@ -322,10 +322,11 @@ def _apply_pose_as_rest(rig, meshes):
     bpy.ops.object.mode_set(mode='POSE'); bpy.ops.pose.select_all(action='SELECT'); bpy.ops.pose.armature_apply(selected=False)
     bpy.ops.object.mode_set(mode='OBJECT')
 
-CUT_WEB = False   # only for generations where the sleeve came out fused to the body (free-plan Natsuki)
+SLEEVE_SMOOTH = 12   # passes of weight smoothing over the sleeve under the shoulder (raised arms fold it)
+CUT_WEB = {'taiga'}   # generations where the sleeve came out fused to the side of the body (free-plan Natsuki; Taiga, whose arms go up to the door)
 ARM_CHAIN = ('clavicle', 'upperarm', 'lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')
 
-def _transfer_weights_gated(donor, target, rig, k=4):
+def _transfer_weights_gated(donor, target, rig, k=4, cut_web=False):
     bones = set(rig.data.bones.keys())
     """Copy skin weights from the MakeHuman donor (posed to match) onto the generated mesh. Nearest-surface alone
     lets a hand hanging beside the jeans grab the thigh, so below the armpit every target vertex is first sorted
@@ -466,6 +467,67 @@ def _transfer_weights_gated(donor, target, rig, k=4):
             for n, x in W[j].items(): acc[n] = acc.get(n, 0) + x / len(grp)
         W3.append(acc)
     W = W3
+    # a rolled-up cuff is several shells stacked a few mm apart (sleeve, turn-up, lining). Weighted one by one they
+    # take different shares of upper arm and forearm, and when the elbow bends the layers fan apart into dark slits
+    # (Taiga at the door). On the upper and lower arm, vertices this close together across layers take the same
+    # weights. Hands and fingers are left out: neighbouring fingers are as close and must not move together
+    top_ = [max(w, key=w.get).split('_')[0] if w else '' for w in W]
+    cuff = [i for i in range(len(P)) if top_[i] in ('upperarm', 'lowerarm') or sum(x for n, x in W[i].items() if n.split('_')[0] in ('upperarm', 'lowerarm')) > .1 * max(1e-9, sum(W[i].values()))]   # the sleeve over the shoulder too, where the clavicle leads
+    if cuff:
+        kdc = _KD0(len(cuff))
+        for n_, i in enumerate(cuff): kdc.insert(P[i], n_)
+        kdc.balance()
+        W4 = list(W)
+        for i in cuff:
+            acc = {}; tot = 0.0
+            for _, n_, dd in kdc.find_range(P[i], .015):
+                j = cuff[n_]
+                if (P[i][2] < armpit + .02 or P[j][2] < armpit + .02) and arm[i] != arm[j]: continue
+                g = math.exp(-(dd / .008) ** 2); tot += g
+                for n, x in W[j].items(): acc[n] = acc.get(n, 0) + g * x
+            if tot > 0: W4[i] = {n: x / tot for n, x in acc.items()}
+        W = W4
+        # a folded hem is two or three shells a few cm apart across the cloth: pair each cuff vertex with the shell
+        # straight through it (along its normal, both ways) and give both the same weights, so the fold moves as one
+        from mathutils.bvhtree import BVHTree as _BVH
+        from mathutils import Vector as _V
+        bvh = _BVH.FromPolygons([_V(q) for q in P], [tuple(f.vertices) for f in target.data.polygons])
+        nm = tmw.to_3x3().inverted().transposed()
+        cset = set(cuff); W5 = list(W); paired = 0
+        for i in cuff:
+            q = _V(P[i]); n0 = (nm @ target.data.vertices[i].normal).normalized()
+            acc = {n: x for n, x in W[i].items()}; tot = 1.0
+            for sgn in (1, -1):
+                hit, _, fi, dd = bvh.ray_cast(q + n0 * sgn * .0015, n0 * sgn, .04)
+                if hit is None: continue
+                vs = [j for j in target.data.polygons[fi].vertices if j in cset and arm[j] == arm[i]]
+                for j in vs:
+                    for n, x in W[j].items(): acc[n] = acc.get(n, 0) + x / len(vs)
+                if vs: tot += 1.0; paired += 1
+            W5[i] = {n: x / tot for n, x in acc.items()}
+        W = W5
+        # the raised arm folds the sleeve over itself under the shoulder where its weights change fast (upper arm
+        # against spine/clavicle): smooth them over the surface there, a few cm wide
+        sh = [i for i in range(len(P)) if sum(x for n, x in W[i].items() if n.split('_')[0] in ('upperarm', 'clavicle')) > .1 * max(1e-9, sum(W[i].values()))
+              and not any(n.split('_')[0] in ('lowerarm', 'hand') and x > .3 * sum(W[i].values()) for n, x in W[i].items())]
+        shs = set(sh); nb = {i: set() for i in sh}
+        for e in target.data.edges:
+            a_, b_ = e.vertices
+            if a_ in shs and b_ in shs: nb[a_].add(b_); nb[b_].add(a_)
+        for i in sh:
+            for _, j, _ in kd0.find_range(P[i], .0012):
+                if j != i and j in shs: nb[i].add(j)
+        for it in range(int(SLEEVE_SMOOTH)):
+            Wn = list(W)
+            for i in sh:
+                if not nb[i]: continue
+                acc = {n: .5 * x for n, x in W[i].items()}; g = .5 / len(nb[i])
+                for j in nb[i]:
+                    for n, x in W[j].items(): acc[n] = acc.get(n, 0) + g * x
+                Wn[i] = acc
+            W = Wn
+        print('cuff layers: shoulder smoothing', len(sh), 'x', SLEEVE_SMOOTH)
+        print('cuff layers: arm vertices sharing weights across layers', len(cuff), 'paired through the cloth', paired)
     for i, w in enumerate(W):
         tot = sum(w.values())
         for n, x in w.items():
@@ -473,8 +535,45 @@ def _transfer_weights_gated(donor, target, rig, k=4):
     # where the generator fused the sleeve to the side of the sweater, the surface between them would stretch into
     # a sheet when the arm lifts: cut those faces out
     bm = bmesh.new(); bm.from_mesh(target.data); bm.faces.ensure_lookup_table()
-    web = [f for f in bm.faces if all(below[v.index] for v in f.verts) and len({bool(arm[v.index]) for v in f.verts}) > 1] if CUT_WEB else []
+    web = [f for f in bm.faces if all(below[v.index] for v in f.verts) and len({bool(arm[v.index]) for v in f.verts}) > 1] if cut_web else []
+    cutv = {v for f in web for v in f.verts}
     bmesh.ops.delete(bm, geom=web, context='FACES_ONLY')
+    if cut_web:
+        # the cut leaves thin strips hanging off its edge (they stretch into strands) and opens the sleeve and the
+        # side of the body: weld the UV-seam splits first so only the cut has open edges, peel the strips, then cap
+        # the openings on both sides (the caps take the texture of the faces next to them)
+        bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=.0002)
+        cutv = {v for v in cutv if v.is_valid}
+        for _ in range(4):
+            strips = [f for f in bm.faces if any(v in cutv for v in f.verts) and sum(e.is_boundary for e in f.edges) >= 2]
+            if not strips: break
+            cutv |= {v for f in strips for v in f.verts}
+            bmesh.ops.delete(bm, geom=strips, context='FACES_ONLY')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        cutv = {v for v in cutv if v.is_valid}
+        rim = {e for e in bm.edges if e.is_boundary and all(v in cutv for v in e.verts)}
+        # whole open loops through the cut (a loop may run a little past the cut verts)
+        loops_ = []; seen_ = set()
+        for e0 in rim:
+            if e0 in seen_: continue
+            comp = {e0}; st = [e0]; seen_.add(e0)
+            while st:
+                e = st.pop()
+                for v in e.verts:
+                    for e2 in v.link_edges:
+                        if e2.is_boundary and e2 not in seen_: seen_.add(e2); comp.add(e2); st.append(e2)
+            loops_.append(comp)
+        print('cut web: open loops', sorted(len(c_) for c_ in loops_))
+        rim = [e for c_ in loops_ if len(c_) < 400 for e in c_]
+        caps = bmesh.ops.holes_fill(bm, edges=rim, sides=0)['faces']
+        caps = bmesh.ops.triangulate(bm, faces=caps)['faces']
+        uvl = bm.loops.layers.uv.active
+        if uvl:
+            for f in caps:
+                for l in f.loops:
+                    nb_ = [l2 for l2 in l.vert.link_loops if l2.face not in caps]
+                    if nb_: l[uvl].uv = nb_[0][uvl].uv
+        print('cut web: capped', len(caps), 'faces over', len(rim), 'open edges')
     bm.to_mesh(target.data); bm.free()
     print('cut web faces', len(web))
 
@@ -533,7 +632,7 @@ def make_tripo(key, label=None):
             print('thumb fit', s, 'mesh', round(b2.length * 100, 1), 'rig', round(a2.length * 100, 1), 'turned', round(math.degrees(a2.angle(b2)), 1))
         print('hand fit', s, 'mesh', round(b.length * 100, 1), 'cm rig', round(a.length * 100, 1), 'cm, turned', round(math.degrees(a.angle(b)), 1), 'deg, err', round((bone_tail(rig, f'middle_03_{s}') - tip_m).length * 100, 2), 'cm')
     _apply_pose_as_rest(rig, [donor])
-    _transfer_weights_gated(donor, body, rig)
+    _transfer_weights_gated(donor, body, rig, cut_web=key in CUT_WEB)
     hz = bone_head(rig, 'head').z; nz = bone_head(rig, 'neck_01').z
     # one rule for the whole neck, on the head mesh AND the body's collar: by height alone, so the two meshes move
     # together when the neck turns. Below the collar top: spine_03. Up the neck over 7 cm: neck_01. Then head.

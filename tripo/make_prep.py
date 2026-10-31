@@ -27,6 +27,7 @@ A_CUT = {c['A_CUT']}
     s = re.sub(r"_ck = np.array\(\[[^\]]*\]\)", f"_ck = np.array({c['cheek']})", s)
     s = s.replace('CUT_UP = .003', 'CUT_UP = .012')
     s = s.replace('NECK_GEOM = True', 'NECK_GEOM = False')
+    if c.get('collar_ring'): s = s.replace('COLLAR_RING = False', 'COLLAR_RING = True')   # Makoto: the rim under her generated hair
     if key == 'yota':   # no closed-eyes / talking drawings yet: open stands in for closed, the smile for talking
         s = s.replace("(('open', 'yota_open'), ('closed', 'yota_closed'), ('talk', 'yota_talk'))", "(('open', 'yota_open'), ('closed', 'yota_open'), ('talk', 'yota_smile'))")
     open(f'/home/claude/tripo/prep_{key}.py', 'w').write(s)
