@@ -50,7 +50,7 @@ def flat_wall(axis, fixed, lo, hi, holes, M, inward, z0=None, top=None):
         if axis == 'Y': o = prim('cube', name, loc=(x, (a + b) / 2, (c + d) / 2), scale=(th / 2, (b - a) / 2, (d - c) / 2), mat=mat)
         else: o = prim('cube', name, loc=((a + b) / 2, x, (c + d) / 2), scale=((b - a) / 2, th / 2, (d - c) / 2), mat=mat)
         lib.uv_box(o, uv)
-    WS = .92
+    WS = .92 if z0 <= .01 and z0 >= ZG - .01 else z0 + .92   # chair rail .92 above the floor (the 1F hall starts at the genkan's level)
     for (a, b, c, d) in cut([(lo, hi, z0, WS)]): slab('wainscot', a, b, c, d, 0, .02, M['beadboard'])
     for (a, b, c, d) in cut([(lo, hi, WS, top)]): slab('plasterwall', a, b, c, d, -.005, .02, M['plaster'], .87)
     for (a, b, c, d) in cut([(lo, hi, WS - .01, WS + .05)]): slab('chairrail', a, b, c, d, 0, .035, M['trim'])
