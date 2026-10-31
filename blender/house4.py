@@ -183,6 +183,7 @@ def fusuma(M, fixed, a, b):
     if 'washi' not in M:
         M['washi'] = mat_basic('washi', (.62, .58, .49), .85)
         M['fusumaframe'] = mat_basic('fusumaframe', (.07, .055, .045), .4)
+    a, b = a + .015, b - .015    # inside the reveal linings, so the outer frames show
     w = (b - a) / 2 + .02
     for i, (c, dx) in enumerate(((a + w / 2, -.018), (b - w / 2, .018))):
         x = X(fixed) + dx; y = Y(c)
@@ -262,6 +263,7 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
             'back': door_leaf(M, 'Y', 10, 4.4, 5.35, 0, hinge='lo', name='door_back'),
             'cellar': door_leaf(M, 'X', 5.6, 5.12, 5.93, 0, hinge='hi', name='door_cellar'),
         }
+        a['doors']['front'].name = 'door_pivot'   # Godot finds the front door by this name (the knocks shake it)
         fusuma(M, 6, 1.6, 2.45)
         genkan_fit(M)
         note = under_stair(M)
@@ -285,10 +287,46 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
     if 'B1' in floors:
         x0, y0, x1, y1 = B1
         for w in [('X', y0, x0, x1, [], [], -1), ('X', y1, x0, x1, [], [], 1), ('Y', x0, y0, y1, [], [], -1), ('Y', x1, y0, y1, [], [(6.15, 6.75)], 1)]:
-            wall_v4(M, w, ZB, -.3, -.75, .4)
+            wall_v4(M, w, ZB, -.3, -1.6, .4)   # the small east window: Z -1.6..-1.2, above the ground on the east slope (外観スレッドと合わせた)
         slab_xy('floorB', x0, y0, x1, y1, ZB, .05, M['tile'], 1.2)
         stairs_down(M)
         cellar_shaft(M)
     a['F2'] = F2; a['H1'] = H1; a['H2'] = H2; a['ZB'] = ZB
     a['front_door'] = Vector((X(5.0), Y(0), 1.0))
     return a
+
+
+# ---------------------------------------------------------------- scene helpers
+def prune(box, keep=('ext_',)):
+    """Delete meshes whose bounds lie wholly outside box ((x0, y0, z0), (x1, y1, z1)): the rooms behind shut doors in a
+    hall scene (they would take most of the lightmap's texels and are never seen)."""
+    (x0, y0, z0), (x1, y1, z1) = box
+    gone = 0
+    for o in list(bpy.data.objects):
+        if o.type != 'MESH' or o.name.startswith(keep): continue
+        bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        if (max(v.x for v in bb) < x0 or min(v.x for v in bb) > x1 or max(v.y for v in bb) < y0 or min(v.y for v in bb) > y1
+                or max(v.z for v in bb) < z0 or min(v.z for v in bb) > z1):
+            bpy.data.objects.remove(o, do_unlink=True); gone += 1
+    print('prune: removed', gone)
+
+COLLIDE = ('wallcore', 'floor1', 'genkan', 'shoecab', 'door_living', 'door_dining', 'door_kitchen', 'door_toilet',
+           'door_pantry', 'door_cellar', 'door_front', 'door_back', 'fusuma', 'agarikamachi')
+def colliders():
+    """Axis-aligned boxes for the player (Blender centre + size), from the built meshes; the staircase is one block
+    (no climbing), the genkan step a ramp so you can walk back up. Floors are made .5 m deep."""
+    out = []; bpy.context.view_layer.update()
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or not o.name.startswith(COLLIDE) or o.name.endswith('_knob'): continue
+        bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        lo = Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))
+        hi = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
+        if o.name.startswith(('floor1', 'genkan')): lo.z = hi.z - .5
+        if o.name.startswith('wallcore'):   # the core is the wall less its faces: collide with the whole thickness
+            if hi.x - lo.x < hi.y - lo.y: lo.x -= .02; hi.x += .02
+            else: lo.y -= .02; hi.y += .02
+        out.append(dict(c=[round(v, 3) for v in (lo + hi) / 2], s=[round(v, 3) for v in hi - lo]))
+    x0, y0, x1, y1 = STAIR
+    out.append(dict(c=[(X(x0) + X(x1)) / 2, (Y(y0) + Y(y1)) / 2, 1.3], s=[x1 - x0, y1 - y0, 2.6]))
+    out.append(dict(c=[X(5), Y(1.4) + .2, ZG / 2], s=[2.0, .45, .04], rx=math.atan2(ZG, .4), ramp=True))
+    return out

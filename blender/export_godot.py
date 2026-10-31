@@ -8,7 +8,7 @@ import sys, os, math, json, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy, numpy as np
 from mathutils import Vector, Matrix
-import lib, shot, chars as C, hall as Hm
+import lib, shot, chars as C, hall as Hm, house4 as H4, stage as St
 
 OUT = f'{P.RULES}/assets'
 TEXOUT = f'{P.KF}/export_tex'
@@ -97,7 +97,7 @@ def simplify_materials():
     return todo
 
 # ------------------------------------------------------------------ baked bounce light
-NO_LM = ('ext_', 'door_', 'doorglass', 'rain', 'slitglass', 'fres_lens', 'recled', 'nphone', 'kphone', 'phone_glow', 'lcd', 'cable', 'ledface', 'fresnel', 'barndoor', 'yoke', 'cscol', 'csleg')
+NO_LM = ('ext_', 'door_', 'doorglass', 'winglass', 'rain', 'slitglass', 'fres_lens', 'recled', 'nphone', 'kphone', 'phone_glow', 'lcd', 'cable', 'ledface', 'fresnel', 'barndoor', 'yoke', 'cscol', 'csleg')
 
 def bake_bounce(env_objs, size=2048, samples=256):
     """Join the static set into one mesh, give it a second UV ('lm'), and bake the indirect diffuse light
@@ -331,6 +331,7 @@ if __name__ == '__main__':
     shot.build()
     S = shot.S
     shot.at(0.0)
+    BOXES = H4.colliders()   # before the statics are joined for the lightmap
     for name in ('haze', 'cam'):
         for o in [o for o in bpy.data.objects if o.name.startswith(name)]: bpy.data.objects.remove(o)
     # held phones follow the hand bones
@@ -372,5 +373,5 @@ if __name__ == '__main__':
                 continue
             shutil.copy(src, f'{OUT}/faces/{k}_{st}.png')
     json.dump(dict(slit_x=sx, YF=Y, ZG=Hm.ZG, cam0=list(shot.CAM0), fps=FPS, loop=LOOP, knocks=KNOCKS,
-                   mark=[.35, 3.75, 0]), open(f'{OUT}/scene.json', 'w'), indent=1)
+                   **St.scene_json('night', BOXES)), open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

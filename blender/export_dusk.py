@@ -6,10 +6,11 @@ import sys, os, math, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
-import lib, door as D, hall as Hm, chars as C
+import lib, door as D, hall as Hm, chars as C, house4 as H4, stage as St
 import export_godot as E
 from lib import prim, mat_basic, kelvin
-from night import CAM
+import shot
+CAM = tuple(shot.CAM0)
 
 E.OUT = OUT = f'{P.RULES}/assets/dusk'
 os.makedirs(OUT, exist_ok=True)
@@ -23,40 +24,43 @@ def build():
     lib.reset()
     s = bpy.context.scene
     M = D.mats()
-    Hm.build_hall(M, door_open=True, back_wall=True)
-    Hm.genkan_props(M, shoes=5, umbrellas=5)
-    Y = Hm.YF
-    porch = prim('cube', 'porch', loc=(.75, Y + 1.0, Hm.ZG - .03), scale=(1.6, 1.0, .03), mat=M['floor']); lib.uv_box(porch, .87)
+    A = H4.build_house4(M, floors=('1F', '2F')); H4.prune(St.GI_BOX)
+    A['doors']['front'].rotation_euler.z = math.radians(105)   # open onto the sunset (Japanese front doors swing out)
+    S['boxes'] = H4.colliders()
+    shot.genkan_props4(M, shoes=5, umbrellas=5)
+    Y = St.YF; DC = St.DOOR_C
+    porch = prim('cube', 'porch', loc=(DC, Y + 1.0, Hm.ZG - .03), scale=(1.6, 1.0, .03), mat=M['floor']); lib.uv_box(porch, .87)
+    import house4_ext as HX; HX.build_ext4(M, with_trees=True)   # the outside through the open door (外観スレッド)
     sky = bpy.data.materials.new('sunset'); sky.use_nodes = True; N = sky.node_tree.nodes; L = sky.node_tree.links
     p = N['Principled BSDF']; t = N.new('ShaderNodeTexImage'); t.image = lib.img(lib.tex_path('sunset'))
     L.new(t.outputs[0], p.inputs['Base Color']); L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = 2.2
     p.inputs['Base Color'].default_value = (0, 0, 0, 1)
-    bd = prim('plane', 'sunset_backdrop', loc=(.9, Y + 9, 1.6), rot=(math.pi / 2, 0, 0), scale=(8, 8 * 876 / 1358, 1), mat=sky)
+    bd = prim('plane', 'sunset_backdrop', loc=(DC + .14, Y + 9, 1.6), rot=(math.pi / 2, 0, 0), scale=(8, 8 * 876 / 1358, 1), mat=sky)
     bd.visible_shadow = False
     S['sun'] = lib.sun('sun', (0, 0, 0), 14, k=2200, angle=.8)
     S['sun'].rotation_euler = Vector((.3, -.95, -.25)).to_track_quat('-Z', 'Y').to_euler()
     w = s.world.node_tree.nodes['Background']; w.inputs[0].default_value = (*kelvin(3400), 1); w.inputs[1].default_value = .35
-    lib.area('door_sky', (.76, Y + .25, 1.1), (.6, 3.5, .7), 30, k=4200, size=(.8, 2.1), spread=120)
+    lib.area('door_sky', (DC, Y + .25, 1.1), (DC - .16, 3.5, .7), 30, k=4200, size=(.8, 2.1), spread=120)
     if os.environ.get('EXT'):   # the look comparison: the whole outside of the house, the sky ring replaces the backdrop
         import house; house.build_exterior(M)
         k_ = 20 / 9   # the sunset sheet pushed back to 20 m (same size seen from the hall), out of the outside views' way
-        bd.location = (.9, Y + 20, 1.5 + .1 * k_); bd.scale = (8 * k_, 8 * 876 / 1358 * k_, 1)
-    D.fresnel((1.25, 2.55), 2.0, (.35, 3.75, 0), M, energy=160, size=30)
-    D.tripod((-.45, 4.12), math.radians(205), M)
-    Hm.tape_mark(.35, 3.75, CAM[:2], 'tape_natsuki.png')
-    ab = prim('cube', 'applebox', loc=(1.25, 3.3, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
+        bd.location = (DC + .14, Y + 20, 1.5 + .1 * k_); bd.scale = (8 * k_, 8 * 876 / 1358 * k_, 1)
+    D.fresnel(St.FRESNEL, 2.0, (*St.MARK, 0), M, energy=160, size=30)
+    D.tripod(St.TRIPOD_D, math.radians(205), M)
+    Hm.tape_mark(*St.MARK, CAM[:2], 'tape_natsuki.png')
+    ab = prim('cube', 'applebox', loc=(*St.APPLEBOX, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
     # the reflector is held by Makoto (the new member helps: she holds things, lights hands), no stand
     # people
-    n = C.make_tripo('natsuki_s', label='natsuki')[0]; n.location = (.36, 3.84, 0);   # indoors: the socks body
+    n = C.make_tripo('natsuki_s', label='natsuki')[0]; n.location = (*St.NATSUKI_D, 0);   # indoors: the socks body
     for ob in n.children_recursive: ob.name = ob.name.replace('natsuki_s_', 'natsuki_')
-    n.location = (.36, 3.84, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
-    k = C.make_tripo('kiryu')[0]; k.location = (-.32, 4.43, 0); k.rotation_euler.z = math.radians(205 - 180 + 8)   # squarely behind the camera, which points at yaw 205
-    t = C.make_tripo('taiga')[0]; t.location = (.82, Y + .17, Hm.ZG); face(t, (.2, 3.0))
-    m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (1.08, 2.52, 0); face(m, (.36, 3.84))
+    n.location = (*St.NATSUKI_D, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
+    k = C.make_tripo('kiryu')[0]; k.location = (*St.KIRYU_D, 0); k.rotation_euler.z = math.radians(205 - 180 + 8)   # squarely behind the camera, which points at yaw 205
+    t = C.make_tripo('taiga')[0]; t.location = (*St.TAIGA_D, Hm.ZG); face(t, (DC - .56, 3.0))
+    m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (*St.MAKOTO_D, 0); face(m, St.NATSUKI_D)
     bpy.context.view_layer.update()
     # the reflector, held as in the reference photos: in front of her belly, its face toward Natsuki's face (so it
     # leans back toward Makoto by the angle up to that face), hands at the side edges low down, elbows bent at her sides
-    nface = Vector((.36, 3.82, 1.5))
+    nface = Vector((St.NATSUKI_D[0], St.NATSUKI_D[1] - .02, 1.5))
     ctr = C.local(m, (0, -.21, 0)); ctr.z = (C.bone_head(m, 'upperarm_l').z + C.bone_head(m, 'upperarm_r').z) / 2 - .1   # wrists at elbow height, forearms forward
     rf = prim('cube', 'reflector', loc=tuple(ctr), scale=(.2, .006, .2), mat=mat_basic('refl', (.9, .9, .88), .7))
     rf.rotation_euler = (nface - ctr).to_track_quat('-Y', 'Z').to_euler(); bpy.context.view_layer.update()
@@ -107,7 +111,7 @@ def pose_kiryu(k, t):
     up = E.snap(t, 6.5, .45) * (1 - E.snap(t, 8.6, .5)) + E.snap(t, 15.2, .45) * (1 - E.snap(t, 17.0, .5))
     # his hands are on the camera on the tripod (cx, cy): the right rests on top of the body, palm down; the left holds
     # the body's left side at his left, palm in, the elbow out by his side (not in front of his stomach)
-    cx, cy = -.45, 4.12
+    cx, cy = St.TRIPOD_D
     lv = E.axis_local(k, (1, 0, 0)); lv.z = 0; lv.normalize()
     C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
     C.grip(k, 'r', .25, thumb=.2)
@@ -204,5 +208,5 @@ if __name__ == '__main__':
     if os.environ.get('SKIP_LM') and not os.environ.get('ENV'): print('env.glb: kept')   # ENV=1: props moved (the lightmap may lag)
     else: E.export(f'{OUT}/env.glb', env)
     json.dump(dict(scene='dusk', YF=Hm.YF, ZG=Hm.ZG, cam0=list(CAM), fps=E.FPS, loop=E.LOOP, talk=TALK,
-                   mark=[.35, 3.75, 0]), open(f'{OUT}/scene.json', 'w'), indent=1)
+                   **St.scene_json('dusk', S['boxes'])), open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

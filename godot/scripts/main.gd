@@ -115,6 +115,10 @@ func _environment():
 	fog_vol.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
 	fog_vol.size = Vector3(3.2, 2.65, 5.7)
 	fog_vol.position = b2g([0.0, 3.45, 1.12])
+	if S.has("gi_box"):   # the v4 house: the hall only (the rooms beyond are shut)
+		var g0: Array = S.gi_box[0]; var g1: Array = S.gi_box[1]
+		fog_vol.size = Vector3(g1[0] - g0[0] - 0.3, 2.65, g1[1] - g0[1] - 0.3)
+		fog_vol.position = b2g([(g0[0] + g1[0]) / 2.0, (g0[1] + g1[1]) / 2.0, 1.12])
 	var fm := FogMaterial.new()
 	fm.density = 0.05 if SCENE == "dusk" else 0.085
 	fm.albedo = Color(1, 1, 1)
@@ -249,6 +253,10 @@ func _gi():
 	voxel_gi.subdiv = VoxelGI.SUBDIV_128
 	add_child(voxel_gi)
 	voxel_gi.global_position = b2g([0.0, 3.45, 1.1])
+	if S.has("gi_box"):
+		var g0: Array = S.gi_box[0]; var g1: Array = S.gi_box[1]
+		voxel_gi.size = Vector3(g1[0] - g0[0], g1[2] - g0[2], g1[1] - g0[1])
+		voxel_gi.global_position = b2g([(g0[0] + g1[0]) / 2.0, (g0[1] + g1[1]) / 2.0, (g0[2] + g1[2]) / 2.0])
 	if ARGS.has("bake"):
 		var t := Time.get_ticks_msec()
 		voxel_gi.bake(S.env_node, false)
@@ -343,7 +351,7 @@ func _lights():
 				# what the pool of light throws back up: a warm, shadowless fill (baked GI in the final build)
 				var b := OmniLight3D.new(); b.light_color = Color(1.0, 0.62, 0.35); b.light_energy = 0.35; b.omni_range = 3.2
 				b.omni_attenuation = 1.2; b.shadow_enabled = false; b.light_volumetric_fog_energy = 0.0; b.light_specular = 0.0
-				add_child(b); b.global_position = b2g([0.35, 3.75, 0.35])
+				add_child(b); b.global_position = b2g([S.mark[0], S.mark[1], 0.35]) if S.has("mark") else b2g([0.35, 3.75, 0.35])
 				lights.fake_bounce = b
 			"blue_door":
 				lights.blue = _mk_spot(L, 1.4, L.spread / 2.0, 0.2)
@@ -401,6 +409,19 @@ func _box(center_b: Array, size_b: Array):
 	sb.global_position = b2g(center_b)
 
 func _colliders():
+	if S.has("boxes"):   # the v4 house: boxes measured from the built meshes (house4.colliders), props from stage.py
+		for b in S.boxes:
+			if b.has("ramp"):
+				var sb := StaticBody3D.new(); var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
+				bx.size = Vector3(b.s[0], b.s[2], b.s[1]); cs.shape = bx; sb.add_child(cs); add_child(sb)
+				sb.global_position = b2g(b.c); sb.rotation.x = b.rx
+			else:
+				_box(b.c, b.s)
+		for o in S.props:
+			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()
+			cy.radius = o[2]; cy.height = 2.0; c2.shape = cy; s2.add_child(c2); add_child(s2)
+			s2.global_position = b2g([o[0], o[1], 1.0])
+		return
 	var XL = -1.6; var XR = 1.6; var YB = 0.6; var YF = 6.3; var ZG = S.ZG; var YG = 4.6
 	_box([0, (YB + YG) / 2.0, -0.25], [3.4, YG - YB, 0.5])                 # hall floor
 	_box([0.78, (YG + YF) / 2.0, ZG - 0.25], [1.7, YF - YG, 0.5])          # genkan floor
@@ -434,6 +455,9 @@ func _player():
 	add_child(player)
 	player.global_position = Vector3(-0.5, 0.0, -1.35)
 	player.yaw = -0.25
+	if S.has("spawn"):
+		player.global_position = Vector3(S.spawn[0], 0.0, -S.spawn[1])
+		player.yaw = -atan2(S.look[0] - S.spawn[0], S.look[1] - S.spawn[1])
 	if ARGS.has("noclip"): player.collision_layer = 0; player.collision_mask = 0; player.fly = true
 	if ARGS.has("pose"):
 		var q = ARGS["pose"]

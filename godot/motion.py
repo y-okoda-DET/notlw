@@ -12,13 +12,14 @@ LIGHT = {'night': .2, 'dusk': .12}
 ZG = -.18
 # person: (x, y, floor z, front azimuth in close.py terms (0 = from -y), neck z, hand z[, neck view offset])
 # the camera is the player, so walls push it: pick a neck view with room behind it (Taiga at dusk stands in the doorway)
-P = {'night': {'kiryu': (-.32, 4.02, 0, -14, 1.48, 1.15),
-               'taiga': (.82, 5.27, ZG, 176, 1.30, 1.25),
-               'natsuki': (.435, 6.56, ZG, 0, 1.38, 1.05)},
-     'dusk': {'natsuki': (.36, 3.84, 0, 0, 1.38, .85),
-              'kiryu': (-.32, 4.43, 0, 33, 1.48, 1.45),
-              'taiga': (.82, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher
-              'makoto': (1.08, 2.52, 0, -151, 1.38, 1.15)}}
+# the v4 house (blender/stage.py)
+P = {'night': {'kiryu': (-.32, 4.37, 0, -14, 1.48, 1.15),
+               'taiga': (.26, 5.27, ZG, 176, 1.30, 1.25),
+               'natsuki': (-.665, 6.56, ZG, 0, 1.38, 1.05)},
+     'dusk': {'natsuki': (.36, 4.19, 0, 0, 1.38, .85),
+              'kiryu': (-.32, 4.78, 0, 33, 1.48, 1.45),
+              'taiga': (.26, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher
+              'makoto': (.95, 3.86, 0, -119, 1.38, 1.15)}}
 who = [k for k in sys.argv[2].split(',') if k in P[scene]] if len(sys.argv) > 2 else list(P[scene])   # names not in this scene are skipped
 C = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'close.py')
 env = dict(os.environ); env.setdefault('PRINT', '0')

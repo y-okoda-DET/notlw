@@ -13,40 +13,59 @@ import sys, math, random
 import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector, Matrix
-import lib, door as D, hall as Hm, chars as C
+import lib, door as D, hall as Hm, chars as C, house4 as H4, stage as St
 from lib import prim, mat_basic, kelvin
 
 FPS = 12
 DUR = 10.0
-CAM0 = Vector((-.5, 1.35, 1.52)); CAM1 = Vector((-.3, 2.15, 1.5))
-TGT0 = CAM0 + Vector((1.1, 3.95, -.77)); TGT1 = CAM1 + Vector((.85, 4.0, -1.3))
+CAM0 = Vector((-.3, 1.0, 1.52)); CAM1 = Vector((-.15, 1.95, 1.5))   # v4 house: the walkway beside the stair, toward the door
+TGT0 = CAM0 + Vector((.75, 4.1, -.77)); TGT1 = CAM1 + Vector((.55, 4.0, -1.3))
 
 def ease(x): x = max(0, min(1, x)); return x * x * (3 - 2 * x)
 def pulse(t, t0, w): return math.exp(-((t - t0) / w) ** 2)
 
 S = {}
 
+def genkan_props4(M, shoes=4, umbrellas=6):
+    """Shoes on the genkan floor and the umbrella stand in its west corner (the v4 genkan, X -.8..1.2, Y 4.9..6.3)."""
+    import random as R
+    R.seed(9)
+    shoe = [mat_basic('shoe0', (.08, .08, .09), .6), mat_basic('shoe1', (.72, .7, .66), .7), mat_basic('shoe2', (.25, .19, .13), .6),
+            mat_basic('shoe3', (.1, .12, .2), .6), mat_basic('shoe4', (.55, .3, .25), .6)]
+    for i in range(shoes):
+        for d in (-.06, .06):
+            o = prim('cube', 'shoe', loc=(-.45 + i * .22 + d, 5.2 + (i % 2) * .3, Hm.ZG + .045), scale=(.045, .13, .04), mat=shoe[i])
+            o.rotation_euler.z = R.uniform(-.3, .3)
+    ux, uy = St.HALL[0] + .2, 5.15
+    prim('cylinder', 'ustand', loc=(ux, uy, Hm.ZG + .22), vertices=16, radius=.09, depth=.44, mat=M['black'])
+    for i in range(umbrellas):
+        a = i / umbrellas * math.tau
+        D.cyl_between('umb', (ux + math.cos(a) * .04, uy + math.sin(a) * .04, Hm.ZG + .05), (ux + math.cos(a) * .1, uy + math.sin(a) * .1, Hm.ZG + .95), .03, M['umb'], 8)
+        D.cyl_between('uh', (ux + math.cos(a) * .1, uy + math.sin(a) * .1, Hm.ZG + .95), (ux + math.cos(a) * .12, uy + math.sin(a) * .12, Hm.ZG + 1.06), .009, M['white'], 6)
+
 def build():
     lib.reset()
     M = D.mats()
-    A = Hm.build_hall(M, back_wall=True)
-    Hm.genkan_props(M, shoes=4, umbrellas=6)
-    S['fres'] = D.fresnel((1.25, 2.55), 2.0, (.35, 3.75, 0), M, energy=520, size=30)
-    D.tripod((-.45, 4.35), math.radians(205), M)
-    lib.spot('camtop_led', (-.43, 4.27, 1.62), (.5, 1.6, 1.2), 6, k=5600, size=70, blend=.6, radius=.02)
-    Hm.tape_mark(.35, 3.75, CAM0[:2], 'tape_natsuki.png')
+    H4.build_house4(M, floors=('1F', '2F')); H4.prune(St.GI_BOX)
+    genkan_props4(M, shoes=4, umbrellas=6)
+    S['fres'] = D.fresnel(St.FRESNEL, 2.0, (*St.MARK, 0), M, energy=520, size=30)
+    tx, ty = St.TRIPOD_N
+    D.tripod((tx, ty), math.radians(205), M)
+    lib.spot('camtop_led', (tx + .02, ty - .08, 1.62), (tx + .95, ty - 2.75, 1.2), 6, k=5600, size=70, blend=.6, radius=.02)
+    Hm.tape_mark(*St.MARK, CAM0[:2], 'tape_natsuki.png')
     cu = bpy.data.curves.new('cable', 'CURVE'); cu.dimensions = '3D'; cu.bevel_depth = .007
-    spl = cu.splines.new('BEZIER'); pts = [(1.25, 2.55, .01), (.9, 2.9, .008), (.6, 2.5, .008), (1.0, 1.9, .008), (1.7, 1.6, .008)]
+    spl = cu.splines.new('BEZIER'); fx, fy = St.FRESNEL; pts = [(fx, fy, .01), (fx + .25, fy - .3, .008), (fx + .05, fy - .65, .008), (-.62, fy - .4, .008), (-.74, fy - .2, .008)]   # to the living room, under its door
     spl.bezier_points.add(len(pts) - 1)
     for bp, p in zip(spl.bezier_points, pts): bp.co = p; bp.handle_left_type = bp.handle_right_type = 'AUTO'
     co = bpy.data.objects.new('cable', cu); lib.link(co); co.data.materials.append(M['rubber'])
-    ab = prim('cube', 'applebox', loc=(1.25, 3.3, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
-    pnl = prim('cube', 'blue_panel', loc=(-.35, 5.05, 1.05), scale=(.13, .02, .1), mat=M['black'])
-    d = (Vector((.85, 6.2, 1.25)) - Vector((-.35, 5.05, 1.05))); pnl.rotation_euler = d.to_track_quat('-Y', 'Z').to_euler()
-    S['blue'] = lib.area('blue_door', (-.33, 5.08, 1.06), (.85, 6.2, 1.15), 4, color=(.4, .56, 1.0), size=(.24, .18), spread=55)
-    S['slit_x'] = A['slit'].x; Y = Hm.YF
+    ab = prim('cube', 'applebox', loc=(*St.APPLEBOX, .1), rot=(0, 0, .3), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(ab, 1.25)
+    bx, by, bz = St.SHOECAB_TOP; bz += .12; dt = Vector((St.DOOR_C, St.YF - .1, 1.2))   # on the shoe cabinet, aimed at the door
+    pnl = prim('cube', 'blue_panel', loc=(bx, by, bz), scale=(.13, .02, .1), mat=M['black'])
+    d = (dt - Vector((bx, by, bz))); pnl.rotation_euler = d.to_track_quat('-Y', 'Z').to_euler()
+    S['blue'] = lib.area('blue_door', tuple(Vector((bx, by, bz)) + d.normalized() * .03), tuple(dt), 4, color=(.4, .56, 1.0), size=(.24, .18), spread=55)
+    S['slit_x'] = sum(St.SLIT_X) / 2; Y = St.YF
     # ---- outside: porch, rain, Natsuki herself (seen only through the slit)
-    porch = prim('cube', 'porch', loc=(.75, Y + .9, Hm.ZG - .03), scale=(1.4, .9, .03), mat=M['floor']); lib.uv_box(porch, .87)
+    porch = prim('cube', 'porch', loc=(St.DOOR_C, Y + .9, Hm.ZG - .03), scale=(1.4, .9, .03), mat=M['floor']); lib.uv_box(porch, .87)
     S['sky'] = lib.area('rain_sky', (S['slit_x'] - .5, Y + 1.4, 2.2), (S['slit_x'], Y + .2, 1.1), 6, k=14000, size=(.8, .8))
     S['bolt'] = lib.area('lightning', (S['slit_x'] + .4, Y + 2.5, 2.2), (S['slit_x'], Y, 1.1), 0, k=16000, size=(1.5, 1.5))
     wet = mat_basic('wetknit', (.09, .09, .1), .3)
@@ -59,7 +78,7 @@ def build():
     # rain streaks outside (instanced as one mesh so it's cheap to move)
     random.seed(4); verts = []; faces = []
     for i in range(160):
-        x = random.uniform(-.6, 2.2); y = random.uniform(Y + .3, Y + 3.0); z = random.uniform(-.2, 2.8)
+        x = random.uniform(St.DOOR_C - 1.4, St.DOOR_C + 1.4); y = random.uniform(Y + .3, Y + 3.0); z = random.uniform(-.2, 2.8)
         b = len(verts); w = .0018
         verts += [(x - w, y, z), (x + w, y, z), (x + w - .01, y - .015, z - .28), (x - w - .01, y - .015, z - .28)]
         faces.append((b, b + 1, b + 2, b + 3))
@@ -67,12 +86,13 @@ def build():
     rain.visible_shadow = False; S['rain'] = rain
     # ---- inside
     S['k'] = C.make_tripo('kiryu')[0]
-    S['k'].location = (-.32, 4.02, 0); S['k'].rotation_euler.z = math.radians(-14)
+    S['k'].location = (*St.KIRYU_N, 0); S['k'].rotation_euler.z = math.radians(-14)
     S['t'] = C.make_tripo('taiga')[0]
-    S['t'].location = (.82, Y - 1.03, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
+    S['t'].location = (*St.TAIGA_N, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
-    lib.haze(((-1.6, .6, -.2), (1.6, 6.3, 2.45)), density=.06, aniso=0)
+    import house4_ext as HX; HX.build_ext4(M, with_trees=False)   # the outside (外観スレッド); only the slit and the rain show it at 23:00
+    lib.haze(((St.HALL[0], -.2, -.2), (St.HALL[1], St.YF, 2.45)), density=.06, aniso=0)
     S['cam'] = lib.camera(tuple(CAM0), tuple(TGT0), lens=18)
     bpy.context.view_layer.update()
 
