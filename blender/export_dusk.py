@@ -111,10 +111,10 @@ def pose_kiryu(k, t):
     lv = E.axis_local(k, (1, 0, 0)); lv.z = 0; lv.normalize()
     C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
     C.grip(k, 'r', .25, thumb=.2)
-    lw = Vector((cx, cy, 1.49)) + lv * .1 + E.axis_local(k, (0, 1, 0)) * .03
-    # 試作19b: a lower elbow (.3,.15,-.9) or one further out (.9,0,-.2) did not remove the flap under this arm
-    C.arm_to(k, 'l', lw, Vector((.6, .2, -.5))); C.palm_to(k, 'l', Vector((cx, cy, 1.49)))
-    C.grip(k, 'l', .45, thumb=.4)
+    # 試作19b（ユーザーの選択）：the left arm hangs at his side. Raised to the camera's side, the shirt under it folded
+    # inside out (7 ways tried: NOTES.md). The right hand alone works the camera.
+    C.arm_to(k, 'l', kl((.24, .03, .84)), E.axis_local(k, (.2, 1, 0))); C.palm_to(k, 'l', kl((0, .03, .84)))
+    C.grip(k, 'l', .2, thumb=.15)
     C.rot_world(k, 'neck_01', E.axis_local(k, (1, 0, 0)), 14 - 16 * up)
     E.idle(k, t, 1.0, breath=.21, amp=.8, rate=.8)
 
