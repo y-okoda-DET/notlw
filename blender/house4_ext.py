@@ -261,7 +261,7 @@ def site(M, with_trees=True):
             if math.hypot(x - px, y - py) < 3.2: return False         # the drive
         if X1 < x < X1 + 4 and YN - 1 < y < YS: return False           # the back porch's stair
         return True
-    if with_trees: trees.sugi_stand(M, centre=((X0 + X1) / 2, (YS + YN) / 2), r0=11.5, r1=26.5, keep=keep, ground=ground, seed=7, n_unique=14)
+    if with_trees: trees.sugi_stand(M, centre=((X0 + X1) / 2, (YS + YN) / 2), r0=12.5, r1=26.5, keep=keep, ground=ground, seed=7, n_unique=14)
 
 def Hx_site_sky(M):
     R, n = 28.0, 64
@@ -298,13 +298,24 @@ def mats(M):
         M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.75, .74, .72), rough=.95)
     if 'ext_sky' not in M:
         sky = bpy.data.materials.new('ext_sky'); sky.use_nodes = True; N = sky.node_tree.nodes; L = sky.node_tree.links
-        p = N['Principled BSDF']; t = N.new('ShaderNodeTexImage'); t.image = lib.img(lib.tex_path('skyring'))
-        L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = 1.6
+        p = N['Principled BSDF']; t = N.new('ShaderNodeTexImage')
+        if TIME == 'night':   # 23:00 in the storm: the same ridge of conifers under a low, dark rain sky
+            def make():
+                from PIL import Image
+                a = np.asarray(Image.open(lib.tex_path('skyring')).convert('RGB'), np.float32) / 255
+                l = a[..., 0] * .3 + a[..., 1] * .59 + a[..., 2] * .11
+                return {'a': np.dstack([l * .55, l * .62, l * .75]) ** 1.3}
+            t.image = lib.img(X.cached({'skynight': 1}, ('a',), make)['a'])
+        else: t.image = lib.img(lib.tex_path('skyring'))
+        L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = .12 if TIME == 'night' else 1.6
         p.inputs['Base Color'].default_value = (0, 0, 0, 1)
         p.inputs['Roughness'].default_value = 1.0; p.inputs['Specular IOR Level'].default_value = 0.0
         M['ext_sky'] = sky
 
-def build_ext4(M, with_trees=True):
+TIME = 'dusk'
+def build_ext4(M, with_trees=True, time='dusk'):
+    """time: 'dusk' (第1章の夕方) or 'night' (23:00, rain: a dark sky ring)."""
+    global TIME; TIME = time
     random.seed(51); SHUTTERS.clear()
     mats(M)
     OW = walls(M)

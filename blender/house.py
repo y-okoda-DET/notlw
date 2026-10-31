@@ -5,10 +5,12 @@ Footprint after plan/plan_v4.png at its rough size: 12.4 m wide (x), 10.3 m deep
 the ridge along x, the porch in front of the front door, the stove chimney on the west (-x) wall.
 Front = +y (the front door wall, y = hall.YF). The ground is .55 m below the hall floor."""
 import sys, os, math, random
+import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import paths as P   # all paths: paths.env
 import bpy
 from mathutils import Vector
 import lib, door as D, hall as Hm
+import exterior as X
 from lib import prim, mat_basic, mat_image, tex_path
 
 HX0, HX1, HY0, HY1 = -6.2, 6.2, -4.0, Hm.YF
@@ -30,6 +32,16 @@ def mats(M):
     Hm.style_mats(M)
     M['ext_roof'] = mat_image('ext_roof', tex_path('shingle'), rough=.8, coords='UV', bump=.1)
     M['ext_ground'] = mat_image('ext_ground', tex_path('ground'), rough=.95, coords='UV', bump=.1)
+    if Hm.STYLE == 'siding':   # 外観の作りもの感: board-by-board siding, slates, Poly Haven ground (exterior.py)
+        M['trim'] = X.trim_mat(M)            # outside only: house.py builds after the hall, which keeps its own 'trim'
+        M['ext_felt'] = mat_basic('ext_felt', (.035, .035, .035), .9)
+        M['ext_backing'] = mat_basic('ext_backing', (.05, .05, .045), .9)
+        M['ext_ridge'] = mat_basic('ext_ridge', (.10, .10, .10), .45, metal=.4)
+        M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.85, .82, .78), rough=.95)
+        M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.78, .7, .62), rough=.95,
+                                   alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, 220) + .5 * X.tileable_noise(rng, S, 40) > .15).astype(np.float32), seed=2)
+        M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.75, .74, .72), rough=.95)
+        M['ext_found'] = X.concrete_mat(M)
     M['ext_stone'] = mat_basic('ext_stone', (.32, .31, .29), .9)
     M['ext_found'] = mat_basic('ext_found', (.36, .35, .33), .9)
     M['ext_glass'] = mat_basic('ext_glass', (.03, .035, .045), .08, .6)
@@ -109,18 +121,27 @@ def plane_wall(side, mat, off, holes, z_top=EAVE, z0=Z_LOG0 - .09, skip_hall=Tru
         lib.uv_box(o, 1.0)
 
 def siding_wall(side, M):
+    """Board-by-board lap siding (exterior.clapboard_wall) over a dark backing; the gable ends carry boards up to the roof line."""
     ax, fixed, lo, hi, out = WALLS[side]
     holes = openings(side)
-    plane_wall(side, M['siding'], out * .0, holes, th=.08)
-    # gable triangle (W/E)
+    plane_wall(side, M['ext_backing'], -out * .0, holes, th=.08)
+    ym = (HY0 + HY1) / 2; half = (HY1 - HY0) / 2; rise = half * math.tan(PITCH)
     if ax == 'Y':
-        ym = (HY0 + HY1) / 2; half = (HY1 - HY0) / 2; rise = half * math.tan(PITCH)
-        x = fixed + out * .045
+        x = fixed + out * .04
         v = [(x, HY0, EAVE), (x, HY1, EAVE), (x, ym, EAVE + rise)]
         if out < 0: v = v[::-1]
-        o = lib.mesh_obj(f'ext_gable{side}', v, [(0, 1, 2)]); o.data.materials.append(M['siding'])
-        o.data.uv_layers.new(); uv = o.data.uv_layers[0].data
-        for li, vi in enumerate(o.data.polygons[0].vertices): uv[li].uv = (v[vi][1], v[vi][2])
+        lib.mesh_obj(f'ext_gable{side}', v, [(0, 1, 2)]).data.materials.append(M['ext_backing'])
+    z0 = Z_LOG0 - .09
+    if ax == 'X':
+        origin = (lo, fixed + out * .04, 0); u = (1, 0, 0); top = None
+    else:
+        origin = (fixed + out * .04, lo, 0); u = (0, 1, 0)
+        top = lambda a: max(EAVE, EAVE + rise - abs(lo + a - ym) * math.tan(PITCH) - .03)
+    nvec = (0, out, 0) if ax == 'X' else (out, 0, 0)
+    hl = [(ha - lo, hb - lo, h0, h1) for (ha, hb, h0, h1) in holes]
+    X.clapboard_wall(f'ext_siding{side}', origin, u, nvec, hi - lo, z0, EAVE - .02, hl, M, top=top,
+                     seed={'S': 1, 'N': 2, 'E': 3, 'W': 4}[side], north={'S': 0, 'N': 1, 'E': .35, 'W': .5}[side],
+                     ppm=240 if side == 'S' else 190, ground_z=GZ)
     # corner boards, frieze under the eaves, water table at the bottom
     for c in (lo, hi):
         if ax == 'X':
@@ -145,14 +166,25 @@ def window(side, c, z, w, h, M):
     fm = M['trim'] if siding else M['door']
     d0 = .07 if siding else .14          # the frame stands out to the face of the wall (logs stand .15 out)
     box('ext_mullion', c, -.02, z + h / 2, .02, .02, h / 2, fm)
-    box('ext_mullion', c, -.02, z + h * .55, w / 2, .02, .018, fm)
+    box('ext_mullion', c, -.016, z + h * .55, w / 2, .02, .018, fm)   # stands 4 mm proud of the upright: no coplanar faces (they z-fight)
     for s in (-1, 1):
         box('ext_casing', c + s * (w / 2 + .045), d0 / 2, z + h / 2, .045, d0 / 2 + .01, h / 2 + .09, fm)
-    box('ext_head', c, d0 / 2, z + h + .07, w / 2 + .1, d0 / 2 + .01, .06 if siding else .05, fm)
+    box('ext_head', c, d0 / 2 + .008, z + h + .07, w / 2 + .1, d0 / 2 + .018, .06 if siding else .05, fm)
     box('ext_sill', c, d0 / 2 + .02, z - .03, w / 2 + .12, d0 / 2 + .04, .025, fm)
     if siding and side == 'S':   # louvred shutters on the front
         for s in (-1, 1):
             box('ext_shutter', c + s * (w / 2 + .06 + w * .16), d0 + .015, z + h / 2, w * .16, .012, h / 2 + .02, M['ext_shutter'])   # 見比べ2: narrower, two neighbours no longer touch
+
+def slates_on(o, name, M, seed, north):
+    """Slates over the top face of a roof slab (a scaled, rotated cube): the slab stays below as the dark felt."""
+    bpy.context.view_layer.update()
+    mw = o.matrix_world; R = mw.to_3x3().normalized()
+    xw, yw, zw = R.col[0], R.col[1], R.col[2]
+    hx, hy, th = o.scale
+    w = yw if yw.z > 0 else -yw
+    org = mw.translation + zw * th - xw * hx - w * hy
+    o.data.materials.clear(); o.data.materials.append(M['ext_felt'])
+    return X.slate_roof(name, org, xw, w, zw, 2 * hx, 2 * hy, M, seed=seed, north=north)
 
 def roof(M):
     ym = (HY0 + HY1) / 2; half = (HY1 - HY0) / 2 + OVER
@@ -162,11 +194,15 @@ def roof(M):
         yc = ym + s * half / 2; zc = zr - half / 2 * math.tan(PITCH)
         o = prim('cube', 'ext_roof', loc=(0, yc, zc), rot=(-s * PITCH, 0, 0), scale=((HX1 - HX0) / 2 + OVER, L / 2, .06), mat=M['ext_roof'])
         lib.uv_box(o, 1.0, rot90=False)
+        if Hm.STYLE == 'siding': slates_on(o, f'ext_slate{"S" if s > 0 else "N"}', M, 11 + s, 0 if s > 0 else 1)
         fasc = prim('cube', 'ext_fascia', loc=(0, ym + s * half, zr - half * math.tan(PITCH) - .06), scale=((HX1 - HX0) / 2 + OVER, .03, .11), mat=M['trim'] if Hm.STYLE == 'siding' else M['door'])
     for x in (HX0 - OVER, HX1 + OVER):   # barge boards on the gables
         for s in (-1, 1):
             prim('cube', 'ext_barge', loc=(x, ym + s * half / 2, zr - half / 2 * math.tan(PITCH) - .1), rot=(-s * PITCH, 0, 0), scale=(.03, L / 2, .11), mat=M['trim'] if Hm.STYLE == 'siding' else M['door'])
-    prim('cube', 'ext_ridgecap', loc=(0, ym, zr + .05), scale=((HX1 - HX0) / 2 + OVER, .12, .03), mat=M['ext_roof'])
+    if Hm.STYLE == 'siding':   # a folded sheet-metal ridge (板金), two sides meeting over the slates
+        for s in (-1, 1):
+            prim('cube', 'ext_ridgecap', loc=(0, ym + s * .07, zr + .045), rot=(-s * PITCH, 0, 0), scale=((HX1 - HX0) / 2 + OVER + .01, .09, .006), mat=M['ext_ridge'])
+    else: prim('cube', 'ext_ridgecap', loc=(0, ym, zr + .05), scale=((HX1 - HX0) / 2 + OVER, .12, .03), mat=M['ext_roof'])
     # soffit closing the underside of the front and back eaves
     for s in (-1, 1):
         prim('cube', 'ext_soffit', loc=(0, ym + s * ((HY1 - HY0) / 2 + OVER / 2), EAVE - .02), scale=((HX1 - HX0) / 2 + OVER, OVER / 2, .015), mat=M['trim'] if Hm.STYLE == 'siding' else M['door'])
@@ -191,15 +227,20 @@ def porch(M):
     ang = math.atan2(zt - zb, y1 - Y + .2)
     o = prim('cube', 'ext_porchroof', loc=((x0 + x1) / 2, (Y + y1 + .2) / 2, (zt + zb) / 2 + .12), rot=(-ang, 0, 0), scale=((x1 - x0) / 2 + .2, (y1 - Y + .2) / 2 / math.cos(ang), .04), mat=M['ext_roof'])
     lib.uv_box(o, 1.0)
+    if siding: slates_on(o, 'ext_slateP', M, 15, 0)
     # steps: two treads from the ground up to the deck
     for k, (zz, dy) in enumerate(((GZ + (Hm.ZG - GZ) * 2 / 3, .3), (GZ + (Hm.ZG - GZ) / 3, .6))):
         o = prim('cube', 'ext_step', loc=(.75, y1 + dy - .15, (GZ + zz) / 2), scale=(.7, .15, (zz - GZ) / 2), mat=M['agari']); lib.uv_box(o, 1.25)
 
 def site(M):
-    g = prim('plane', 'ext_ground', loc=(0, 0, GZ), scale=(30, 30, 1), mat=M['ext_ground']); lib.uv_box(g, 2.0)
-    prim('cube', 'ext_found', loc=((HX0 + HX1) / 2, (HY0 + HY1) / 2, (GZ + Z_LOG0 - .09) / 2), scale=((HX1 - HX0) / 2 + .02, (HY1 - HY0) / 2 + .02, (Z_LOG0 - .09 - GZ) / 2 + .01), mat=M['ext_found'])
+    g = prim('plane', 'ext_ground', loc=(0, 0, GZ), scale=(30, 30, 1), mat=M['ext_ground']); lib.uv_box(g, 3.0 if Hm.STYLE == 'siding' else 2.0)
+    if Hm.STYLE == 'siding':   # sugi litter in patches over the bare ground, thinning out toward the house
+        lt = prim('plane', 'ext_litter', loc=(0, 0, GZ + .008), scale=(30, 30, 1), mat=M['ext_litter']); lib.uv_box(lt, 4.0)
+    f = prim('cube', 'ext_found', loc=((HX0 + HX1) / 2, (HY0 + HY1) / 2, (GZ + Z_LOG0 - .09) / 2), scale=((HX1 - HX0) / 2 + .02, (HY1 - HY0) / 2 + .02, (Z_LOG0 - .09 - GZ) / 2 + .01), mat=M['ext_found'])
+    if Hm.STYLE == 'siding': lib.uv_box(f, 1.0)
     # gravel drive to the south-east (plan v4: the private road and Natsuki's car)
-    o = prim('plane', 'ext_drive', loc=(3.6, HY1 + 8, GZ + .005), rot=(0, 0, .12), scale=(1.6, 7, 1), mat=M['ext_gravel'])
+    o = prim('plane', 'ext_drive', loc=(3.6, HY1 + 8, GZ + .012), rot=(0, 0, .12), scale=(1.6, 7, 1), mat=M['ext_gravel'])
+    if Hm.STYLE == 'siding': lib.uv_box(o, 2.0)
     # sky with the tree line all round, on an inward cylinder (u = angle, .25 toward +y)
     R, n = 28.0, 64
     rings = ((R, -10.0, 0.0), (R, 16.0, 1.0), (R * .7, 40.0, 1.0), (R * .05, 55.0, 1.0))   # (radius, z, v): the band, then a dome of the top colour
@@ -214,17 +255,15 @@ def site(M):
     o.data.uv_layers.new(); uv = o.data.uv_layers[0].data
     for p in o.data.polygons:
         for li, vi in zip(p.loop_indices, p.vertices): uv[li].uv = uvs[vi]
+    if Hm.STYLE == 'siding':   # a sugi plantation round the clearing (trees.py); the front and the drive stay open
+        import trees
+        def keep(x, y):
+            if y > HY1 - 1 and abs(x) < 10: return False          # the view from the porch and the drive
+            if abs(x - (3.6 + (y - HY1 - 8) * .12)) < 3.5 and y > HY1: return False
+            return True
+        trees.sugi_stand(M, centre=(0, -1), r0=12.5, r1=26.5, keep=keep, ground=lambda x, y: GZ, seed=7, n_unique=14)
+        return
     # a few conifers near the house so it sits in the woods
-    rnd = random.Random(11)
-    tm = mat_basic('ext_tree', (.025, .04, .03), .95); bm = mat_basic('ext_bark', (.12, .09, .07), .9)
-    for _ in range(40):
-        a = rnd.uniform(0, math.tau); r = rnd.uniform(13, 22)
-        x, y = r * math.cos(a), r * math.sin(a) - 1
-        if y > 1: continue   # keep the front (the drive and the view from it) open
-        h = rnd.uniform(7, 13)
-        prim('cone', 'ext_tree', loc=(x, y, GZ + 1.5 + h / 2), vertices=10, radius1=h * .14, depth=h, mat=tm)
-        prim('cylinder', 'ext_trunk', loc=(x, y, GZ + .8), vertices=8, radius=.18, depth=1.6, mat=bm)
-
 def build_exterior(M):
     random.seed(21)
     mats(M)
@@ -239,3 +278,6 @@ def build_exterior(M):
         else: log_wall(side, M)
     for (s, c, z, w, h) in WIN: window(s, c, z, w, h, M)
     roof(M); porch(M); site(M)
+    if Hm.STYLE == 'siding':   # the textured trim needs world-scaled UVs (cube primitives come with one image per face)
+        for o in [o for o in bpy.data.objects if o.name.startswith('ext_') and o.type == 'MESH' and o.data.materials and o.data.materials[0] == M['trim']]:
+            lib.uv_box(o, 1.0)

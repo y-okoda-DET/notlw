@@ -44,7 +44,7 @@ def spray_image():
                 for side in (-1, 1):
                     na = ang + side * rng.uniform(.25, .6)
                     ln = w * rng.uniform(.75, 1.1)
-                    d.line([(px, py), (px + math.cos(na) * ln, py + math.sin(na) * ln)], fill=col(depth, k), width=max(2, int(w * .36)))
+                    d.line([(px, py), (px + math.cos(na) * ln, py + math.sin(na) * ln)], fill=col(depth, k), width=max(3, int(w * .5)))
                 d.ellipse([px - w * .3, py - w * .3, px + w * .3, py + w * .3], fill=col(depth, k * .8))
             if depth > 0:
                 side = 1 if rng.random() < .5 else -1
@@ -53,7 +53,7 @@ def spray_image():
                     px, py = pts[i]; k = i / n
                     shoot(px, py, ang + side * rng.uniform(.5, .85), length * (.47 - .3 * k) * rng.uniform(.8, 1.1), width * .8, depth - 1)
         # main shoot from the bottom centre up, a fan of side shoots
-        shoot(S * .5, S * .97, -math.pi / 2 + rng.normal(0, .05), S * .8, S * .024, 2)
+        shoot(S * .5, S * .97, -math.pi / 2 + rng.normal(0, .05), S * .8, S * .032, 2)
         im = im.resize((1024, 1024), Image.LANCZOS)
         a = np.asarray(im, np.float32) / 255
         rgb = a[..., :3].copy(); al = a[..., 3]
@@ -61,16 +61,16 @@ def spray_image():
         m = al > .02; rgb[m] = rgb[m] / al[m, None]
         rgb[~m] = np.array([.09, .14, .07])
         return {'a': np.dstack([np.clip(rgb, 0, 1), al])}
-    p = X.cached({'spray': 6}, ('a',), make)
+    p = X.cached({'spray': 7}, ('a',), make)
     return p['a']
 
 def mats(M):
     if 'ext_sugi_leaf' in M: return
     M['ext_sugi_leaf'] = X.mat_maps('ext_sugi_leaf', spray_image(), None, rough=.8, alpha=True)
     def bark():
-        a = X.src('bark_willow_02', 'diff', (1024, 1024)) * np.array([.58, .42, .34], np.float32)   # sugi: red-brown fibre, greyed
-        return {'a': a, 'n': X.src('bark_willow_02', 'nor_gl', (1024, 1024))}
-    p = X.cached({'sugibark': 3}, ('a', 'n'), bark)
+        a = X.src('acg_Bark014', 'diff', (1024, 1024)) * np.array([.95, .78, .68], np.float32)   # sugi: red-brown fibre (ambientCG Bark014, CC0)
+        return {'a': a, 'n': X.src('acg_Bark014', 'nor_gl', (1024, 1024))}
+    p = X.cached({'sugibark': 4}, ('a', 'n'), bark)
     M['ext_sugi_bark'] = X.mat_maps('ext_sugi_bark', p['a'], p['n'], rough=.9)
     M['ext_sugi_dead'] = lib.mat_basic('ext_sugi_dead', (.20, .18, .16), .9)
 
@@ -99,15 +99,15 @@ def _tube(bm, uvl, pts, radii, sides, vrep=1.0, urep=1.0):
             except ValueError: continue
             for loop, uv in zip(f.loops, (a0[1], a1[1], b1[1], b0[1])): loop[uvl].uv = uv
 
-def sugi(name, seed, M):
+def sugi(name, seed, M, edge=False):
     mats(M)
     rng = np.random.default_rng(seed)
     h = rng.uniform(15, 25)                       # height (m)
     r0 = h * rng.uniform(.0105, .0145)           # radius at breast height
     lean = rng.uniform(0, math.radians(4)); lean_az = rng.uniform(0, math.tau)
     bend = rng.normal(0, .25)
-    crown0 = h * rng.uniform(.42, .6)             # where the live crown starts
-    crown_r = h * rng.uniform(.10, .14)           # its widest radius (narrow, pointed)
+    crown0 = h * (rng.uniform(.14, .3) if edge else rng.uniform(.42, .6))   # where the live crown starts (low at the clearing's edge: it gets the light)
+    crown_r = h * rng.uniform(.10, .14) * (1.2 if edge else 1)   # its widest radius (narrow, pointed)
     dens = rng.uniform(.75, 1.15)
     top = rng.choice(['ok', 'ok', 'ok', 'ok', 'ok', 'broken', 'double'])
     ld = Vector((math.cos(lean_az), math.sin(lean_az), 0))
@@ -153,14 +153,14 @@ def sugi(name, seed, M):
         rb = .012 + .03 * L / 3
         _tube(bm, uvl, pts, [rb * (1 - .85 * k / nseg) for k in range(nseg + 1)], 4, vrep=1.2)
         # foliage clumps along the outer part of the branch
-        nc = max(1, int(L / .3 * dens))
+        nc = max(1, int(L / .17 * dens))
         for k in range(nc):
-            t = .3 + .7 * (k + rng.uniform(0, .6)) / nc
-            if rng.random() < .2: continue
+            t = .2 + .8 * (k + rng.uniform(0, .6)) / nc
+            if rng.random() < .1: continue
             idx = min(nseg - 1, int(t * nseg)); f = t * nseg - idx
             c = pts[idx].lerp(pts[idx + 1], f) + Vector(rng.normal(0, .1, 3))
             dirv = ((pts[idx + 1] - pts[idx]).normalized() + Vector(rng.normal(0, .35, 3))).normalized()
-            leaf.append((c, dirv, rng.uniform(.5, .85) * (.75 + .35 * (1 - s)), t < .5))
+            leaf.append((c, dirv, rng.uniform(.6, 1.0) * (.75 + .35 * (1 - s)), t < .5))
     # the leader: clumps round the top metre and a half
     tops = [zt] if top != 'double' else [zt, zt - .8]
     for j, ztop in enumerate(tops):
@@ -215,7 +215,8 @@ def sugi(name, seed, M):
 
 def sugi_stand(M, centre=(0, 0), r0=12, r1=27, keep=lambda x, y: True, ground=lambda x, y: 0.0, seed=1, n_unique=14, spacing=2.6):
     rng = np.random.default_rng(seed)
-    protos = [sugi(f'ext_sugi{i}', seed * 100 + i, M) for i in range(n_unique)]
+    n_edge = max(1, n_unique * 3 // 7)
+    protos = [sugi(f'ext_sugi{i}', seed * 100 + i, M, edge=i < n_edge) for i in range(n_unique)]
     for tr, fo in protos:   # the prototypes are moved into place below like the copies
         tr.location = fo.location = (0, 0, -100)
     spots = []
@@ -233,7 +234,7 @@ def sugi_stand(M, centre=(0, 0), r0=12, r1=27, keep=lambda x, y: True, ground=la
     spots.sort(key=lambda s: s[2])
     used = [False] * n_unique
     for (x, y, d) in spots:
-        k = int(rng.integers(0, n_unique))
+        k = int(rng.integers(0, n_edge)) if d < r0 + 3.5 else int(rng.integers(n_edge, n_unique))
         if not used[k]: tr, fo = protos[k]; used[k] = True
         else:
             tr0, fo0 = protos[k]

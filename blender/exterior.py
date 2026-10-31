@@ -27,7 +27,7 @@ PH = f'{P.ASSETS}/tex/ph'
 TEXOUT = f'{P.KF}/export_tex'
 CACHE = f'{P.WORK}/cache/ext'
 os.makedirs(TEXOUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
-VERSION = 'ext7'      # bump when the image recipes change (part of every cache key)
+VERSION = 'ext8'      # bump when the image recipes change (part of every cache key)
 
 # ------------------------------------------------------------------ image helpers
 _src = {}
@@ -230,7 +230,9 @@ def _siding_image(L, zi0, zi1, zs, joints, holes, seed, north, ppm, gz, top):
     # paint
     low = fbm((Hh, W), rng, scales=(int(1.2 * ppm), int(.3 * ppm)), weights=(1, .5))
     brush = fbm((Hh, W), rng, scales=(3,), weights=(1,), aniso=(1, 20))
-    v = 1 + .025 * low + .018 * tone + .012 * brush + .01 * grain
+    pw = lum(src('acg_PaintedWood008A', 'diff')); pw = (pw - ndimage.gaussian_filter(pw, 40)); pw = pw / (pw.std() + 1e-6)
+    PW = tile_smooth(pw.astype(np.float32), (Hh, W), ppm, 1.3, off=(rng.integers(0, 2048), rng.integers(0, 2048)))   # brushed, crazed old paint (ambientCG, CC0)
+    v = 1 + .025 * low + .018 * tone + .006 * brush + .01 * grain + .035 * PW
     # lap shading: the shadow line under the board above, the board tilting out toward its foot
     shade = 1 - .035 * T - .40 * np.clip((T - .84) / .16, 0, 1) ** 1.4 + .03 * np.clip(1 - T / .05, 0, 1)
     hz = Z - gz
@@ -303,7 +305,7 @@ def _siding_image(L, zi0, zi1, zs, joints, holes, seed, north, ppm, gz, top):
     col *= (1 - .35 * np.clip(jm, 0, 1))[..., None]
     col *= (shade * (1 - eave) * (1 - np.clip(shadow, 0, .6)))[..., None]
     # height for the normal image: grain, the paint film's edge where it has peeled, joint grooves
-    hgt = .25 * grain + 1.2 * (1 - peeled) + .4 * ndimage.gaussian_filter(PD, 1) - 1.5 * np.clip(jm, 0, 1)
+    hgt = .25 * grain + .35 * PW + 1.2 * (1 - peeled) + .4 * ndimage.gaussian_filter(PD, 1) - 1.5 * np.clip(jm, 0, 1)
     nrm = normal_from_height(ndimage.gaussian_filter(hgt, .7), 1.4)
     return {'a': col, 'n': nrm}
 
