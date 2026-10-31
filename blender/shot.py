@@ -91,7 +91,7 @@ def build():
     S['t'].location = (*St.TAIGA_N, Hm.ZG); S['t'].rotation_euler = (math.radians(16), 0, math.radians(176))   # facing the door, the whole body leaning in, hands on it (export_godot.pose_taiga)
     S['kphone'] = C.phone('kphone', kelvin(8500), 5)
     S['kphone_l'] = lib.spot('kiryu_phone_light', (0, 0, 0), (0, 0, 1), 2.2, k=8000, size=70, blend=.8, radius=.035)
-    import house4_ext as HX; HX.build_ext4(M, with_trees=False)   # the outside (外観スレッド); only the slit and the rain show it at 23:00
+    import house4_ext as HX; HX.build_ext4(M, with_trees=False, time='night')   # the outside (外観スレッド); only the slit and the rain show it at 23:00
     lib.haze(((St.HALL[0], -.2, -.2), (St.HALL[1], St.YF, 2.45)), density=.06, aniso=0)
     S['cam'] = lib.camera(tuple(CAM0), tuple(TGT0), lens=18)
     bpy.context.view_layer.update()
