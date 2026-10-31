@@ -577,6 +577,70 @@ def _transfer_weights_gated(donor, target, rig, k=4, cut_web=False):
     bm.to_mesh(target.data); bm.free()
     print('cut web faces', len(web))
 
+TWIST_FROM, TWIST_TO = .1, .9   # the forearm's twist bone takes over from the elbow bone between these fractions of its length
+
+def add_forearm_twist(rig, body):
+    """A twist bone along each forearm, weighted from nothing at the elbow to all at the wrist. A forearm turns the
+    hand by the radius rolling over the ulna: the elbow end stays put and the twist grows toward the wrist. Rolling
+    the whole forearm bone instead turned the elbow and the sleeve with it (試作18: the forearms read as rotated
+    outward). apply_twist sets it each pose from the hand's roll."""
+    bpy.context.view_layer.objects.active = rig; bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    ends = {}
+    for s in ('l', 'r'):
+        fa = eb[f'lowerarm_{s}']
+        tb = eb.new(f'lowerarm_twist_{s}'); tb.head = fa.head; tb.tail = fa.tail; tb.roll = fa.roll; tb.parent = fa
+        tb.use_deform = True
+        ends[s] = (rig.matrix_world @ fa.head, rig.matrix_world @ fa.tail)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    mw = body.matrix_world
+    for s in ('l', 'r'):
+        gl = body.vertex_groups.get(f'lowerarm_{s}')
+        if gl is None: continue
+        gt = body.vertex_groups.new(name=f'lowerarm_twist_{s}')
+        a, b = ends[s]; ab = b - a; L2 = ab.length_squared
+        n = 0
+        for v in body.data.vertices:
+            w = next((g.weight for g in v.groups if g.group == gl.index), 0)
+            if w <= 0: continue
+            t = (mw @ v.co - a).dot(ab) / L2
+            k = min(1, max(0, (t - TWIST_FROM) / (TWIST_TO - TWIST_FROM))); k = k * k * (3 - 2 * k)
+            if k <= 0: continue
+            gt.add([v.index], w * k, 'REPLACE'); gl.add([v.index], w * (1 - k), 'REPLACE'); n += 1
+        print('forearm twist', s, n, 'vertices')
+
+FOREARM_ROLL = 30   # deg the forearm bone itself may roll (its elbow end); the rest goes to the twist bone
+
+def apply_twist(rig):
+    """Give each forearm's twist bone the roll the hand has about the forearm (relative to the rest roll), so the
+    skin twists gradually from elbow to wrist. Call after the pose is set; changes nothing else."""
+    if f'lowerarm_twist_l' not in rig.pose.bones: return
+    bpy.context.view_layer.update()
+    def roll(F, H):
+        axis = F @ Vector((0, 1, 0)); fz = F @ Vector((0, 0, 1)); hz = H @ Vector((0, 0, 1))
+        fz -= axis * fz.dot(axis); hz -= axis * hz.dot(axis)
+        if fz.length < 1e-6 or hz.length < 1e-6: return 0.0
+        ang = fz.normalized().angle(hz.normalized())
+        return -ang if fz.cross(hz).dot(axis) < 0 else ang
+    for s in ('l', 'r'):
+        fa = rig.pose.bones[f'lowerarm_{s}']; hd = rig.pose.bones[f'hand_{s}']
+        # poses that roll the forearm bone itself (palm_to, settle_forearm): keep at most FOREARM_ROLL of that roll
+        # on the forearm bone, hand the rest to the twist bone (the hand keeps its orientation)
+        fa.rotation_mode = 'QUATERNION'; q = fa.rotation_quaternion.copy()
+        phi = 2 * math.atan2(q.y, q.w); phi = (phi + math.pi) % (2 * math.pi) - math.pi
+        lim = math.radians(FOREARM_ROLL)
+        if abs(phi) > lim:
+            Hm = hd.matrix.copy()
+            fa.rotation_quaternion = q @ Quaternion((0, 1, 0), -(phi - math.copysign(lim, phi)))
+            bpy.context.view_layer.update()
+            hd.matrix = Hm; bpy.context.view_layer.update()
+        r = roll(fa.matrix.to_3x3().normalized(), hd.matrix.to_3x3().normalized())
+        r0 = roll(fa.bone.matrix_local.to_3x3().normalized(), hd.bone.matrix_local.to_3x3().normalized())
+        d = (r - r0 + math.pi) % (2 * math.pi) - math.pi
+        pb = rig.pose.bones[f'lowerarm_twist_{s}']; pb.rotation_mode = 'QUATERNION'
+        pb.rotation_quaternion = Quaternion((0, 1, 0), d)
+    bpy.context.view_layer.update()
+
 def make_tripo(key, label=None):
     """Character from Tripo meshes (prepared by tripo/prep_<key>.py), rigged with the same game_engine skeleton as
     the MakeHuman characters so every pose function works unchanged. Returns (rig, body)."""
@@ -633,6 +697,7 @@ def make_tripo(key, label=None):
         print('hand fit', s, 'mesh', round(b.length * 100, 1), 'cm rig', round(a.length * 100, 1), 'cm, turned', round(math.degrees(a.angle(b)), 1), 'deg, err', round((bone_tail(rig, f'middle_03_{s}') - tip_m).length * 100, 2), 'cm')
     _apply_pose_as_rest(rig, [donor])
     _transfer_weights_gated(donor, body, rig, cut_web=key in CUT_WEB)
+    add_forearm_twist(rig, body)
     hz = bone_head(rig, 'head').z; nz = bone_head(rig, 'neck_01').z
     # one rule for the whole neck, on the head mesh AND the body's collar: by height alone, so the two meshes move
     # together when the neck turns. Below the collar top: spine_03. Up the neck over 7 cm: neck_01. Then head.
@@ -819,6 +884,8 @@ def set_hand_frame(rig, side, y_dir, z_dir):
     pb.matrix = rig.matrix_world.inverted() @ (Matrix.Translation(h) @ R)
     pb.scale = (1, 1, 1); bpy.context.view_layer.update()
 
+SETTLE_SHARE = .3   # the forearm bone rolls this share of the hand's roll; the twist bone spreads the rest down to the wrist
+
 def settle_forearm(rig, side, limit=80.0):
     """Rotate the forearm about its own axis toward the hand's roll (pronation / supination), so the wrist does not
     carry the whole twist. The hand's world orientation is restored by the caller."""
@@ -831,7 +898,7 @@ def settle_forearm(rig, side, limit=80.0):
     if fz.length < 1e-6 or hz.length < 1e-6: return
     ang = math.degrees(fz.normalized().angle(hz.normalized()))
     if fz.cross(hz).dot(axis) < 0: ang = -ang
-    rot_world(rig, f'lowerarm_{side}', axis, max(-limit, min(limit, ang)))
+    rot_world(rig, f'lowerarm_{side}', axis, max(-limit, min(limit, ang * SETTLE_SHARE)))
 
 def finger_tips(rig, side):
     bpy.context.view_layer.update()

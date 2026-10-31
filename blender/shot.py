@@ -103,11 +103,12 @@ def at(t):
     else:
         hand = Vector((hx, hy + .05 - .05 * knock, 1.42))
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
-    C.arm_to(n, 'r', Vector((sx - .17, Y + .14, 1.02 + .02 * math.sin(t * 3))), Vector((-.3, .2, -.4)))
     C.rot_world(n, 'neck_01', (1, 0, 0), -8)
-    C.grip(n, 'r', .8); C.grip(n, 'l', .15)
+    C.grip(n, 'l', .15)
+    # the phone in a reading grip, its screen toward her face (試作18: it faced away from her, the door way)
+    eyes = C.bone_head(n, 'head') + Vector((0, -.08, .05))
+    C.phone_grip3(n, 'r', S['nphone'], eyes, Vector((sx - .17, Y + .14, 1.02 + .02 * math.sin(t * 3))), Vector((-.3, .2, -.4)))
     bpy.context.view_layer.update()
-    C.place_in_hand(S['nphone'], n, 'r', (0, .05, -.022), (90, 0, 0))
     S['nphone_l'].location = S['nphone'].matrix_world.translation + S['nphone'].matrix_world.to_quaternion() @ Vector((0, -.04, 0))
     # ---- Kiryu: phone, looks up at the knock, back down
     k = S['k']; C.reset_pose(k)

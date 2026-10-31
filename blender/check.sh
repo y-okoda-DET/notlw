@@ -47,8 +47,9 @@ if [ -n "$ITEMS" ] && [ -f "$ITEMS" ]; then
   n=0
   while IFS='|' read -r words args; do
     case "$words" in \#*|"") continue;; esac
-    if [ -z "${args// }" ] || [ "${args// }" = v4 ]; then echo "- [ ] 「$words」 → v4_*.png（ゲームの中で撮れない位置。Blender の4方向で）" >> $M; continue; fi
-    n=$((n + 1)); set -- $args; sc=$1; shift
+    n=$((n + 1))   # numbered by the line in the list, so 指摘N matches the Nth remark
+    if [ -z "${args// }" ] || [ "${args// }" = v4 ]; then echo "- [ ] 指摘$n「$words」 → v4_*.png（ゲームの中で撮れない位置。Blender の4方向で）" >> $M; continue; fi
+    set -- $args; sc=$1; shift
     for mode in print raw; do
       for side in after before; do
         P=$AFTER; [ $side = before ] && P=$BEFORE
@@ -69,7 +70,7 @@ for i in ims: o.paste(i, (x, 0)); x += i.width
 o.save(f'{W}/check/指摘{n}_{"刷り" if mode == "print" else "刷りなし"}_左が前_右が後.png')
 PY
     done
-    echo "- [ ] 「$words」 → 指摘${n}_*.png" >> $M
+    echo "- [ ] 指摘$n「$words」 → 指摘${n}_*.png" >> $M
   done < "$ITEMS"
 else
   echo "- （指摘の一覧なし）" >> $M

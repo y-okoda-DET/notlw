@@ -61,6 +61,7 @@ def decimate(o, ratio):
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 A = imp(f'{T}/n2_body.glb'); A.rotation_euler.z += math.pi; apply_tf(A); A.name = 'natsuki_body'   # generated facing +Y
+A.data.transform(__import__('mathutils').Matrix.Rotation(math.pi, 4, 'Z'))   # NIGHT_BODY: this body (n2) came out of the generator facing +Y, the others -Y (試作18: the face was on the back of the body). The rotation_euler turn above does nothing: the glTF importer leaves the object in quaternion mode
 B = imp(f'{T}/n2_head.glb'); apply_tf(B); B.name = 'natsuki_hair'
 clean_mat(A); clean_mat(B)
 # glTF stores one UV per vertex, so the importer leaves the head split along every UV island: weld those duplicates

@@ -218,8 +218,8 @@ def pose_kiryu(k, t):
     C.grip(k, 'l', .3)   # fingers wrap the phone's back, thumb lies along the screen edge
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
-TAIGA_LAT = {'l': .32, 'r': .26}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
-TAIGA_HAND_UP = .10   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead)
+TAIGA_LAT = {'l': .38, 'r': .32}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
+TAIGA_HAND_UP = .0   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead)
 TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
 
 def pose_taiga(tg, t):
@@ -251,7 +251,7 @@ def pose_taiga(tg, t):
         w += n * ((door - w.y) / n.y - .004 * j)
         up = Vector((0, 0, 1))   # fingers straight up (the photo); a 10 deg outward splay read as a twisted wrist
         pz = n * C.palm_sign(tg, side)
-        C.arm_hand(tg, side, w, up, pz, sx)   # the elbow goes where the forearm needs the least wringing
+        C.arm_hand(tg, side, w, up, pz, sx, drop=(0, 10, 20, 30))   # elbows down (the photo); the twist bones spread the forearm roll
         C.grip(tg, side, .0, thumb=.0)
         for f, a in (('index', -6), ('middle', 0), ('ring', 5), ('pinky', 11)):
             C.rot_world(tg, f'{f}_01_{side}', n, sx * a)
@@ -261,9 +261,10 @@ def pose_natsuki(n, t, sx, Y):
     up = snap(t, 5.6, .35) * (1 - snap(t, 12.2, .6))
     hand = Vector((sx, Y + .01 + .05 * up - .06 * knock * up, 1.32 + .1 * up))
     C.arm_to(n, 'l', hand, Vector((.25, .2, -.4)))
-    C.arm_to(n, 'r', Vector((sx - .17, Y + .14, 1.02 + .02 * wob(t, .5))), Vector((-.3, .2, -.4)))
     C.rot_world(n, 'neck_01', (1, 0, 0), -(8 + 6 * up))   # facing the door (-y) now: the same look up toward the slit
-    C.grip(n, 'r', .8); C.grip(n, 'l', .15 + .5 * knock * up)
+    C.grip(n, 'l', .15 + .5 * knock * up)
+    eyes = C.bone_head(n, 'head') + Vector((0, -.08, .05))   # the phone's screen toward her face
+    C.phone_grip3(n, 'r', shot.S['nphone'], eyes, Vector((sx - .17, Y + .14, 1.02 + .02 * wob(t, .5))), Vector((-.3, .2, -.4)))
     idle(n, t, 3.0, breath=.36 + .15 * up, amp=1.3, rate=1.1)
 
 def bake_action(rig, fn):
@@ -273,7 +274,7 @@ def bake_action(rig, fn):
     prev = {}
     for f in range(n + 1):
         t = f / FPS
-        C.reset_pose(rig); fn(t)
+        C.reset_pose(rig); fn(t); C.apply_twist(rig)
         for pb in rig.pose.bones:
             # keep each bone's quaternion on the same hemisphere as the previous frame: a sign flip between two keys
             # would interpolate through zero (the mesh blows up to infinity in the exported animation)

@@ -2,6 +2,8 @@
 import sys, json
 CFG = json.load(open('/home/claude/tripo/chars_cfg.json'))
 src = open('/home/claude/tripo/prep_natsuki.py').read()
+import re as _re
+src = _re.sub(r'\nA\.data\.transform\([^\n]*# NIGHT_BODY[^\n]*', '', src)   # only the night body is turned back
 a = src.index("A_HEIGHT = "); b = src.index("def imp(f):")
 for key, c in CFG.items():
     if key == 'natsuki': continue
