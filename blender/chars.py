@@ -641,6 +641,51 @@ def apply_twist(rig):
         pb.rotation_quaternion = Quaternion((0, 1, 0), d)
     bpy.context.view_layer.update()
 
+NECK_FILL = {'makoto'}   # 試作18: the head's neck goes down inside the collar; seen from above, the gap between the two
+                         # showed as a dark hole round the neck (Makoto). A ring of the collar's cloth closes it
+
+def fill_collar_gap(body, face, zc, neck_w, center, n=48):
+    """A disc just under the collar's top, out past the collar's inner edge, in the head's skin (UVs of the nearest
+    vertex of the head's neck) and weighted like the collar there: looking down the collar it reads as the neck."""
+    z = zc - .03   # deep enough that the collar's own edge hides the disc's rim from the side
+    bw = body.matrix_world; fw = face.matrix_world
+    c = Vector((center.x, center.y, z))
+    def sec(p): return int((math.atan2(p.y - c.y, p.x - c.x) + math.pi) / math.tau * n) % n
+    rc = [9.0] * n
+    for v in body.data.vertices:
+        p = bw @ v.co
+        if z - .012 < p.z < zc + .002:
+            r = (p - c).to_2d().length
+            if r > .04: k = sec(p); rc[k] = min(rc[k], r)
+    for _ in range(n):
+        for k in range(n):
+            if rc[k] == 9.0: rc[k] = rc[(k - 1) % n] if rc[(k - 1) % n] != 9.0 else rc[(k + 1) % n]
+    verts = [c.copy()]   # flat, facing up: it takes the light from above like the collar's own top
+    for k in range(n):
+        a = (k + .5) / n * math.tau - math.pi
+        verts.append(c + Vector((math.cos(a), math.sin(a), 0)) * max(.035, min(rc[k] - .004, .1)))   # inside the collar's cloth, never through it
+    faces_ = [(0, 1 + k, 1 + (k + 1) % n) for k in range(n)]   # counter-clockwise seen from above: facing up (the old order faced down and the game culled it)
+    me = bpy.data.meshes.new('collar_fill'); me.from_pydata([bw.inverted() @ v for v in verts], [], faces_); me.update()
+    # 試作19b: the sweater's own cloth (the inside of the collar's back), not skin: skin down there sits in the
+    # collar's shadow and prints as a dark hole; the light cloth reads as the collar's lining, as on a real sweater
+    uvb = body.data.uv_layers.active
+    target = c + Vector((0, .06, .02))
+    best = min(body.data.polygons, key=lambda p: ((bw @ p.center) - target).length)
+    uv0 = sum((uvb.data[li].uv for li in best.loop_indices), Vector((0, 0))) / len(best.loop_indices)
+    ob = bpy.data.objects.new('collar_fill', me); bpy.context.scene.collection.objects.link(ob); ob.matrix_world = bw.copy()
+    for m in body.data.materials: me.materials.append(m)
+    uvl = me.uv_layers.new(name=uvb.name)
+    for poly in me.polygons:
+        for li in poly.loop_indices: uvl.data[li].uv = uv0
+        poly.material_index = best.material_index
+    th, tn, tsp = neck_w(z)
+    for nm, w in (('head', th), ('neck_01', tn), ('spine_03', tsp)):
+        g = ob.vertex_groups.new(name=nm)
+        if w > 0: g.add(list(range(len(verts))), w, 'REPLACE')
+    bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True); body.select_set(True)
+    bpy.context.view_layer.objects.active = body; bpy.ops.object.join()
+    print('collar gap: disc at z %.3f, collar r %.3f..%.3f' % (z, min(rc), max(rc)))
+
 def make_tripo(key, label=None):
     """Character from Tripo meshes (prepared by tripo/prep_<key>.py), rigged with the same game_engine skeleton as
     the MakeHuman characters so every pose function works unchanged. Returns (rig, body)."""
@@ -721,11 +766,13 @@ def make_tripo(key, label=None):
     for v in body.data.vertices:
         if v.co.z < zc - .04: continue
         th, tn, tsp = neck_w(v.co.z)
+        if key in NECK_FILL: th, tn, tsp = 0, 0, 1   # 試作19b: the whole turn is on neck_01 now; a collar that followed it twisted open and showed the hair behind through its culled lining
         for g in body.vertex_groups:
             if g.name not in ('head', 'neck_01', 'spine_03'):
                 try: g.remove([v.index])
                 except RuntimeError: pass
         names['head'].add([v.index], th, 'REPLACE'); names['neck_01'].add([v.index], tn, 'REPLACE'); names['spine_03'].add([v.index], tsp, 'REPLACE')
+    if key in NECK_FILL: fill_collar_gap(body, face, zc, neck_w, bone_head(rig, 'neck_01'))
     for ob in [o for o in (body, hair, face) if o is not None]:
         ob.name = {body: f'{label}_body', hair: f'{label}_hair', face: f'{label}_head'}[ob]
         mw = ob.matrix_world.copy(); ob.parent = rig; ob.matrix_world = mw

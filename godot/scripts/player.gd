@@ -24,6 +24,7 @@ var _slide_from := Transform3D()
 var _slide_t := 1.0
 var _cam_accum := 0.0
 var _held_tf := Transform3D()
+var fly := false                       # --noclip: hold the height, ignore gravity
 var auto_path: Array = []              # for unattended recordings: [[t, x, z, yaw_deg, pitch_deg], ...]
 var auto_t := 0.0
 var input_enabled := true
@@ -63,7 +64,8 @@ func _physics_process(dt):
 	var vel := dir * walk_speed
 	velocity.x = lerp(velocity.x, vel.x, 1.0 - exp(-dt * 9.0))
 	velocity.z = lerp(velocity.z, vel.z, 1.0 - exp(-dt * 9.0))
-	if not is_on_floor(): velocity.y -= 9.8 * dt
+	if fly: velocity.y = 0.0
+	elif not is_on_floor(): velocity.y -= 9.8 * dt
 	else: velocity.y = -0.1
 	move_and_slide()
 	_steps(dt)

@@ -1,7 +1,7 @@
 """Entrance hall of the rental cabin: staircase on the left, basement door under the stairs,
 genkan + front door on the far right, opening to the living room on the right.
 build_hall(M) returns a dict of handy anchor points."""
-import sys, math, random
+import sys, os, math, random
 sys.path.insert(0, '/home/claude/kf')
 import bpy
 from mathutils import Vector
@@ -17,6 +17,52 @@ GX0 = -.05
 DX0, DX1 = .35, 1.17                       # front door opening
 ST_X0, ST_X1, ST_Y0, ST_Y1 = XL, -.78, 1.25, 4.6   # staircase footprint (rises toward +y)
 NSTEP = 10
+STYLE = os.environ.get('HOUSE', 'log')    # 'log' (ログハウス) or 'siding' (白い下見板張りの洋館風): the comparison of the two looks
+
+def style_mats(M):
+    """Materials of the western-style interior (painted plaster over a white beadboard wainscot) and the siding."""
+    if 'plaster' in M: return
+    M['plaster'] = mat_image('plaster', tex_path('plaster'), rough=.9, coords='UV', bump=.05)
+    M['beadboard'] = mat_image('beadboard', tex_path('beadboard'), rough=.55, coords='UV', bump=.05)
+    M['siding'] = mat_image('siding', tex_path('siding'), rough=.6, coords='UV', bump=.05)
+    M['trim'] = mat_basic('trim', (.6, .58, .53), .45)
+
+def flat_wall(axis, fixed, lo, hi, holes, M, inward, z0=None, top=None):
+    """Western-style wall: plaster above a beadboard wainscot with a chair rail and a baseboard, trim round the
+    openings. The room-side face sits .06 m in from `fixed` (the log walls stand .15 m in; the walkable space is unchanged)."""
+    style_mats(M)
+    z0 = ZG if z0 is None else z0; top = H if top is None else top
+    f = fixed - inward * .06
+    def cut(rects):
+        for (ha, hb, h0, h1) in holes:
+            nr = []
+            for (a, b, c, d) in rects:
+                if hb <= a or ha >= b or h1 <= c or h0 >= d: nr.append((a, b, c, d)); continue
+                if ha > a: nr.append((a, ha, c, d))
+                if hb < b: nr.append((hb, b, c, d))
+                if h1 < d: nr.append((max(a, ha), min(b, hb), h1, d))
+                if h0 > c: nr.append((max(a, ha), min(b, hb), c, h0))
+            rects = nr
+        return rects
+    def slab(name, a, b, c, d, off, th, mat, uv=1.0):
+        if b - a < .01 or d - c < .005: return
+        x = f - inward * (off + th / 2)
+        if axis == 'Y': o = prim('cube', name, loc=(x, (a + b) / 2, (c + d) / 2), scale=(th / 2, (b - a) / 2, (d - c) / 2), mat=mat)
+        else: o = prim('cube', name, loc=((a + b) / 2, x, (c + d) / 2), scale=((b - a) / 2, th / 2, (d - c) / 2), mat=mat)
+        lib.uv_box(o, uv)
+    WS = .92
+    for (a, b, c, d) in cut([(lo, hi, z0, WS)]): slab('wainscot', a, b, c, d, 0, .02, M['beadboard'])
+    for (a, b, c, d) in cut([(lo, hi, WS, top)]): slab('plasterwall', a, b, c, d, -.005, .02, M['plaster'], .87)
+    for (a, b, c, d) in cut([(lo, hi, WS - .01, WS + .05)]): slab('chairrail', a, b, c, d, 0, .035, M['trim'])
+    for (a, b, c, d) in cut([(lo, hi, z0, z0 + .13)]): slab('baseboard', a, b, c, d, 0, .03, M['trim'])
+    for (a, b, c, d) in cut([(lo, hi, top - .08, top)]): slab('crown', a, b, c, d, 0, .03, M['trim'])
+    for (ha, hb, h0, h1) in holes:   # casing round each opening
+        for xa, xb in ((ha - .07, ha), (hb, hb + .07)): slab('casing', max(lo, xa), min(hi, xb), max(z0, h0), min(top, h1 + .07), 0, .028, M['trim'])
+        if h1 < top: slab('casing', max(lo, ha - .07), min(hi, hb + .07), h1, min(top, h1 + .09), 0, .03, M['trim'])
+
+def wall(axis, fixed, lo, hi, holes, M, inward, cut=None):
+    if STYLE == 'siding': flat_wall(axis, fixed, lo, hi, holes, M, inward)
+    else: D.logs_along(axis, fixed, lo, hi, holes, M, inward, cut)
 
 def note_tex(path, lines):
     from PIL import Image, ImageDraw, ImageFont
@@ -32,12 +78,12 @@ def note_tex(path, lines):
 def build_hall(M, ceiling=True, back_wall=False, cut=None, door_open=False):
     random.seed(5)
     # ---- walls
-    D.logs_along('Y', XL, YB, YF, [], M, -1, cut)
-    D.logs_along('Y', XR, YB, YF, [(1.35, 2.85, ZG, 2.05)], M, 1, cut)
-    D.logs_along('X', YF, XL, XR, [(DX0, DX1, ZG, 2.0)], M, 1, cut)
+    wall('Y', XL, YB, YF, [], M, -1, cut)
+    wall('Y', XR, YB, YF, [(1.35, 2.85, ZG, 2.05)], M, 1, cut)
+    wall('X', YF, XL, XR, [(DX0, DX1, ZG, 2.0)], M, 1, cut)
     if back_wall:
         # the living-room door, shut (the room beyond stays dark and unseen)
-        D.logs_along('X', YB, XL, XR, [(-.78, .02, 0, 2.0)], M, -1, cut)
+        wall('X', YB, XL, XR, [(-.78, .02, 0, 2.0)], M, -1, cut)
         bd = prim('cube', 'livingdoor', loc=(-.38, YB + .02, 1.0), scale=(.4, .02, 1.0), mat=M['door']); lib.uv_box(bd, 1.0, offset=(.6, 0))
         for x in (-.8, .04):
             fr = prim('cube', 'livingframe', loc=(x, YB + .03, 1.0), scale=(.025, .05, 1.03), mat=M['framewood']); lib.uv_box(fr, 1.0)
@@ -55,26 +101,45 @@ def build_hall(M, ceiling=True, back_wall=False, cut=None, door_open=False):
     if ceiling:
         ce = prim('cube', 'ceiling', loc=((ST_X1 + XR) / 2, (YB + YF) / 2, H + .015), scale=((XR - ST_X1) / 2, (YF - YB) / 2, .015), mat=M['ceil']); lib.uv_box(ce, .87)
         ce2 = prim('cube', 'ceiling_l', loc=((XL + ST_X1) / 2, (YB + ST_Y0) / 2, H + .015), scale=((ST_X1 - XL) / 2, (ST_Y0 - YB) / 2, .015), mat=M['ceil']); lib.uv_box(ce2, .87)
-        for yb in (1.2, 2.9, 4.6):
-            b = cyl_between('beam', (ST_X1, yb, H - .1), (XR + .05, yb, H - .1), .1, M['log'], 16); lib.uv_cyl(b, 1.25)
-        ridge = cyl_between('stairbeam', (ST_X1, ST_Y0 - .1, H - .12), (ST_X1, YF, H - .12), .12, M['log'], 16); lib.uv_cyl(ridge, 1.25)
+        if STYLE == 'siding':
+            ce.data.materials[0] = M['plaster']; ce2.data.materials[0] = M['plaster']
+            o = prim('cube', 'stairbeam', loc=(ST_X1, (ST_Y0 - .1 + YF) / 2, H - .09), scale=(.07, (YF - ST_Y0 + .1) / 2, .09), mat=M['trim']); lib.uv_box(o, 1.0)
+        else:
+            for yb in (1.2, 2.9, 4.6):
+                b = cyl_between('beam', (ST_X1, yb, H - .1), (XR + .05, yb, H - .1), .1, M['log'], 16); lib.uv_cyl(b, 1.25)
+            ridge = cyl_between('stairbeam', (ST_X1, ST_Y0 - .1, H - .12), (ST_X1, YF, H - .12), .12, M['log'], 16); lib.uv_cyl(ridge, 1.25)
     # ---- staircase: half-log treads on a log stringer, rising toward the front wall
     rise = H / NSTEP; run = (ST_Y1 - ST_Y0) / NSTEP
-    for i in range(NSTEP):
-        y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
-        t = cyl_between(f'tread{i}', (ST_X0 + .05, y, z - .06), (ST_X1, y, z - .06), .17, M['log'], 16)
-        t.scale = (1, .62, 1); lib.uv_cyl(t, 1.25)
-    st = cyl_between('stringer', (ST_X1 + .02, ST_Y0 - .25, -.05), (ST_X1 + .02, ST_Y1 + .1, H + .1), .09, M['log'], 14); lib.uv_cyl(st, 1.25)
-    for i in (0, 4, 8):
-        y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
-        p = cyl_between('baluster', (ST_X1 + .02, y, z), (ST_X1 + .02, y, z + .9), .03, M['log'], 10); lib.uv_cyl(p, 1.25)
-    hr = cyl_between('handrail', (ST_X1 + .02, ST_Y0, .95), (ST_X1 + .02, ST_Y1 + .2, H + .95), .035, M['log'], 10); lib.uv_cyl(hr, 1.25)
+    if STYLE == 'siding':
+        # boxed stair: board treads with a nosing over painted risers, a closed stringer, square balusters, a newel post
+        for i in range(NSTEP):
+            y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
+            t = prim('cube', f'tread{i}', loc=((ST_X0 + .06 + ST_X1) / 2, y + .015, z - .015), scale=((ST_X1 - ST_X0 - .06) / 2, run / 2 + .02, .015), mat=M['agari']); lib.uv_box(t, 1.25)
+            r = prim('cube', f'riser{i}', loc=((ST_X0 + .06 + ST_X1) / 2, y - run / 2 + .01, z - rise / 2 - .015), scale=((ST_X1 - ST_X0 - .06) / 2, .01, rise / 2 - .015), mat=M['trim'])
+        L = math.hypot(ST_Y1 - ST_Y0, H); ang = math.atan2(H, ST_Y1 - ST_Y0)
+        sg = prim('cube', 'stringer', loc=(ST_X1 + .015, (ST_Y0 + ST_Y1) / 2, H / 2 - .12), rot=(ang, 0, 0), scale=(.02, L / 2 + .1, .14), mat=M['trim'])
+        for i in range(NSTEP):
+            y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
+            prim('cube', 'baluster', loc=(ST_X1 + .0, y, z + .45), scale=(.016, .016, .45), mat=M['trim'])
+        hr = prim('cube', 'handrail', loc=(ST_X1, (ST_Y0 + ST_Y1) / 2 + run / 2, H / 2 + .92), rot=(ang, 0, 0), scale=(.03, L / 2 + .05, .025), mat=M['door']); lib.uv_box(hr, 1.0)
+        prim('cube', 'newel', loc=(ST_X1, ST_Y0 - .05, .55), scale=(.05, .05, .55), mat=M['trim'])
+        prim('cube', 'newelcap', loc=(ST_X1, ST_Y0 - .05, 1.12), scale=(.065, .065, .025), mat=M['door'])
+    else:
+        for i in range(NSTEP):
+            y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
+            t = cyl_between(f'tread{i}', (ST_X0 + .05, y, z - .06), (ST_X1, y, z - .06), .17, M['log'], 16)
+            t.scale = (1, .62, 1); lib.uv_cyl(t, 1.25)
+        st = cyl_between('stringer', (ST_X1 + .02, ST_Y0 - .25, -.05), (ST_X1 + .02, ST_Y1 + .1, H + .1), .09, M['log'], 14); lib.uv_cyl(st, 1.25)
+        for i in (0, 4, 8):
+            y = ST_Y0 + (i + .5) * run; z = (i + 1) * rise
+            p = cyl_between('baluster', (ST_X1 + .02, y, z), (ST_X1 + .02, y, z + .9), .03, M['log'], 10); lib.uv_cyl(p, 1.25)
+        hr = cyl_between('handrail', (ST_X1 + .02, ST_Y0, .95), (ST_X1 + .02, ST_Y1 + .2, H + .95), .035, M['log'], 10); lib.uv_cyl(hr, 1.25)
     # under-stair wall + basement door facing the hall (+x)
     yd0, yd1 = 3.35, 4.05
     def under_panel(y0, y1):
         h = lambda y: max(.3, (y - ST_Y0) / run * rise - .25)
         hgt = min(h(y0), h(y1))
-        o = prim('cube', 'understair', loc=(ST_X1 - .03, (y0 + y1) / 2, hgt / 2), scale=(.025, (y1 - y0) / 2, hgt / 2), mat=M['door']); lib.uv_box(o, 1.0)
+        o = prim('cube', 'understair', loc=(ST_X1 - .03, (y0 + y1) / 2, hgt / 2), scale=(.025, (y1 - y0) / 2, hgt / 2), mat=M['trim'] if STYLE == 'siding' else M['door']); lib.uv_box(o, 1.0)
     for a, b in ((ST_Y0 + 1.1, 2.5), (2.5, yd0), (yd1, ST_Y1)): under_panel(a, b)
     bd = prim('cube', 'basement_door', loc=(ST_X1 - .02, (yd0 + yd1) / 2, .85), scale=(.02, (yd1 - yd0) / 2 - .01, .85), mat=M['door']); lib.uv_box(bd, 1.0, offset=(.3, 0))
     nt = mat_image('note', note_tex('/home/claude/kf/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)

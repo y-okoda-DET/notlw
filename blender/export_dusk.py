@@ -37,6 +37,10 @@ def build():
     S['sun'].rotation_euler = Vector((.3, -.95, -.25)).to_track_quat('-Z', 'Y').to_euler()
     w = s.world.node_tree.nodes['Background']; w.inputs[0].default_value = (*kelvin(3400), 1); w.inputs[1].default_value = .35
     lib.area('door_sky', (.76, Y + .25, 1.1), (.6, 3.5, .7), 30, k=4200, size=(.8, 2.1), spread=120)
+    if os.environ.get('EXT'):   # the look comparison: the whole outside of the house, the sky ring replaces the backdrop
+        import house; house.build_exterior(M)
+        k_ = 20 / 9   # the sunset sheet pushed back to 20 m (same size seen from the hall), out of the outside views' way
+        bd.location = (.9, Y + 20, 1.5 + .1 * k_); bd.scale = (8 * k_, 8 * 876 / 1358 * k_, 1)
     D.fresnel((1.25, 2.55), 2.0, (.35, 3.75, 0), M, energy=160, size=30)
     D.tripod((-.45, 4.12), math.radians(205), M)
     Hm.tape_mark(.35, 3.75, CAM[:2], 'tape_natsuki.png')
@@ -126,64 +130,54 @@ def pose_makoto(m, t):
     # holding the reflector on Natsuki with both hands; the board stays still, so the body breathes under fixed hands
     E.idle(m, t, 7.0, breath=.26, amp=.7, rate=1.05)
     look = E.snap(t, 3.2, .5) * (1 - E.snap(t, 5.0, .6)) + E.snap(t, 12.0, .5) * (1 - E.snap(t, 13.6, .6))   # glances at Kiryu
-    C.rot_world(m, 'neck_01', (0, 0, 1), .4 * (-8 + 30 * look))   # a turn shared by neck and head (a head turned alone shears the neck)
-    C.rot_world(m, 'head', (0, 0, 1), .6 * (-8 + 30 * look))
+    # the whole turn on the neck bone: the head's own share bent the lower face behind the upper (the mouth lagged up to
+    # 4.5 cm at this angle, 試作18 「顔の下半身と上半身で歪み」); the neck between the collar and the jaw takes the twist
+    C.rot_world(m, 'neck_01', (0, 0, 1), -8 + 30 * look)
     # each hand holds a side edge as in the photo (a box held by its sides): palm facing in against the edge, fingers
     # up along it, the edge in the crotch of the hand: the thumb on the face toward her (the back face), the fingers
     # round the other side and their tips curling onto the front a little
     RM = S['rf_M']; R = RM.to_3x3().normalized()   # the board object itself is merged away by the export cleanup
     bx = R @ Vector((1, 0, 0)); f = -(R @ Vector((0, 1, 0))); ub = R @ Vector((0, 0, 1))
     for side, sx in (('l', 1), ('r', -1)):
+        # 試作18 「レフ板をちゃんと持てていない」: the fingers stood up beside the edge without touching it. Now the way a
+        # board is carried in front of the body: the fingers behind it (on her side) reaching in from the edge, the
+        # palm against its back face, the thumb over the edge onto the front face
         out = bx * sx
-        edge = RM @ Vector((sx * 1.0, 0, -.3))
-        fing = ub
-        pz = -out * C.palm_sign(m, side)
-        shift = S.get(('mk_shift', side), 0.0)
-        wrist = edge + out * .032 - ub * .075 + f * shift
-        C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))      # elbows down at her sides (armpits closed)
+        edge = RM @ Vector((sx * 1.0, 0, -.25))
+        back = -f * (.006 + .009)          # half the board's thickness plus the fingers' own half-thickness
+        wrist = edge + out * .05 + back + -f * .012
+        C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))      # elbows down at her sides
+        pz = f * C.palm_sign(m, side)                              # palm toward the board (the board is in front of the hand)
+        fing = (-out * .9 + ub * .45).normalized()                  # fingers reach in from the edge, a little upward
         C.set_hand_frame(m, side, fing, pz); C.settle_forearm(m, side); C.set_hand_frame(m, side, fing, pz)
-        if ('mk_shift', side) not in S:
-            fi = (C.bone_head(m, f'index_01_{side}') - edge).dot(f); ft = (C.bone_head(m, f'thumb_02_{side}') - edge).dot(f)
-            S[('mk_shift', side)] = .004 - fi   # the board plane runs between thumb and index: index just in front of it
-            print('makoto hand', side, 'pinky f', round((C.bone_head(m, f'pinky_01_{side}') - edge).dot(f) * 100, 1), 'thumb tip f', round((C.bone_tail(m, f'thumb_03_{side}') - edge).dot(f) * 100, 1), 'index f', round(fi * 100, 1), 'thumb f', round(ft * 100, 1), 'cm -> shift', round((.004 - fi) * 100, 1))
-            wrist = edge + out * .032 - ub * .075 + f * S[('mk_shift', side)]
-            C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))
-            C.set_hand_frame(m, side, fing, pz); C.settle_forearm(m, side); C.set_hand_frame(m, side, fing, pz)
-        # each finger curls until it meets the back face, the thumb until it meets the front (bones + 8 mm of skin)
-        key = ('mk_curl', side)
+        key = ('mk_curl2', side)
         if key not in S:
-            Mi = RM.inverted(); half = .006 + .008
-            def hits(f_):
-                for j_ in ('01', '02', '03'):
-                    pb = m.pose.bones[f'{f_}_{j_}_{side}']
-                    for q in (m.matrix_world @ pb.head, (m.matrix_world @ pb.head + m.matrix_world @ pb.tail) / 2, m.matrix_world @ pb.tail):
-                        l_ = Mi @ q
-                        if abs(l_.x) < 1.0 and abs(l_.z) < 1.0 and abs(l_.y * .006) < half: return True
-                return False
+            Mi = RM.inverted()
+            def depth(f_):   # how far the finger's middle and tip sit behind the back face (m; negative = through it)
+                pb2 = m.pose.bones[f'{f_}_02_{side}']; pb3 = m.pose.bones[f'{f_}_03_{side}']
+                return min((Mi @ (m.matrix_world @ q)).y * .006 for q in (pb2.head, pb3.tail))
             amt = {}
-            for f_ in C.FINGERS + ('thumb',):
+            for f_ in C.FINGERS:   # curl each finger toward the palm until it lies on the back face
                 best = 0.0
-                for st in range(0, 17 if f_ == 'thumb' else 9):   # fingers stay long on the face (a fist read as a mitten)
-                    a_ = st * .05; C.clear_finger(m, side, f_)
-                    C.curl_finger(m, side, f_, a_, (20, 35, 25) if f_ == 'thumb' else (55, 70, 45))
-                    if hits(f_): break
+                for st in range(0, 13):
+                    a_ = st * .04; C.clear_finger(m, side, f_); C.curl_finger(m, side, f_, a_, (40, 50, 30))
+                    if depth(f_) < .006 + .007: break
                     best = a_
                 amt[f_] = best; C.clear_finger(m, side, f_)
-            # the thumb: across the back face (the side toward her)
-            for f_, a_ in amt.items():
-                if f_ != 'thumb': C.curl_finger(m, side, f_, a_)
+            for f_, a_ in amt.items(): C.curl_finger(m, side, f_, a_, (40, 50, 30))
             C.clear_finger(m, side, 'thumb')
-            T = edge - out * .012 - f * .022 + ub * .025   # the thumb lies on the back face, 2.5 cm in from the edge
-            for _ in range(4):
+            T = edge - out * .03 + f * (.006 + .008) + ub * .03     # the thumb tip on the front face, 3 cm in from the edge
+            for _ in range(5):
                 h_ = C.bone_head(m, f'thumb_01_{side}'); t_ = C.bone_tail(m, f'thumb_03_{side}')
                 a1, b1 = t_ - h_, T - h_
                 if a1.cross(b1).length < 1e-6: break
                 C.rot_world(m, f'thumb_01_{side}', a1.cross(b1).normalized(), math.degrees(a1.angle(b1)))
             amt['thumb_q'] = [m.pose.bones[f'thumb_0{j}_{side}'].rotation_quaternion.copy() for j in (1, 2, 3)]
-            amt['thumb_hits'] = hits('thumb'); amt['thumb_err_cm'] = round((C.bone_tail(m, f'thumb_03_{side}') - T).length * 100, 1)
-            S[key] = amt; print('makoto curl', side, {k_: v_ for k_, v_ in amt.items() if k_ != 'thumb_q'})
+            amt['thumb_err_cm'] = round((C.bone_tail(m, f'thumb_03_{side}') - T).length * 100, 1)
+            amt['finger_gap_cm'] = {f_: round((depth(f_) - .006) * 100, 1) for f_ in C.FINGERS}
+            S[key] = amt; print('makoto grip', side, {k_: v_ for k_, v_ in amt.items() if k_ != 'thumb_q'})
         for f_, a_ in S[key].items():
-            if f_ in C.FINGERS: C.curl_finger(m, side, f_, a_, (55, 70, 45))
+            if f_ in C.FINGERS: C.curl_finger(m, side, f_, a_, (40, 50, 30))
         for j, q in zip((1, 2, 3), S[key]['thumb_q']):
             pb = m.pose.bones[f'thumb_0{j}_{side}']; pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = q
         bpy.context.view_layer.update()

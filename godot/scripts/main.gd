@@ -47,6 +47,7 @@ func _ready():
 		if a.begins_with("--pexp="): PRINT_EXP[SCENE if SCENE != "" else "night"] = float(a.substr(7))
 		if a == "--status": ARGS["status"] = true; SET["pin"] = true
 		if a == "--bright": ARGS["bright"] = true
+		if a == "--noclip": ARGS["noclip"] = true   # check stills from outside the house: no walls, no gravity
 		if a == "--bake-gi": ARGS["bake"] = true
 		if a.begins_with("--gi="): ARGS["gi"] = a.substr(5)
 		if a.begins_with("--gie="): ARGS["gie"] = a.substr(6)
@@ -143,6 +144,11 @@ func _load_scene(path: String, key: String):
 				if mat != null:
 					var d := mat.duplicate() as BaseMaterial3D
 					d.cull_mode = BaseMaterial3D.CULL_DISABLED
+					if key == "makoto" and String(mi.name).ends_with("_body"):
+						# 試作19b: when she turns her head, the inside of the sweater's collar shows behind the neck; lit only
+						# from inside it is nearly black and prints as a hole. Thin cloth lets the light through from outside.
+						d.backlight_enabled = true
+						d.backlight = Color(0.7, 0.7, 0.7)
 					m3.set_surface_override_material(i, d)
 
 const CHARS := ["kiryu", "taiga", "natsuki", "makoto"]
@@ -423,6 +429,7 @@ func _player():
 	add_child(player)
 	player.global_position = Vector3(-0.5, 0.0, -1.35)
 	player.yaw = -0.25
+	if ARGS.has("noclip"): player.collision_layer = 0; player.collision_mask = 0; player.fly = true
 	if ARGS.has("pose"):
 		var q = ARGS["pose"]
 		player.global_position = Vector3(q[0], 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])
