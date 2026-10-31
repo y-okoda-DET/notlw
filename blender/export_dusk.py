@@ -112,6 +112,7 @@ def pose_kiryu(k, t):
     C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
     C.grip(k, 'r', .25, thumb=.2)
     lw = Vector((cx, cy, 1.49)) + lv * .1 + E.axis_local(k, (0, 1, 0)) * .03
+    # 試作19b: a lower elbow (.3,.15,-.9) or one further out (.9,0,-.2) did not remove the flap under this arm
     C.arm_to(k, 'l', lw, Vector((.6, .2, -.5))); C.palm_to(k, 'l', Vector((cx, cy, 1.49)))
     C.grip(k, 'l', .45, thumb=.4)
     C.rot_world(k, 'neck_01', E.axis_local(k, (1, 0, 0)), 14 - 16 * up)

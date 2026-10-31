@@ -9,10 +9,11 @@ W=/home/claude/work/cmp; mkdir -p $W; L=$W/cmp.log
 G=/home/claude/godot/Godot_v4.4.1-stable_linux.x86_64
 R=/home/claude/rules
 echo "== start $(date +%T)" > $L
-[ -d /home/claude/work/dusk_backup ] || cp -a $R/assets/dusk /home/claude/work/dusk_backup
-for st in log siding; do
+# STYLES="siding"：片方だけ。NORESTORE=1：退避と復元をしない（あとで build.sh で書き出し直すとき）
+[ -n "${NORESTORE:-}" ] || [ -d /home/claude/work/dusk_backup ] || cp -a $R/assets/dusk /home/claude/work/dusk_backup
+for st in ${STYLES:-log siding}; do
   echo "== $st export $(date +%T)" >> $L
-  cd /home/claude/kf
+  cd /home/claude/notlw/blender   # not the kf symlink: paths.py finds the repo from the script's own place
   HOUSE=$st EXT=1 python3 export_dusk.py > $W/export_$st.log 2>&1 || { echo "EXPORT_FAIL $st" >> $L; break; }
   python3 denoise_lm.py -- $R/assets/dusk/lightmap.exr >> $W/export_$st.log 2>&1
   cd $R
@@ -24,7 +25,9 @@ for st in log siding; do
   $G --headless --path . --export-pack "Windows Desktop" /home/claude/build/cmp_$st.pck > $W/pck_$st.log 2>&1
   ls -la /home/claude/build/cmp_$st.pck >> $L 2>&1 || echo "PCK_FAIL $st" >> $L
 done
-echo "== restore $(date +%T)" >> $L
-rm -rf $R/assets/dusk && cp -a /home/claude/work/dusk_backup $R/assets/dusk
-cd $R && $G --headless --path . --import > /dev/null 2>&1
+if [ -z "${NORESTORE:-}" ]; then
+  echo "== restore $(date +%T)" >> $L
+  rm -rf $R/assets/dusk && cp -a /home/claude/work/dusk_backup $R/assets/dusk
+  cd $R && $G --headless --path . --import > /dev/null 2>&1
+fi
 echo "== CMP_DONE $(date +%T)" >> $L

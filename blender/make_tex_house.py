@@ -28,7 +28,7 @@ def save(a, name):
 # ---- lap siding: boards run along u (horizontal), 8 per tile
 g = grain(rot=True)
 y = np.arange(N)[:, None] / N * 8 % 1          # 0 at the top of a board, 1 at its bottom edge
-paint = np.array([.86, .85, .80])
+paint = np.array([.76, .75, .70])   # 見比べ2: the lit front printed as bare paper at .86
 shade = 1 - .05 * y                              # a lap board tilts out toward its bottom
 shade = shade - .5 * np.clip((y - .86) / .14, 0, 1) ** 1.3    # the shadow line under the lap above
 shade = shade + .04 * np.clip(1 - y / .06, 0, 1)             # the lit top edge
@@ -42,14 +42,14 @@ x = np.arange(N)[None, :] / N * 10 % 1
 groove = np.exp(-((x - 0) / .012) ** 2) + np.exp(-((x - 1) / .012) ** 2)
 bead = np.exp(-((x - .5) / .01) ** 2) * .5
 sh = 1 - .35 * groove - .15 * bead + .02 * g
-a = np.array([.66, .64, .59])[None, None] * (sh + blur_noise((N, N), 30) * .015)[..., None]
+a = np.array([.55, .53, .48])[None, None] * (sh + blur_noise((N, N), 30) * .015)[..., None]
 save(a, 'beadboard')
 
 # ---- plaster
 c = np.asarray(Image.open(f'{T}/chinking.png').convert('L'), np.float32) / 255
 c = (c - c.mean()) / (c.std() + 1e-6)
 v = .018 * blur_noise((N, N), 18) + .012 * blur_noise((N, N), 2) + .01 * c
-a = np.array([.62, .58, .51])[None, None] * (1 + v)[..., None]   # an aged cream: a whiter wall prints as bare paper
+a = np.array([.50, .45, .37])[None, None] * (1 + v)[..., None]   # an aged cream: a whiter wall prints as bare paper (見比べ2: .62,.58,.51 still did)
 save(a, 'plaster')
 
 # ---- asphalt shingles: 5 courses per tile, tabs 33 cm with slots, colour varies per tab

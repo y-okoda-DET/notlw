@@ -40,6 +40,7 @@ def mats(M):
     p = N['Principled BSDF']; t = N.new('ShaderNodeTexImage'); t.image = lib.img(tex_path('skyring'))
     L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = 1.6
     p.inputs['Base Color'].default_value = (0, 0, 0, 1)
+    p.inputs['Roughness'].default_value = 1.0; p.inputs['Specular IOR Level'].default_value = 0.0   # 見比べ2: the sun's highlight drew an arc across the dome
     M['ext_sky'] = sky
 
 def openings(side):
@@ -151,7 +152,7 @@ def window(side, c, z, w, h, M):
     box('ext_sill', c, d0 / 2 + .02, z - .03, w / 2 + .12, d0 / 2 + .04, .025, fm)
     if siding and side == 'S':   # louvred shutters on the front
         for s in (-1, 1):
-            box('ext_shutter', c + s * (w / 2 + .08 + w * .2), d0 + .015, z + h / 2, w * .2, .012, h / 2 + .02, M['ext_shutter'])
+            box('ext_shutter', c + s * (w / 2 + .06 + w * .16), d0 + .015, z + h / 2, w * .16, .012, h / 2 + .02, M['ext_shutter'])   # 見比べ2: narrower, two neighbours no longer touch
 
 def roof(M):
     ym = (HY0 + HY1) / 2; half = (HY1 - HY0) / 2 + OVER
