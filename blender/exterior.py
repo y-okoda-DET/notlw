@@ -27,7 +27,7 @@ PH = f'{P.ASSETS}/tex/ph'
 TEXOUT = f'{P.KF}/export_tex'
 CACHE = f'{P.WORK}/cache/ext'
 os.makedirs(TEXOUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
-VERSION = 'ext8'      # bump when the image recipes change (part of every cache key)
+VERSION = 'ext9'      # bump when the image recipes change (part of every cache key)
 
 # ------------------------------------------------------------------ image helpers
 _src = {}
@@ -114,7 +114,7 @@ def add_fill(m, k):
 # ------------------------------------------------------------------ lap siding
 E_LAP, OV_LAP = .135, .03        # exposure of each board, the part hidden under the board above
 T_BOT, T_TOP, T_BACK = .021, .006, .004
-PAINT = np.array([.75, .74, .69], np.float32)      # 見比べ2: whiter printed as bare paper
+PAINT = np.array([.6, .59, .55], np.float32)      # 見比べ2: .75 still printed as bare paper on the sunlit front (review, 11-01)
 WOOD = np.array([.36, .33, .29], np.float32)       # weathered bare cedar where the paint has gone
 GRIME = np.array([.30, .29, .26], np.float32)
 SOIL = np.array([.27, .22, .16], np.float32)

@@ -139,7 +139,8 @@
 - アルファで抜く材質は、画像の Alpha → Math(ROUND) → Principled の Alpha にする（glTF では alpha clip になる）。
 - 木はスギの植林（trees.py）。日本の山の貸別荘が実際に立つ林。幹は赤茶の樹皮（ambientCG の Bark014 を色寄せ）、下半分は枝打ちされて枯れ枝の跡だけ、樹冠は上の 40〜55%、枝はらせん状で下の枝は垂れて先が上がる、葉は房（自前で描いたスギの葉の板を3枚交差）。木ごとに高さ 15〜25m・太さ・傾き・曲がり・樹冠の長さ・密度、たまに梢が折れる・二股。14本を作り、残りはその複製を回して大きさを変える（glb を小さく保つ）。
 - v4 の外は house4_ext.build_ext4(M)（家の中は house4.py、別スレッドが場面に組み込む）。外壁の板の裏は壁の中心線 +6.5cm。地面は ground(x, y)：玄関と西は -0.55、東の壁際で約 -1.8、さらに東へ下る。地下の東の小窓（Z -1.6..-1.2）は基礎のコンクリートに出る。
-- **zip の大きさ**：Godot は glb から取り出した画像（assets/env_<hash>_a/_n.png）を既定で可逆圧縮（compress/mode=0）で持つ。外の画像を足したら pck 556MB・zip 470MiB で上限を超えた。build.sh で env_*.png の取り込みを WebP 非可逆（mode=1、品質 0.85）にし、今の env.glb が使わない古い env_*.png を消す（all_resources なので残すと pck に入る）。試作21 で pck 304MB・zip 230MiB。地面・砂利・落ち葉の画像は 1024（exterior.ph_mat の既定）。
+- **zip の大きさ**：Godot は glb から取り出した画像（assets/env_<hash>_a/_n.png）を既定で可逆圧縮（compress/mode=0）で持つ。外の画像を足したら pck 556MB・zip 470MiB で上限を超えた。build.sh で env_*.png の取り込みを WebP 非可逆（mode=1、品質 0.85）にし、今の env.glb が使わない古い env_*.png を消す（all_resources なので残すと pck に入る）。試作21 で pck 304MB・zip 230MiB（試作26 も 229MiB）。外壁の塗装は .6（.75 だと日の当たる正面が刷りで紙の白）。地面・砂利・落ち葉の画像は 1024（exterior.ph_mat の既定）。
+- **Blender の visible_shadow は glb に載らない**。空の輪（ext_sky）が Godot で影を落とし、家の近くの地面が真っ黒になっていた。影を落とさない物は main.gd の名前の一覧（"ext_sky" など）で切る。外には焼き込みも VoxelGI もないので、夕方だけ地面・落ち葉・砂利に自分の色の 0.05 倍の明るさを足している（exterior.add_fill）。地面の色は 0.5 前後、砂利 0.32。明るいと刷りで紙の白に飛ぶ。空の輪の夕方の明るさは 0.75（1.6 だと玄関の外の空が紙の白）。
 - 作業環境：/home/claude/kf などの symlink から build.sh を走らせると paths.py がリポジトリを見つけられない（paths.env が symlink の先にない）。`bash /home/claude/notlw/blender/build.sh` か実体のパスで走らせる。
 - 夕方の刷りで玄関まわりの壁が紙の白に飛んだのは、焼き込みの照り返し（Godot の bounce、既定 1.5）が強すぎたため。廊下が 2m に狭まり、まわりの部屋の壁で閉じた箱になったので照り返しが溜まる。太陽・戸口の空の光を下げても刷りの明るさが自動で合わさるので変わらなかった。刷りの明るさ（pexp）を下げると二色の刷りが橙から青に寄る。夕方は scene.json の lme=0.7 にした（試作21）。
 - 確認用の Godot 引数：--dusk=太陽,空,フレネル（夕方の光の倍率）、--lme=照り返し、--pexp=刷りの明るさ。
