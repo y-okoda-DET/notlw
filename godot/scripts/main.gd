@@ -59,6 +59,8 @@ func _ready():
 		if a.begins_with("--gi="): ARGS["gi"] = a.substr(5)
 		if a.begins_with("--gie="): ARGS["gie"] = a.substr(6)
 		if a.begins_with("--lme="): ARGS["lme"] = a.substr(6)
+		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
+		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
 	if SCENE == "": SCENE = "night"
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else "res://assets/"
@@ -70,7 +72,7 @@ func _ready():
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
-		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky"]:   # ext_sky: the sky ring round the wood (it shaded the ground near it)
+		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky", "lamp_"]:   # ext_sky: the sky ring round the wood (it shaded the ground near it)
 			if String(mi.name).begins_with(pre): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
@@ -161,6 +163,7 @@ func _load_scene(path: String, key: String):
 						d.backlight_enabled = true
 						d.backlight = Color(0.7, 0.7, 0.7)
 					m3.set_surface_override_material(i, d)
+			if key == "taiga" and not String(mi.name).begins_with("carrybox"): m3.layers = 1 | 2   # layer 2: the dusk fill and rim that only he gets (taiga_fill/_rim); the box he holds keeps its sunlit wood
 
 const CHARS := ["kiryu", "taiga", "natsuki", "makoto"]
 var faces := {}   # key -> {mat, tex:{open,closed,talk}, next_blink, blink_until}
@@ -224,6 +227,12 @@ func _mk_spot(L: Dictionary, energy: float, angle: float, size: float, shadows :
 	l.global_position = b2g(L.pos)
 	var d = b2g(L.dir)
 	l.look_at(l.global_position + d, Vector3.UP if abs(d.y) < 0.95 else Vector3.FORWARD)
+	return l
+
+# the bulb left on over the cellar door's lobby (house4.lobby_lamp): a dim warm pool so the door and its note read
+func _lamp(L: Dictionary) -> OmniLight3D:
+	var l := _mk_omni(L, 1.25 * float(ARGS.get("lamp", "1.0")), 3.5, 0.06)   # 1.25: the dark plank door reads in the print (0.5 lit only its casing)
+	l.shadow_enabled = true; l.omni_attenuation = 1.4; l.light_volumetric_fog_energy = 0.3
 	return l
 
 func _mk_omni(L: Dictionary, energy: float, rng: float, size := 0.02) -> OmniLight3D:
@@ -343,6 +352,13 @@ func _lights_dusk():
 			"reflector_bounce":
 				var r := _mk_spot(L, 0.9 * k, 70.0, 0.4, false); r.light_specular = 0.1; r.light_volumetric_fog_energy = 0.0
 				lights.refl = r
+			"taiga_fill", "taiga_rim":
+				# Taiga against the sky, as the eye adapts to him (ユーザー指摘): only his layer, no shadow, no fog
+				var tl := _mk_spot(L, (0.7 if L.name == "taiga_fill" else 1.2) * float(ARGS.get("tf", "1.0")), 40.0, 0.5, false)
+				tl.light_cull_mask = 2; tl.light_specular = 0.2; tl.light_volumetric_fog_energy = 0.0; tl.spot_range = 4.0
+				lights[L.name] = tl
+			"lamp_lobby":
+				lights.lamp = _lamp(L)
 
 func _lights():
 	var arr = JSON.parse_string(FileAccess.get_file_as_string("res://assets/lights.json"))
@@ -367,6 +383,8 @@ func _lights():
 				lights.rec = _mk_omni(L, 0.25, 0.6, 0.005)
 			"nphone_light":
 				pass
+			"lamp_lobby":
+				lights.lamp = _lamp(L)
 			"kiryu_phone_light":
 				pass
 	# lights that travel with the held phones

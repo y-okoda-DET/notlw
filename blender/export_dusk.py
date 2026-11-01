@@ -89,6 +89,16 @@ def build():
         bpy.context.view_layer.update(); ob.matrix_world = mw
     return M
 
+def taiga_lights():
+    # Taiga in the doorway, against the sky: what the eye sees, not the meter (ユーザー：目には HDR 的に見える).
+    # A fill from the hall side (the sunlit genkan floor and the walls throw light back at him) so his face and
+    # clothes read, and a rim from the sky behind him over the shoulders. Godot lights only Taiga with these;
+    # made after the bounce bake, so they never reach the walls.
+    tc = St.TAIGA_D
+    lib.area('taiga_fill', (tc[0] - .25, tc[1] - 1.5, .55), (tc[0], tc[1], Hm.ZG + 1.2), 6, k=3300, size=(.8, .8), spread=150)
+    lib.area('taiga_rim', (tc[0] + .1, tc[1] + .9, 2.0), (tc[0], tc[1], Hm.ZG + 1.5), 6, k=4800, size=(1.0, .4), spread=120)
+    bpy.context.view_layer.update()   # dump_lights reads matrix_world: new objects are at the origin until updated
+
 TALK = ((2.0, 4.6), (9.0, 10.4), (14.5, 16.8))   # Natsuki says something to Mio
 
 def pose_natsuki(n, t):
@@ -199,6 +209,7 @@ if __name__ == '__main__':
     chars = set()
     for r in (S['k'], S['t'], S['n'], S['m']): chars |= set(E.descendants(r))
     E.bake_bounce([o for o in bpy.data.objects if o not in chars and o.name != 'sunset_backdrop'])
+    taiga_lights()
     E.dump_lights()
     rigs = {'kiryu': (S['k'], lambda t: pose_kiryu(S['k'], t)), 'taiga': (S['t'], lambda t: pose_taiga(S['t'], t)),
             'natsuki': (S['n'], lambda t: pose_natsuki(S['n'], t)), 'makoto': (S['m'], lambda t: pose_makoto(S['m'], t))}

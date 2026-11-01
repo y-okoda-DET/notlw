@@ -276,6 +276,7 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
         }
         a['doors']['front'].name = 'door_pivot'   # Godot finds the front door by this name (the knocks shake it)
         fusuma(M, 6, 1.6, 2.45)
+        lobby_lamp(M)
         genkan_fit(M)
         note = under_stair(M)
         piv = a['doors']['cellar']; note.parent = piv; note.location = note.location - piv.location   # the note goes with the door
@@ -308,6 +309,21 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
 
 
 # ---------------------------------------------------------------- scene helpers
+LAMP = (5.55, 6.15)   # plan: the ceiling of the little lobby between the cellar door (y 5.6) and the toilet (y 6.8)
+def lobby_lamp(M):
+    """The one light left on at the back of the hall: a frosted globe on a small ceiling rose over the cellar door's
+    lobby. The back of the hall has no window that sees the door (the toilet stands in the way), so this bulb is what
+    lets the door and its note be read. Godot builds the light from 'lamp_lobby' in lights.json (main.gd)."""
+    x, y, z = X(LAMP[0]), Y(LAMP[1]), H1
+    if 'lampglass' not in M: M['lampglass'] = mat_basic('lampglass', (.95, .9, .8), .4, emit=lib.kelvin(2700), estr=6)
+    if 'lampbrass' not in M: M['lampbrass'] = mat_basic('lampbrass', (.55, .42, .22), .35, metal=1)
+    prim('cylinder', 'lamp_rose', loc=(x, y, z - .015), scale=(.06, .06, .015), mat=M['lampbrass'], vertices=24)
+    prim('cylinder', 'lamp_stem', loc=(x, y, z - .1), scale=(.008, .008, .08), mat=M['lampbrass'], vertices=12)
+    prim('cylinder', 'lamp_cap', loc=(x, y, z - .19), scale=(.045, .045, .02), mat=M['lampbrass'], vertices=24)
+    g = prim('uv_sphere', 'lamp_globe', loc=(x, y, z - .28), scale=(.09, .09, .09), mat=M['lampglass'], segments=24, ring_count=12)
+    lib.smooth(g)
+    lib.point('lamp_lobby', (x, y, z - .28), 40, k=2700, radius=.06)
+
 def prune(box, keep=('ext_',)):
     """Delete meshes whose bounds lie wholly outside box ((x0, y0, z0), (x1, y1, z1)): the rooms behind shut doors in a
     hall scene (they would take most of the lightmap's texels and are never seen)."""
