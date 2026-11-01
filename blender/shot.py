@@ -26,16 +26,34 @@ def pulse(t, t0, w): return math.exp(-((t - t0) / w) ** 2)
 
 S = {}
 
+# the user's scans in the genkan (scan_prep.py / scan_mat.py / scan_paint.py made them; 受け取ったスキャン一覧.md)
+# name: (x, y, z rotation deg). Kept off Taiga's 23:00 spot (St.TAIGA_N, on the genkan floor) and the umbrella stand.
+GENKAN_SCANS = {'genkan_mat': (.2, 5.62, 0), 'genkan_shoe1': (-.22, 5.13, 0), 'genkan_shoe2': (-.42, 5.72, 15), 'genkan_shoe3': (.66, 5.86, -20)}
+def scans_genkan():
+    d = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'scans')
+    if not os.path.exists(os.path.join(d, 'genkan_mat.glb')): return False
+    for n, (x, y, rz) in GENKAN_SCANS.items():
+        before = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=os.path.join(d, n + '.glb'))
+        for o in set(bpy.data.objects) - before:
+            if o.type != 'MESH': continue
+            o.name = 'scan_' + n; o.parent = None
+            o.location = (x, y, Hm.ZG + (.001 if n == 'genkan_mat' else .004)); o.rotation_euler = (0, 0, math.radians(rz))
+    return True
+
 def genkan_props4(M, shoes=4, umbrellas=6):
     """Shoes on the genkan floor and the umbrella stand in its west corner (the v4 genkan, X -.8..1.2, Y 4.9..6.3)."""
     import random as R
     R.seed(9)
     shoe = [mat_basic('shoe0', (.08, .08, .09), .6), mat_basic('shoe1', (.72, .7, .66), .7), mat_basic('shoe2', (.25, .19, .13), .6),
             mat_basic('shoe3', (.1, .12, .2), .6), mat_basic('shoe4', (.55, .3, .25), .6)]
-    for i in range(shoes):
-        for d in (-.06, .06):
-            o = prim('cube', 'shoe', loc=(-.45 + i * .22 + d, 5.2 + (i % 2) * .3, Hm.ZG + .045), scale=(.045, .13, .04), mat=shoe[i])
-            o.rotation_euler.z = R.uniform(-.3, .3)
+    if scans_genkan():
+        pass   # the user's scans (assets/scans) take the place of the box shoes
+    else:
+        for i in range(shoes):
+            for d in (-.06, .06):
+                o = prim('cube', 'shoe', loc=(-.45 + i * .22 + d, 5.2 + (i % 2) * .3, Hm.ZG + .045), scale=(.045, .13, .04), mat=shoe[i])
+                o.rotation_euler.z = R.uniform(-.3, .3)
     ux, uy = St.HALL[0] + .2, 5.15
     prim('cylinder', 'ustand', loc=(ux, uy, Hm.ZG + .22), vertices=16, radius=.09, depth=.44, mat=M['black'])
     for i in range(umbrellas):
