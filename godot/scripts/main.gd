@@ -69,7 +69,7 @@ func _ready():
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
-	if SCENE == "": SCENE = "night"
+	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else "res://assets/"
 	S = JSON.parse_string(FileAccess.get_file_as_string(BASE + "scene.json"))
 	_environment()
