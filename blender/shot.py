@@ -28,7 +28,10 @@ S = {}
 
 # the user's scans in the genkan (scan_prep.py / scan_mat.py / scan_paint.py made them; 受け取ったスキャン一覧.md)
 # name: (x, y, z rotation deg). Kept off Taiga's 23:00 spot (St.TAIGA_N, on the genkan floor) and the umbrella stand.
-GENKAN_SCANS = {'genkan_mat': (.2, 5.62, 0), 'genkan_shoe1': (-.22, 5.13, 0), 'genkan_shoe2': (-.42, 5.72, 15), 'genkan_shoe3': (.66, 5.86, -20)}
+# rz turns each pair's toes toward the door (+Y): the scans lie at 140-150 deg (heel -> toe, measured per shoe), so
+# 90 - that, plus a few degrees of the way people leave shoes. The mat is up on the hall floor, past the step.
+GENKAN_SCANS = {'genkan_mat': (.2, 4.55, 0), 'genkan_shoe1': (-.28, 5.14, 90 - 139.6 + 2), 'genkan_shoe2': (-.36, 5.78, 90 - 150.6 - 3),
+                'genkan_shoe3': (.46, 5.84, 90 - 141.2 + 1)}
 def scans_genkan():
     d = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'scans')
     if not os.path.exists(os.path.join(d, 'genkan_mat.glb')): return False
@@ -38,7 +41,7 @@ def scans_genkan():
         for o in set(bpy.data.objects) - before:
             if o.type != 'MESH': continue
             o.name = 'scan_' + n; o.parent = None
-            o.location = (x, y, Hm.ZG + (.001 if n == 'genkan_mat' else .004)); o.rotation_euler = (0, 0, math.radians(rz))
+            o.location = (x, y, .001 if n == 'genkan_mat' else Hm.ZG + .004)   # the mat on the hall floor (z 0), shoes on the genkan; o.rotation_euler = (0, 0, math.radians(rz))
     return True
 
 def genkan_props4(M, shoes=4, umbrellas=6):
