@@ -1,5 +1,5 @@
 """Turn a Scaniverse glb (object + the floor it stood on, 8K atlas) into a game prop:
-    python3 scan_prep.py <in.glb> <out.glb> <mode> [tex_px] [faces]
+    python3 scan_prep.py <in.glb> <out.glb> <mode> [tex_px] [faces] [cut_m]
 mode: 'shoes' (cut by height above the floor) or 'mat' (cut by colour: the floor's wood vs the mat, fringe kept).
 Steps: level the floor plane and cut it away, keep the islands in the middle, close the holes (scan gaps, shoe
 openings, the cut edge at the floor), decimate, new UVs, and bake the scan's colour onto them (selected-to-active, so
@@ -11,6 +11,7 @@ a = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 inp, out, mode = a[0], a[1], a[2]
 PX = int(a[3]) if len(a) > 3 else 2048
 FACES = int(a[4]) if len(a) > 4 else 40000
+CUT = float(a[5]) if len(a) > 5 else .004   # height above the floor that is kept (flat seals of a snack bag need ~1.5 mm)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=inp)
 src = [o for o in bpy.context.scene.objects if o.type == 'MESH'][0]
@@ -43,7 +44,7 @@ def face_col(poly):
 fh = np.array([hgt[list(p.vertices)].min() for p in me.polygons])
 fc = np.array([P[list(p.vertices)].mean(0) for p in me.polygons])
 if mode == 'shoes':
-    keepf = fh > .004
+    keepf = fh > CUT
 else:   # the mat: faces that differ in colour from the floor (sampled in a ring away from the middle), not below it
     cols = np.array([face_col(p) for p in me.polygons])
     rr = np.hypot(fc[:, 0] - cx, fc[:, 1] - cy)

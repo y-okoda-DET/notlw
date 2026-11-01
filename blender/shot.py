@@ -32,17 +32,62 @@ S = {}
 # 90 - that, plus a few degrees of the way people leave shoes. The mat is up on the hall floor, past the step.
 GENKAN_SCANS = {'genkan_mat': (.2, 4.55, 0), 'genkan_shoe1': (-.28, 5.14, 90 - 139.6 + 2), 'genkan_shoe2': (-.36, 5.78, 90 - 150.6 - 3),
                 'genkan_shoe3': (.46, 5.84, 90 - 141.2 + 1)}
+# the rest of the scans (2026-11-01): name: (x, y, z, z rotation deg).
+# The umbrellas where the box stand was (the genkan's west corner); the slippers on the mat at the step, toes into the
+# house (the scan lies heel -> toe at ~130 deg); the backpack on the hall floor against the east wall by the step.
+# The crew's break on the up-stair's 2nd tread (top z = 2 * F2 / 13): the snacks on the wall side, the mugs on the open
+# side, a roll of packing tape on the 3rd tread. The living room has no furniture and is out of both shots.
+STEP = H4.F2 / H4.NSTEP
+MORE_SCANS = {'genkan_umbrella': (St.HALL[0] + .2, 5.15, Hm.ZG + .002, 0),
+              'hall_slippers': (.42, 4.70, .005, -90 - 130),
+              'hall_backpack': (.93, 4.66, 0, 0),
+              'stair_snacks': (.86, 3.355, 2 * STEP, 8),
+              'stair_mugs': (.48, 3.36, 2 * STEP, -20)}
+def _import_scan(d, n, x, y, z, rz):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(d, n + '.glb'))
+    for o in set(bpy.data.objects) - before:
+        if o.type != 'MESH': continue
+        o.name = 'scan_' + n; o.parent = None
+        o.location = (x, y, z); o.rotation_euler = (0, 0, math.radians(rz))
+
 def scans_genkan():
     d = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'scans')
     if not os.path.exists(os.path.join(d, 'genkan_mat.glb')): return False
     for n, (x, y, rz) in GENKAN_SCANS.items():
-        before = set(bpy.data.objects)
-        bpy.ops.import_scene.gltf(filepath=os.path.join(d, n + '.glb'))
-        for o in set(bpy.data.objects) - before:
-            if o.type != 'MESH': continue
-            o.name = 'scan_' + n; o.parent = None
-            o.location = (x, y, .001 if n == 'genkan_mat' else Hm.ZG + .004)   # the mat on the hall floor (z 0), shoes on the genkan; o.rotation_euler = (0, 0, math.radians(rz))
+        _import_scan(d, n, x, y, .001 if n == 'genkan_mat' else Hm.ZG + .004, rz)   # the mat on the hall floor (z 0), shoes on the genkan
+    for n, (x, y, z, rz) in MORE_SCANS.items():
+        if os.path.exists(os.path.join(d, n + '.glb')): _import_scan(d, n, x, y, z, rz)
     return True
+
+def _clear_mat():
+    m = mat_basic('tape_clear', (.85, .66, .32), .12)
+    m.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = .45; m.surface_render_method = 'BLENDED'
+    return m
+
+def tape_roll(name, r_out, r_core, width, tape_mat, core_mat, clear_mat=None, seg=40):
+    """A roll of tape with its cardboard core and the hole through it (sizes from the user's scan s10: 10 cm across,
+    5 cm wide, a 7.6 cm core). Axis Z, origin at the centre (like door.cyl_between). clear_mat: a thin outer layer
+    for packing tape, whose last wrap you see through."""
+    import bmesh
+    me = bpy.data.meshes.new(name); bm = bmesh.new()
+    def ring(r0, r1, w, mi):
+        vs = []
+        for z in (-w / 2, w / 2):
+            for r in (r0, r1):
+                vs.append([bm.verts.new((r * math.cos(j / seg * math.tau), r * math.sin(j / seg * math.tau), z)) for j in range(seg)])
+        ib, ob, it, ot = vs
+        for j in range(seg):
+            k = (j + 1) % seg
+            for qi, q in enumerate(((ob[j], ob[k], ot[k], ot[j]), (it[j], it[k], ib[k], ib[j]), (ot[j], ot[k], it[k], it[j]), (ib[j], ib[k], ob[k], ob[j]))):
+                f = bm.faces.new(q); f.material_index = mi; f.smooth = qi < 2   # the walls round, the flat sides flat
+    ring(r_core - .0035, r_core, width * 1.01, 1)
+    ring(r_core, r_out - (.0012 if clear_mat else 0), width, 0)
+    if clear_mat: ring(r_out - .0012, r_out, width * .995, 2)
+    bm.to_mesh(me); bm.free()
+    for m in (tape_mat, core_mat) + ((clear_mat,) if clear_mat else ()): me.materials.append(m)
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    return o
 
 def genkan_props4(M, shoes=4, umbrellas=6):
     """Shoes on the genkan floor and the umbrella stand in its west corner (the v4 genkan, X -.8..1.2, Y 4.9..6.3)."""
@@ -58,6 +103,12 @@ def genkan_props4(M, shoes=4, umbrellas=6):
                 o = prim('cube', 'shoe', loc=(-.45 + i * .22 + d, 5.2 + (i % 2) * .3, Hm.ZG + .045), scale=(.045, .13, .04), mat=shoe[i])
                 o.rotation_euler.z = R.uniform(-.3, .3)
     ux, uy = St.HALL[0] + .2, 5.15
+    # packing tape left on the stair with the snacks (the roll's size from the scan s10)
+    tp = tape_roll('scan_tape_pack', .049, .040, .036, mat_basic('tape_pack', (.62, .42, .10), .2), mat_basic('tape_core', (.55, .42, .28), .8),
+                   _clear_mat())
+    tp.location = (.62, 3.12, 3 * STEP + .018); tp.rotation_euler.z = .4
+    if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'scans', 'genkan_umbrella.glb')):
+        return   # the scanned stand and umbrellas take the place of the box ones
     prim('cylinder', 'ustand', loc=(ux, uy, Hm.ZG + .22), vertices=16, radius=.09, depth=.44, mat=M['black'])
     for i in range(umbrellas):
         a = i / umbrellas * math.tau

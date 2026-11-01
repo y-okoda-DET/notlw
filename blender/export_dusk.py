@@ -74,7 +74,7 @@ def build():
     S['rf_lf'] = rf.matrix_world @ Vector((0, 0, -.45)); S['rf_rf'] = S['rf_lf']; S['rf'] = rf; S['rf_M'] = rf.matrix_world.copy()
     S.update(n=n, k=k, t=t, m=m)
     bpy.context.view_layer.update()
-    roll = D.cyl_between('taperoll', (0, 0, 0), (0, 0, .05), .058, mat_basic('tapeyel', (.95, .62, .04), .45), 24)   # a 115 mm roll of gaffer tape, saturated so it reads through the print
+    roll = shot.tape_roll('taperoll', .058, .040, .05, mat_basic('tapeyel', (.95, .62, .04), .45), mat_basic('tapecore', (.55, .42, .28), .8))   # a 115 mm roll of gaffer tape on its 3-inch core (the hole her fingers go through), saturated so it reads through the print
     box = prim('cube', 'carrybox', loc=(0, 0, 0), scale=(.25, .15, .1), mat=M['agari']); lib.uv_box(box, 1.25)
     S.update(roll=roll, box=box)
     at(0.0)
