@@ -207,6 +207,7 @@ if __name__ == '__main__':
     env = [o for o in bpy.data.objects if o not in chars and o.type in ('MESH', 'CURVE', 'EMPTY')]
     if os.environ.get('SKIP_LM') and not os.environ.get('ENV'): print('env.glb: kept')   # ENV=1: props moved (the lightmap may lag)
     else: E.export(f'{OUT}/env.glb', env)
+    # lme: the baked bounce (Godot default 1.5); the narrow v4 hall printed its walls paper white at 1.5
     json.dump(dict(scene='dusk', YF=Hm.YF, ZG=Hm.ZG, cam0=list(CAM), fps=E.FPS, loop=E.LOOP, talk=TALK,
-                   **St.scene_json('dusk', S['boxes'])), open(f'{OUT}/scene.json', 'w'), indent=1)
+                   **St.scene_json('dusk', S['boxes']), lme=.7), open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

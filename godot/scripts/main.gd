@@ -51,6 +51,9 @@ func _ready():
 		if a.begins_with("--pexp="): PRINT_EXP[SCENE if SCENE != "" else "night"] = float(a.substr(7))
 		if a == "--status": ARGS["status"] = true; SET["pin"] = true
 		if a == "--bright": ARGS["bright"] = true
+		if a.begins_with("--dusk="):   # check stills: the dusk light scales sun,sky,key (as the 7-0 [ ] keys set them)
+			var v = Array(a.substr(7).split(",")).map(func(x): return float(x))
+			DUSK_K.sun = v[0]; DUSK_K.sky = v[1]; DUSK_K.key = v[2]
 		if a == "--noclip": ARGS["noclip"] = true   # check stills from outside the house: no walls, no gravity
 		if a == "--bake-gi": ARGS["bake"] = true
 		if a.begins_with("--gi="): ARGS["gi"] = a.substr(5)
@@ -308,7 +311,7 @@ func _set_gi(m: int):
 	env.sdfgi_enabled = (m == 2)
 	if m == 2:
 		env.sdfgi_cascades = 4; env.sdfgi_min_cell_size = 0.1; env.sdfgi_use_occlusion = true; env.sdfgi_read_sky_light = false
-	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", "1.5")) if m == 0 else 0.0)
+	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) if m == 0 else 0.0)
 	if lights.has("fake_bounce"): lights.fake_bounce.visible = false
 	env.ambient_light_energy = 0.06 if SCENE == "dusk" else 0.02
 
