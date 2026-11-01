@@ -28,6 +28,9 @@ static var DUSK_BASE := {}       # the lights' designed energies, to scale from
 static var SCENE := ""            # "night" (第2章 23:00) or "dusk" (第1章 夕方); N switches
 var BASE := "res://assets/"
 var door_pivot: Node3D
+var story                          # 段階1: the playable 第1章 (scripts/story.gd), dusk only, not in check runs
+var talk_now := ""                 # whose mouth moves while a conversation runs
+var story_talking := false
 
 static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
@@ -62,13 +65,20 @@ func _ready():
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
+		if a == "--nostory": ARGS["nostory"] = true
+		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
+		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
+		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	if SCENE == "": SCENE = "night"
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else "res://assets/"
 	S = JSON.parse_string(FileAccess.get_file_as_string(BASE + "scene.json"))
 	_environment()
 	_load_scene(BASE + "env.glb", "env")
-	for n in CHARS:
+	for n in ([] if ARGS.has("nochars") else CHARS):
 		if ResourceLoader.exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
+	if ARGS.has("nochars"):   # the people's things go too (the reflector Makoto holds, the box and the tape)
+		for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+			if String(mi.name).begins_with("reflector") or String(mi.name).begins_with("carrybox") or String(mi.name).begins_with("taperoll"): mi.visible = false
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -83,6 +93,9 @@ func _ready():
 	_rain()
 	_player()
 	_print_layer()
+	if SCENE == "dusk" and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
+		if CARD_TIME > 0.0: CARD_TIME = 5.0
+		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	_card()
 	_restore_settings()
 	if record == "": Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -196,7 +209,9 @@ func _update_faces(t: float, lt: float):
 		var f = faces[k]
 		var st := "open"
 		var talking := false
-		if TALK.has(k):
+		if story_talking:
+			talking = (k == talk_now)
+		elif TALK.has(k):
 			for span in TALK[k]:
 				if lt > span[0] and lt < span[1]: talking = true
 		if talking:
@@ -470,7 +485,7 @@ func _player():
 	cs.shape = cap; cs.position.y = 0.8
 	player.add_child(cs)
 	var head := Node3D.new(); head.name = "Head"; player.add_child(head)
-	var cam := Camera3D.new(); cam.name = "Camera"; cam.fov = 62; cam.near = 0.05; head.add_child(cam)
+	var cam := Camera3D.new(); cam.name = "Camera"; cam.fov = ARGS.get("fov", 62.0); cam.near = 0.05; head.add_child(cam)
 	var attr := CameraAttributesPractical.new()
 	cam.attributes = attr
 	add_child(player)
@@ -589,6 +604,7 @@ func _card():
 		vb.add_child(lb)
 	var foot := Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
+	if story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	foot.add_theme_color_override("font_color", ink)
@@ -598,7 +614,7 @@ func _card():
 # ------------------------------------------------------------------ time
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
-	if Engine.get_write_movie_path() != "": t = float(Engine.get_process_frames()) / 24.0
+	if Engine.get_write_movie_path() != "": t = float(Engine.get_process_frames()) / float(ARGS.get("mfps", 24.0))
 	if ARGS.has("shots"):
 		t = _shot_tick()
 		if t < 0.0: return
@@ -739,6 +755,17 @@ func _unhandled_input(e):
 			KEY_F11:
 				var w := get_window()
 				w.mode = Window.MODE_WINDOWED if w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN or w.mode == Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN
+
+# 段階1: the first take starts and the power goes. The film light and the bulb die; the sunset in the door stays.
+func power_cut():
+	for k in ["fres_d", "lamp", "refl"]:
+		if lights.has(k): lights[k].visible = false
+	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
+
+func to_night():
+	_save_settings()
+	SCENE = "night"
+	get_tree().reload_current_scene()
 
 func _quality(high: bool):
 	quality_high = high

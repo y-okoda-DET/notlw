@@ -49,18 +49,7 @@ VoxelGI の焼き込み（gi.res、約6MB）も、確認画（close.py）も、�
 
 ## 4. フォント
 Noto Serif CJK（`fonts-noto-cjk`）。`godot/fonts/SerifJP-Bold.otf` は使う文字だけ抜き出したもの。
-文字を増やしたら `fonttools` で作り直す（リポジトリの根 /home/claude/notlw で実行する）:
-```
-python3 - <<'PY'
-from fontTools.ttLib import TTCollection; from fontTools import subset; import re
-tc=TTCollection('/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc')
-f=[x for x in tc.fonts if 'JP' in x['name'].getDebugName(1)][0]
-src=open('godot/scripts/main.gd').read()+open('godot/scripts/player.gd').read()
-chars=set(''.join(re.findall(r'"([^"]*)"',src)))|set('0123456789.０１２３４５６７８９ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz　、。，．・：；？！ー（）「」『』／｜＋－＝ ')
-o=subset.Options(); o.layout_features=['*']; o.name_IDs=['*']
-s=subset.Subsetter(o); s.populate(text=''.join(chars)); s.subset(f); f.save('godot/fonts/SerifJP-Bold.otf')
-PY
-```
+文字を増やしたら `python3 godot/fonts/make_subset.py` で作り直す（godot/scripts/*.gd の中の " " で囲んだ文字をすべて入れる。2026-11-01 から。それまでは main.gd と player.gd だけだった）。
 
 ## 5. パス
 パスは **リポジトリの根の `paths.env` の1か所**にまとめてある（2026-10-31）。

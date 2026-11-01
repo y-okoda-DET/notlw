@@ -28,6 +28,7 @@ var fly := false                       # --noclip: hold the height, ignore gravi
 var auto_path: Array = []              # for unattended recordings: [[t, x, z, yaw_deg, pitch_deg], ...]
 var auto_t := 0.0
 var input_enabled := true
+var move_enabled := true             # 段階1: off while a conversation runs (looking stays)
 
 @onready var head: Node3D = $Head
 @onready var cam: Camera3D = $Head/Camera
@@ -55,7 +56,7 @@ func _physics_process(dt):
 		if dir.length() > 1.0: dir = dir.normalized()
 		if to.length() < 0.004: dir = Vector3.ZERO
 		yaw = deg_to_rad(a[2]); pitch = deg_to_rad(a[3])
-	elif input_enabled:
+	elif input_enabled and move_enabled:
 		var f := Input.get_axis("ui_down", "ui_up") + (1.0 if Input.is_key_pressed(KEY_W) else 0.0) - (1.0 if Input.is_key_pressed(KEY_S) else 0.0)
 		var s := Input.get_axis("ui_left", "ui_right") + (1.0 if Input.is_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) else 0.0)
 		var basis := Basis(Vector3.UP, yaw)
