@@ -31,6 +31,7 @@ var door_pivot: Node3D
 var story                          # 段階1: the playable 第1章 (scripts/story.gd), dusk only, not in check runs
 var talk_now := ""                 # whose mouth moves while a conversation runs
 var story_talking := false
+var door_scene := false            # 段階1: 第2章 23:00, the door (scripts/door.gd)
 
 static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
@@ -66,6 +67,7 @@ func _ready():
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
 		if a == "--nostory": ARGS["nostory"] = true
+		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
@@ -96,6 +98,12 @@ func _ready():
 	if SCENE == "dusk" and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 5.0
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
+	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
+	if SCENE == "night" and (FROM_STORY or ARGS.has("door")) and not checking:
+		if CARD_TIME > 0.0: CARD_TIME = 5.0
+		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
+		door_scene = true
+	FROM_STORY = false
 	_card()
 	_restore_settings()
 	if record == "": Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -604,7 +612,8 @@ func _card():
 		vb.add_child(lb)
 	var foot := Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
-	if story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	if door_scene: foot.text = "マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	foot.add_theme_color_override("font_color", ink)
@@ -762,9 +771,12 @@ func power_cut():
 		if lights.has(k): lights[k].visible = false
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
 
-func to_night():
+static var FROM_STORY := false     # 段階1: the night was reached by playing (the door scene runs), not by N
+
+func to_night(from_story := false):
 	_save_settings()
 	SCENE = "night"
+	FROM_STORY = from_story
 	get_tree().reload_current_scene()
 
 func _quality(high: bool):

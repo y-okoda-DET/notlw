@@ -10,6 +10,12 @@
 ## mouse), compares with the board (Tab) and sets it down (E) on something it can rest on: the stair's handrail, the
 ## newel post, the shoe cabinet, the apple box, the floor. Kiryu judges the frame. When it matches she starts it
 ## recording; the shoot begins and the power goes.
+##
+## 第2章 20:00 (the same set, the power gone): the interviewer's next question on a card, then the radio. Taiga's radio
+## (the manager's, for the outages) is on the apple box. She takes it, holds it up (right mouse) and turns the dial with
+## the mouse. There is no sound yet (段階4): what comes out of it is what the transcript could make of it - the words,
+## "……" where the signal dropped, （雑音） between stations. Tuned dead on, one thing never comes through: the name of
+## the place. The same hand on the same kind of dial gets the tape to speak in 第11章.
 extends Node
 
 var main            # main.gd
@@ -34,6 +40,7 @@ var RESTS := [
 	["box", [0.97, 5.60, 0.75], [0.20, 0.55]],           # shoe cabinet top (half sizes x, y)
 	["box", [-0.60, 3.85, 0.24], [0.22, 0.14]],          # the apple box
 ]
+static var PLACED := {}        # where she set the small camera (Godot): the 23:00 scene shows it there, still recording
 var items := {}     # key -> {pos (Godot), r, kind, name}
 
 # ---------------------------------------------------------------- state
@@ -90,6 +97,8 @@ func _ready():
 	_finder()
 	_fixed_cam()
 	_lookers()
+	_radio()
+	_card2()
 	for a2 in OS.get_cmdline_user_args():
 		if a2 == "--demo": _demo_script()
 		if a2.begins_with("--storystate="): call_deferred("_state", a2.substr(13))
@@ -112,7 +121,8 @@ func _items():
 	add.call("fresnel", [-0.50, 2.90, 1.95], 0.22, "look", "照明")
 	add.call("note", [0.72, 0.67, 1.45], 0.13, "look", "扉の貼り紙")
 	add.call("shoes", [0.30, 5.55, -0.12], 0.35, "look", "靴")
-	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
+	add.call("fixedcam", [-0.72, 3.81, 0.30], 0.18, "take", "小さいカメラ")
+	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
 
 # ================================================================ the page
 func _label(size: float, col := Color(0, 0, 0, 0)) -> Label:
@@ -252,7 +262,7 @@ func _fixed_cam():
 	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.25, 0.05, 0.03); dm.emission_enabled = true; dm.emission = Color(1, 0.2, 0.05); dm.emission_energy_multiplier = 0.0
 	var d := mk.call(dot, dm, Vector3(0.0, 0.034, -0.05)) as MeshInstance3D; d.name = "recdot"
 	main.add_child(fixed_cam)
-	fixed_cam.global_position = g([-0.60, 3.85, 0.24 + 0.072])
+	fixed_cam.global_position = g([-0.72, 3.81, 0.24 + 0.072])
 	fixed_cam.rotation.y = 0.6
 
 func _set_rec(on: bool):
@@ -350,6 +360,7 @@ func _process(dt):
 	(finder_ui as FinderFrame).tc = "0:%02d:%02d" % [int(t_now / 60.0) % 60, int(t_now) % 60]
 	finder_ui.queue_redraw()
 	if mode == END: _end_tick(dt); return
+	if ch2: _radio_tick(dt)
 	# the head and the camera
 	var head: Node3D = player.get_node("Head")
 	var cam: Camera3D = head.get_node("Camera")
@@ -375,7 +386,9 @@ func _process(dt):
 	# what she is looking at
 	if mode == FREE:
 		focus = _focus(eye, dir)
-		if finder and holding_cam:
+		if holding_radio:
+			note_lb.text = "［マウスで目盛りを合わせる］" if radio_up else ""
+		elif finder and holding_cam:
 			note_lb.text = "［%sに置く｜Ｅ］" % finder_rest.what if finder_rest.get("ok", false) else "［ここには置けない］"
 		elif focus != "":
 			var it = items[focus]
@@ -396,6 +409,7 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 	for k in items:
 		var it = items[k]
 		if k == "fixedcam" and (holding_cam or cam_placed or not has_board): continue
+		if ch2 and k != "radio": continue          # after the power goes there is only the radio
 		var to: Vector3 = it.pos - eye
 		var d := to.length()
 		var lim := 2.6 if it.kind == "talk" else 1.9
@@ -416,6 +430,9 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 # ================================================================ input
 func _unhandled_input(e):
 	if main.card.visible or mode == END: return
+	if e is InputEventMouseMotion and radio_up and mode == FREE and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		tune = clamp(tune + e.relative.x * 0.00035, 0.0, 1.0)   # the whole band is about 2900 px of the mouse
+		return
 	if e is InputEventKey and e.pressed and not e.echo:
 		if e.keycode == KEY_E: _press()
 		elif e.keycode == KEY_TAB: board_up = not board_up
@@ -423,7 +440,11 @@ func _unhandled_input(e):
 		elif mode == TALK and cur.has("choose") and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1)
 		elif mode == TALK and e.keycode in [KEY_SPACE, KEY_ENTER]: _press()
 	elif e is InputEventMouseButton:
-		if e.button_index == MOUSE_BUTTON_RIGHT: _set_finder(e.pressed)
+		if e.button_index == MOUSE_BUTTON_RIGHT:
+			if holding_radio: radio_up = e.pressed and mode == FREE
+			else: _set_finder(e.pressed)
+		elif radio_up and mode == FREE and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			tune = clamp(tune + (0.0015 if e.button_index == MOUSE_BUTTON_WHEEL_UP else -0.0015), 0.0, 1.0)
 		elif e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED: _press()
 		elif e.pressed and mode == TALK and cur.has("choose") and e.button_index == MOUSE_BUTTON_WHEEL_UP: _move_choice(-1)
 		elif e.pressed and mode == TALK and cur.has("choose") and e.button_index == MOUSE_BUTTON_WHEEL_DOWN: _move_choice(1)
@@ -443,6 +464,9 @@ func _press():
 	match focus:
 		"placed": _pick_up_again()
 		"fixedcam": _take_cam()
+		"radio":
+			if ch2: _take_radio()
+			else: talk_with = ""; _start(_conversation("radio"))
 		_:
 			talk_with = focus if items[focus].kind == "talk" else ""
 			_start(_conversation(focus))
@@ -562,6 +586,8 @@ func _conversation(key: String) -> Array:
 			return [{"who": "澪", "text": "地下の扉には、貼り紙がありました。発電機、と書いてあったと思います。", "testimony": true}]
 		"shoes":
 			return [{"who": "澪", "text": "玄関に、みんなの靴がそろえてありました。そろえたのは、たぶん夏希です。", "testimony": true}]
+		"radio":
+			return [{"who": "澪", "text": "大河くんが、管理の人から借りてきたラジオでした。ここは停電が多いから、って。", "testimony": true}]
 	return []
 
 const WHO_KEY := {"桐生": "kiryu", "夏希": "natsuki", "真琴": "makoto", "大河": "taiga"}
@@ -574,11 +600,14 @@ func _start(entries: Array):
 	print("STORY start ", focus, " t=%.1f" % t_now)
 	mode = TALK
 	_clear_page()
+	rrow = {}
+	radio_up = false
 	_next()
 
 func _next():
 	if script_q.is_empty():
 		mode = FREE; cur = {}
+		if ch2 and holding_radio: return
 		if lines_box.get_child_count() > 0:
 			fade_tw = create_tween(); fade_tw.tween_property(lines_box, "modulate:a", 0.0, 1.6).set_delay(1.2)
 			fade_tw.tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0)
@@ -599,6 +628,7 @@ func _next():
 		_show_choice()
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
+	if ch2 and cur.who_key != "": talk_with = cur.who_key
 	var r2 = _line_row(cur.who, "")
 	cur_lb = r2[1]
 
@@ -679,19 +709,28 @@ func _do(what: String):
 			script_q.push_back({"do": "blackout"})
 		"blackout":
 			mode = END; end_t = 0.0; script_q.clear()
+			if cam_placed: PLACED = {"pos": fixed_cam.global_position, "basis": fixed_cam.global_basis}
 			main.power_cut()
 			_clear_page()
+		"ch2_cut":
+			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
+			mode = END; script_q.clear(); end_t = 100.0
+			main.to_night(true)
 
 func _end_tick(dt):
 	end_t += dt
-	if end_t > 2.4 and lines_box.get_child_count() == 0:
+	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0:
 		var r = _line_row("澪", "そこで、電気が消えたんです。")
 		r[1].text = ""
 		cur = {"text": "そこで、電気が消えたんです。"}; cur_lb = r[1]; typed = 0.0
 	if cur.has("text") and typed < String(cur.text).length():
 		typed += dt * 14.0; cur_lb.text = String(cur.text).substr(0, int(typed))
-	if end_t > 9.0:
-		main.to_night()
+	if end_t >= 100.0: return
+	if end_t > 9.0 and card2_t < 0.0 and not ch2:
+		_begin_ch2()
+	if card2_t >= 0.0:
+		card2_t += dt
+		if card2_t > 5.5: _ch2_start()
 
 # check stills of the page, the board and the finder at full size without playing up to them
 func _state(name: String):
@@ -719,11 +758,26 @@ func _state(name: String):
 			put.call(-0.2, 3.6, -48.0, -62.0)
 		"carry":
 			put.call(-0.2, 3.6, 0.0, -4.0); has_board = true; holding_cam = true
+		"card2":
+			main.power_cut(); mode = END; end_t = 9.5; _begin_ch2()
+		"ch2":   # from the power cut on (the unattended playthrough goes on from here when --demo is given)
+			demo = []; main.CARD_TIME = 0.0; main.power_cut(); mode = END; end_t = 9.5; _begin_ch2()
+		"radio", "radio_up", "radio_off", "radio_news":
+			# 第2章: the radio in her hand, held up to the dial, or tuned between stations
+			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			put.call(-0.20, 3.35, 2.0, -8.0); _take_radio(); script_q.clear(); mode = FREE; _clear_page()
+			radio_up = name != "radio"
+			tune = 0.43 if name == "radio_off" else (1017.0 - AM_LO) / (AM_HI - AM_LO)
+			if name == "radio_news": bc_t = 4.6   # the second sentence, the place
+		"radio_box":
+			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			put.call(-0.20, 3.35, 29.5, -62.0)
 
 # ================================================================ unattended playthrough (for the check movie)
 # steps: ["go", x, y, yaw_deg, pitch_deg, secs] (Blender x, y of the feet) | ["look", yaw, pitch, secs] | ["e"] | ["pick", i]
 #        ["finder", on] | ["board", on] | ["wait", secs] | ["until_free"]
 func _demo_script():
+	demo_on = true
 	demo = [
 		["wait", 1.5],
 		["go", 0.06, 2.45, 2.0, -4.0, 3.0], ["go", 0.06, 3.30, 0.0, -4.0, 2.6], ["go", -0.20, 3.60, 6.0, -2.0, 1.6],
@@ -782,8 +836,277 @@ func _demo_tick(dt):
 			else:
 				done = demo_t > 0.3
 		"until_end": done = false
+		"until_talk": done = mode == TALK
+		"rup": radio_up = s[1]; done = true
+		"tune":   # turn the dial to s[1] over s[2] seconds (eased), as a hand would
+			if demo_t <= dt * 1.5: S_tune0 = tune
+			var k: float = clamp(demo_t / float(s[2]), 0.0, 1.0)
+			tune = lerp(S_tune0, float(s[1]), k * k * (3.0 - 2.0 * k))
+			done = demo_t >= float(s[2])
 	if done: demo_i += 1; demo_t = 0.0
 
 var S_auto := 0
+var S_tune0 := 0.0
 var fade_tw: Tween
 var talk_with := ""
+
+# ================================================================ 第2章 20:00: the radio
+const RADIO_AT := [-0.50, 3.88, 0.20]     # on the apple box, beside where the small camera was (Blender; z = the box's top)
+const RADIO_YAW := 27.0                   # turned with the box, a little more toward the hall
+const AM_LO := 531.0                      # the dial (blender/radio.py DIAL): AM, linear in kHz
+const AM_HI := 1602.0
+const NEEDLE_X0 := -0.076
+const NEEDLE_X1 := 0.076
+const STATIONS := [[594.0, 0.62, "music"], [747.0, 0.5, "talk"], [1017.0, 0.94, "news"], [1350.0, 0.4, "foreign"]]
+const R_NAME := "（聞き取れず）"
+# the bulletin, read at about eight characters a second. # is the place: whatever the signal, it never comes through
+const NEWS := [
+	"……臨時ニュースを、お伝えします。",
+	"今日午後七時すぎ、#の化学工場で爆発があり、有毒なガスが広がっているとの情報が入っています。",
+	"#と、その周辺にお住まいの方は、屋内にとどまり、窓を閉めてください。",
+	"屋外にいた方は、衣服を脱いで袋に入れ、ほかの人との接触を避けてください。",
+	"体調に異変のある方は、むやみに外へ出ず、その場で救助を待ってください。",
+	"繰り返します。",
+]
+const TALKSHOW := ["……それでね、このお便りの方がね、", "（笑い声）", "いやいや、それは無理でしょう。", "（笑い声）", "さあ、次のお便り、いきましょうか。"]
+var radio: Node3D
+var radio_needle: Node3D
+var radio_knob: Node3D
+var radio_dial_mat: StandardMaterial3D
+var radio_lamp: OmniLight3D
+var ch2 := false
+var holding_radio := false
+var radio_up := false
+var radio_on := false
+var tune := 0.2                # the dial, 0..1 across the AM band
+var bc_t := 0.0                # the stations' clock: they go on whether she listens or not
+var rrow := {}                 # the radio's line being written
+var heard := {}                # bulletin sentence -> times it came through clearly
+var radio_since := -1.0
+var radio_stage := 0           # 0: nothing yet  1: heard it once (Taiga asks where)  2: the end of the scene
+var hint_said := 0
+var card2: Control
+var card2_t := -1.0
+var demo_on := false
+
+func _radio():
+	var ps: PackedScene = load("res://props/radio.glb")
+	if ps == null: return
+	radio = ps.instantiate()
+	main.add_child(radio)
+	for mi in radio.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+	radio_needle = radio.find_child("needle", true, false) as Node3D
+	radio_knob = radio.find_child("knob", true, false) as Node3D
+	var dial := radio.find_child("dial", true, false) as MeshInstance3D
+	if dial:
+		radio_dial_mat = (dial.get_active_material(0) as StandardMaterial3D).duplicate()
+		dial.set_surface_override_material(0, radio_dial_mat)
+	# the dial lamp: warm, small, only when it is on
+	radio_lamp = OmniLight3D.new(); radio_lamp.light_color = Color(1.0, 0.72, 0.42); radio_lamp.light_energy = 0.0
+	radio_lamp.omni_range = 0.8; radio_lamp.omni_attenuation = 1.6; radio_lamp.shadow_enabled = false
+	radio_lamp.light_volumetric_fog_energy = 0.0; radio_lamp.light_specular = 0.1
+	radio.add_child(radio_lamp); radio_lamp.position = Vector3(0.0, 0.097, 0.02)   # behind the front plate: it lights her side of the room, not its own face
+	_radio_rest()
+	_set_dial()
+
+func _radio_rest():
+	radio.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(RADIO_YAW)), g(RADIO_AT))
+
+func _set_dial():
+	if radio_needle: radio_needle.position.x = lerp(NEEDLE_X0, NEEDLE_X1, tune)
+	if radio_knob: radio_knob.rotation.x = -tune * TAU * 5.0
+
+func _radio_power(on: bool):
+	radio_on = on
+	if radio_dial_mat:
+		radio_dial_mat.emission_enabled = on
+		radio_dial_mat.emission = Color(1.0, 0.78, 0.5)
+		radio_dial_mat.emission_texture = radio_dial_mat.albedo_texture
+		radio_dial_mat.emission_energy_multiplier = 0.09
+	radio_lamp.light_energy = 0.3 if on else 0.0
+
+func _card2():
+	# the interviewer's next question, set as the first card was (main.gd _card)
+	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
+	card2 = ColorRect.new(); (card2 as ColorRect).color = Color(0.93, 0.91, 0.85)
+	card2.set_anchors_preset(Control.PRESET_FULL_RECT); card2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(card2)
+	var vb := VBoxContainer.new(); vb.anchor_left = 0.1; vb.anchor_top = 0.28; vb.anchor_right = 0.9; vb.anchor_bottom = 0.8
+	card2.add_child(vb)
+	for line in [["最初に、おかしいと思ったのは、", 92], ["いつですか？", 92], ["", 26], ["第二章　籠城　二十時", 38]]:
+		var lb := Label.new(); lb.text = line[0]
+		lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", int(line[1] * u))
+		lb.add_theme_color_override("font_color", ink)
+		vb.add_child(lb)
+	card2.visible = false
+
+func _begin_ch2():
+	card2.visible = true; card2_t = 0.0
+	main.TALK = {}                   # nobody mouths their lines from the take any more
+	_clear_page()
+
+func _ch2_start():
+	card2.visible = false; card2_t = -1.0
+	ch2 = true; mode = FREE
+	items.radio.kind = "take"
+	talk_with = "taiga"
+	_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
+		{"who": "大河", "text": "停電したら、まずラジオ聞けって。管理の人が。"},
+		{"who": "桐生", "text": "澪、つけて。"},
+		{"note": "［ラジオ｜Ｅ］"}])
+	if demo_on: _demo2()
+
+func _take_radio():
+	holding_radio = true; radio_since = t_now
+	items.erase("radio")
+	_radio_power(true)
+	talk_with = ""
+	_start([{"who": "澪", "text": "スイッチを入れると、目盛りに明かりが点きました。", "testimony": true},
+		{"note": "［右クリック（押したまま）で顔の前へ　マウスで目盛りを合わせる］"}])
+
+func _radio_tick(dt):
+	bc_t += dt
+	if not holding_radio: return
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var up := radio_up and mode == FREE
+	var tf := Transform3D(Basis.from_euler(Vector3(0.25, -0.45, 0.06)), Vector3(0.22, -0.27, -0.47))
+	if up: tf = Transform3D(Basis.from_euler(Vector3(0.12, 0.0, 0.0)), Vector3(0.0, -0.11, -0.29))   # the dial window at the middle of the view
+	radio.global_transform = cam.global_transform * tf
+	player.look_enabled = not up
+	_set_dial()
+	if mode == FREE: _radio_write()
+	# Taiga remembers the manager's number when it will not come
+	if radio_stage == 0 and mode == FREE and hint_said == 0 and t_now - radio_since > 40.0:
+		hint_said = 1; talk_with = "taiga"; radio_up = false
+		_start([{"who": "大河", "text": "管理の人、千十七って言ってた。テープにも書いてある。"},
+			{"who": "大河", "text": "目盛りの、百のちょい右。"}])
+	elif radio_stage == 0 and mode == FREE and hint_said == 1 and t_now - radio_since > 85.0:
+		hint_said = 2; talk_with = "taiga"; radio_up = false
+		var f := _khz()
+		_start([{"who": "大河", "text": "もうちょい%s。……ゆっくり。" % ("右" if f < 1017.0 else "左")}])
+	# what they make of it
+	var where: int = heard.get(1, 0) + heard.get(2, 0)
+	if mode == FREE and radio_stage == 0 and where >= 1:
+		radio_stage = 1; radio_up = false
+		_start([{"who": "大河", "text": "どこって？　今、どこって言った？"},
+			{"choose": ["聞き取れなかった", "……もう一回"],
+			 "then": [[{"who": "桐生", "text": "地名だけ、飛んだな。"}], [{"who": "桐生", "text": "待って。繰り返すはず。"}]]},
+			{"note": "［右クリック（押したまま）で顔の前へ］"}])
+	elif mode == FREE and radio_stage == 1 and where >= 2 and heard.get(3, 0) >= 1:
+		radio_stage = 2; radio_up = false
+		_start([{"who": "桐生", "text": "……接触を避けて、って言った？"},
+			{"who": "真琴", "text": "人と、ってことですか。"},
+			{"who": "夏希", "text": "車のラジオなら、ちゃんと入るかも。地名も。"},
+			{"who": "桐生", "text": "やめとけ。……夜は、外に出るな。"},
+			{"note": "（間）"},
+			{"who": "桐生", "text": "ルール１な。"},
+			{"who": "大河", "text": "窓、塞ごう。板なら、地下にあった。"},
+			{"do": "ch2_cut"}])
+
+func _khz() -> float:
+	return AM_LO + tune * (AM_HI - AM_LO)
+
+# which station she has, and how well (0..1)
+func _reception() -> Array:
+	var f := _khz()
+	var best := -1; var q := 0.0
+	for i in range(STATIONS.size()):
+		var st: Array = STATIONS[i]
+		var c: float = st[1] * exp(-pow((f - float(st[0])) / 7.0, 2.0))
+		if st[2] == "news": c *= 1.0 - 0.1 * (0.5 + 0.5 * sin(bc_t * 1.3))   # the mountains: the signal swells and fades
+		if c > q: q = c; best = i
+	return [best, q]
+
+# where the station's speaker is now: [sentence index, characters spoken so far (float), the sentence]
+func _spoken(lines: Array) -> Array:
+	var total := 0.0
+	for l in lines: total += float(String(l).length()) / 8.0 + 1.1
+	var t := fmod(bc_t, total)
+	for i in range(lines.size()):
+		var d := float(String(lines[i]).length()) / 8.0
+		if t < d: return [i, t * 8.0, lines[i]]
+		t -= d + 1.1
+		if t < 0.0: return [i, float(String(lines[i]).length()), lines[i]]
+	return [0, 0.0, lines[0]]
+
+func _radio_note(text: String):
+	if rrow.get("note", "") == text: return
+	_radio_close()
+	var r = _line_row("ラジオ", text)
+	rrow = {"note": text, "lb": r[1]}
+
+func _radio_close():
+	# a sentence counts as heard when it came through from its start to its end, nearly all of it clear
+	if rrow.has("sent") and rrow.station == "news" and rrow.written >= String(rrow.text).length() and rrow.n_all > 0 and rrow.from <= 2:
+		if float(rrow.n_clear) / float(rrow.n_all) >= 0.85: heard[rrow.sent] = heard.get(rrow.sent, 0) + 1
+		print("STORY radio sentence %d clear %d/%d" % [rrow.sent, rrow.n_clear, rrow.n_all])
+	rrow = {}
+
+func _radio_write():
+	if rrow.has("lb") and not is_instance_valid(rrow.lb): rrow = {}
+	var rq := _reception()
+	var q: float = rq[1]
+	if rq[0] < 0 or q < 0.12: _radio_note("（雑音）"); return
+	var kind: String = STATIONS[rq[0]][2]
+	if kind == "music": _radio_note("（音楽）"); return
+	if kind == "foreign": _radio_note("（外国語の放送）"); return
+	var sp := _spoken(NEWS if kind == "news" else TALKSHOW)
+	var text: String = sp[2]
+	if text.begins_with("（"): _radio_note(text); return
+	if rrow.get("station", "") != kind or rrow.get("sent", -1) != sp[0]:
+		_radio_close()
+		var r = _line_row("ラジオ", "")
+		var from := int(sp[1])
+		rrow = {"station": kind, "sent": sp[0], "text": text, "written": from, "from": from, "segs": [], "lb": r[1], "n_clear": 0, "n_all": 0}
+		if from > 0: rrow.segs.append(["gap", ""])    # came in in the middle of it
+	var upto := int(sp[1])
+	while rrow.written < upto and rrow.written < text.length():
+		var ch := text[rrow.written]
+		rrow.written += 1
+		# the signal, moment by moment: dropouts come in clumps
+		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
+		var clear := q + 0.3 * (wob - 0.5) > 0.6
+		if ch == "#":
+			_seg("name", R_NAME)
+			continue
+		rrow.n_all += 1
+		if clear: rrow.n_clear += 1; _seg("ok", ch)
+		elif q < 0.3: _seg("noise", "")
+		else: _seg("gap", "")
+	if is_instance_valid(rrow.lb): (rrow.lb as Label).text = _segs_text(rrow.segs)
+	if rrow.written >= text.length(): pass   # closed when the next sentence starts (so it is counted once)
+
+func _seg(kind: String, ch: String):
+	var segs: Array = rrow.segs
+	if segs.size() > 0 and segs[-1][0] == kind and kind != "name":
+		segs[-1][1] += ch
+	else:
+		segs.append([kind, ch])
+
+func _segs_text(segs: Array) -> String:
+	var out := ""
+	for sg in segs:
+		match sg[0]:
+			"ok", "name": out += sg[1]
+			"gap": out += "……"
+			"noise": out += "（雑音）"
+	return out
+
+# the unattended playthrough goes on into 第2章: take the radio, sweep the dial past the other stations, find the
+# bulletin, hear it through twice
+func _demo2():
+	var u := func(khz: float) -> float: return (khz - AM_LO) / (AM_HI - AM_LO)
+	demo_i = 0; demo_t = 0.0
+	demo = [
+		["until_free"],
+		["go", 0.06, 3.20, 20.0, -10.0, 1.4], ["go", -0.20, 3.35, 29.5, -62.0, 1.8], ["wait", 0.6], ["e"], ["until_free"],
+		["look", 2.0, -8.0, 1.4], ["rup", true], ["wait", 1.0],
+		["tune", u.call(600.0), 2.2], ["wait", 2.4],       # music
+		["tune", u.call(745.0), 2.0], ["wait", 4.0],       # the talk show
+		["tune", u.call(880.0), 1.6], ["wait", 1.5],       # nothing
+		["tune", u.call(1040.0), 1.4], ["wait", 2.0],      # past it, half there
+		["tune", u.call(1012.0), 1.2], ["wait", 2.5],
+		["tune", u.call(1017.0), 0.8],
+		["until_talk"], ["auto", 1], ["until_free"],      # 大河: where? - もう一回
+		["rup", true], ["until_talk"], ["until_free"], ["until_end"],
+	]

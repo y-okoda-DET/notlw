@@ -1,0 +1,182 @@
+## 段階1の縦切り：第2章 23:00、扉の前の沈黙（docs/企画書.md「扉（第2章・23:00）」）。
+## 夜の場面で、遊んでここまで来たとき（main.gd FROM_STORY）か --door のときだけ main.gd が作る。
+##
+## She is not asked to do anything. She stands in the hall, a few steps from the door Taiga is holding shut, and can
+## look where she likes. Natsuki is on the other side. The transcript goes on as it did all evening, and where Mio
+## should have said something it writes what the transcriber heard: （沈黙）, with the seconds counting up while the
+## player stands there. W does not walk: the view leans half a step toward the door and comes back.
+## When Natsuki has gone the interviewer's question comes back on a card, with the length of Mio's silences under it.
+extends "res://scripts/story.gd"
+
+const MIO_AT := [0.12, 3.80]          # Blender x, y of her feet: by Natsuki's tape mark, the stair's foot at her right
+const DOOR_AT := [0.20, 6.30, 1.45]
+# [seconds after the card, who, words, how] | [t, "silence"] | [t, "note", words] | [t, "leave"] | [t, "end"]
+const LINES := [
+	[1.5, "澪", "二十三時ごろでした。夏希が、外から扉を叩いたんです。", "testimony"],
+	[8.0, "夏希", "澪？　……澪、いるんでしょ。"],
+	[13.5, "大河", "開けんなよ。"],
+	[17.5, "夏希", "開けて。話が、（雨の音）……ある。"],
+	[24.5, "桐生", "外にいたやつは、……潜伏期間かもしれない。", "to_mio"],
+	[30.5, "夏希", "澪。"],
+	[32.5, "silence"],
+	[46.5, "桐生", "夏希。車で朝まで待て。朝になったら、必ず入れる。", "to_door"],
+	[54.0, "夏希", "……澪は？"],
+	[56.0, "silence"],
+	[68.0, "夏希", "……わかった。"],
+	[71.0, "leave"],
+	[72.5, "note", "（足音が遠ざかる）"],
+	[75.0, "silence"],
+	[90.0, "澪", "夏希は、車に戻りました。……わかってくれたんだと、思います。", "testimony"],
+	[101.0, "end"],
+]
+var li := 0
+var silence := {}              # the open （沈黙） line: {lb, t0}
+var silent_total := 0.0
+var lean_tw: Tween
+var end_card: Control
+var ended := -1.0
+var speaker := ""
+var slip := Vector2.ZERO
+
+func _ready():
+	player = main.player
+	font = load("res://fonts/SerifJP-Bold.otf")
+	u = get_viewport().get_visible_rect().size.y / 1080.0
+	_page()
+	_lookers()
+	_night_cam()
+	_end_card()
+	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
+	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
+	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
+	for a2 in OS.get_cmdline_user_args():
+		if a2.begins_with("--storystate=door_"): call_deferred("_jump", float(a2.substr(18)))
+
+# the small camera she put on the handrail at the start of the evening, still recording (第11章's tape is this)
+func _night_cam():
+	_fixed_cam()
+	if PLACED.has("pos"):
+		fixed_cam.global_transform = Transform3D(PLACED.basis, PLACED.pos)
+	else:
+		var ta := _target_angles()
+		fixed_cam.global_transform = Transform3D(Basis.from_euler(Vector3(ta[1], ta[0], 0.0), EULER_ORDER_YXZ), g([TARGET_POS[0], TARGET_POS[1], _rail_z(TARGET_POS[1]) + 0.065]))
+	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 0.6
+	var dm := (fixed_cam.get_node("recdot") as MeshInstance3D).material_override as StandardMaterial3D
+	dm.emission_energy_multiplier = 6.0
+
+func _end_card():
+	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
+	end_card = ColorRect.new(); (end_card as ColorRect).color = Color(0.93, 0.91, 0.85)
+	end_card.set_anchors_preset(Control.PRESET_FULL_RECT); end_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(end_card)
+	end_card.visible = false
+
+func _show_end():
+	var vb := VBoxContainer.new(); vb.anchor_left = 0.1; vb.anchor_top = 0.28; vb.anchor_right = 0.9; vb.anchor_bottom = 0.8
+	end_card.add_child(vb)
+	for line in [["扉を開けなかったのは、", 92], ["なぜですか？", 92], ["", 40], ["澪　（沈黙・%s秒）" % _kan(int(round(silent_total))), 44]]:
+		var lb := Label.new(); lb.text = line[0]
+		lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", int(line[1] * u))
+		lb.add_theme_color_override("font_color", ink)
+		vb.add_child(lb)
+	end_card.modulate.a = 0.0; end_card.visible = true
+	create_tween().tween_property(page, "modulate:a", 0.0, 1.2)
+	create_tween().tween_property(end_card, "modulate:a", 1.0, 2.5)
+
+func _process(dt):
+	if main.card.visible: return
+	t_now += dt
+	player.move_enabled = false
+	main.story_talking = true
+	if ended >= 0.0:
+		ended += dt
+		if ended > 8.0 and OS.get_cmdline_user_args().has("--demo"): get_tree().quit()
+		return
+	while li < LINES.size() and t_now >= float(LINES[li][0]):
+		_event(LINES[li]); li += 1
+	# the words being typed
+	if cur.has("text") and typed < String(cur.text).length():
+		typed = min(float(String(cur.text).length()), typed + dt * (20.0 if cur.get("testimony", false) else 15.0))
+		if is_instance_valid(cur_lb): cur_lb.text = String(cur.text).substr(0, int(typed))
+	main.talk_now = cur.get("who_key", "") if cur.has("text") and typed < String(cur.text).length() else ""
+	# the silence, counted; and while it lasts the print's blue plate slips off register, a pixel every two seconds
+	# (her memory of the hall does not hold together there), and snaps back when someone speaks
+	var want := Vector2.ZERO
+	if silence.has("lb") and is_instance_valid(silence.lb):
+		var secs := t_now - float(silence.t0)
+		(silence.lb as Label).text = "（沈黙・%s秒）" % _kan(int(secs))
+		want = Vector2(-0.85, 0.53) * min(secs * 0.55, 9.0)
+	slip = want if want.length() > slip.length() else slip.move_toward(want, dt * 40.0)
+	if main.PRINT_V == 2 and main.riso: main.riso.set_shader_parameter("slip", slip)
+	_update_looks()
+
+func _event(e: Array):
+	match e[1]:
+		"silence":
+			_close_silence()
+			var r = _line_row("澪", "（沈黙）")
+			silence = {"lb": r[1], "t0": t_now}
+			cur = {}
+		"note":
+			_close_silence()
+			_line_row("", e[2], 26); cur = {}
+		"leave":
+			# she goes: the knocking stops, the door settles, her light leaves the glass
+			main.S.erase("knocks")
+			if main.door_pivot: main.door_pivot.position = main.S.door_rest; main.door_pivot.rotation.y = main.S.door_rot
+			if main.lights.has("blue"): main.lights.blue.light_energy = 1.4
+			if main.S.has("natsuki_node"): main.S.natsuki_node.visible = false
+		"end":
+			_close_silence()
+			ended = 0.0
+			_show_end()
+		_:
+			_close_silence()
+			cur = {"who": e[1], "text": e[2], "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
+			typed = 0.0
+			var r = _line_row(e[1], "")
+			cur_lb = r[1]
+			speaker = cur.who_key
+			if e.size() > 3 and e[3] in ["to_mio", "to_door"]: S_look = [cur.who_key, e[3]]
+			print("STORY door t=%.1f %s" % [t_now, e[1]])
+
+var S_look := ["", ""]
+
+func _close_silence():
+	if silence.has("lb"):
+		var secs := t_now - float(silence.t0)
+		silent_total += secs
+		if is_instance_valid(silence.lb): (silence.lb as Label).text = "（沈黙・%s秒）" % _kan(int(secs))
+	silence = {}
+
+# Kiryu turns to her when he says it to her, to the door when he says it through the door; the rest keep to their loops
+func _update_looks():
+	var eye: Vector3 = (player.get_node("Head/Camera") as Camera3D).global_position
+	for k in looks:
+		var lm: Look = looks[k]
+		var on: bool = (S_look[0] == k) and cur.has("text") and cur.get("who_key", "") == k
+		lm.want = 1.0 if on else 0.0
+		lm.target = g(DOOR_AT) if S_look[1] == "to_door" else eye
+
+func _unhandled_input(e):
+	if main.card.visible or ended >= 0.0: return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_W, KEY_UP]:
+		# the step she does not take: the weight goes forward and comes back
+		if lean_tw and lean_tw.is_valid(): lean_tw.kill()
+		lean_tw = create_tween()
+		lean_tw.tween_property(player, "lean", 0.07, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		lean_tw.tween_property(player, "lean", 0.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+# check stills: start the scene at t seconds (the lines before it already on the page)
+func _jump(t: float):
+	while li < LINES.size() and float(LINES[li][0]) <= t:
+		t_now = float(LINES[li][0]); _event(LINES[li]); li += 1
+		if cur.has("text"): typed = String(cur.text).length(); cur_lb.text = cur.text
+	t_now = t
+
+static func _kan(n: int) -> String:
+	var d := ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
+	if n <= 0: return "〇"
+	if n < 10: return d[n]
+	if n < 100: return ("" if n / 10 == 1 else d[n / 10]) + "十" + d[n % 10]
+	return ("" if n / 100 == 1 else d[n / 100]) + "百" + (_kan(n % 100) if n % 100 > 0 else "")

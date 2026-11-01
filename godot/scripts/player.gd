@@ -29,6 +29,8 @@ var auto_path: Array = []              # for unattended recordings: [[t, x, z, y
 var auto_t := 0.0
 var input_enabled := true
 var move_enabled := true             # 段階1: off while a conversation runs (looking stays)
+var look_enabled := true             # 段階1: off while her hand turns the radio's dial (the mouse turns the dial)
+var lean := 0.0                      # 段階1 (扉の場面): a half step forward that she does not take (metres, eased by door.gd)
 
 @onready var head: Node3D = $Head
 @onready var cam: Camera3D = $Head/Camera
@@ -38,7 +40,7 @@ func _ready():
 
 func _unhandled_input(e):
 	if not input_enabled: return
-	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and look_enabled:
 		yaw -= e.relative.x * mouse_sens
 		pitch = clamp(pitch - e.relative.y * mouse_sens, -1.2, 1.2)
 	elif e is InputEventMouseButton and e.pressed:
@@ -108,7 +110,8 @@ func _steps(dt):
 	# breathing, even when still
 	var t := Time.get_ticks_msec() / 1000.0
 	y += sin(t * 1.55) * 0.0035
-	var target := Transform3D(Basis.from_euler(Vector3(pitch + nod, yaw, rl), EULER_ORDER_YXZ), Vector3(x * cos(yaw), eye_height + y, -x * sin(yaw)))
+	var target := Transform3D(Basis.from_euler(Vector3(pitch + nod - lean * 0.35, yaw, rl), EULER_ORDER_YXZ),
+		Vector3(x * cos(yaw) - lean * sin(yaw), eye_height + y - lean * 0.12, -x * sin(yaw) - lean * cos(yaw)))
 	if cam_mode == 3:
 		head.transform = target
 		_held_tf = target

@@ -22,6 +22,7 @@ uniform vec3 ink_b = vec3(1.0, 0.424, 0.184);
 uniform float exposure = 1.0;
 uniform float scan_target = 0.42;   // mean luminance the scan aims for
 uniform float scan_strength = 0.0; // 0 = fixed exposure per scene (the printer's setting), 1 = follow the frame
+uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -82,7 +83,7 @@ void fragment() {
 		}
 		vec3 c = scan((textureLod(screen_tex, SCREEN_UV, 1.0).rgb * 0.5 + src * 0.5) * g);
 		vec2 cov = coverage(c);
-		vec2 mis = vec2(-3.0, 2.0) * k + (vec2(hash(vec2(frame, 1.7)), hash(vec2(frame, 9.1))) - 0.5) * 3.0 * k;
+		vec2 mis = vec2(-3.0, 2.0) * k + slip * k + (vec2(hash(vec2(frame, 1.7)), hash(vec2(frame, 9.1))) - 0.5) * 3.0 * k;
 		vec2 uvb = SCREEN_UV - mis / res;
 		vec3 cb = scan((textureLod(screen_tex, uvb, 1.0).rgb * 0.5 + textureLod(screen_tex, uvb, 0.0).rgb * 0.5) * g);
 		float covb = coverage(cb).y;

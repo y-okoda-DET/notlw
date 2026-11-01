@@ -3,7 +3,7 @@
 Use:  import paths as P  ->  P.KF, P.RULES, P.TRIPO, P.ASSETS, P.PLAN, P.WORK, P.BUILD, P.GODOT
 From tripo/ or godot/:  sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender'))"""
 import os
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))   # realpath: blender/ may be reached through a symlink (/home/claude/kf)
 KF = f'{REPO}/blender'; RULES = f'{REPO}/godot'; TRIPO = f'{REPO}/tripo'; ASSETS = f'{REPO}/assets'; PLAN = f'{REPO}/plan'
 _v = {}
 for _f in ('paths.env', 'paths.local.env'):
