@@ -62,7 +62,7 @@ def build():
     bx, by, bz = St.SHOECAB_TOP; bz += .12; dt = Vector((St.DOOR_C, St.YF - .1, 1.2))   # on the shoe cabinet, aimed at the door
     pnl = prim('cube', 'blue_panel', loc=(bx, by, bz), scale=(.13, .02, .1), mat=M['black'])
     d = (dt - Vector((bx, by, bz))); pnl.rotation_euler = d.to_track_quat('-Y', 'Z').to_euler()
-    S['blue'] = lib.area('blue_door', tuple(Vector((bx, by, bz)) + d.normalized() * .03), tuple(dt), 4, color=(.4, .56, 1.0), size=(.24, .18), spread=55)
+    S['blue'] = lib.area('blue_door', tuple(Vector((bx, by, bz)) + d.normalized() * .03), tuple(dt), 7, color=(.4, .56, 1.0), size=(.24, .18), spread=75)   # v4: 4 -> 7, wider: Taiga at the door read as a black cut-out
     S['slit_x'] = sum(St.SLIT_X) / 2; Y = St.YF
     # ---- outside: porch, rain, Natsuki herself (seen only through the slit)
     porch = prim('cube', 'porch', loc=(St.DOOR_C, Y + .9, Hm.ZG - .03), scale=(1.4, .9, .03), mat=M['floor']); lib.uv_box(porch, .87)

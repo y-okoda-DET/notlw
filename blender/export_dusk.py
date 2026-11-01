@@ -124,8 +124,8 @@ def pose_kiryu(k, t):
 
 def pose_taiga(tg, t):
     tl = lambda v: C.local(tg, v)
-    C.arm_to(tg, 'l', tl((.2, -.3, 1.02)), Vector((.4, .3, -.2)))
-    C.arm_to(tg, 'r', tl((-.2, -.3, 1.02)), Vector((-.4, .3, -.2)))
+    C.arm_to(tg, 'l', tl((.28, -.3, .99)), Vector((.4, .3, -.2)))   # hands outside the box's sides (half width .25): at .2 the forearms sank into it
+    C.arm_to(tg, 'r', tl((-.28, -.3, .99)), Vector((-.4, .3, -.2)))
     C.rot_world(tg, 'spine_01', E.axis_local(tg, (1, 0, 0)), -4)
     C.rot_world(tg, 'head', (0, 0, 1), -10 + 25 * E.snap(t, 11.0, .5) * (1 - E.snap(t, 13.5, .5)))
     C.grip(tg, 'l', .35); C.grip(tg, 'r', .35)

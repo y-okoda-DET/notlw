@@ -212,7 +212,15 @@ def under_stair(M):
     for i in range(NSTEP):   # one board per tread, up to just under it, from below the floor (the cellar shaft is beneath)
         ya, yb = y0 + i * run, y0 + (i + 1) * run
         top = (i + 1) * rise - .035
-        o = prim('cube', 'understair', loc=(X(x0) + .01, (Y(ya) + Y(yb)) / 2, (top - .06) / 2), scale=(.02, run / 2 + .001, (top + .06) / 2), mat=M['beadboard']); lib.uv_box(o, 1.0)
+        # like the hall's walls: beadboard to the chair rail, plaster above (one flat board read as a blank slab in print)
+        wt = min(top, .92)
+        o = prim('cube', 'understair', loc=(X(x0) + .01, (Y(ya) + Y(yb)) / 2, (wt - .06) / 2), scale=(.02, run / 2 + .001, (wt + .06) / 2), mat=M['beadboard']); lib.uv_box(o, 1.0)
+        if top > .92:
+            o = prim('cube', 'understair_pl', loc=(X(x0) + .01, (Y(ya) + Y(yb)) / 2, (top + .92) / 2), scale=(.02, run / 2 + .001, (top - .92) / 2), mat=M['plaster']); lib.uv_box(o, .87)
+    ny = (.92 + .035) / rise * run   # where the stair's underside passes the chair rail's height
+    yr = y0 + ny
+    prim('cube', 'understair_rail', loc=(X(x0) - .015, (Y(yr) + Y(y1)) / 2, .94), scale=(.0175, (y1 - yr) / 2, .03), mat=M['trim'])
+    prim('cube', 'understair_base', loc=(X(x0) - .015, (Y(y0) + Y(y1)) / 2, .065), scale=(.015, (y1 - y0) / 2, .065), mat=M['trim'])
     # the cellar door's wall (plan y 5.6), full height under the landing; door leaf hung in build_house4
     wall_v4(M, ('X', 5.6, x0 - .04, 6.0 - T / 2, [(5.12, 5.93)], [], 0), 0.0, H1, SILL1, WH1)
     # a hand-written note on the cellar door (hall side)
