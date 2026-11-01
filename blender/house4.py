@@ -32,7 +32,7 @@ def Y(y): return YF - y
 #   axis 'X': along plan x at plan y = fixed;  axis 'Y': along plan y at plan x = fixed
 F1_WALLS = [
     ('X', 0, 0, 4, [], [(.6, 1.8), (2.4, 3.4)], -1),                                                       # front (south)
-    ('X', 0, 4, 6, [(4.45, 5.55)], [(4.15, 4.35)], -1, ZG),                                                # front door + slit window, from the genkan floor
+    ('X', 0, 4, 6, [(4.45, 5.55)], [(4.08, 4.28)], -1, ZG),   # slit 7 cm west of the plan's 4.15: its casing and the door's overlapped and z-fought                                                # front door + slit window, from the genkan floor
     ('X', 0, 6, 10, [], [(6.6, 7.6), (8.4, 9.4)], -1),
     ('X', 8, 0, 10, [], [(1.2, 2.8), (6.8, 8.0)], 1),                                                        # back (north)
     ('Y', 0, 0, 8, [], [(1.0, 1.8), (5.4, 7.0)], -1),                                                       # west
@@ -163,9 +163,12 @@ def stairs_up(M, z_bottom, z_top):
     for xs in (x0, x1):
         prim('cube', 'stringer', loc=(X(xs), (Y(y0) + Y(y1)) / 2, (z_bottom + z_top) / 2 - .12), rot=(-ang, 0, 0), scale=(.02, L / 2 + .1, .14), mat=M['trim'])
     # open side (west, toward the hall) gets balusters and a rail; the east side runs along the hall's east wall
+    def z_rail(y):   # the handrail's centre line (it runs .92 above the stringer line, half a run back)
+        return (z_bottom + z_top) / 2 + .92 + (y - ((y0 + y1) / 2 - run / 2)) * (z_top - z_bottom) / (y1 - y0)
     for i in range(NSTEP):
         y = y0 + (i + .5) * run; z = z_bottom + (i + 1) * rise
-        prim('cube', 'baluster', loc=(X(x0), Y(y), z + .45), scale=(.016, .016, .45), mat=M['trim'])
+        h = max(.1, z_rail(y) - .03 - z)   # up to the rail's underside (they poked through it at the foot)
+        prim('cube', 'baluster', loc=(X(x0), Y(y), z + h / 2), scale=(.016, .016, h / 2), mat=M['trim'])
     hr = prim('cube', 'handrail', loc=(X(x0), (Y(y0) + Y(y1)) / 2 - run / 2, (z_bottom + z_top) / 2 + .92), rot=(-ang, 0, 0), scale=(.03, L / 2 + .05, .025), mat=M['door']); lib.uv_box(hr, 1.0)
     prim('cube', 'newel', loc=(X(x0), Y(y0) + .05, z_bottom + .55), scale=(.05, .05, .55), mat=M['trim'])
     prim('cube', 'newelcap', loc=(X(x0), Y(y0) + .05, z_bottom + 1.12), scale=(.065, .065, .025), mat=M['door'])

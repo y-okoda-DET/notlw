@@ -14,8 +14,8 @@ ZG = -.18
 # the camera is the player, so walls push it: pick a neck view with room behind it (Taiga at dusk stands in the doorway)
 # the v4 house (blender/stage.py)
 P = {'night': {'kiryu': (-.32, 4.37, 0, -14, 1.48, 1.15),
-               'taiga': (.26, 5.27, ZG, 176, 1.30, 1.25),
-               'natsuki': (-.665, 6.56, ZG, 0, 1.38, 1.05, 120, -15)},   # hand: from inside, past the door's edge to the slit
+               'taiga': (.26, 5.27, ZG, 176, 1.30, 1.25, 120, -150),   # hands: over his right shoulder from the hall
+               'natsuki': (-.735, 6.56, ZG, 0, 1.38, 1.05, 120, 150)},   # hand: from the porch behind her (inside, the slit only shows wall)
      'dusk': {'natsuki': (.36, 4.19, 0, 0, 1.38, .85, 160, -35),   # the stair is on her left front: views from the right and behind
               'kiryu': (-.32, 4.78, 0, 33, 1.48, 1.45),
               'taiga': (.26, 6.47, ZG, -10, 1.70, 1.05, 50),   # the player stands lower outside the doorway: aim higher

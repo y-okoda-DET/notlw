@@ -7,7 +7,7 @@ import house4 as H4
 HALL = (H4.X(4), H4.X(6))                     # hall walls (inner faces .06 in)
 DOOR_X = (H4.X(4.45), H4.X(5.55))             # front door opening
 DOOR_C = (DOOR_X[0] + DOOR_X[1]) / 2
-SLIT_X = (H4.X(4.15), H4.X(4.35))             # the narrow window beside the door
+SLIT_X = (H4.X(4.08), H4.X(4.28))             # the narrow window beside the door
 YF = H4.YF; ZG = H4.ZG
 MARK = (.35, 4.1)                             # Natsuki's tape mark
 TRIPOD_N = (-.45, 4.70)                       # 23:00 (the camcorder left standing since the afternoon)
