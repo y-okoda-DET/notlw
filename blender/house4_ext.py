@@ -292,10 +292,12 @@ def mats(M):
     M['ext_found'] = X.concrete_mat(M)
     if 'ext_deck' not in M: M['ext_deck'] = lib.mat_image('ext_deck', lib.tex_path('floor'), rough=.8, coords='UV', bump=0, tint=(.62, .6, .57))
     if 'ext_ground' not in M:
-        M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.85, .82, .78), rough=.95)
-        M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.78, .7, .62), rough=.95,
+        M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.5, .47, .43), rough=.95)
+        M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.5, .44, .38), rough=.95,
                                    alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, S * 220 // 2048) + .5 * X.tileable_noise(rng, S, S * 40 // 2048) > .15).astype(np.float32), seed=2)
-        M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.75, .74, .72), rough=.95)
+        M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.32, .31, .3), rough=.95)
+        if TIME != 'night':
+            for k in ('ext_ground', 'ext_litter', 'ext_gravel'): X.add_fill(M[k], .05)
     if 'ext_sky' not in M:
         sky = bpy.data.materials.new('ext_sky'); sky.use_nodes = True; N = sky.node_tree.nodes; L = sky.node_tree.links
         p = N['Principled BSDF']; t = N.new('ShaderNodeTexImage')
@@ -307,7 +309,7 @@ def mats(M):
                 return {'a': np.dstack([l * .55, l * .62, l * .75]) ** 1.3}
             t.image = lib.img(X.cached({'skynight': 1}, ('a',), make)['a'])
         else: t.image = lib.img(lib.tex_path('skyring'))
-        L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = .12 if TIME == 'night' else 1.6
+        L.new(t.outputs[0], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = .12 if TIME == 'night' else .75   # 1.6 printed as bare paper through the open front door
         p.inputs['Base Color'].default_value = (0, 0, 0, 1)
         p.inputs['Roughness'].default_value = 1.0; p.inputs['Specular IOR Level'].default_value = 0.0
         M['ext_sky'] = sky

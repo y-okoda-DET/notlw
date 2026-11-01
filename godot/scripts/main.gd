@@ -70,7 +70,7 @@ func _ready():
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
-		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd"]:
+		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky"]:   # ext_sky: the sky ring round the wood (it shaded the ground near it)
 			if String(mi.name).begins_with(pre): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()

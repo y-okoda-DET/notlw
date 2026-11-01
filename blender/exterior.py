@@ -103,6 +103,14 @@ def mat_maps(name, albedo, normal=None, rough=.7, nstrength=1.0, alpha=False):
         Lk.new(tn.outputs['Color'], nm.inputs['Color']); Lk.new(nm.outputs['Normal'], p.inputs['Normal'])
     return m
 
+def add_fill(m, k):
+    """Light the material by its own colour x k (glTF emissive). Outside the house there is no baked light or
+    VoxelGI, so ground in the house's shadow went pure black; this stands in for the dusk sky's fill."""
+    N = m.node_tree.nodes; p = N['Principled BSDF']
+    t = next(n for n in N if n.type == 'TEX_IMAGE' and any(l.to_socket == p.inputs['Base Color'] for l in n.outputs['Color'].links))
+    m.node_tree.links.new(t.outputs['Color'], p.inputs['Emission Color']); p.inputs['Emission Strength'].default_value = k
+    return m
+
 # ------------------------------------------------------------------ lap siding
 E_LAP, OV_LAP = .135, .03        # exposure of each board, the part hidden under the board above
 T_BOT, T_TOP, T_BACK = .021, .006, .004
