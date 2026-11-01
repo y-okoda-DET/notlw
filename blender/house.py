@@ -39,7 +39,7 @@ def mats(M):
         M['ext_ridge'] = mat_basic('ext_ridge', (.10, .10, .10), .45, metal=.4)
         M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.85, .82, .78), rough=.95)
         M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.78, .7, .62), rough=.95,
-                                   alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, 220) + .5 * X.tileable_noise(rng, S, 40) > .15).astype(np.float32), seed=2)
+                                   alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, S * 220 // 2048) + .5 * X.tileable_noise(rng, S, S * 40 // 2048) > .15).astype(np.float32), seed=2)
         M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.75, .74, .72), rough=.95)
         M['ext_found'] = X.concrete_mat(M)
     M['ext_stone'] = mat_basic('ext_stone', (.32, .31, .29), .9)

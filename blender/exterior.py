@@ -430,7 +430,7 @@ def concrete_mat(M):
     M['ext_concrete'] = mat_maps('ext_concrete', p['a'], p['n'], rough=.9)
     return M['ext_concrete']
 
-def ph_mat(name, src_name, size=2048, tint=(1, 1, 1), rough=.9, alpha_fn=None, seed=0):
+def ph_mat(name, src_name, size=1024, tint=(1, 1, 1), rough=.9, alpha_fn=None, seed=0):
     """A Poly Haven texture as it is (resized, tinted), optionally with an alpha mask (tileable)."""
     def make():
         a = src(src_name, 'diff', (size, size)) * np.array(tint, np.float32)

@@ -294,7 +294,7 @@ def mats(M):
     if 'ext_ground' not in M:
         M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.85, .82, .78), rough=.95)
         M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.78, .7, .62), rough=.95,
-                                   alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, 220) + .5 * X.tileable_noise(rng, S, 40) > .15).astype(np.float32), seed=2)
+                                   alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, S * 220 // 2048) + .5 * X.tileable_noise(rng, S, S * 40 // 2048) > .15).astype(np.float32), seed=2)
         M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.75, .74, .72), rough=.95)
     if 'ext_sky' not in M:
         sky = bpy.data.materials.new('ext_sky'); sky.use_nodes = True; N = sky.node_tree.nodes; L = sky.node_tree.links

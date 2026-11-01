@@ -39,8 +39,23 @@ python3 anatomy.py > $W/anatomy${N}.log 2>&1; tail -1 $W/anatomy${N}.log >> $L
 grep -q "^ANATOMY_OK" $W/anatomy${N}.log || { grep "NG" $W/anatomy${N}.log >> $L; echo ANATOMY_FAIL >> $L; exit 1; }
 echo "== godot $(date +%T)" >> $L
 cd $RULES
+# glb から取り出された画像（env_<hash>_a/_n.png）のうち、今の env.glb が使わない古い物を消す（残すと pck に入る）
+python3 - <<'PY'
+import json, struct, os, glob
+for d in ('assets', 'assets/dusk'):
+    g = d + '/env.glb'
+    if not os.path.exists(g): continue
+    b = open(g, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]
+    used = {i.get('name') for i in json.loads(b[20:20 + n]).get('images', [])}
+    for f in glob.glob(d + '/env_*.png'):
+        if os.path.basename(f)[4:-4] not in used:
+            for x in (f, f + '.import'):
+                if os.path.exists(x): os.remove(x)
+PY
 $G --headless --path . --import > /dev/null 2>&1
 for f in $(grep -l "size_limit=0" assets/*.import assets/dusk/*.import assets/faces/*.import | grep -v exr); do sed -i 's/size_limit=0/size_limit=2048/' $f; done
+# 家と外の画像は WebP の非可逆（品質 0.85）で持つ。可逆のままだと外の画像だけで zip の上限 400MiB を超える
+for f in $(grep -l "compress/mode=0" assets/env_*.png.import assets/dusk/env_*.png.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=1/; s/compress\/lossy_quality=0.7/compress\/lossy_quality=0.85/' $f; done
 $G --headless --path . --import > /dev/null 2>&1
 # VoxelGI：焼くのは家（env）だけ。家・光・場面の設定・Godot のスクリプトとシェーダーが前回と同じなら前の gi.res を使う
 for sc in night dusk; do
