@@ -71,7 +71,7 @@ func _end_card():
 # It cuts in over the hall, as the chapter cards do.
 func _show_end():
 	end_card = main.make_card(self, [["「扉を開けなかったのは、なぜですか？」", 64, 60, ""],
-		["（沈黙・%s秒）" % _kan(int(round(silent_total))), 52, 0, "澪"]], font, false)
+		[T("（沈黙・%s秒）") % num(int(round(silent_total))), 52, 0, "澪"]], font, false)
 	page.visible = false
 
 func _process(dt):
@@ -95,7 +95,7 @@ func _process(dt):
 	var want := Vector2.ZERO
 	if silence.has("lb") and is_instance_valid(silence.lb):
 		var secs := t_now - float(silence.t0)
-		(silence.lb as Label).text = "（沈黙・%s秒）" % _kan(int(secs))
+		(silence.lb as Label).text = T("（沈黙・%s秒）") % num(int(secs))
 		want = Vector2(-0.85, 0.53) * min(secs * 0.55, 9.0)
 	slip = want if want.length() > slip.length() else slip.move_toward(want, dt * 40.0)
 	if main.PRINT_V == 2 and main.riso: main.riso.set_shader_parameter("slip", slip)
@@ -123,7 +123,7 @@ func _event(e: Array):
 			_show_end()
 		_:
 			_close_silence()
-			cur = {"who": e[1], "text": e[2], "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
+			cur = {"who": e[1], "text": T(e[2]), "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
 			typed = 0.0
 			var r = _line_row(e[1], "")
 			cur_lb = r[1]
@@ -137,7 +137,7 @@ func _close_silence():
 	if silence.has("lb"):
 		var secs := t_now - float(silence.t0)
 		silent_total += secs
-		if is_instance_valid(silence.lb): (silence.lb as Label).text = "（沈黙・%s秒）" % _kan(int(secs))
+		if is_instance_valid(silence.lb): (silence.lb as Label).text = T("（沈黙・%s秒）") % num(int(secs))
 	silence = {}
 
 # Kiryu turns to her when he says it to her, to the door when he says it through the door; the rest keep to their loops
@@ -164,10 +164,3 @@ func _jump(t: float):
 		t_now = float(LINES[li][0]); _event(LINES[li]); li += 1
 		if cur.has("text"): typed = String(cur.text).length(); cur_lb.text = cur.text
 	t_now = t
-
-static func _kan(n: int) -> String:
-	var d := ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
-	if n <= 0: return "〇"
-	if n < 10: return d[n]
-	if n < 100: return ("" if n / 10 == 1 else d[n / 10]) + "十" + d[n % 10]
-	return ("" if n / 100 == 1 else d[n / 100]) + "百" + (_kan(n % 100) if n % 100 > 0 else "")

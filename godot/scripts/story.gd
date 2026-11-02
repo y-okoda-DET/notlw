@@ -124,6 +124,27 @@ func _items():
 	add.call("fixedcam", [-0.72, 3.81, 0.30], 0.18, "take", "小さいカメラ")
 	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
 
+# ================================================================ the words, in the player's language
+# Every string on screen is written here in Japanese and looked up in lang/text.csv (keys = the Japanese, one column
+# per language; NOTES.md「画面の文章と言語」). A language without a column, or a line without a translation, shows the
+# Japanese. Translate whole lines before they are typed out letter by letter, never the pieces.
+static func T(s: String) -> String:
+	return s if s == "" else String(TranslationServer.translate(s))
+
+static func Tl(lines: Array) -> Array:
+	return lines.map(func(x): return T(String(x)))
+
+# numbers in the transcript: kanji while the words are Japanese (also where no translation exists yet), figures in a translation
+static func num(n: int) -> String:
+	return _kan(n) if T("（沈黙・%s秒）") == "（沈黙・%s秒）" else str(n)
+
+static func _kan(n: int) -> String:
+	var d := ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
+	if n <= 0: return "〇"
+	if n < 10: return d[n]
+	if n < 100: return ("" if n / 10 == 1 else d[n / 10]) + "十" + d[n % 10]
+	return ("" if n / 100 == 1 else d[n / 100]) + "百" + (_kan(n % 100) if n % 100 > 0 else "")
+
 # ================================================================ the page
 func _label(size: float, col := Color(0, 0, 0, 0)) -> Label:
 	var lb := Label.new()
@@ -137,6 +158,7 @@ func _label(size: float, col := Color(0, 0, 0, 0)) -> Label:
 	lb.add_theme_color_override("font_outline_color", Color(0.0, 0.26, 0.5, 0.75))   # a trap of blue round the type: it reads on the paper-white parts of the frame too
 	lb.add_theme_constant_override("outline_size", int(max(2.0, 5.0 * u)))
 	lb.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lb.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # translated by T() before it is set (typed text is partial)
 	return lb
 
 func _page():
@@ -156,9 +178,9 @@ func _page():
 # one line of the transcript: the speaker small, then the words
 func _line_row(who: String, text: String, size := 36.0) -> Array:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(18 * u))
-	var w := _label(25); w.text = who; w.custom_minimum_size = Vector2(70 * u, 0)
+	var w := _label(25); w.text = T(who); w.custom_minimum_size = Vector2(70 * u, 0)
 	w.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	var t := _label(size); t.text = text
+	var t := _label(size); t.text = T(text)
 	row.add_child(w); row.add_child(t)
 	lines_box.add_child(row)
 	while lines_box.get_child_count() > 4:
@@ -387,12 +409,12 @@ func _process(dt):
 	if mode == FREE:
 		focus = _focus(eye, dir)
 		if holding_radio:
-			note_lb.text = "［マウスで目盛りを合わせる］" if radio_up else ""
+			note_lb.text = T("［マウスで目盛りを合わせる］") if radio_up else ""
 		elif finder and holding_cam:
-			note_lb.text = "［%sに置く｜Ｅ］" % finder_rest.what if finder_rest.get("ok", false) else "［ここには置けない］"
+			note_lb.text = T("［%sに置く｜Ｅ］") % T(finder_rest.what) if finder_rest.get("ok", false) else T("［ここには置けない］")
 		elif focus != "":
 			var it = items[focus]
-			note_lb.text = "［%s］" % it.name
+			note_lb.text = "［%s］" % T(it.name)
 		else:
 			note_lb.text = ""
 	else:
@@ -613,6 +635,7 @@ func _next():
 			fade_tw.tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
+	if cur.has("text"): cur.text = T(cur.text)
 	typed = 0.0; wait_after = 0.0
 	if cur.has("do"):
 		_do(cur.do)
@@ -722,7 +745,7 @@ func _end_tick(dt):
 	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0:
 		var r = _line_row("澪", "そこで、電気が消えたんです。")
 		r[1].text = ""
-		cur = {"text": "そこで、電気が消えたんです。"}; cur_lb = r[1]; typed = 0.0
+		cur = {"text": T("そこで、電気が消えたんです。")}; cur_lb = r[1]; typed = 0.0
 	if cur.has("text") and typed < String(cur.text).length():
 		typed += dt * 14.0; cur_lb.text = String(cur.text).substr(0, int(typed))
 	if end_t >= 100.0: return
@@ -1041,7 +1064,7 @@ func _radio_write():
 	var kind: String = STATIONS[rq[0]][2]
 	if kind == "music": _radio_note("（音楽）"); return
 	if kind == "foreign": _radio_note("（外国語の放送）"); return
-	var sp := _spoken(NEWS if kind == "news" else TALKSHOW)
+	var sp := _spoken(Tl(NEWS) if kind == "news" else Tl(TALKSHOW))   # a translation keeps # where the place is
 	var text: String = sp[2]
 	if text.begins_with("（"): _radio_note(text); return
 	if rrow.get("station", "") != kind or rrow.get("sent", -1) != sp[0]:
@@ -1058,7 +1081,7 @@ func _radio_write():
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
 		if ch == "#":
-			_seg("name", R_NAME)
+			_seg("name", T(R_NAME))
 			continue
 		rrow.n_all += 1
 		if clear: rrow.n_clear += 1; _seg("ok", ch)
@@ -1079,8 +1102,8 @@ func _segs_text(segs: Array) -> String:
 	for sg in segs:
 		match sg[0]:
 			"ok", "name": out += sg[1]
-			"gap": out += "……"
-			"noise": out += "（雑音）"
+			"gap": out += T("……")
+			"noise": out += T("（雑音）")
 	return out
 
 # the unattended playthrough goes on into 第2章: take the radio, sweep the dial past the other stations, find the

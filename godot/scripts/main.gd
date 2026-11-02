@@ -625,11 +625,11 @@ static func make_card(parent: Node, rows: Array, font: Font, centred := true) ->
 			x = 420.0 / 1920.0 * vs.x
 			if String(r[0]).begins_with("「"): x -= fs * 0.45          # the bracket hangs into the margin
 			if r.size() > 3 and r[3] != "":
-				var sp := _card_label(String(r[3]), int(34 * u), font, CARD_INK * Color(1, 1, 1, 0.85))
+				var sp := _card_label(String(TranslationServer.translate(String(r[3]))), int(34 * u), font, CARD_INK * Color(1, 1, 1, 0.85))
 				sp.position = Vector2(300.0 / 1920.0 * vs.x, y + h - font.get_height(int(34 * u)) - 6 * u)
 				c.add_child(sp)
 		for k in 2:
-			var lb := _card_label(String(r[0]), fs, font, CARD_GHOST if k == 0 else CARD_INK)
+			var lb := _card_label(String(TranslationServer.translate(String(r[0]))), fs, font, CARD_GHOST if k == 0 else CARD_INK)
 			if centred: lb.size.x = vs.x; lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lb.position = Vector2(x, y) + (Vector2(-3, 4) * u if k == 0 else Vector2.ZERO)
 			c.add_child(lb)
