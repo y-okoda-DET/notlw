@@ -762,13 +762,14 @@ func _state(name: String):
 			main.power_cut(); mode = END; end_t = 9.5; _begin_ch2()
 		"ch2":   # from the power cut on (the unattended playthrough goes on from here when --demo is given)
 			demo = []; main.CARD_TIME = 0.0; main.power_cut(); mode = END; end_t = 9.5; _begin_ch2()
-		"radio", "radio_up", "radio_off", "radio_news":
+		"radio", "radio_up", "radio_off", "radio_news", "radio_half":
 			# 第2章: the radio in her hand, held up to the dial, or tuned between stations
 			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 2.0, -8.0); _take_radio(); script_q.clear(); mode = FREE; _clear_page()
 			radio_up = name != "radio"
 			tune = 0.43 if name == "radio_off" else (1017.0 - AM_LO) / (AM_HI - AM_LO)
-			if name == "radio_news": bc_t = 4.6   # the second sentence, the place
+			if name == "radio_half": tune = (1011.0 - AM_LO) / (AM_HI - AM_LO)   # a little off: words drop out
+			if name in ["radio_news", "radio_half"]: bc_t = 2.9   # just before the second sentence (the place); shoot ~100 frames
 		"radio_box":
 			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 29.5, -62.0)
