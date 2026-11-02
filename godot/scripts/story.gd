@@ -181,6 +181,7 @@ func _line_row(who: String, text: String, size := 36.0) -> Array:
 	var w := _label(25); w.text = T(who); w.custom_minimum_size = Vector2(70 * u, 0)
 	w.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	var t := _label(size); t.text = T(text)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; t.size_flags_horizontal = Control.SIZE_EXPAND_FILL   # long lines (and translations) wrap inside the page
 	row.add_child(w); row.add_child(t)
 	lines_box.add_child(row)
 	while lines_box.get_child_count() > 4:
@@ -530,14 +531,14 @@ func _judge() -> Array:
 	var k := [{"who": "桐生", "text": "……どれ。"}]
 	if horiz < 0.5 and abs(dp.y) < 0.32 and abs(dyaw) < deg_to_rad(13) and abs(dpitch) < deg_to_rad(11):
 		cam_ok = true
-		k.append({"who": "桐生", "text": "それ。……完璧。コンテそのまんま。"})
+		k.append({"who": "桐生", "text": "それ。……完璧。コンテそのまんま。カーペンターでもそこに置く。"})
 		k.append({"who": "桐生", "text": "じゃ、回しといて。夜通しな。"})
 		k.append({"do": "rec_ready"})
 		return k
 	if tries >= 4 and horiz > 0.5:
-		k.append({"who": "桐生", "text": "階段の手すり。あそこに挟んで、玄関を見下ろす。"})
+		k.append({"who": "桐生", "text": "階段の手すり。あそこに挟んで、玄関を見下ろす。『ハロウィン』の階段の画だよ。"})
 	elif dp.y < -0.32:
-		k.append({"who": "桐生", "text": "低い。もっと上から見下ろしたいんだよ、玄関を。"})
+		k.append({"who": "桐生", "text": "低い。それじゃロメロのゾンビの目線。もっと上から、玄関を見下ろしたいんだよ。"})
 	elif horiz > 0.5:
 		k.append({"who": "桐生", "text": "コンテ見て。手前に手すりが入ってるでしょ。"})
 	elif abs(dyaw) >= deg_to_rad(13):
@@ -556,52 +557,54 @@ func _conversation(key: String) -> Array:
 		"kiryu":
 			if not has_board:
 				return [{"who": "桐生", "text": "澪、ちょうどいい。定点、お願いしていい？"},
-					{"who": "桐生", "text": "コンテの十二番。廊下に一台、夜通し回しっぱなしにしとくやつ。"},
-					{"who": "桐生", "text": "ファウンドフッテージっぽく撮りたいんだよ。誰も見てないカメラが、全部見てた、みたいな。"},
+					{"who": "桐生", "text": "コンテの十二番。廊下に一台、夜通し回しっぱなし。『パラノーマル・アクティビティ』の寝室のやつな。"},
+					{"who": "桐生", "text": "誰も見てないカメラが、全部見てた。『ブレア・ウィッチ・プロジェクト』から続く、正しいファウンドフッテージの作法。"},
 					{"choose": ["なんで夜通し？", "わかった。どこに置けばいい？", "それ、陽太が好きなやつだ"],
-					 "then": [[{"who": "桐生", "text": "何か起きたら、撮れてるだろ。……まあ、何も起きないけど。"}],
+					 "then": [[{"who": "桐生", "text": "何か起きたら、撮れてるだろ。……まあ、何も起きないけど。起きたら『REC』だ。"}],
 						[{"who": "桐生", "text": "それを探すのが澪の仕事。コンテと同じ画になるとこ。"}],
-						[{"who": "桐生", "text": "……だろ。あいつ、こういうのがいちばん好きだったから。"}]]},
+						[{"who": "桐生", "text": "……だろ。あいつ、『パラノーマル』観たあと三日、廊下で寝てたからな。"}]]},
 					{"who": "桐生", "text": "カメラは、そこの箱の上。コンテ渡しとく。"},
 					{"do": "board"},
 					{"note": "［絵コンテ｜Tab］"}]
 			if cam_ok and not recording:
-				return [{"who": "桐生", "text": "録画、押した？　赤いランプな。"}]
+				return [{"who": "桐生", "text": "録画、押した？　赤いランプ。押し忘れたら、ただの置物な。"}]
 			if not holding_cam and not cam_placed:
 				return [{"who": "桐生", "text": "カメラ、箱の上な。照明の横の。"}]
-			return [{"who": "桐生", "text": "のぞいて、コンテと同じ画になるとこ探して。"}]
+			return [{"who": "桐生", "text": "のぞいて、コンテと同じ画になるとこ探して。キューブリックみたいに一ミリまでとは言わないから。"}]
 		"natsuki":
 			if n == 0:
-				return [{"who": "夏希", "text": "立ってるだけなのに、なんでこんなに疲れるんだろ。"},
+				return [{"who": "夏希", "text": "立ってるだけなのに、なんでこんなに疲れるんだろ。長回しってそういうもんか。"},
 					{"who": "夏希", "text": "澪、あのさ。"},
 					{"who": "夏希", "text": "上映会のあと、ちょっとだけ時間ある？"},
 					{"choose": ["あるよ", "なんの話？", "あとでね"],
 					 "then": [[{"who": "夏希", "text": "……ありがと。あとで言う。"}],
 						[{"who": "夏希", "text": "あとで。……今は、いい。"}],
 						[{"who": "夏希", "text": "うん。あとで。"}]]}]
-			return [{"who": "夏希", "text": "桐生、まだ？　足がテープに貼りつきそう。"}]
+			return [{"who": "夏希", "text": "桐生、まだ？　このテイク、ヒッチコックの『ロープ』より長いよ。"}]
 		"makoto":
 			if n == 0:
-				return [{"who": "真琴", "text": "先輩、これ、あとどのくらい持ってればいいんですか。"},
+				return [{"who": "真琴", "text": "澪さん、これ、あとどのくらい持ってればいいんですか。"},
 					{"who": "真琴", "text": "レフ板って、腕にくるんですね……。"},
 					{"choose": ["代わろうか", "あと五分", "桐生に聞いて"],
 					 "then": [[{"who": "真琴", "text": "だ、大丈夫です！　新入りなので！"}],
 						[{"who": "真琴", "text": "五分……。はい。がんばります。"}],
-						[{"who": "真琴", "text": "桐生さん、さっきから『あと五分』しか言わないんです。"}]]}]
-			return [{"who": "真琴", "text": "ゾンビ映画って、最初に死ぬの、だいたい新入りですよね。"}]
+						[{"who": "真琴", "text": "桐生さん、さっきから「あと五分」しか言わないんです。"}]]}]
+			if n == 1:
+				return [{"who": "真琴", "text": "この前、桐生さんに『遊星からの物体Ｘ』を借りました。血液を熱した針で調べるところ、医学的には全然だめです。"}]
+			return [{"who": "真琴", "text": "ゾンビ映画って、最初に死ぬの、だいたい新入りですよね。……あ、笑うところでした。"}]
 		"taiga":
 			if n == 0:
-				return [{"who": "大河", "text": "ここ、停電多いらしいよ。管理の人が言ってた。"},
-					{"who": "大河", "text": "地下に発電機あるって。いざとなったら回せるってさ。"},
+				return [{"who": "大河", "text": "ここ、停電多いらしいぞ。管理の人が言ってた。"},
+					{"who": "大河", "text": "地下に発電機あるってさ。いざとなったら俺が回す。任せとけ。"},
 					{"choose": ["いざって何", "詳しいね", "地下、行ったの？"],
-					 "then": [[{"who": "大河", "text": "……ゾンビとか？"}],
-						[{"who": "大河", "text": "案内係なんで。玄関、裏、地下。全部見といた。"}],
+					 "then": [[{"who": "大河", "text": "……ゾンビとか？　『ナイト・オブ・ザ・デッド・リビング』なら、まず窓に板だろ。"}, {"who": "桐生", "text": "『ナイト・オブ・ザ・リビングデッド』な。"}],
+						[{"who": "大河", "text": "案内係だからな。玄関、裏、地下。全部見といた。"}],
 						[{"who": "大河", "text": "階段の下の扉な。貼り紙あったろ。"}]]}]
-			return [{"who": "大河", "text": "この箱、どこ置けって言われたっけ。"}]
+			return [{"who": "大河", "text": "この箱、どこ置けって言われたっけ。……『ゾンビ』のモールなら、置き場に困んねえのにな。"}]
 		"tape":
 			return [{"who": "澪", "text": "夏希の立ち位置には、テープが貼ってありました。名前も書いてあって。字が、丸くて。", "testimony": true}]
 		"camcorder":
-			return [{"who": "澪", "text": "桐生さんの、いちばんいいカメラでした。あとで、私に貸してくれたんです。", "testimony": true}]
+			return [{"who": "澪", "text": "桐生さんの、いちばんいいカメラでした。『ハロウィン』を撮るならこれだ、って。あとで、私に貸してくれたんです。", "testimony": true}]
 		"fresnel":
 			return [{"who": "澪", "text": "照明は熱くて、近くに立つと顔が焼けそうでした。", "testimony": true}]
 		"note":
@@ -727,7 +730,7 @@ func _do(what: String):
 			get_tree().create_timer(2.4).timeout.connect(func(): if demo.is_empty(): player.auto_path = [])
 			script_q.push_back({"who": "澪", "text": "録画のボタンを押しました。赤いランプが点いて。", "testimony": true})
 			script_q.push_back({"who": "桐生", "text": "よし、本番いこう。夏希、テープの上な。"})
-			script_q.push_back({"who": "夏希", "text": "はーい。"})
+			script_q.push_back({"who": "夏希", "text": "はーい。テイクワン、一発でいこ。"})
 			script_q.push_back({"who": "桐生", "text": "よーい……"})
 			script_q.push_back({"do": "blackout"})
 		"blackout":
@@ -764,6 +767,23 @@ func _state(name: String):
 		var at := {"natsuki": [-0.2, 3.6, -43.0, -3.0], "makoto": [0.06, 3.3, -58.0, -3.0], "taiga": [0.2, 4.7, -2.0, -2.0], "kiryu": [-0.2, 3.6, 6.0, 0.0]}
 		var q: Array = at[k]; put.call(q[0], q[1], q[2], q[3])
 		talk_with = k; focus = k; _start(_conversation(k)); return
+	if name.begins_with("page_"):   # a whole conversation written out on the page (the last rows): page_<who>[_<n>] | page_rule1
+		var parts := name.substr(5).split("_")
+		put.call(-0.2, 3.6, 6.0, 0.0)
+		if parts[0] == "rule1":
+			main.power_cut(); main.TALK = {}; ch2 = true; _start(_rule1_lines().slice(0, -1))
+		else:
+			talked[parts[0]] = int(parts[1]) if parts.size() > 1 else 0
+			talk_with = parts[0] if WHO_KEY.values().has(parts[0]) else ""; _start(_conversation(parts[0]))
+		for k in 2:   # page_<who>_<n>_<choice>: take that choice and write out what follows
+			while not cur.is_empty() and not cur.has("choose"):
+				typed = 999.0
+				if cur.has("text") and is_instance_valid(cur_lb): cur_lb.text = cur.text
+				_next()
+			if k == 0 and cur.has("choose") and parts.size() > 2:
+				choice_idx = int(parts[2]); _show_choice(); _choose()
+				_next()
+		return
 	match name:
 		"talk":
 			put.call(-0.2, 3.6, 6.0, 0.0); talk_with = "kiryu"; focus = "kiryu"; _start(_conversation("kiryu"))
@@ -892,7 +912,7 @@ const NEWS := [
 	"体調に異変のある方は、むやみに外へ出ず、その場で救助を待ってください。",
 	"繰り返します。",
 ]
-const TALKSHOW := ["……それでね、このお便りの方がね、", "（笑い声）", "いやいや、それは無理でしょう。", "（笑い声）", "さあ、次のお便り、いきましょうか。"]
+const TALKSHOW := ["……それでね、このお便りの方がね、今夜は映画の『ゴースト』を観て寝ますって。", "（笑い声）", "いやいや、それは無理でしょう。", "（笑い声）", "さあ、次のお便り、いきましょうか。"]
 var radio: Node3D
 var radio_needle: Node3D
 var radio_knob: Node3D
@@ -965,8 +985,9 @@ func _ch2_start():
 	items.radio.kind = "take"
 	talk_with = "taiga"
 	_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
-		{"who": "大河", "text": "停電したら、まずラジオ聞けって。管理の人が。"},
-		{"who": "桐生", "text": "澪、つけて。"},
+		{"who": "大河", "text": "停電したら、まずラジオだ。管理の人が言ってた。"},
+		{"who": "桐生", "text": "澪、つけて。……停電、ラジオ、山の中。『ミスト』の始まり方だな。"},
+		{"who": "夏希", "text": "桐生、今それ言う？"},
 		{"note": "［ラジオ｜Ｅ］"}])
 	if demo_on: _demo2()
 
@@ -992,7 +1013,7 @@ func _radio_tick(dt):
 	# Taiga remembers the manager's number when it will not come
 	if radio_stage == 0 and mode == FREE and hint_said == 0 and t_now - radio_since > 40.0:
 		hint_said = 1; talk_with = "taiga"; radio_up = false
-		_start([{"who": "大河", "text": "管理の人、千十七って言ってた。テープにも書いてある。"},
+		_start([{"who": "大河", "text": "管理の人、千十七って言ってた。テープにも書いてあるだろ。"},
 			{"who": "大河", "text": "目盛りの、百のちょい右。"}])
 	elif radio_stage == 0 and mode == FREE and hint_said == 1 and t_now - radio_since > 85.0:
 		hint_said = 2; talk_with = "taiga"; radio_up = false
@@ -1002,20 +1023,24 @@ func _radio_tick(dt):
 	var where: int = heard.get(1, 0) + heard.get(2, 0)
 	if mode == FREE and radio_stage == 0 and where >= 1:
 		radio_stage = 1; radio_up = false
-		_start([{"who": "大河", "text": "どこって？　今、どこって言った？"},
+		_start([{"who": "大河", "text": "どこだって？　今、どこって言った？"},
 			{"choose": ["聞き取れなかった", "……もう一回"],
 			 "then": [[{"who": "桐生", "text": "地名だけ、飛んだな。"}], [{"who": "桐生", "text": "待って。繰り返すはず。"}]]},
 			{"note": "［右クリック（押したまま）で顔の前へ］"}])
 	elif mode == FREE and radio_stage == 1 and where >= 2 and heard.get(3, 0) >= 1:
 		radio_stage = 2; radio_up = false
-		_start([{"who": "桐生", "text": "……接触を避けて、って言った？"},
-			{"who": "真琴", "text": "人と、ってことですか。"},
+		_start(_rule1_lines())
+
+func _rule1_lines() -> Array:
+	return [{"who": "桐生", "text": "……接触を避けて、って言った？"},
+			{"who": "真琴", "text": "人と、ってことですか？　ガスなのに。"},
 			{"who": "夏希", "text": "車のラジオなら、ちゃんと入るかも。地名も。"},
 			{"who": "桐生", "text": "やめとけ。……夜は、外に出るな。"},
 			{"note": "（間）"},
-			{"who": "桐生", "text": "ルール１な。"},
-			{"who": "大河", "text": "窓、塞ごう。板なら、地下にあった。"},
-			{"do": "ch2_cut"}])
+			{"who": "桐生", "text": "ルール１な。『スクリーム』のランディなら、まずそう言う。"},
+			{"who": "大河", "text": "窓、塞いどこう。板なら、地下にあった。"},
+			{"who": "夏希", "text": "……みんな、映画の観すぎ。"},
+			{"do": "ch2_cut"}]
 
 func _khz() -> float:
 	return AM_LO + tune * (AM_HI - AM_LO)
