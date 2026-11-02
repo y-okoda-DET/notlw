@@ -154,17 +154,29 @@ static func wrap_text(text: String, font: Font, fs: int, width: float) -> String
 		cur_p += ch
 		if ch == " " or (not marked and ch in "、。」）！？…"): pieces.append(cur_p); cur_p = ""
 	if cur_p != "": pieces.append(cur_p)
-	var out := ""; var line := ""
+	# greedy by phrase, but when a line has to break, break at its last 、。」？ instead if that keeps the line at least
+	# half full (a sentence breaks where it breathes, not wherever the width runs out)
+	var out := ""; var line: Array = []
+	var sz := func(arr: Array) -> float: return font.get_string_size("".join(arr), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	for p0 in pieces:
 		var p: String = p0
-		if line != "" and font.get_string_size(line + p, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
-			out += line.rstrip(" ") + "\n"; line = ""
+		if not line.is_empty() and sz.call(line + [p]) > width:
+			var cut := line.size()
+			for marks in [["。」？！", 0.4], ["、", 0.5]]:   # a sentence's end first, then a comma
+				for i in range(line.size() - 1, 0, -1):
+					if String(line[i - 1]).replace("　", "").right(1) in marks[0] and sz.call(line.slice(0, i)) >= width * marks[1]:
+						cut = i; break
+				if cut < line.size(): break
+			out += "".join(line.slice(0, cut)).rstrip(" 　") + "\n"; line = line.slice(cut)
+			if not line.is_empty(): line[0] = String(line[0]).lstrip("　")
+			if not line.is_empty() and sz.call(line + [p]) > width:
+				out += "".join(line).rstrip(" ") + "\n"; line = []
 		while font.get_string_size(p, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width and p.length() > 1:   # a piece wider than the line
 			var k := p.length() - 1
 			while k > 1 and font.get_string_size(p.substr(0, k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width: k -= 1
 			out += p.substr(0, k) + "\n"; p = p.substr(k)
-		line += p
-	return out + line
+		line.append(p)
+	return out + "".join(line)
 
 func _wrap_row(text: String, size := 36.0) -> String:
 	var w: float = (0.8 - 0.075) * get_viewport().get_visible_rect().size.x - (70.0 + 18.0 + 8.0) * u

@@ -6,6 +6,13 @@ import csv, glob, os, re
 import budoux   # pip install budoux (Apache-2.0; only here, not shipped): marks the phrase breaks in the ja column
 ZW = "\u200b"
 BP = budoux.load_default_japanese_parser()
+NOBREAK = ['間に合', '目盛り', 'ちょい右', 'ちょい左']   # BudouX splits these; never break inside them
+
+def phrases(k):
+    out = ZW.join(BP.parse(k))
+    for w in NOBREAK:
+        for i in range(1, len(w)): out = out.replace(w[:i] + ZW + w[i:], w)
+    return out
 G = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = G + '/lang/text.csv'
 JP = re.compile(r'[　-ヿ一-鿿＀-￯]')
@@ -25,6 +32,6 @@ with open(OUT, 'w', encoding='utf-8', newline='') as f:
     w = csv.writer(f, quoting=csv.QUOTE_ALL); w.writerow(cols)
     for k in keys:
         row = old.get(k, [k, k] + [''] * (len(cols) - 2))
-        row[1] = ZW.join(BP.parse(k)) if not k.startswith("［") else k   # the game breaks lines only at these (story.gd wrap_text)
+        row[1] = phrases(k) if not k.startswith("［") else k   # the game breaks lines only at these (story.gd wrap_text)
         w.writerow(row + [''] * (len(cols) - len(row)))
 print('lang/text.csv:', len(keys), 'lines,', 'columns', cols)
