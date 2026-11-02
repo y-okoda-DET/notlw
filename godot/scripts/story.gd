@@ -128,11 +128,47 @@ func _items():
 # Every string on screen is written here in Japanese and looked up in lang/text.csv (keys = the Japanese, one column
 # per language; NOTES.md「画面の文章と言語」). A language without a column, or a line without a translation, shows the
 # Japanese. Translate whole lines before they are typed out letter by letter, never the pieces.
-static func T(s: String) -> String:
+# The Japanese column of the table carries the phrase breaks (U+200B, put there by lang/extract.py with BudouX): Tw()
+# keeps them for text that is wrapped (wrap() breaks only there), T() drops them for everything else.
+const ZW := "\u200b"
+static func Tw(s: String) -> String:
 	return s if s == "" else String(TranslationServer.translate(s))
 
+static func T(s: String) -> String:
+	return Tw(s).replace(ZW, "")
+
 static func Tl(lines: Array) -> Array:
-	return lines.map(func(x): return T(String(x)))
+	return lines.map(func(x): return Tw(String(x)))
+
+# Break a line to fit the width, between phrases only (and at spaces, for a translation): never inside a word, never
+# before 、。」. A text with no phrase marks (an untranslated key) falls back to breaking after punctuation, then anywhere.
+# The breaks are settled before the line is typed out, so a word never jumps to the next line half-typed.
+static func wrap_text(text: String, font: Font, fs: int, width: float) -> String:
+	if text == "": return text
+	var pieces: Array = []
+	var cur_p := ""
+	var marked := text.contains(ZW) or text.contains(" ")
+	for ch in text:
+		if ch == ZW:
+			pieces.append(cur_p); cur_p = ""; continue
+		cur_p += ch
+		if ch == " " or (not marked and ch in "、。」）！？…"): pieces.append(cur_p); cur_p = ""
+	if cur_p != "": pieces.append(cur_p)
+	var out := ""; var line := ""
+	for p0 in pieces:
+		var p: String = p0
+		if line != "" and font.get_string_size(line + p, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
+			out += line.rstrip(" ") + "\n"; line = ""
+		while font.get_string_size(p, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width and p.length() > 1:   # a piece wider than the line
+			var k := p.length() - 1
+			while k > 1 and font.get_string_size(p.substr(0, k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width: k -= 1
+			out += p.substr(0, k) + "\n"; p = p.substr(k)
+		line += p
+	return out + line
+
+func _wrap_row(text: String, size := 36.0) -> String:
+	var w: float = (0.8 - 0.075) * get_viewport().get_visible_rect().size.x - (70.0 + 18.0 + 8.0) * u
+	return wrap_text(text, font, int(size * u), w)
 
 # numbers in the transcript: kanji while the words are Japanese (also where no translation exists yet), figures in a translation
 static func num(n: int) -> String:
@@ -180,8 +216,7 @@ func _line_row(who: String, text: String, size := 36.0) -> Array:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(18 * u))
 	var w := _label(25); w.text = T(who); w.custom_minimum_size = Vector2(70 * u, 0)
 	w.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	var t := _label(size); t.text = T(text)
-	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; t.size_flags_horizontal = Control.SIZE_EXPAND_FILL   # long lines (and translations) wrap inside the page
+	var t := _label(size); t.text = _wrap_row(Tw(text), size)   # broken between phrases before it is set (wrap)
 	row.add_child(w); row.add_child(t)
 	lines_box.add_child(row)
 	while lines_box.get_child_count() > 4:
@@ -638,7 +673,7 @@ func _next():
 			fade_tw.tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
-	if cur.has("text"): cur.text = T(cur.text)
+	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0
 	if cur.has("do"):
 		_do(cur.do)
@@ -748,7 +783,7 @@ func _end_tick(dt):
 	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0:
 		var r = _line_row("澪", "そこで、電気が消えたんです。")
 		r[1].text = ""
-		cur = {"text": T("そこで、電気が消えたんです。")}; cur_lb = r[1]; typed = 0.0
+		cur = {"text": _wrap_row(Tw("そこで、電気が消えたんです。"))}; cur_lb = r[1]; typed = 0.0
 	if cur.has("text") and typed < String(cur.text).length():
 		typed += dt * 14.0; cur_lb.text = String(cur.text).substr(0, int(typed))
 	if end_t >= 100.0: return
@@ -1102,6 +1137,7 @@ func _radio_write():
 	while rrow.written < upto and rrow.written < text.length():
 		var ch := text[rrow.written]
 		rrow.written += 1
+		if ch == ZW: _seg("ok", ch); continue   # a phrase break: not a sound, kept for wrapping the line
 		# the signal, moment by moment: dropouts come in clumps
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
@@ -1112,7 +1148,7 @@ func _radio_write():
 		if clear: rrow.n_clear += 1; _seg("ok", ch)
 		elif q < 0.3: _seg("noise", "")
 		else: _seg("gap", "")
-	if is_instance_valid(rrow.lb): (rrow.lb as Label).text = _segs_text(rrow.segs)
+	if is_instance_valid(rrow.lb): (rrow.lb as Label).text = _wrap_row(_segs_text(rrow.segs))
 	if rrow.written >= text.length(): pass   # closed when the next sentence starts (so it is counted once)
 
 func _seg(kind: String, ch: String):

@@ -123,7 +123,7 @@ func _event(e: Array):
 			_show_end()
 		_:
 			_close_silence()
-			cur = {"who": e[1], "text": T(e[2]), "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
+			cur = {"who": e[1], "text": _wrap_row(Tw(e[2])), "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
 			typed = 0.0
 			var r = _line_row(e[1], "")
 			cur_lb = r[1]

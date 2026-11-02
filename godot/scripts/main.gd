@@ -37,6 +37,7 @@ static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
 
 func _ready():
+	get_tree().root.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # every string is translated by hand (story.gd T/Tw), with the phrase marks handled
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--record="): record = a.substr(9)
 		if a.begins_with("--pose="): ARGS["pose"] = Array(a.substr(7).split(",")).map(func(x): return float(x))
@@ -625,11 +626,11 @@ static func make_card(parent: Node, rows: Array, font: Font, centred := true) ->
 			x = 420.0 / 1920.0 * vs.x
 			if String(r[0]).begins_with("「"): x -= fs * 0.45          # the bracket hangs into the margin
 			if r.size() > 3 and r[3] != "":
-				var sp := _card_label(String(TranslationServer.translate(String(r[3]))), int(34 * u), font, CARD_INK * Color(1, 1, 1, 0.85))
+				var sp := _card_label(String(TranslationServer.translate(String(r[3]))).replace("\u200b", ""), int(34 * u), font, CARD_INK * Color(1, 1, 1, 0.85))
 				sp.position = Vector2(300.0 / 1920.0 * vs.x, y + h - font.get_height(int(34 * u)) - 6 * u)
 				c.add_child(sp)
 		for k in 2:
-			var lb := _card_label(String(TranslationServer.translate(String(r[0]))), fs, font, CARD_GHOST if k == 0 else CARD_INK)
+			var lb := _card_label(String(TranslationServer.translate(String(r[0]))).replace("\u200b", ""), fs, font, CARD_GHOST if k == 0 else CARD_INK)
 			if centred: lb.size.x = vs.x; lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lb.position = Vector2(x, y) + (Vector2(-3, 4) * u if k == 0 else Vector2.ZERO)
 			c.add_child(lb)
@@ -665,6 +666,7 @@ func _card():
 	foot.add_theme_color_override("font_outline_color", CARD_BG); foot.add_theme_constant_override("outline_size", int(6 * u))
 	foot.anchor_left = 0.05; foot.anchor_top = 0.025; foot.anchor_right = 0.95; foot.anchor_bottom = 0.1
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	foot.text = String(TranslationServer.translate(foot.text)).replace("\u200b", "")
 	layer.add_child(foot)
 	foot.visible = false
 
