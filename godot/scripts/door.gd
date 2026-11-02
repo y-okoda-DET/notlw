@@ -51,6 +51,9 @@ func _ready():
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
 	for a2 in OS.get_cmdline_user_args():
 		if a2.begins_with("--storystate=door_"): call_deferred("_jump", float(a2.substr(18)))
+		if a2.begins_with("--yawpitch="):   # stills only: turn Mio's head (degrees, added to the default)
+			var yp := a2.substr(11).split(",")
+			player.yaw += deg_to_rad(float(yp[0])); player.pitch = deg_to_rad(float(yp[1]))
 
 # the small camera she put on the handrail at the start of the evening, still recording (第11章's tape is this)
 func _night_cam():

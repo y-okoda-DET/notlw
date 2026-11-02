@@ -225,7 +225,8 @@ def under_stair(M):
     wall_v4(M, ('X', 5.6, x0 - .04, 6.0 - T / 2, [(5.12, 5.93)], [], 0), 0.0, H1, SILL1, WH1)
     # a hand-written note on the cellar door (hall side)
     nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)
-    return prim('plane', 'note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, math.pi), scale=(.09, .12, 1), mat=nt)
+    # faces the lobby (plan +y, Blender -Y), where the bulb is and where you read it from (it faced into the door before)
+    return prim('plane', 'note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
 
 def cellar_shaft(M):
     """Walls round the cellar stair below the 1F floor, and the barred door at its foot (bar on the basement side)."""

@@ -68,10 +68,13 @@ def note_tex(path, lines):
     from PIL import Image, ImageDraw, ImageFont
     im = Image.new('RGB', (360, 480), (226, 220, 204)); d = ImageDraw.Draw(im)
     f1 = ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc', 96, index=0)
-    f2 = ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc', 44, index=0)
-    d.text((180, 120), lines[0], font=f1, fill=(30, 28, 26), anchor='mm')
-    d.text((180, 250), lines[1], font=f2, fill=(30, 28, 26), anchor='mm')
-    d.text((180, 330), lines[2], font=f2, fill=(150, 30, 26), anchor='mm')
+    f2 = ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc', 52, index=0)
+    f3 = ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc', 80, index=0)
+    # the second line is what the player has to read (発電機): bold and nearly as big as the first, so it survives the
+    # halftone at a step's distance (at 44 px it printed as a grey smudge, 2026-11-02)
+    d.text((180, 115), lines[0], font=f1, fill=(30, 28, 26), anchor='mm')
+    d.text((180, 255), lines[1], font=f3, fill=(30, 28, 26), anchor='mm')
+    d.text((180, 375), lines[2], font=f2, fill=(150, 30, 26), anchor='mm')
     d.rectangle((140, 0, 220, 26), fill=(200, 190, 150))
     im.save(path); return path
 

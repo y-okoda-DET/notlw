@@ -667,6 +667,16 @@ func _card():
 	foot.anchor_left = 0.05; foot.anchor_top = 0.025; foot.anchor_right = 0.95; foot.anchor_bottom = 0.1
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	foot.text = String(TranslationServer.translate(foot.text)).replace("\u200b", "")
+	# break only between keys (at the full-width spaces), never inside "Ｅｓｃ マウス解放"
+	var fw := (0.95 - 0.05) * get_viewport().get_visible_rect().size.x
+	var fl := ""; var fout := ""
+	for item in foot.text.split("　", false):
+		var cand: String = item if fl == "" else fl + "　" + item
+		if fl != "" and font.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * u)).x > fw:
+			fout += fl + "\n"; fl = item
+		else: fl = cand
+	foot.text = fout + fl
+	foot.autowrap_mode = TextServer.AUTOWRAP_OFF
 	layer.add_child(foot)
 	foot.visible = false
 

@@ -344,18 +344,22 @@ func _set_rec(on: bool):
 
 # ================================================================ the one she talks to turns to her
 # Only the neck and the head, a little (at most 32 degrees), and only while they talk with her; the 20 s loop of
-# their bodies goes on underneath. Makoto turns from the neck only (her head's weights reach the jaw: NOTES.md).
+# their bodies goes on underneath. Makoto stands with her back half to Mio, holding the bounce board: she turns from
+# the waist up (spine, then neck; never the head bone, whose weights reach her jaw: NOTES.md), up to 60 degrees.
 class Look extends SkeletonModifier3D:
 	var target := Vector3.ZERO
 	var w := 0.0
 	var want := 0.0
 	var v := Vector3.ZERO          # the face's forward, in the head bone's frame
-	var neck := -1
 	var head := -1
-	var neck_share := 0.4
+	var chain := [["neck_01", 0.4], ["head", 0.6]]   # bones from the root up, and each one's share of the turn
+	var max_yaw := 0.56
+	var bones: Array = []
 	func setup(fwd_world: Vector3):
 		var sk := get_skeleton()
-		neck = sk.find_bone("neck_01"); head = sk.find_bone("head")
+		head = sk.find_bone("head")
+		bones = []
+		for c in chain: bones.append([sk.find_bone(c[0]), c[1]])
 		if head < 0: return
 		var hb := sk.global_basis * sk.get_bone_global_pose(head).basis
 		v = (hb.inverse() * fwd_world).normalized()
@@ -369,10 +373,10 @@ class Look extends SkeletonModifier3D:
 		var f := hw.basis * v; f.y = 0.0
 		var to := target - hw.origin; to.y = 0.0
 		if f.length() < 0.01 or to.length() < 0.01: return
-		var yaw := clampf(f.normalized().signed_angle_to(to.normalized(), Vector3.UP), -0.56, 0.56)
+		var yaw := clampf(f.normalized().signed_angle_to(to.normalized(), Vector3.UP), -max_yaw, max_yaw)
 		var e := w * w * (3.0 - 2.0 * w)
 		var up_sk := (sk.global_basis.inverse() * Vector3.UP).normalized()
-		for pair in [[neck, neck_share], [head, 1.0 - neck_share]]:
+		for pair in bones:
 			if pair[0] < 0 or pair[1] <= 0.0: continue
 			var p := sk.get_bone_global_pose(pair[0])
 			sk.set_bone_global_pose(pair[0], Transform3D(Basis(up_sk, yaw * e * pair[1]) * p.basis, p.origin))
@@ -384,7 +388,9 @@ func _lookers():
 		var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
 		if sks.is_empty(): continue
 		var sk: Skeleton3D = sks[0]
-		var lm := Look.new(); lm.neck_share = 1.0 if k == "makoto" else 0.4
+		var lm := Look.new()
+		if k == "makoto":
+			lm.chain = [["spine_02", 0.2], ["spine_03", 0.3], ["neck_01", 0.5]]; lm.max_yaw = 1.05
 		sk.add_child(lm)
 		var fwd := (sk.global_basis * Vector3(0, 0, 1)); fwd.y = 0.0
 		lm.setup(fwd.normalized())
@@ -846,6 +852,8 @@ func _state(name: String):
 			finder = true; finder_rest = {"ok": true, "pos": g([0.30, 2.90, _rail_z(2.90) + 0.065]), "what": "手すり"}
 		"look":
 			put.call(-0.2, 3.6, -48.0, -62.0)
+		"note_look":   # the paper on the cellar door, from a step back (is it readable in the print?)
+			put.call(0.72, -0.25, 0.0, -4.0)
 		"carry":
 			put.call(-0.2, 3.6, 0.0, -4.0); has_board = true; holding_cam = true
 		"card2":
