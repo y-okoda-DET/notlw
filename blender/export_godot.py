@@ -97,7 +97,7 @@ def simplify_materials():
     return todo
 
 # ------------------------------------------------------------------ baked bounce light
-NO_LM = ('ext_', 'scan_', 'door_', 'doorglass', 'winglass', 'rain', 'slitglass', 'fres_lens', 'recled', 'nphone', 'kphone', 'phone_glow', 'lcd', 'cable', 'ledface', 'fresnel', 'barndoor', 'yoke', 'cscol', 'csleg')
+NO_LM = ('reflector', 'ext_', 'scan_', 'door_', 'doorglass', 'winglass', 'rain', 'slitglass', 'fres_lens', 'recled', 'nphone', 'kphone', 'phone_glow', 'lcd', 'cable', 'ledface', 'fresnel', 'barndoor', 'yoke', 'cscol', 'csleg')
 
 def bake_bounce(env_objs, size=2048, samples=256):
     """Join the static set into one mesh, give it a second UV ('lm'), and bake the indirect diffuse light

@@ -29,6 +29,15 @@ const LINES := [
 	[90.0, "澪", "夏希は、車に戻りました。……わかってくれたんだと、思います。", "testimony"],
 	[101.0, "end"],
 ]
+# E while she looks at the door (試作33「扉、調べられるようにしたい」): she does not speak in the hall (the silence goes on
+# counting); what comes is her answer months later, set apart at the top of the page. One look each, in this order.
+const DOOR_LOOKS := [
+	"扉は、叩かれるたびに少しだけ揺れていました。大河くんの手の下で。",
+	["細い窓に、夏希のスマホの明かりが映っていました。雨で、にじんで。", "細い窓は、もう暗いだけでした。"],
+	"『ハロウィン』で、ローリーが閉めた扉の向こうにいたのは、本物でした。……夏希は、夏希でした。",
+]
+var looked := 0
+var dlook := {}                # the answer being typed: {lb, text, typed}
 var li := 0
 var silence := {}              # the open （沈黙） line: {lb, t0}
 var silent_total := 0.0
@@ -41,6 +50,7 @@ var slip := Vector2.ZERO
 func _ready():
 	player = main.player
 	font = load("res://fonts/SerifJP-Bold.otf")
+	offscreen = ["ラジオ", "夏希"]   # behind the door
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	_page()
 	_lookers()
@@ -51,6 +61,8 @@ func _ready():
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
 	for a2 in OS.get_cmdline_user_args():
 		if a2.begins_with("--storystate=door_"): call_deferred("_jump", float(a2.substr(18)))
+		if a2.begins_with("--doorlook="):   # stills: the n-th look at the door (0..2), typed out
+			looked = int(a2.substr(11)); call_deferred("_look_door"); get_tree().create_timer(0.2).timeout.connect(func(): dlook.typed = 999.0; _type(dlook.lb, String(dlook.text), 999))
 		if a2.begins_with("--yawpitch="):   # stills only: turn Mio's head (degrees, added to the default)
 			var yp := a2.substr(11).split(",")
 			player.yaw += deg_to_rad(float(yp[0])); player.pitch = deg_to_rad(float(yp[1]))
@@ -88,10 +100,17 @@ func _process(dt):
 		return
 	while li < LINES.size() and t_now >= float(LINES[li][0]):
 		_event(LINES[li]); li += 1
+	# the door she is looking at, and her answer about it being typed
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var at_door := (-cam.global_basis.z).angle_to(g(DOOR_AT) - cam.global_position) < deg_to_rad(13.0)
+	note_lb.text = T("［扉］") if at_door and looked < DOOR_LOOKS.size() else ""
+	if dlook.has("lb") and dlook.typed < String(dlook.text).length():
+		dlook.typed = min(float(String(dlook.text).length()), dlook.typed + dt * 20.0)
+		_type(dlook.lb, String(dlook.text), int(dlook.typed))
 	# the words being typed
 	if cur.has("text") and typed < String(cur.text).length():
 		typed = min(float(String(cur.text).length()), typed + dt * (20.0 if cur.get("testimony", false) else 15.0))
-		if is_instance_valid(cur_lb): cur_lb.text = String(cur.text).substr(0, int(typed))
+		_type(cur_lb, String(cur.text), int(typed))
 	main.talk_now = cur.get("who_key", "") if cur.has("text") and typed < String(cur.text).length() else ""
 	# the silence, counted; and while it lasts the print's blue plate slips off register, a pixel every two seconds
 	# (her memory of the hall does not hold together there), and snaps back when someone speaks
@@ -113,7 +132,7 @@ func _event(e: Array):
 			cur = {}
 		"note":
 			_close_silence()
-			_line_row("", e[2], 26); cur = {}
+			_line_row("", e[2], 22, "note"); cur = {}
 		"leave":
 			# she goes: the knocking stops, the door settles, her light leaves the glass
 			main.S.erase("knocks")
@@ -128,7 +147,7 @@ func _event(e: Array):
 			_close_silence()
 			cur = {"who": e[1], "text": _wrap_row(Tw(e[2])), "who_key": WHO_KEY.get(e[1], ""), "testimony": e.size() > 3 and e[3] == "testimony"}
 			typed = 0.0
-			var r = _line_row(e[1], "")
+			var r = _line_row(e[1], "", SAY_SIZE, "testimony" if cur.testimony else "say")
 			cur_lb = r[1]
 			speaker = cur.who_key
 			if e.size() > 3 and e[3] in ["to_mio", "to_door"]: S_look = [cur.who_key, e[3]]
@@ -154,6 +173,8 @@ func _update_looks():
 
 func _unhandled_input(e):
 	if main.card.visible or ended >= 0.0: return
+	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if press and note_lb.text != "": _look_door(); return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_W, KEY_UP]:
 		# the step she does not take: the weight goes forward and comes back
 		if lean_tw and lean_tw.is_valid(): lean_tw.kill()
@@ -165,5 +186,20 @@ func _unhandled_input(e):
 func _jump(t: float):
 	while li < LINES.size() and float(LINES[li][0]) <= t:
 		t_now = float(LINES[li][0]); _event(LINES[li]); li += 1
-		if cur.has("text"): typed = String(cur.text).length(); cur_lb.text = cur.text
+		if cur.has("text"): typed = String(cur.text).length(); _type(cur_lb, String(cur.text), int(typed))
 	t_now = t
+
+func _look_door():
+	var l = DOOR_LOOKS[looked]
+	var text: String = l if l is String else String(l[1] if main.S.has("natsuki_node") and not main.S.natsuki_node.visible else l[0])
+	looked += 1
+	text = _wrap_row(Tw(text))
+	var r = _line_row("澪", "", SAY_SIZE, "testimony")
+	dlook = {"lb": r[1], "text": text, "typed": 0.0}
+	# she leans to it, as with W
+	if lean_tw and lean_tw.is_valid(): lean_tw.kill()
+	lean_tw = create_tween()
+	lean_tw.tween_property(player, "lean", 0.05, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	lean_tw.tween_property(player, "lean", 0.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	print("STORY door look %d t=%.1f" % [looked, t_now])
+

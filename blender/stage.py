@@ -28,9 +28,11 @@ GI_BOX = ((HALL[0] - .3, -1.0, ZG - .1), (HALL[1] + .3, YF + .4, H4.H1 + .4))
 def scene_json(scene, boxes):
     """What Godot needs of the set besides the meshes: walls to bump into, people and stands to walk round, the start."""
     if scene == 'dusk':
-        props = [[*NATSUKI_D, .24], [*KIRYU_D, .22], [*TRIPOD_D, .26], [*FRESNEL, .32], [*APPLEBOX, .22], [*MAKOTO_D, .2], [*TAIGA_D, .3]]
+        # the size of what is there, not a margin round it (試作33「移動に窮屈感」): a person's chest is about 16 cm from its
+        # middle, the tripod's feet 18 cm, the fresnel stand's 25 cm; Mio's own 17 cm comes on top (player capsule)
+        props = [[*NATSUKI_D, .16], [*KIRYU_D, .16], [*TRIPOD_D, .18], [*FRESNEL, .25], [*APPLEBOX, .18], [*MAKOTO_D, .16], [*TAIGA_D, .2]]
     else:
-        props = [[*KIRYU_N, .24], [*TAIGA_N, .3], [*TRIPOD_N, .26], [*FRESNEL, .32], [*APPLEBOX, .22], [HALL[0] + .2, 5.15, .14]]
+        props = [[*KIRYU_N, .16], [*TAIGA_N, .2], [*TRIPOD_N, .18], [*FRESNEL, .25], [*APPLEBOX, .18], [HALL[0] + .2, 5.15, .14]]
     boxes = boxes + [dict(c=[DOOR_C, YF + .95, ZG - .28], s=[2.8, 1.8, .5])]   # the porch outside the door (the ext deck has no collider)
     return dict(boxes=boxes, props=props, spawn=list(PLAYER), look=list(PLAYER_LOOK), gi_box=[list(GI_BOX[0]), list(GI_BOX[1])],
                 mark=[*MARK, 0])

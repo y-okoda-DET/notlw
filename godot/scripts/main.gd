@@ -490,8 +490,9 @@ func _colliders():
 
 func _player():
 	player = preload("res://scripts/player.gd").new()
-	var cs := CollisionShape3D.new(); var cap := CapsuleShape3D.new(); cap.radius = 0.2; cap.height = 1.6
+	var cs := CollisionShape3D.new(); var cap := CapsuleShape3D.new(); cap.radius = 0.17; cap.height = 1.6
 	cs.shape = cap; cs.position.y = 0.8
+	player.wall_min_slide_angle = 0.0   # walking nearly head-on into a wall or a person slides along it instead of stopping (試作33「窮屈感」)
 	player.add_child(cs)
 	var head := Node3D.new(); head.name = "Head"; player.add_child(head)
 	var cam := Camera3D.new(); cam.name = "Camera"; cam.fov = ARGS.get("fov", 62.0); cam.near = 0.05; head.add_child(cam)

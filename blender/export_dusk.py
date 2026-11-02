@@ -151,7 +151,7 @@ def pose_makoto(m, t):
     # each hand holds a side edge as in the photo (a box held by its sides): palm facing in against the edge, fingers
     # up along it, the edge in the crotch of the hand: the thumb on the face toward her (the back face), the fingers
     # round the other side and their tips curling onto the front a little
-    RM = S['rf_M']; R = RM.to_3x3().normalized()   # the board object itself is merged away by the export cleanup
+    RM = S["rf_M"]; R = RM.to_3x3().normalized()   # the board stays its own object (export_godot.NO_LM): Godot turns it with her when she talks
     bx = R @ Vector((1, 0, 0)); f = -(R @ Vector((0, 1, 0))); ub = R @ Vector((0, 0, 1))
     for side, sx in (('l', 1), ('r', -1)):
         # 試作18 「レフ板をちゃんと持てていない」: the fingers stood up beside the edge without touching it. Now the way a
@@ -160,10 +160,10 @@ def pose_makoto(m, t):
         out = bx * sx
         edge = RM @ Vector((sx * 1.0, 0, -.25))
         back = -f * (.006 + .009)          # half the board's thickness plus the fingers' own half-thickness
-        wrist = edge + out * .05 + back + -f * .012
+        wrist = edge + out * .02 + back + -f * .012   # 2 cm outside: at 5 cm the thumb could not reach the front face (2.2 cm off it) and the open hand showed when she turned (試作34)
         C.arm_to(m, side, wrist, Vector((sx * .15, .3, -.8)))      # elbows down at her sides
         pz = f * C.palm_sign(m, side)                              # palm toward the board (the board is in front of the hand)
-        fing = (-out * .9 + ub * .45).normalized()                  # fingers reach in from the edge, a little upward
+        fing = (-out * .9 + ub * .25).normalized()                  # fingers reach in from the edge, a little upward
         C.set_hand_frame(m, side, fing, pz); C.settle_forearm(m, side); C.set_hand_frame(m, side, fing, pz)
         key = ('mk_curl2', side)
         if key not in S:
@@ -181,7 +181,7 @@ def pose_makoto(m, t):
                 amt[f_] = best; C.clear_finger(m, side, f_)
             for f_, a_ in amt.items(): C.curl_finger(m, side, f_, a_, (40, 50, 30))
             C.clear_finger(m, side, 'thumb')
-            T = edge - out * .03 + f * (.006 + .008) + ub * .03     # the thumb tip on the front face, 3 cm in from the edge
+            T = edge - out * .07 + f * (.006 + .007) + ub * .02     # the thumb tip on the front face, 7 cm in from the edge (aimed 3 cm in, the thumb overshot and stood 4 cm off the face)
             for _ in range(5):
                 h_ = C.bone_head(m, f'thumb_01_{side}'); t_ = C.bone_tail(m, f'thumb_03_{side}')
                 a1, b1 = t_ - h_, T - h_

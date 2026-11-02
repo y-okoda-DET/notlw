@@ -64,6 +64,8 @@ var placed := {}               # {pos, yaw, pitch}
 # ---------------------------------------------------------------- page (the transcript)
 var page: Control
 var lines_box: VBoxContainer
+var tes_box: VBoxContainer     # Mio's answers to the interviewer (testimony)
+var offscreen: Array = ["ラジオ"]   # voices from off the frame: these lines keep the speaker's name
 var note_lb: Label             # the bracketed stage note (what she is looking at)
 var board_layer: CanvasLayer
 var board_rect: TextureRect
@@ -178,8 +180,8 @@ static func wrap_text(text: String, font: Font, fs: int, width: float) -> String
 		line.append(p)
 	return out + "".join(line)
 
-func _wrap_row(text: String, size := 36.0) -> String:
-	var w: float = (0.8 - 0.075) * get_viewport().get_visible_rect().size.x - (70.0 + 18.0 + 8.0) * u
+func _wrap_row(text: String, size := SAY_SIZE) -> String:
+	var w: float = 0.56 * get_viewport().get_visible_rect().size.x   # a subtitle's measure: about 30 characters
 	return wrap_text(text, font, int(size * u), w)
 
 # numbers in the transcript: kanji while the words are Japanese (also where no translation exists yet), figures in a translation
@@ -213,32 +215,65 @@ func _page():
 	var layer := CanvasLayer.new(); layer.layer = 13; add_child(layer)
 	page = Control.new(); page.set_anchors_preset(Control.PRESET_FULL_RECT); page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(page)
+	# what is said in the hall: centred at the foot of the frame like a film's subtitles, two lines at most, no names
+	# (the one speaking turns to her); only a voice from off the frame gets its name (試作33: big, left, names every line)
 	lines_box = VBoxContainer.new()
-	lines_box.anchor_left = 0.075; lines_box.anchor_right = 0.8; lines_box.anchor_top = 1.0; lines_box.anchor_bottom = 1.0
-	lines_box.offset_bottom = -78 * u; lines_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	lines_box.add_theme_constant_override("separation", int(6 * u))
+	lines_box.anchor_left = 0.1; lines_box.anchor_right = 0.9; lines_box.anchor_top = 1.0; lines_box.anchor_bottom = 1.0
+	lines_box.offset_bottom = -64 * u; lines_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	lines_box.add_theme_constant_override("separation", int(4 * u))
 	page.add_child(lines_box)
+	# what Mio tells the interviewer months later: not in the hall but over it, top left, smaller, under a short rule,
+	# the way a transcript sets the answer apart from what it quotes
+	tes_box = VBoxContainer.new()
+	tes_box.anchor_left = 0.075; tes_box.anchor_right = 0.62; tes_box.anchor_top = 0.0; tes_box.anchor_bottom = 0.0
+	tes_box.offset_top = 92 * u
+	tes_box.add_theme_constant_override("separation", int(8 * u))
+	page.add_child(tes_box)
 	note_lb = _label(26)
 	note_lb.anchor_left = 0.075; note_lb.anchor_top = 1.0; note_lb.anchor_bottom = 1.0
 	note_lb.offset_top = -66 * u; note_lb.offset_bottom = -30 * u
 	page.add_child(note_lb)
 
-# one line of the transcript: the speaker small, then the words
-func _line_row(who: String, text: String, size := 36.0) -> Array:
-	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(18 * u))
-	var w := _label(25); w.text = T(who); w.custom_minimum_size = Vector2(70 * u, 0)
-	w.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	var t := _label(size); t.text = _wrap_row(Tw(text), size)   # broken between phrases before it is set (wrap)
-	row.add_child(w); row.add_child(t)
-	lines_box.add_child(row)
-	while lines_box.get_child_count() > 4:
-		var c := lines_box.get_child(0); lines_box.remove_child(c); c.queue_free()
-	for i in range(lines_box.get_child_count()):   # older lines fade back into the page
-		(lines_box.get_child(i) as Control).modulate.a = 0.4 + 0.6 * float(i + 1) / float(lines_box.get_child_count())
+# one line: kind "say" (said in the hall: centred), "testimony" (her answer, months later: top left), "note" (the
+# bracketed stage note), "choose" (what she could say). Typed in by _type() so a centred line does not slide as it grows.
+const SAY_SIZE := 30.0
+func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Array:
+	var tes := kind == "testimony"
+	var box: VBoxContainer = tes_box if tes else lines_box
+	if tes: _clear_box(tes_box)
+	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u))
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN if tes else BoxContainer.ALIGNMENT_CENTER
+	if tes:
+		var rule := ColorRect.new(); rule.color = Color(paper.r, paper.g, paper.b, 0.85)
+		rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(rule)
+	elif who != "" and who in offscreen:
+		var w := _label(20); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(w)
+	var sz := 26.0 if tes else size
+	var t := _label(sz); t.text = _wrap_row(Tw(text), sz)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if tes else HORIZONTAL_ALIGNMENT_CENTER
+	if tes: t.add_theme_constant_override("line_spacing", int(6 * u))
+	row.add_child(t)
+	box.add_child(row)
+	if not tes:
+		while lines_box.get_child_count() > (4 if kind == "choose" or cur.has("choose") else 2):
+			var c := lines_box.get_child(0); lines_box.remove_child(c); c.queue_free()
+		for i in range(lines_box.get_child_count()):   # the line before fades back
+			(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
 	return [row, t]
 
+# type a line in: the whole line is laid out from the start, the characters show one by one
+func _type(lb: Label, full: String, n: int):
+	if not is_instance_valid(lb): return
+	if lb.text != full: lb.text = full
+	lb.visible_characters = -1 if n >= full.length() else n
+
+func _clear_box(b: Container):
+	for c in b.get_children(): b.remove_child(c); c.queue_free()
+
 func _clear_page():
-	for c in lines_box.get_children(): lines_box.remove_child(c); c.queue_free()
+	_clear_box(lines_box); _clear_box(tes_box)
 
 # ================================================================ storyboard and finder
 func _board():
@@ -355,6 +390,13 @@ class Look extends SkeletonModifier3D:
 	var chain := [["neck_01", 0.4], ["head", 0.6]]   # bones from the root up, and each one's share of the turn
 	var max_yaw := 0.56
 	var bones: Array = []
+	var props: Array = []          # [node, where it stands]: what she holds turns with her
+	var carry := -1
+	func hold(things: Array, bone: String):
+		var sk := get_skeleton()
+		carry = sk.find_bone(bone)
+		if carry < 0: return
+		for n in things: props.append([n, (n as Node3D).global_transform])   # [node, where it stands]
 	func setup(fwd_world: Vector3):
 		var sk := get_skeleton()
 		head = sk.find_bone("head")
@@ -367,7 +409,9 @@ class Look extends SkeletonModifier3D:
 		var sk := get_skeleton()
 		if sk == null or head < 0 or v == Vector3.ZERO: return
 		w = move_toward(w, want, get_process_delta_time() * 1.6)
-		if w <= 0.001: return
+		if w <= 0.001:
+			for pr in props: (pr[0] as Node3D).global_transform = pr[1]
+			return
 		var gp := sk.get_bone_global_pose(head)
 		var hw := sk.global_transform * gp
 		var f := hw.basis * v; f.y = 0.0
@@ -379,9 +423,14 @@ class Look extends SkeletonModifier3D:
 		for pair in bones:
 			if pair[0] < 0 or pair[1] <= 0.0: continue
 			var p := sk.get_bone_global_pose(pair[0])
+			if pair[0] == carry:   # what she holds turns with this bone, about the bone's own root, as her arms do
+				var piv := sk.global_transform * p.origin
+				var r := Transform3D(Basis(Vector3.UP, yaw * e * pair[1]), Vector3.ZERO)
+				for pr in props: (pr[0] as Node3D).global_transform = Transform3D.IDENTITY.translated(piv) * r * Transform3D.IDENTITY.translated(-piv) * pr[1]
 			sk.set_bone_global_pose(pair[0], Transform3D(Basis(up_sk, yaw * e * pair[1]) * p.basis, p.origin))
 
 var looks := {}
+var look_eye := Vector3.ZERO   # stills (--lookfrom): where she turns to when the camera is elsewhere
 func _lookers():
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]:
 		if not main.S.has(k + "_node"): continue
@@ -390,18 +439,24 @@ func _lookers():
 		var sk: Skeleton3D = sks[0]
 		var lm := Look.new()
 		if k == "makoto":
-			lm.chain = [["spine_02", 0.2], ["spine_03", 0.3], ["neck_01", 0.5]]; lm.max_yaw = 1.05
+			lm.chain = [["spine_03", 0.5], ["neck_01", 0.5]]; lm.max_yaw = 1.05   # one spine bone: the reflector turns about it exactly
 		sk.add_child(lm)
 		var fwd := (sk.global_basis * Vector3(0, 0, 1)); fwd.y = 0.0
 		lm.setup(fwd.normalized())
+		if k == "makoto":
+			# the reflector is the room's, not hers: without this her hands turned away and left it in the air (ユーザー指摘)
+			var held: Array = []
+			for mi in main.S.env_node.find_children("reflector*", "MeshInstance3D", true, false): held.append(mi)
+			if main.lights.has("refl"): held.append(main.lights.refl)
+			if not "--nohold" in OS.get_cmdline_user_args(): lm.hold(held, "spine_03")   # --nohold: the before, for stills
 		looks[k] = lm
 
 func _update_looks():
-	var eye: Vector3 = (player.get_node("Head/Camera") as Camera3D).global_position
+	var eye: Vector3 = look_eye if look_eye != Vector3.ZERO else (player.get_node("Head/Camera") as Camera3D).global_position
 	for k in looks:
 		var lm: Look = looks[k]
 		lm.target = eye
-		lm.want = 1.0 if (mode == TALK and talk_with == k) else 0.0
+		lm.want = 1.0 if (mode == TALK and talk_with == k and not "--nolook" in OS.get_cmdline_user_args()) else 0.0   # --nolook: stills, the pose before she turns
 
 # ================================================================ where the camera would rest
 func _rest_for(eye: Vector3, dir: Vector3) -> Dictionary:
@@ -517,7 +572,7 @@ func _unhandled_input(e):
 		elif mode == TALK and e.keycode in [KEY_SPACE, KEY_ENTER]: _press()
 	elif e is InputEventMouseButton:
 		if e.button_index == MOUSE_BUTTON_RIGHT:
-			if holding_radio: radio_up = e.pressed and mode == FREE
+			if holding_radio: radio_up = e.pressed   # also while a line is on screen (the line that says to right-click): it comes up when the line closes (試作33「顔の前に来なかった」)
 			else: _set_finder(e.pressed)
 		elif radio_up and mode == FREE and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			tune = clamp(tune + (0.0015 if e.button_index == MOUSE_BUTTON_WHEEL_UP else -0.0015), 0.0, 1.0)
@@ -674,7 +729,7 @@ func _start(entries: Array):
 	if entries.is_empty(): return
 	script_q = entries.duplicate(true)
 	if fade_tw and fade_tw.is_valid(): fade_tw.kill()
-	lines_box.modulate.a = 1.0
+	lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0
 	print("STORY start ", focus, " t=%.1f" % t_now)
 	mode = TALK
 	_clear_page()
@@ -686,9 +741,11 @@ func _next():
 	if script_q.is_empty():
 		mode = FREE; cur = {}
 		if ch2 and holding_radio: return
-		if lines_box.get_child_count() > 0:
-			fade_tw = create_tween(); fade_tw.tween_property(lines_box, "modulate:a", 0.0, 1.6).set_delay(1.2)
-			fade_tw.tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0)
+		if lines_box.get_child_count() > 0 or tes_box.get_child_count() > 0:
+			fade_tw = create_tween().set_parallel(true)
+			fade_tw.tween_property(lines_box, "modulate:a", 0.0, 1.6).set_delay(1.2)
+			fade_tw.tween_property(tes_box, "modulate:a", 0.0, 1.6).set_delay(1.2)
+			fade_tw.chain().tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
@@ -698,17 +755,17 @@ func _next():
 		if mode != END: _next()
 		return
 	if cur.has("note"):
-		var r = _line_row("", cur.note, 26); cur_lb = r[1]; typed = 999.0; return
+		var r = _line_row("", cur.note, 22, "note"); cur_lb = r[1]; typed = 999.0; return
 	if cur.has("choose"):
 		choice_lbs = []; choice_idx = 0
 		for i in range(cur.choose.size()):
-			var r = _line_row("澪" if i == 0 else "", cur.choose[i])
+			var r = _line_row("", cur.choose[i], SAY_SIZE, "choose")
 			choice_lbs.append(r[1])
 		_show_choice()
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
 	if ch2 and cur.who_key != "": talk_with = cur.who_key
-	var r2 = _line_row(cur.who, "")
+	var r2 = _line_row(cur.who, "", SAY_SIZE, "testimony" if cur.get("testimony", false) else "say")
 	cur_lb = r2[1]
 
 func _show_choice():
@@ -737,7 +794,7 @@ func _choose():
 		if i == choice_idx: continue
 		var lb: Label = choice_lbs[i]
 		var s := Strike.new(); s.u = u
-		s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(36 * u)).x
+		s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
 		s.size = lb.size; s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		lb.add_child(s)
 	var then: Array = cur.then[choice_idx]
@@ -754,14 +811,14 @@ func _talk_tick(dt):
 		var n: int = String(cur.text).length()
 		if typed < n:
 			typed = min(float(n), typed + dt * (20.0 if cur.get("testimony", false) else 24.0))
-			if is_instance_valid(cur_lb): cur_lb.text = String(cur.text).substr(0, int(typed))
+			_type(cur_lb, String(cur.text), int(typed))
 
 func _advance():
 	if cur.has("choose"):
 		if not cur.get("chosen", false): _choose()
 		return
 	if cur.has("text") and typed < String(cur.text).length():
-		typed = String(cur.text).length(); cur_lb.text = cur.text; return
+		typed = String(cur.text).length(); _type(cur_lb, String(cur.text), int(typed)); return
 	_next()
 
 func _do(what: String):
@@ -798,12 +855,12 @@ func _do(what: String):
 
 func _end_tick(dt):
 	end_t += dt
-	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0:
-		var r = _line_row("澪", "そこで、電気が消えたんです。")
+	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0 and tes_box.get_child_count() == 0:
+		var r = _line_row("澪", "そこで、電気が消えたんです。", SAY_SIZE, "testimony")
 		r[1].text = ""
 		cur = {"text": _wrap_row(Tw("そこで、電気が消えたんです。"))}; cur_lb = r[1]; typed = 0.0
 	if cur.has("text") and typed < String(cur.text).length():
-		typed += dt * 14.0; cur_lb.text = String(cur.text).substr(0, int(typed))
+		typed += dt * 14.0; _type(cur_lb, String(cur.text), int(typed))
 	if end_t >= 100.0: return
 	if end_t > 9.0 and card2_t < 0.0 and not ch2:
 		_begin_ch2()
@@ -819,6 +876,10 @@ func _state(name: String):
 		var k := name.substr(5)
 		var at := {"natsuki": [-0.2, 3.6, -43.0, -3.0], "makoto": [0.06, 3.3, -58.0, -3.0], "taiga": [0.2, 4.7, -2.0, -2.0], "kiryu": [-0.2, 3.6, 6.0, 0.0]}
 		var q: Array = at[k]; put.call(q[0], q[1], q[2], q[3])
+		for a2 in OS.get_cmdline_user_args():   # stills only: she keeps turning to Mio's place while the camera looks from x,y,yaw,pitch
+			if a2.begins_with("--lookfrom="):
+				var lf := a2.substr(11).split(","); look_eye = Vector3(q[0], 1.52, -q[1])
+				put.call(float(lf[0]), float(lf[1]), float(lf[2]), float(lf[3]))
 		talk_with = k; focus = k; _start(_conversation(k)); return
 	if name.begins_with("page_"):   # a whole conversation written out on the page (the last rows): page_<who>[_<n>] | page_rule1
 		var parts := name.substr(5).split("_")
@@ -831,7 +892,7 @@ func _state(name: String):
 		for k in 2:   # page_<who>_<n>_<choice>: take that choice and write out what follows
 			while not cur.is_empty() and not cur.has("choose"):
 				typed = 999.0
-				if cur.has("text") and is_instance_valid(cur_lb): cur_lb.text = cur.text
+				if cur.has("text"): _type(cur_lb, String(cur.text), 1 << 20)
 				_next()
 			if k == 0 and cur.has("choose") and parts.size() > 2:
 				choice_idx = int(parts[2]); _show_choice(); _choose()
@@ -868,6 +929,14 @@ func _state(name: String):
 			tune = 0.43 if name == "radio_off" else (1017.0 - AM_LO) / (AM_HI - AM_LO)
 			if name == "radio_half": tune = (1011.0 - AM_LO) / (AM_HI - AM_LO)   # a little off: words drop out
 			if name in ["radio_news", "radio_half"]: bc_t = 2.9   # just before the second sentence (the place); shoot ~100 frames
+		"radio_rclick":   # 試作33: right-click while the line that says so is still on screen, then close the line
+			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			put.call(-0.20, 3.35, 2.0, -8.0); _take_radio()
+			await get_tree().create_timer(0.5).timeout
+			var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_RIGHT; ev.pressed = true
+			Input.parse_input_event(ev)
+			await get_tree().create_timer(0.3).timeout
+			while mode == TALK: _press(); await get_tree().create_timer(0.3).timeout
 		"radio_box":
 			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 29.5, -62.0)
