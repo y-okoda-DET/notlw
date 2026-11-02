@@ -65,23 +65,14 @@ func _night_cam():
 	dm.emission_energy_multiplier = 6.0
 
 func _end_card():
-	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
-	end_card = ColorRect.new(); (end_card as ColorRect).color = Color(0.93, 0.91, 0.85)
-	end_card.set_anchors_preset(Control.PRESET_FULL_RECT); end_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(end_card)
-	end_card.visible = false
+	pass
 
+# not a chapter's door but the exchange: the question, and under it, in the transcript's rows, what she answered.
+# It cuts in over the hall, as the chapter cards do.
 func _show_end():
-	var vb := VBoxContainer.new(); vb.anchor_left = 0.1; vb.anchor_top = 0.28; vb.anchor_right = 0.9; vb.anchor_bottom = 0.8
-	end_card.add_child(vb)
-	for line in [["扉を開けなかったのは、", 92], ["なぜですか？", 92], ["", 40], ["澪　（沈黙・%s秒）" % _kan(int(round(silent_total))), 44]]:
-		var lb := Label.new(); lb.text = line[0]
-		lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", int(line[1] * u))
-		lb.add_theme_color_override("font_color", ink)
-		vb.add_child(lb)
-	end_card.modulate.a = 0.0; end_card.visible = true
-	create_tween().tween_property(page, "modulate:a", 0.0, 1.2)
-	create_tween().tween_property(end_card, "modulate:a", 1.0, 2.5)
+	end_card = main.make_card(self, [["「扉を開けなかったのは、なぜですか？」", 64, 60, ""],
+		["（沈黙・%s秒）" % _kan(int(round(silent_total))), 52, 0, "澪"]], font, false)
+	page.visible = false
 
 func _process(dt):
 	if main.card.visible: return

@@ -100,7 +100,7 @@ func _ready():
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	if SCENE == "night" and (FROM_STORY or ARGS.has("door")) and not checking:
-		if CARD_TIME > 0.0: CARD_TIME = 5.0
+		if CARD_TIME > 0.0: CARD_TIME = 3.0   # only the time card: the chapter's door was at 二十時
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
 	FROM_STORY = false
@@ -593,32 +593,80 @@ func _status(changed: String):
 	note.visible = true
 	note_until = Time.get_ticks_msec() / 1000.0 + 3.0
 
+# Chapter cards (2026-11-02, after the user's "タランティーノっぽく"): a chapter door is the night print's darkest ink
+# laid flat, the paper showing through in the letters, centred: the chapter's number small, its name large in brackets,
+# the interviewer's question under it. It cuts in and cuts out, no fade. A time card ("二十三時") is the same ground
+# with one small line. The card after a scene that the interviewer asks about (door.gd) is not a chapter door but
+# an exchange, set as the transcript's rows: left-aligned, the question in brackets, Mio's line under it.
+const CARD_BG := Color(0.071, 0.165, 0.133)
+const CARD_INK := Color(0.925, 0.90, 0.84)
+const CARD_GHOST := Color(0.16, 0.43, 0.67, 0.2)   # the blue plate, a little off register
+const CARD_GRAIN := """shader_type canvas_item;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() { float n = h(floor(FRAGCOORD.xy)); COLOR = vec4(vec3(step(0.5, n)), 0.09 * abs(n - 0.5) * 2.0); }
+"""
+
+# rows: [text, size at 1080p, gap after] centred, or [text, size, gap, speaker] as an exchange (centred = false)
+static func make_card(parent: Node, rows: Array, font: Font, centred := true) -> ColorRect:
+	var layer := CanvasLayer.new(); layer.layer = 14; parent.add_child(layer)   # over the transcript (13) and the keys (12)
+	var vs: Vector2 = parent.get_viewport().get_visible_rect().size
+	var u: float = vs.y / 1080.0
+	var c := ColorRect.new(); c.color = CARD_BG
+	c.set_anchors_preset(Control.PRESET_FULL_RECT); c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(c)
+	var total := 0.0
+	for r in rows: total += font.get_height(int(r[1] * u)) + r[2] * u
+	var y: float = (vs.y - total) / 2.0
+	for r in rows:
+		var fs := int(r[1] * u)
+		var h: float = font.get_height(fs)
+		var x := 0.0
+		if not centred:
+			x = 420.0 / 1920.0 * vs.x
+			if String(r[0]).begins_with("「"): x -= fs * 0.45          # the bracket hangs into the margin
+			if r.size() > 3 and r[3] != "":
+				var sp := _card_label(String(r[3]), int(34 * u), font, CARD_INK * Color(1, 1, 1, 0.85))
+				sp.position = Vector2(300.0 / 1920.0 * vs.x, y + h - font.get_height(int(34 * u)) - 6 * u)
+				c.add_child(sp)
+		for k in 2:
+			var lb := _card_label(String(r[0]), fs, font, CARD_GHOST if k == 0 else CARD_INK)
+			if centred: lb.size.x = vs.x; lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			lb.position = Vector2(x, y) + (Vector2(-3, 4) * u if k == 0 else Vector2.ZERO)
+			c.add_child(lb)
+		y += h + r[2] * u
+	var grain := ColorRect.new(); grain.set_anchors_preset(Control.PRESET_FULL_RECT); grain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new(); sh.code = CARD_GRAIN
+	var gm := ShaderMaterial.new(); gm.shader = sh; grain.material = gm
+	c.add_child(grain)
+	return c
+
+static func _card_label(text: String, fs: int, font: Font, col: Color) -> Label:
+	var lb := Label.new(); lb.text = text
+	lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", fs)
+	lb.add_theme_color_override("font_color", col)
+	return lb
+
+var foot: Label
 func _card():
-	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
-	card = ColorRect.new(); (card as ColorRect).color = Color(0.93, 0.91, 0.85)
-	card.set_anchors_preset(Control.PRESET_FULL_RECT); card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(card)
 	var font: FontFile = load("res://fonts/SerifJP-Bold.otf")   # the imported resource (load_dynamic_font fell back to a system sans on Windows)
 	var u: float = get_viewport().get_visible_rect().size.y / 1080.0
-	var vb := VBoxContainer.new(); vb.anchor_left = 0.1; vb.anchor_top = 0.28; vb.anchor_right = 0.9; vb.anchor_bottom = 0.8
-	card.add_child(vb)
-	var ink := Color(0.0, 0.2, 0.42)
-	var lines := [["扉を開けなかったのは、", 92], ["なぜですか？", 92], ["", 26], ["第二章　籠城　二十三時", 38]]
-	if SCENE == "dusk": lines = [["あの別荘には、", 92], ["どうして行ったんですか？", 92], ["", 26], ["第一章　ルール　夕方", 38]]
-	for line in lines:
-		var lb := Label.new(); lb.text = line[0]
-		lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", int(line[1] * u))
-		lb.add_theme_color_override("font_color", ink)
-		vb.add_child(lb)
-	var foot := Label.new()
+	var rows := [["二十三時", 52, 0]]
+	if SCENE == "dusk": rows = [["第 一 章", 46, 40], ["「ルール」", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
+	card = make_card(self, rows, font)
+	# the keys: not on the card (the card is the interviewer's), but along the top once the scene has begun
+	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
+	foot = Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
 	if door_scene: foot.text = "マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	foot.add_theme_color_override("font_color", ink)
-	foot.anchor_left = 0.1; foot.anchor_top = 0.855; foot.anchor_right = 0.92; foot.anchor_bottom = 0.985
-	card.add_child(foot)
+	foot.add_theme_color_override("font_color", CARD_INK)
+	foot.add_theme_color_override("font_outline_color", CARD_BG); foot.add_theme_constant_override("outline_size", int(6 * u))
+	foot.anchor_left = 0.05; foot.anchor_top = 0.025; foot.anchor_right = 0.95; foot.anchor_bottom = 0.1
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(foot)
+	foot.visible = false
 
 # ------------------------------------------------------------------ time
 func _process(dt):
@@ -630,6 +678,9 @@ func _process(dt):
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
+	if foot:
+		foot.visible = t >= CARD_TIME and t < CARD_TIME + 12.0
+		foot.modulate.a = clamp((CARD_TIME + 12.0 - t) / 2.0, 0.0, 1.0)
 	player.input_enabled = t > CARD_TIME - 0.4
 	var lt: float = fmod(max(t - CARD_TIME, 0.0), LOOP)
 	if t < CARD_TIME:

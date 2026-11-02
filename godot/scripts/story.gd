@@ -927,18 +927,8 @@ func _radio_power(on: bool):
 	radio_lamp.light_energy = 0.3 if on else 0.0
 
 func _card2():
-	# the interviewer's next question, set as the first card was (main.gd _card)
-	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
-	card2 = ColorRect.new(); (card2 as ColorRect).color = Color(0.93, 0.91, 0.85)
-	card2.set_anchors_preset(Control.PRESET_FULL_RECT); card2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(card2)
-	var vb := VBoxContainer.new(); vb.anchor_left = 0.1; vb.anchor_top = 0.28; vb.anchor_right = 0.9; vb.anchor_bottom = 0.8
-	card2.add_child(vb)
-	for line in [["最初に、おかしいと思ったのは、", 92], ["いつですか？", 92], ["", 26], ["第二章　籠城　二十時", 38]]:
-		var lb := Label.new(); lb.text = line[0]
-		lb.add_theme_font_override("font", font); lb.add_theme_font_size_override("font_size", int(line[1] * u))
-		lb.add_theme_color_override("font_color", ink)
-		vb.add_child(lb)
+	# the second chapter's door, set as the first (main.gd make_card)
+	card2 = main.make_card(self, [["第 二 章", 46, 40], ["「籠城」", 150, 90], ["最初に、おかしいと思ったのは、いつですか？", 36, 0]], font)
 	card2.visible = false
 
 func _begin_ch2():
