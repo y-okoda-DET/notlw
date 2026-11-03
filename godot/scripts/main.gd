@@ -664,7 +664,7 @@ func _card():
 	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
 	foot = Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
-	if door_scene: foot.text = "マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	if door_scene: foot.text = "ＷＡＳＤ 歩く　マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

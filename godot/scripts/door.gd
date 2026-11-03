@@ -12,7 +12,9 @@ const MIO_AT := [0.12, 3.80]          # Blender x, y of her feet: by Natsuki's t
 const DOOR_AT := [0.20, 6.30, 1.45]
 # [seconds after the card, who, words, how] | [t, "silence"] | [t, "note", words] | [t, "leave"] | [t, "end"]
 const LINES := [
-	[1.5, "澪", "二十三時ごろでした。夏希が、外から扉を叩いたんです。", "testimony"],
+	[1.0, "澪", "二十三時ごろでした。夏希が、外から扉を叩いたんです。", "testimony"],
+	# she could not move: said first, so standing still reads as hers and not as a broken game (合格の試し1「操作合ってるかな？バグ？」)
+	[4.5, "澪", "足が、動きませんでした。", "testimony"],
 	[8.0, "夏希", "澪？　……澪、いるんでしょ。"],
 	[13.5, "大河", "開けんなよ。"],
 	[17.5, "夏希", "開けて。……ゾンビ映画ごっこはもういいから。話が、（雨の音）……ある。"],
@@ -56,6 +58,7 @@ func _ready():
 	_lookers()
 	_night_cam()
 	_end_card()
+	call_deferred("_strike_walk")
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
@@ -203,3 +206,13 @@ func _look_door():
 	lean_tw.tween_property(player, "lean", 0.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	print("STORY door look %d t=%.1f" % [looked, t_now])
 
+
+# the keys along the top: walking is there, struck through like the words she did not say
+func _strike_walk():
+	var f: Label = main.foot
+	if f == null: return
+	var fs := int(19 * u)
+	var st := Strike.new(); st.u = u; st.col = Color(main.CARD_INK.r, main.CARD_INK.g, main.CARD_INK.b, 0.9)
+	st.w = font.get_string_size(T("ＷＡＳＤ 歩く"), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	st.size = Vector2(st.w, font.get_height(fs)); st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	f.add_child(st)

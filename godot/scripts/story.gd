@@ -793,8 +793,9 @@ class Strike extends Control:
 	# the transcriber's double line through what she did not say
 	var w := 0.0
 	var u := 1.0
+	var col := Color(0.945, 0.925, 0.875, 0.9)
 	func _draw():
-		var c := Color(0.945, 0.925, 0.875, 0.9)
+		var c := col
 		var y := size.y * 0.52
 		draw_line(Vector2(-4 * u, y - 4 * u), Vector2(w + 4 * u, y - 5 * u), c, 2.0 * u)
 		draw_line(Vector2(-4 * u, y + 3 * u), Vector2(w + 4 * u, y + 2 * u), c, 2.0 * u)
@@ -1037,7 +1038,6 @@ const AM_HI := 1602.0
 const NEEDLE_X0 := -0.076
 const NEEDLE_X1 := 0.076
 const STATIONS := [[594.0, 0.62, "music"], [747.0, 0.5, "talk"], [1017.0, 0.94, "news"], [1350.0, 0.4, "foreign"]]
-const R_NAME := "（聞き取れず）"
 # the bulletin, read at about eight characters a second. # is the place: whatever the signal, it never comes through
 const NEWS := [
 	"……臨時ニュースを、お伝えします。",
@@ -1186,7 +1186,7 @@ func _reception() -> Array:
 	var best := -1; var q := 0.0
 	for i in range(STATIONS.size()):
 		var st: Array = STATIONS[i]
-		var c: float = st[1] * exp(-pow((f - float(st[0])) / 7.0, 2.0))
+		var c: float = st[1] * exp(-pow((f - float(st[0])) / (11.0 if st[2] == "news" else 7.0), 2.0))   # the bulletin a little wider (合格の試し1「合わせが甘かった」)
 		if st[2] == "news": c *= 1.0 - 0.1 * (0.5 + 0.5 * sin(bc_t * 1.3))   # the mountains: the signal swells and fades
 		if c > q: q = c; best = i
 	return [best, q]
@@ -1212,7 +1212,7 @@ func _radio_note(text: String):
 func _radio_close():
 	# a sentence counts as heard when it came through from its start to its end, nearly all of it clear
 	if rrow.has("sent") and rrow.station == "news" and rrow.written >= String(rrow.text).length() and rrow.n_all > 0 and rrow.from <= 2:
-		if float(rrow.n_clear) / float(rrow.n_all) >= 0.85: heard[rrow.sent] = heard.get(rrow.sent, 0) + 1
+		if float(rrow.n_clear) / float(rrow.n_all) >= 0.75: heard[rrow.sent] = heard.get(rrow.sent, 0) + 1
 		print("STORY radio sentence %d clear %d/%d" % [rrow.sent, rrow.n_clear, rrow.n_all])
 	rrow = {}
 
@@ -1242,7 +1242,8 @@ func _radio_write():
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
 		if ch == "#":
-			_seg("name", T(R_NAME))
+			# the place: it never comes through, but as broken sound, not as a transcriber's label (合格の試し1「露骨。がぎぐで……の方が自然」)
+			_seg("name", _garble())
 			continue
 		rrow.n_all += 1
 		if clear: rrow.n_clear += 1; _seg("ok", ch)
@@ -1250,6 +1251,14 @@ func _radio_write():
 		else: _seg("gap", "")
 	if is_instance_valid(rrow.lb): (rrow.lb as Label).text = _wrap_row(_segs_text(rrow.segs))
 	if rrow.written >= text.length(): pass   # closed when the next sentence starts (so it is counted once)
+
+# a place name torn by the signal: two or three syllables of it, different each time it is read out
+func _garble() -> String:
+	var syl := ["ガ", "ギ", "ザ", "ズ", "ミ", "ム", "ヌ", "グ", "ジ", "キ"]
+	var rng := RandomNumberGenerator.new(); rng.seed = int(bc_t / 4.0) * 7919 + rrow.get("sent", 0)
+	var out := "……"
+	for k in rng.randi_range(2, 3): out += syl[rng.randi() % syl.size()] + ("、" if k == 0 else "")
+	return out + "……"
 
 func _seg(kind: String, ch: String):
 	var segs: Array = rrow.segs
