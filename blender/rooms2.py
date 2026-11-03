@@ -79,13 +79,21 @@ def study(M):
     for i, (x, y, a) in enumerate(((9.55, 1.95, .2), (9.5, 2.1, -.1))):
         prim('plane', 'study_paper', loc=(X(x), Y(y), .371 + i * .001), rot=(0, 0, a), scale=(.12, .17, 1), mat=M['screen'])
     # a glass-fronted cabinet on the south wall: the stuffed birds and a fox
-    box('study_cab', 6.4, .1, 8.0, .55, 0, 1.75, M['walnut'], col=True)
+    # hollow (it was one solid block, and what stood inside it could not be seen through the glass)
+    collide(6.4, .1, 8.0, .55, 0, 1.75)
+    box('study_cab', 6.4, .1, 8.0, .12, 0, 1.75, M['walnut'])          # back
+    box('study_cab', 6.4, .1, 6.44, .55, 0, 1.75, M['walnut']); box('study_cab', 7.96, .1, 8.0, .55, 0, 1.75, M['walnut'])
+    box('study_cab', 6.4, .1, 8.0, .55, 0, .1, M['walnut']); box('study_cab', 6.4, .1, 8.0, .55, 1.71, 1.75, M['walnut'])
     box('study_cabglass', 6.45, .552, 7.95, .556, .1, 1.7, M['glass'])
-    for (x, z) in ((6.8, .25), (7.5, .25), (6.9, .95), (7.6, .95)):
+    # the Tripo fox on the bottom shelf in profile and the cock pheasant on the middle one (the built birds only without them)
+    fox = F.tripo_prop('fox', (X(7.2), Y(.33), .22), math.radians(90), .72, name='study_fox')
+    phe = F.tripo_prop('pheasant', (X(7.2), Y(.33), .92), 0.0, .6, name='study_pheasant')
+    birds = () if (fox and phe) else ((6.8, .25), (7.5, .25), (6.9, .95), (7.6, .95))
+    for (x, z) in birds:
         lib.tube('study_bird', [(X(x), Y(.3), z + .05), (X(x + .06), Y(.33), z + .14), (X(x + .1), Y(.38), z + .22)], [(.05, .04), (.04, .035), (.02, .02)], M['fur'], seg=10)
     for z in (.2, .9, 1.4):
         box('study_shelf', 6.42, .12, 7.98, .53, z, z + .02, M['walnut'])
-    lib.tube('study_fox', [(X(7.0), Y(.33), 1.44), (X(7.3), Y(.33), 1.5), (X(7.55), Y(.35), 1.56), (X(7.65), Y(.42), 1.62)], [(.07, .06), (.08, .07), (.05, .05), (.025, .025)], M['fur'], seg=12)
+    if not fox: lib.tube('study_fox', [(X(7.0), Y(.33), 1.44), (X(7.3), Y(.33), 1.5), (X(7.55), Y(.35), 1.56), (X(7.65), Y(.42), 1.62)], [(.07, .06), (.08, .07), (.05, .05), (.025, .025)], M['fur'], seg=12)
     # antlers mounted all along the west (hall) wall over the fusuma: the owner's hunting, in rows
     for i in range(5):
         y = .4 + i * .65

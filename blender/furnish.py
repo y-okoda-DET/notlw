@@ -119,8 +119,28 @@ def living(M):
     lib.point('lamp_living', (X(3.75), Y(LY), 1.08), 130, k=2800, radius=.1)
     collide(3.6, LY - .15, 3.9, LY + .15, 0, 1.25)   # shade below the eye: at 1.5 m it filled the view in from the door
 
+def tripo_prop(n, loc, rot_z=0.0, scale=1.0, name=None):
+    """A Tripo model made light by tripo/prep_props.py (tripo/<n>_prop.glb): its base at z 0, its front toward -Y.
+    None when the file is not there (the built stand-in is used then)."""
+    import os, paths as P
+    f = f'{P.TRIPO}/{n}_prop.glb'
+    if not os.path.exists(f): return None
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=f)
+    new = [o for o in bpy.data.objects if o not in before]
+    o = next(o for o in new if o.type == 'MESH')
+    for e in new:
+        if e is not o: bpy.data.objects.remove(e)
+    o.parent = None; o.name = name or f'prop_{n}'
+    o.rotation_mode = 'XYZ'   # the glTF importer leaves it on quaternions, and rotation_euler did nothing
+    o.rotation_euler = (0, 0, rot_z); o.scale = (scale, scale, scale); o.location = loc
+    bpy.context.view_layer.update()
+    return o
+
 def deer(M, x):
     cx = X(x); yw = Y(.06) - .005; z = 1.72
+    # the Tripo head (plaque included, its back at local +Y .285): 1 m from the neck's foot to the antlers' tips
+    if tripo_prop('deer', (cx, yw - .285 * 1.15, 1.15), 0.0, 1.15, name='furn_deer'): return
     o = prim('cylinder', 'furn_deerplaque', loc=(cx, yw - .02, z), rot=(math.pi / 2, 0, 0), scale=(.17, .24, .02), mat=M['door'], vertices=24)
     lib.tube('furn_deerneck', [(cx, yw - .03, z - .05), (cx, yw - .18, z), (cx, yw - .32, z + .1)], [(.1, .12), (.09, .1), (.08, .085)], M['fur'], seg=14)
     lib.tube('furn_deerhead', [(cx, yw - .3, z + .14), (cx, yw - .44, z + .1), (cx, yw - .57, z + .02)], [(.07, .08), (.055, .06), (.03, .035)], M['fur'], seg=14)

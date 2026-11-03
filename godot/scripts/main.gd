@@ -94,8 +94,11 @@ func _ready():
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
-		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky", "lamp_"]:   # ext_sky: the sky ring round the wood (it shaded the ground near it)
+		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky", "lamp_", "winglass"]:   # ext_sky: the sky ring round the wood (it shaded the ground near it)
 			if String(mi.name).begins_with(pre): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# the whole house is single-sided walls: a low sun from outside sees their backs, which a one-sided shadow pass
+		# culls, and the dawn came through every wall (段階2, 4:30 の廊下が真っ白)
+		if SCENE == "house" and mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON: mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
 	if SCENE == "house": _house_state(); _lights_house()
