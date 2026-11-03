@@ -385,7 +385,7 @@ func _lights_dusk():
 				lights.lamp = _lamp(L)
 			"lamp_kitchen", "lamp_living", "lamp_dining":
 				# the rooms' lamps, on at dusk (the rooms beyond the hall, 試作33「部屋、もう少し回れるように」)
-				var kl := _mk_omni(L, 1.4 * float(ARGS.get("klamp", "1.0")), 5.0, 0.08)
+				var kl := _mk_omni(L, (3.5 if L.name == "lamp_living" else 1.4) * float(ARGS.get("klamp", "1.0")), 5.0, 0.08)   # the living room: only the floor lamp, and the dark sofa and table need it (試作42、klamp 2.5 で読めた)
 				kl.shadow_enabled = true; kl.omni_attenuation = 1.3; kl.light_volumetric_fog_energy = 0.0
 				lights[L.name] = kl
 
