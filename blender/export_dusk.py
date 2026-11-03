@@ -24,9 +24,13 @@ def build():
     lib.reset()
     s = bpy.context.scene
     M = D.mats()
-    A = H4.build_house4(M, floors=('1F', '2F')); H4.prune(St.GI_BOX)
+    A = H4.build_house4(M, floors=('1F', '2F')); H4.prune(St.ROOMS_BOX, drop=[St.STUDY_IN])
     A['doors']['front'].rotation_euler.z = math.radians(105)   # open onto the sunset (Japanese front doors swing out)
-    S['boxes'] = H4.colliders()
+    # the living room and the kitchen are open to walk into (each leaf swings into its room)
+    A['doors']['living'].rotation_euler.z = math.radians(92)
+    A['doors']['kitchen'].rotation_euler.z = math.radians(92)
+    import furnish
+    S['boxes'] = H4.colliders() + furnish.furnish(M)
     shot.genkan_props4(M, shoes=5, umbrellas=5)
     Y = St.YF; DC = St.DOOR_C
     porch = prim('cube', 'porch', loc=(DC, Y + 1.0, Hm.ZG - .03), scale=(1.6, 1.0, .03), mat=M['floor']); lib.uv_box(porch, .87)
@@ -208,7 +212,7 @@ if __name__ == '__main__':
     E.simplify_materials()
     chars = set()
     for r in (S['k'], S['t'], S['n'], S['m']): chars |= set(E.descendants(r))
-    E.bake_bounce([o for o in bpy.data.objects if o not in chars and o.name != 'sunset_backdrop'])
+    E.bake_bounce([o for o in bpy.data.objects if o not in chars and o.name != 'sunset_backdrop'], size=4096)   # three rooms more than the hall: the same texels per metre
     taiga_lights()
     E.dump_lights()
     rigs = {'kiryu': (S['k'], lambda t: pose_kiryu(S['k'], t)), 'taiga': (S['t'], lambda t: pose_taiga(S['t'], t)),

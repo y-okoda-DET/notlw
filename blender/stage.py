@@ -16,7 +16,7 @@ KIRYU_D = (-.32, 4.78)                        # dusk: behind the camcorder, as o
 KIRYU_N = (-.32, 4.37)                        # 23:00: reading his phone
 NATSUKI_D = (.36, 4.19)
 MAKOTO_D = (.95, 3.86)                        # holding the reflector on Natsuki, just in front of the stair's foot
-FRESNEL = (-.5, 2.9)                          # in the walkway by the living-room door, aimed at the mark
+FRESNEL = (-.1, 2.9)                          # in the walkway by the living-room door, aimed at the mark; toward the stair so the door (now open at dusk) can be walked through
 APPLEBOX = (-.6, 3.85)                        # by the walkway's mouth, out of the way of the views of Makoto
 TAIGA_D = (DOOR_C + .06, YF + .17)            # in the doorway with an apple box
 TAIGA_N = (DOOR_C + .06, YF - 1.03)           # leaning into the shut door
@@ -24,6 +24,10 @@ SHOECAB_TOP = (H4.X(5.77), H4.Y(.7), ZG + .91)
 PLAYER = (-.3, 1.0, 1.55)                     # Mio's start (eye), in the walkway behind the stair's foot
 PLAYER_LOOK = (DOOR_C, YF, .75)
 GI_BOX = ((HALL[0] - .3, -1.0, ZG - .1), (HALL[1] + .3, YF + .4, H4.H1 + .4))
+# dusk: the living and dining rooms (west) and the kitchen (east) are open too (試作33「部屋、もう少し回れるように」);
+# the study behind its fusuma stays shut
+ROOMS_BOX = ((H4.X(0) - .3, H4.Y(8) - .3, ZG - .1), (H4.X(10) + .3, YF + .4, H4.H1 + .4))
+STUDY_IN = ((H4.X(6) + .05, H4.Y(3.6) + .05, -.1), (H4.X(10) + .3, YF + .4, H4.H1 + .1))
 
 def scene_json(scene, boxes):
     """What Godot needs of the set besides the meshes: walls to bump into, people and stands to walk round, the start."""

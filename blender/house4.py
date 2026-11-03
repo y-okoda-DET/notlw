@@ -265,7 +265,7 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
         stairs_up(M, 0.0, F2)
         # interior doors (closed unless a scene opens them); the front and back doors are left to the scene
         a['doors'] = {
-            'living': door_leaf(M, 'Y', 4, 3.1, 3.95, 0, name='door_living'),
+            'living': door_leaf(M, 'Y', 4, 3.1, 3.95, 0, hinge='hi', name='door_living'),   # hinged at the dining end: open, it lies toward the dining room, not across the view of the screen
             'dining': door_leaf(M, 'Y', 4, 6.1, 6.95, 0, name='door_dining'),
             'kitchen': door_leaf(M, 'Y', 6, 6.0, 6.85, 0, name='door_kitchen'),
             'toilet': door_leaf(M, 'Y', 5.0, 7.0, 7.7, 0, name='door_toilet'),
@@ -325,14 +325,18 @@ def lobby_lamp(M):
     lib.smooth(g)
     lib.point('lamp_lobby', (x, y, z - .28), 40, k=2700, radius=.06)
 
-def prune(box, keep=('ext_',)):
+def prune(box, keep=('ext_',), drop=()):
     """Delete meshes whose bounds lie wholly outside box ((x0, y0, z0), (x1, y1, z1)): the rooms behind shut doors in a
-    hall scene (they would take most of the lightmap's texels and are never seen)."""
+    hall scene (they would take most of the lightmap's texels and are never seen). Also those wholly inside any of the
+    `drop` boxes (a shut room inside the box)."""
     (x0, y0, z0), (x1, y1, z1) = box
     gone = 0
     for o in list(bpy.data.objects):
         if o.type != 'MESH' or o.name.startswith(keep): continue
         bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+        if any(min(v.x for v in bb) > a[0] and max(v.x for v in bb) < b[0] and min(v.y for v in bb) > a[1] and max(v.y for v in bb) < b[1]
+               and min(v.z for v in bb) > a[2] and max(v.z for v in bb) < b[2] for (a, b) in drop):
+            bpy.data.objects.remove(o, do_unlink=True); gone += 1; continue
         if (max(v.x for v in bb) < x0 or min(v.x for v in bb) > x1 or max(v.y for v in bb) < y0 or min(v.y for v in bb) > y1
                 or max(v.z for v in bb) < z0 or min(v.z for v in bb) > z1):
             bpy.data.objects.remove(o, do_unlink=True); gone += 1
