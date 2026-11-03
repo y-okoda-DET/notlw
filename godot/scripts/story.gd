@@ -66,6 +66,7 @@ var page: Control
 var lines_box: VBoxContainer
 var tes_box: VBoxContainer     # Mio's answers to the interviewer (testimony)
 var offscreen: Array = ["ラジオ"]   # voices from off the frame: these lines keep the speaker's name
+var named := {}                     # who has had their name shown in this conversation (試作34「名前はその会話の最初だけ」)
 var note_lb: Label             # the bracketed stage note (what she is looking at)
 var board_layer: CanvasLayer
 var board_rect: TextureRect
@@ -247,7 +248,8 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		var rule := ColorRect.new(); rule.color = Color(paper.r, paper.g, paper.b, 0.85)
 		rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(rule)
-	elif who != "" and who in offscreen:
+	elif who != "" and kind == "say" and (who in offscreen or not named.has(who)):
+		named[who] = true
 		var w := _label(20); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
 	var sz := 26.0 if tes else size
@@ -256,9 +258,17 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 	if tes: t.add_theme_constant_override("line_spacing", int(6 * u))
 	row.add_child(t)
 	box.add_child(row)
+	if kind == "choose": row.set_meta("choice", true)
 	if not tes:
-		while lines_box.get_child_count() > (4 if kind == "choose" or cur.has("choose") else 2):
-			var c := lines_box.get_child(0); lines_box.remove_child(c); c.queue_free()
+		# two lines at most; but the choices (the struck-through ones too) stay with the first line that follows them
+		while lines_box.get_child_count() > 2:
+			var c := lines_box.get_child(0)
+			var after := 0
+			for k in range(lines_box.get_child_count() - 1, -1, -1):
+				if lines_box.get_child(k).has_meta("choice"): break
+				after += 1
+			if c.has_meta("choice") and after <= 1: break
+			lines_box.remove_child(c); c.queue_free()
 		for i in range(lines_box.get_child_count()):   # the line before fades back
 			(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
 	return [row, t]
@@ -733,6 +743,7 @@ func _start(entries: Array):
 	print("STORY start ", focus, " t=%.1f" % t_now)
 	mode = TALK
 	_clear_page()
+	named.clear()
 	rrow = {}
 	radio_up = false
 	_next()
