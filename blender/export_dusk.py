@@ -185,7 +185,7 @@ def pose_makoto(m, t):
                 amt[f_] = best; C.clear_finger(m, side, f_)
             for f_, a_ in amt.items(): C.curl_finger(m, side, f_, a_, (40, 50, 30))
             C.clear_finger(m, side, 'thumb')
-            T = edge - out * .07 + f * (.006 + .007) + ub * .02     # the thumb tip on the front face, 7 cm in from the edge (aimed 3 cm in, the thumb overshot and stood 4 cm off the face)
+            T = edge - out * .05 - f * (.006 + .012) + ub * .06     # the thumb behind the board with the fingers, along the back face (on the front, 7 cm in, it read from Mio's place as a hand through the board: 試作34の画像「この真琴の手って直ってる？」; hooked over the edge it stood off sideways)
             for _ in range(5):
                 h_ = C.bone_head(m, f'thumb_01_{side}'); t_ = C.bone_tail(m, f'thumb_03_{side}')
                 a1, b1 = t_ - h_, T - h_

@@ -112,10 +112,10 @@ def living(M):
     # a floor lamp at the sofa's back end, short of the door (from the far corner it lit only the wall), on: the sun does not reach far past the front windows, and the room read black
     LY = 2.93
     cyl('furn_lampbase', 3.75, LY, 0, .03, .14, M['iron'])
-    cyl('furn_lamppole', 3.75, LY, .03, 1.45, .012, M['iron'], 8)
-    cyl('furn_lampshade', 3.75, LY, 1.4, 1.65, .17, M['shade'], 20)
-    lib.point('lamp_living', (X(3.75), Y(LY), 1.5), 60, k=2800, radius=.1)
-    collide(3.6, LY - .15, 3.9, LY + .15, 0, 1.6)
+    cyl('furn_lamppole', 3.75, LY, .03, 1.05, .012, M['iron'], 8)
+    cyl('furn_lampshade', 3.75, LY, 1.0, 1.22, .16, M['shade'], 20)
+    lib.point('lamp_living', (X(3.75), Y(LY), 1.08), 80, k=2800, radius=.1)
+    collide(3.6, LY - .15, 3.9, LY + .15, 0, 1.25)   # shade below the eye: at 1.5 m it filled the view in from the door
 
 def deer(M, x):
     cx = X(x); yw = Y(.06) - .005; z = 1.72
