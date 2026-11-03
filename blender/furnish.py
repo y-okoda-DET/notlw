@@ -32,14 +32,16 @@ def legs(name, x0, y0, x1, y1, h, t, mat, inset=.03):
 
 def mats(M):
     if 'sofa' in M: return
-    M['sofa'] = mat_image('sofa', tex_path('corduroy'), rough=.9, coords='UV', bump=.1, tint=(.42, .46, .34))
+    M['sofa'] = mat_image('sofa', tex_path('ph/poly_wool_herringbone_diff'), rough=.9, coords='UV', bump=.15, tint=(.62, .7, .55))
+    M['walnut'] = mat_image('walnut', tex_path('ph/american_walnut_veneer_diff'), rough=.45, coords='UV', bump=.05)
+    M['oak'] = mat_image('oak', tex_path('ph/oak_veneer_01_diff'), rough=.5, coords='UV', bump=.05, tint=(.9, .85, .78))
     M['rug'] = mat_image('rug', tex_path('plaid'), rough=.95, coords='UV', bump=.05, tint=(.75, .55, .45))
     M['iron'] = mat_basic('iron', (.035, .033, .03), .55, metal=.6)
     M['hearth'] = mat_image('hearth', tex_path('tile'), rough=.5, coords='UV', bump=.1, tint=(.7, .55, .45))
     M['screen'] = mat_basic('screen', (.82, .82, .8), .9)
-    M['fur'] = mat_basic('fur', (.3, .2, .12), .9)
+    M['fur'] = mat_image('fur', None, rough=.95, fallback=lib.noise_proc((.36, .25, .15), (.16, .1, .06), scale=60., bumpv=.25))
     M['antler'] = mat_basic('antler', (.72, .65, .52), .6)
-    M['cabinet'] = mat_basic('cabinet', (.62, .6, .52), .5)
+    M['cabinet'] = mat_basic('cabinet', (.66, .63, .54), .5)   # painted cream (the painted-wood image is blue-grey: it turned the kitchen cold)
     M['steel'] = mat_basic('steel', (.6, .6, .6), .3, metal=1)
     M['fridge'] = mat_basic('fridge', (.78, .78, .74), .35)
     M['paperbag'] = mat_basic('paperbag', (.5, .36, .22), .9)
@@ -86,8 +88,8 @@ def living(M):
     collide(.15, scr_y0, .8, scr_y1, 0, 1.9)
     box('furn_rug', 1.25, .7, 3.75, 3.0, 0, .012, M['rug'], 1.0)
     # low table
-    box('furn_ltable', 1.55, 1.25, 2.3, 2.45, .36, .4, M['door'])
-    legs('furn_ltleg', 1.55, 1.25, 2.3, 2.45, .36, .05, M['door'])
+    box('furn_ltable', 1.55, 1.25, 2.3, 2.45, .36, .4, M['walnut'])
+    legs('furn_ltleg', 1.55, 1.25, 2.3, 2.45, .36, .05, M['walnut'])
     collide(1.55, 1.25, 2.3, 2.45, 0, .42)
     # projector, its lens toward the screen, a cable off the table's edge
     box('furn_proj', 1.7, 1.7, 1.98, 1.95, .4, .5, M['fridge'])
@@ -104,7 +106,7 @@ def living(M):
     for i in range(3):   # seat cushions
         a = fy0 + .2 + i * (fy1 - fy0 - .4) / 3
         box('furn_sofaseat', fx0 + .02, a + .01, fx1 - .22, a + (fy1 - fy0 - .4) / 3 - .01, .42, .52, M['sofa'])
-    legs('furn_sofaleg', fx0, fy0, fx1, fy1, .08, .04, M['door'])
+    legs('furn_sofaleg', fx0, fy0, fx1, fy1, .08, .04, M['walnut'])
     collide(fx0, fy0, fx1, fy1, 0, .9)
     for (cx, cy) in ((1.45, .95), (2.45, 2.75)):   # floor cushions
         o = box('furn_cushion', cx - .22, cy - .22, cx + .22, cy + .22, .012, .1, M['cushion'])
@@ -114,7 +116,7 @@ def living(M):
     cyl('furn_lampbase', 3.75, LY, 0, .03, .14, M['iron'])
     cyl('furn_lamppole', 3.75, LY, .03, 1.05, .012, M['iron'], 8)
     cyl('furn_lampshade', 3.75, LY, 1.0, 1.22, .16, M['shade'], 20)
-    lib.point('lamp_living', (X(3.75), Y(LY), 1.08), 80, k=2800, radius=.1)
+    lib.point('lamp_living', (X(3.75), Y(LY), 1.08), 130, k=2800, radius=.1)
     collide(3.6, LY - .15, 3.9, LY + .15, 0, 1.25)   # shade below the eye: at 1.5 m it filled the view in from the door
 
 def deer(M, x):
@@ -130,12 +132,17 @@ def deer(M, x):
         lib.tube('furn_antler', [b, (cx + s * .12, yw - .33, z + .33), (cx + s * .2, yw - .3, z + .45), (cx + s * .22, yw - .22, z + .58)], [.018, .014, .011, .007], M['antler'], seg=8)
         lib.tube('furn_antler', [(cx + s * .15, yw - .325, z + .37), (cx + s * .14, yw - .42, z + .47)], [.01, .006], M['antler'], seg=6, sub=1)
         lib.tube('furn_antler', [(cx + s * .2, yw - .3, z + .45), (cx + s * .26, yw - .36, z + .55)], [.009, .005], M['antler'], seg=6, sub=1)
+    # a real head is bigger than first built (it read as a small ornament from the door): 1.3x about the plaque
+    piv = lib.link(bpy.data.objects.new('furn_deer_pivot', None)); piv.location = (cx, yw, z)
+    for o in [o for o in bpy.data.objects if o.name.startswith(('furn_deer', 'furn_antler')) and o.type == 'MESH']:
+        o.parent = piv; o.location = o.location - piv.location
+    piv.scale = (1.3, 1.3, 1.3); piv.location.z = z - .12
 
 # ---------------------------------------------------------------- 食堂 (plan x 0..4, y 4.6..8)
 def dining(M):
     tx0, tx1, ty0, ty1 = 1.0, 3.0, 5.85, 6.85
-    box('furn_table', tx0, ty0, tx1, ty1, .69, .74, M['door'])
-    legs('furn_tableleg', tx0, ty0, tx1, ty1, .69, .07, M['door'], inset=.06)
+    box('furn_table', tx0, ty0, tx1, ty1, .69, .74, M['walnut'])
+    legs('furn_tableleg', tx0, ty0, tx1, ty1, .69, .07, M['walnut'], inset=.06)
     for i in range(3):
         x = tx0 + .35 + i * .65
         for side in (-1, 1):
@@ -148,7 +155,7 @@ def dining(M):
     for (x, y) in ((2.1, 6.6), (2.75, 6.55)):
         cyl('furn_mug', x, y, .74, .83, .04, M['fridge'], 12)
     # sideboard on the north wall beside the window
-    box('furn_sideboard', .15, 7.48, 1.1, 7.94, 0, .85, M['door'], col=True)
+    box('furn_sideboard', .15, 7.48, 1.1, 7.94, 0, .85, M['walnut'], col=True)
     # pendant over the table, on
     cyl('furn_pendcord', 2.0, 6.35, 1.75, H4.H1, .006, M['plastic'], 6)
     cyl('furn_pendshade', 2.0, 6.35, 1.6, 1.78, .2, M['shade'], 24)
@@ -157,10 +164,10 @@ def dining(M):
 def chair(M, x, y, side):
     """side -1: the chair is on the table's front (plan -y) side, its back further out."""
     w = .42
-    box('furn_chairseat', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .47, M['agari'], 1.25)
-    legs('furn_chairleg', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .035, M['agari'], inset=.02)
+    box('furn_chairseat', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .47, M['oak'], 1.25)
+    legs('furn_chairleg', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .035, M['oak'], inset=.02)
     by = y + side * (w / 2 - .02)
-    box('furn_chairback', x - w / 2 + .02, by - .02, x + w / 2 - .02, by + .02, .47, .9, M['agari'], 1.25)
+    box('furn_chairback', x - w / 2 + .02, by - .02, x + w / 2 - .02, by + .02, .47, .9, M['oak'], 1.25)
 
 # ---------------------------------------------------------------- 台所 (plan x 6..10, y 3.6..8; the pantry in its back east corner)
 def kitchen(M):
