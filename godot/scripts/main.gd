@@ -383,11 +383,11 @@ func _lights_dusk():
 				lights[L.name] = tl
 			"lamp_lobby":
 				lights.lamp = _lamp(L)
-			"lamp_kitchen":
-				# the kitchen's pendant, on at dusk (the rooms beyond the hall, 試作33「部屋、もう少し回れるように」)
+			"lamp_kitchen", "lamp_living", "lamp_dining":
+				# the rooms' lamps, on at dusk (the rooms beyond the hall, 試作33「部屋、もう少し回れるように」)
 				var kl := _mk_omni(L, 1.4 * float(ARGS.get("klamp", "1.0")), 5.0, 0.08)
 				kl.shadow_enabled = true; kl.omni_attenuation = 1.3; kl.light_volumetric_fog_energy = 0.0
-				lights.kitchen = kl
+				lights[L.name] = kl
 
 func _lights():
 	var arr = JSON.parse_string(FileAccess.get_file_as_string("res://assets/lights.json"))

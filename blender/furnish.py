@@ -109,11 +109,13 @@ def living(M):
     for (cx, cy) in ((1.45, .95), (2.45, 2.75)):   # floor cushions
         o = box('furn_cushion', cx - .22, cy - .22, cx + .22, cy + .22, .012, .1, M['cushion'])
         lib.smooth(o)
-    # a floor lamp by the sofa's end (off: the sun is still in)
-    cyl('furn_lampbase', 3.75, .35, 0, .03, .14, M['iron'])
-    cyl('furn_lamppole', 3.75, .35, .03, 1.45, .012, M['iron'], 8)
-    cyl('furn_lampshade', 3.75, .35, 1.4, 1.65, .17, M['shade_off'], 20)
-    collide(3.6, .2, 3.9, .5, 0, 1.6)
+    # a floor lamp at the sofa's back end, short of the door (from the far corner it lit only the wall), on: the sun does not reach far past the front windows, and the room read black
+    LY = 2.93
+    cyl('furn_lampbase', 3.75, LY, 0, .03, .14, M['iron'])
+    cyl('furn_lamppole', 3.75, LY, .03, 1.45, .012, M['iron'], 8)
+    cyl('furn_lampshade', 3.75, LY, 1.4, 1.65, .17, M['shade'], 20)
+    lib.point('lamp_living', (X(3.75), Y(LY), 1.5), 60, k=2800, radius=.1)
+    collide(3.6, LY - .15, 3.9, LY + .15, 0, 1.6)
 
 def deer(M, x):
     cx = X(x); yw = Y(.06) - .005; z = 1.72
@@ -147,9 +149,10 @@ def dining(M):
         cyl('furn_mug', x, y, .74, .83, .04, M['fridge'], 12)
     # sideboard on the north wall beside the window
     box('furn_sideboard', .15, 7.48, 1.1, 7.94, 0, .85, M['door'], col=True)
-    # pendant over the table (off)
+    # pendant over the table, on
     cyl('furn_pendcord', 2.0, 6.35, 1.75, H4.H1, .006, M['plastic'], 6)
-    cyl('furn_pendshade', 2.0, 6.35, 1.6, 1.78, .2, M['shade_off'], 24)
+    cyl('furn_pendshade', 2.0, 6.35, 1.6, 1.78, .2, M['shade'], 24)
+    lib.point('lamp_dining', (X(2.0), Y(6.35), 1.56), 50, k=2800, radius=.1)
 
 def chair(M, x, y, side):
     """side -1: the chair is on the table's front (plan -y) side, its back further out."""
