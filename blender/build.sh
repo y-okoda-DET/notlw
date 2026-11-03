@@ -17,8 +17,8 @@ set -u
 . "$(dirname "$0")/paths.sh"
 N=$1; FAST=${FAST:-}; W=$WORK; mkdir -p $W $BUILD; L=$W/build$N.log
 G=$GODOT
-SCENES=${SCENES:-night dusk}
-[ -z "$FAST" ] && SCENES="night dusk"   # 配布用はいつも両方
+SCENES=${SCENES:-night dusk house}
+[ -z "$FAST" ] && SCENES="night dusk house"   # 配布用はいつも全部（house：段階2の家まるごと、6つの時刻）
 echo "== start $(date +%T)${FAST:+ (FAST: $SCENES)}" > $L
 cd $KF
 if [[ " $SCENES " == *" night "* ]]; then
@@ -33,7 +33,13 @@ if [[ " $SCENES " == *" dusk "* ]]; then
   grep -E "^lightmap|^LM_STALE" $W/export${N}d.log | sed 's/^/  dusk /' >> $L
   python3 denoise_lm.py -- $RULES/assets/dusk/lightmap.exr >> $W/export${N}d.log 2>&1
 fi
-[ "$SCENES" != "night dusk" ] && echo "  書き出さなかった場面は前回のまま（FAST だけ。送る前は FAST なしで両方）" >> $L
+if [[ " $SCENES " == *" house "* ]]; then
+  echo "== house $(date +%T)" >> $L
+  FAST=$FAST python3 export_house.py > $W/export${N}h.log 2>&1 || { echo HOUSE_FAIL >> $L; exit 1; }
+  grep -E "^lightmap .*(baked|hit)" $W/export${N}h.log | sed 's/^/  house /' >> $L
+  for t in $(python3 -c "import times; print(' '.join(times.TIMES))"); do python3 denoise_lm.py -- $RULES/assets/house/$t/lightmap.exr >> $W/export${N}h.log 2>&1; done
+fi
+[ "$SCENES" != "night dusk house" ] && echo "  書き出さなかった場面は前回のまま（FAST だけ。送る前は FAST なしで両方）" >> $L
 # 人体の構造の確認（顔・つま先の向き、ひじ・ひざの曲がる向き、前腕のねじれ）。NG なら止める
 python3 anatomy.py > $W/anatomy${N}.log 2>&1; tail -1 $W/anatomy${N}.log >> $L
 grep -q "^ANATOMY_OK" $W/anatomy${N}.log || { grep "NG" $W/anatomy${N}.log >> $L; echo ANATOMY_FAIL >> $L; exit 1; }
@@ -42,7 +48,7 @@ cd $RULES
 # glb から取り出された画像（env_<hash>_a/_n.png）のうち、今の env.glb が使わない古い物を消す（残すと pck に入る）
 python3 - <<'PY'
 import json, struct, os, glob
-for d in ('assets', 'assets/dusk'):
+for d in ('assets', 'assets/dusk', 'assets/house'):
     g = d + '/env.glb'
     if not os.path.exists(g): continue
     b = open(g, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]
@@ -53,20 +59,24 @@ for d in ('assets', 'assets/dusk'):
                 if os.path.exists(x): os.remove(x)
 PY
 $G --headless --path . --import > /dev/null 2>&1
-for f in $(grep -l "size_limit=0" assets/*.import assets/dusk/*.import assets/faces/*.import | grep -v exr); do sed -i 's/size_limit=0/size_limit=2048/' $f; done
+for f in $(grep -l "size_limit=0" assets/*.import assets/dusk/*.import assets/house/*.import assets/faces/*.import 2>/dev/null | grep -v exr); do sed -i 's/size_limit=0/size_limit=2048/' $f; done
 # 家と外の画像は WebP の非可逆（品質 0.85）で持つ。可逆のままだと外の画像だけで zip の上限 400MiB を超える
-for f in $(grep -l "compress/mode=0" assets/env_*.png.import assets/dusk/env_*.png.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=1/; s/compress\/lossy_quality=0.7/compress\/lossy_quality=0.85/' $f; done
+for f in $(grep -l "compress/mode=0" assets/env_*.png.import assets/dusk/env_*.png.import assets/house/env_*.png.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=1/; s/compress\/lossy_quality=0.7/compress\/lossy_quality=0.85/' $f; done
 $G --headless --path . --import > /dev/null 2>&1
 # VoxelGI：焼くのは家（env）だけ。家・光・場面の設定・Godot のスクリプトとシェーダーが前回と同じなら前の gi.res を使う
-for sc in night dusk; do
+GIS="night dusk"; [ -f assets/house/scene.json ] && GIS="$GIS $(cd $KF && python3 -c "import times; print(' '.join('house:' + t for t in times.TIMES))")"
+for sc in $GIS; do
   A=assets; [ $sc = dusk ] && A=assets/dusk
-  K=$( { for f in $A/env.glb $A/lightmap.exr $A/lights.json $A/scene.json project.godot $(ls *.tscn scripts/*.gd shaders/* 2>/dev/null | sort); do sha256sum $f; done; $G --version; } | sha256sum | cut -c1-24)
-  C=$W/cache/gi/$sc-$K.res
+  TM=""; if [[ $sc == house:* ]]; then TM=${sc#house:}; A=assets/house/$TM; fi
+  SC=${sc%%:*}
+  E=$A; [ -n "$TM" ] && E=assets/house
+  K=$( { for f in $E/env.glb $A/lightmap.exr $A/lights.json $E/scene.json project.godot $(ls *.tscn scripts/*.gd shaders/* 2>/dev/null | sort); do sha256sum $f; done; $G --version; } | sha256sum | cut -c1-24)
+  C=$W/cache/gi/${sc/:/-}-$K.res
   if [ -f $C ]; then cp $C $A/gi.res; echo "  $sc gi: cache hit $K" >> $L
   else
-    xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=$sc > /dev/null 2>&1
+    xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=$SC ${TM:+--time=$TM} > /dev/null 2>&1
     S=$(stat -c %s $A/gi.res 2>/dev/null || echo 0)
-    if [ $S -gt 100000 ]; then mkdir -p $W/cache/gi; cp $A/gi.res $C; ls -t $W/cache/gi/$sc-*.res | tail -n +5 | xargs -r rm; echo "  $sc gi: baked $K ($S bytes)" >> $L
+    if [ $S -gt 100000 ]; then mkdir -p $W/cache/gi; cp $A/gi.res $C; ls -t $W/cache/gi/${sc/:/-}-*.res | tail -n +5 | xargs -r rm; echo "  $sc gi: baked $K ($S bytes)" >> $L
     else echo "GI_FAIL $sc gi.res $S bytes (Vulkan がない？ SETUP.md 3)" >> $L; exit 1; fi
   fi
 done

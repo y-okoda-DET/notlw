@@ -21,11 +21,14 @@ var card: Control
 var record := ""
 var ARGS := {}
 static var PRINT_V := 2              # 1: first print, 2: second print (V switches)
-static var PRINT_EXP := {"night": 1.8, "dusk": 1.3}   # the printer's exposure per scene; - and = adjust
+static var PRINT_EXP := {"night": 1.8, "dusk": 1.3, "house": 1.8}   # the printer's exposure per scene; - and = adjust
 static var SET := {}             # every setting survives N (scene switch reloads the tree)
 static var DUSK_K := {"sun": 1.0, "sky": 1.0, "key": 1.0}   # 夕方の光の強さ（太陽／戸口の空／フレネル）: 7-8, 9-0, [-] keys
 static var DUSK_BASE := {}       # the lights' designed energies, to scale from
-static var SCENE := ""            # "night" (第2章 23:00) or "dusk" (第1章 夕方); N switches
+static var SCENE := ""            # "night" (第2章 23:00) or "dusk" (第1章 夕方) or "house" (段階2: the whole house, no people); N switches
+static var TIME := ""             # 段階2, the house: dusk t20 t23 t02 t0330 t0430 (T steps through them)
+const TIME_LABEL := {"dusk": "十七時半（夕方）", "t20": "二十時（停電）", "t23": "二十三時", "t02": "二時", "t0330": "三時半", "t0430": "四時半（夜明け）"}
+var ST := {}                      # the house's state at TIME (scene.json "state")
 var BASE := "res://assets/"
 var door_pivot: Node3D
 var story                          # 段階1: the playable 第1章 (scripts/story.gd), dusk only, not in check runs
@@ -53,7 +56,8 @@ func _ready():
 		if a.begins_with("--print="): ARGS["print"] = float(a.substr(8))
 		if a == "--nocard": CARD_TIME = 0.0
 		if a.begins_with("--riso="): PRINT_V = int(a.substr(7))
-		if a.begins_with("--pexp="): PRINT_EXP[SCENE if SCENE != "" else "night"] = float(a.substr(7))
+		if a.begins_with("--pexp="): PRINT_EXP[SCENE if SCENE != "" else "night"] = float(a.substr(7)); ARGS["pexp"] = float(a.substr(7))
+		if a.begins_with("--time=") and TIME == "": TIME = a.substr(7)
 		if a == "--status": ARGS["status"] = true; SET["pin"] = true
 		if a == "--bright": ARGS["bright"] = true
 		if a.begins_with("--dusk="):   # check stills: the dusk light scales sun,sky,key (as the 7-0 [ ] keys set them)
@@ -73,8 +77,13 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
-	BASE = "res://assets/dusk/" if SCENE == "dusk" else "res://assets/"
+	BASE = "res://assets/dusk/" if SCENE == "dusk" else ("res://assets/house/" if SCENE == "house" else "res://assets/")
 	S = JSON.parse_string(FileAccess.get_file_as_string(BASE + "scene.json"))
+	if SCENE == "house":
+		if TIME == "" or not S.state.has(TIME): TIME = "dusk"
+		ST = S.state[TIME]
+		PRINT_EXP["house"] = float(ARGS.get("pexp", ST.exp))
+		if CARD_TIME > 0.0: CARD_TIME = 2.0
 	_environment()
 	_load_scene(BASE + "env.glb", "env")
 	for n in ([] if ARGS.has("nochars") else CHARS):
@@ -89,7 +98,8 @@ func _ready():
 			if String(mi.name).begins_with(pre): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
-	if SCENE == "dusk": _lights_dusk()
+	if SCENE == "house": _house_state(); _lights_house()
+	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
 	_gi()
 	_colliders()
@@ -134,6 +144,8 @@ func _environment():
 	if SCENE == "dusk":
 		env.ambient_light_color = Color(0.55, 0.42, 0.34)
 		env.ambient_light_energy = 0.1
+	if SCENE == "house":
+		env.ambient_light_color = Color(ST.amb[0], ST.amb[1], ST.amb[2]); env.ambient_light_energy = ST.ambe
 	if ARGS.has("bright"): env.ambient_light_energy = 3.0; env.volumetric_fog_enabled = false
 	we.environment = env
 	add_child(we)
@@ -148,6 +160,11 @@ func _environment():
 		fog_vol.position = b2g([(g0[0] + g1[0]) / 2.0, (g0[1] + g1[1]) / 2.0, 1.12])
 	var fm := FogMaterial.new()
 	fm.density = 0.05 if SCENE == "dusk" else 0.085
+	if SCENE == "house":   # the whole house, every floor
+		var h0: Array = S.gi_box[0]; var h1: Array = S.gi_box[1]
+		fog_vol.size = Vector3(h1[0] - h0[0] - 0.6, h1[2] - h0[2] - 0.2, h1[1] - h0[1] - 0.6)
+		fog_vol.position = b2g([(h0[0] + h1[0]) / 2.0, (h0[1] + h1[1]) / 2.0, (h0[2] + h1[2]) / 2.0])
+		fm.density = ST.fog
 	fm.albedo = Color(1, 1, 1)
 	fm.edge_fade = 0.05
 	fog_vol.material = fm
@@ -298,16 +315,17 @@ func _gi():
 		voxel_gi.bake(S.env_node, false)
 		var data := voxel_gi.data
 		data.energy = 1.0; data.propagation = 0.75; data.bias = 1.5; data.normal_bias = 0.0; data.interior = true; data.use_two_bounces = true
-		ResourceSaver.save(data, BASE + "gi.res")
+		ResourceSaver.save(data, _gi_path())
 		print("GI BAKED in ", Time.get_ticks_msec() - t, " ms")
 		get_tree().quit()
 		return
-	if ResourceLoader.exists(BASE + "gi.res"):
-		voxel_gi.data = load(BASE + "gi.res")
+	if ResourceLoader.exists(_gi_path()):
+		voxel_gi.data = load(_gi_path())
 		print("GI DATA ", voxel_gi.data != null)
 	# art-directed bounce: the haze in the house scatters the key everywhere, so the bounce is pushed above physical
-	voxel_gi.data.energy = float(ARGS.get("gie", "4.0"))
-	voxel_gi.data.propagation = 0.85
+	if voxel_gi.data:
+		voxel_gi.data.energy = float(ARGS.get("gie", "4.0"))
+		voxel_gi.data.propagation = 0.85
 	env.sdfgi_energy = float(ARGS.get("gie", "4.0"))
 	for k in ["fres", "blue", "sky"]:
 		if lights.has(k): lights[k].light_indirect_energy = 2.0
@@ -317,9 +335,13 @@ func _gi():
 # modes: 0 baked bounce (Blender lightmap)  1 VoxelGI  2 SDFGI  3 none
 const GI_NAMES := ["焼き込み", "VoxelGI", "SDFGI", "なし"]
 var lm_mats: Array = []
+func _gi_path() -> String:
+	return BASE + TIME + "/gi.res" if SCENE == "house" else BASE + "gi.res"
+
 func _lightmap():
-	if not FileAccess.file_exists(BASE + "lightmap.exr") and not ResourceLoader.exists(BASE + "lightmap.exr"): return
-	var lm: Texture2D = load(BASE + "lightmap.exr")
+	var lp: String = BASE + TIME + "/lightmap.exr" if SCENE == "house" else BASE + "lightmap.exr"
+	if not FileAccess.file_exists(lp) and not ResourceLoader.exists(lp): return
+	var lm: Texture2D = load(lp)
 	var sh: Shader = load("res://shaders/lightmapped.gdshader")
 	var mi := S.env_node.find_child("env_static", true, false) as MeshInstance3D
 	if mi == null: return
@@ -347,6 +369,7 @@ func _set_gi(m: int):
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) if m == 0 else 0.0)
 	if lights.has("fake_bounce"): lights.fake_bounce.visible = false
 	env.ambient_light_energy = 0.06 if SCENE == "dusk" else 0.02
+	if SCENE == "house": env.ambient_light_energy = ST.ambe
 
 # 第1章 夕方: low sun through the open front door, the sky in the doorway, the fresnel being aimed at her mark,
 # and a white board throwing the floor's sunlight back up into Natsuki's face
@@ -433,6 +456,78 @@ func _lights():
 		np.add_child(o)
 		lights.nphone = o
 
+# 段階2: the whole house at one of the six times (blender/times.py). What the time changes besides the lights: the boards
+# over the windows, the generator's cord, the front door, which lampshades glow, the sky ring round the wood.
+func _house_state():
+	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if nm.begins_with("board_"): mi.visible = ST.boards
+		elif nm.begins_with("gencord"): mi.visible = ST.cord
+	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
+	var lit := {}
+	for L in arr: lit[L.name] = true
+	for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
+		var key := String(mi.name).substr(10).get_slice(".", 0).get_slice("_0", 0)
+		for i in range(mi.mesh.get_surface_count()):
+			var m := mi.get_active_material(i) as StandardMaterial3D
+			if m == null: continue
+			var d := m.duplicate() as StandardMaterial3D
+			if lit.has(key): d.emission_enabled = true; d.emission_energy_multiplier = max(d.emission_energy_multiplier, 2.0)
+			else: d.emission_enabled = false
+			mi.set_surface_override_material(i, d)
+	for mi in S.env_node.find_children("ext_sky*", "MeshInstance3D", true, false):
+		var m := mi.get_active_material(0) as StandardMaterial3D
+		if m:
+			var d := m.duplicate() as StandardMaterial3D
+			d.emission_energy_multiplier = ST.sky; d.emission = Color(ST.skyc[0], ST.skyc[1], ST.skyc[2])
+			mi.set_surface_override_material(0, d)
+	if door_pivot: door_pivot.rotation.y = S.get("door_rot", 0.0) + deg_to_rad(ST.front); S["door_rot"] = door_pivot.rotation.y
+
+func _lights_house():
+	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
+	for L in arr:
+		var g: Dictionary = L.g
+		var l: Light3D
+		match String(g.get("kind", "omni")):
+			"omni":
+				var o := _mk_omni(L, g.e, g.get("r", 4.0), g.get("size", 0.02))
+				o.shadow_enabled = g.get("sh", 0) > 0; o.omni_attenuation = g.get("att", 1.6)
+				l = o
+			"spot":
+				l = _mk_spot(L, g.e, g.get("ang", 30.0), g.get("size", 0.1), g.get("sh", 1) > 0)
+			"sun":
+				var d := DirectionalLight3D.new()
+				d.light_color = Color(L.color[0], L.color[1], L.color[2]).linear_to_srgb()
+				d.light_energy = g.e; d.shadow_enabled = g.get("sh", 1) > 0; d.light_angular_distance = g.get("ang", 0.8)
+				d.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS; d.directional_shadow_max_distance = 22.0
+				add_child(d)
+				var dir = b2g(L.dir)
+				d.look_at_from_position(Vector3.ZERO, dir, Vector3.UP if abs(dir.y) < 0.95 else Vector3.FORWARD)
+				l = d
+			"bolt":
+				l = _mk_spot(L, 0.0, 55.0, 1.0)
+				lights.bolt = l
+		if l == null: continue
+		l.light_volumetric_fog_energy = g.get("fog", 1.0)
+		if g.has("spec"): l.light_specular = g.spec
+		l.set_meta("e", float(g.get("e", 0.0))); l.set_meta("flick", String(g.get("flick", "")))
+		lights[L.name] = l
+
+func _house_flicker(t: float, lt: float, p: Callable):
+	var dip: float = 1.0 - 0.55 * p.call(lt, LIGHTNING_T + 0.15, 0.12) - 0.25 * p.call(lt, LIGHTNING_T + 0.4, 0.08)
+	for k in lights:
+		var l = lights[k]
+		if not (l is Light3D) or not l.has_meta("flick"): continue
+		var e: float = l.get_meta("e")
+		match String(l.get_meta("flick")):
+			"fres": l.light_energy = e * (1.0 + 0.03 * sin(t * 6.1) + 0.02 * sin(t * 17.3)) * dip
+			"gen":
+				# a bulb on the generator: it breathes with the engine, and at 20:00 the engine has only just caught
+				var w: float = 0.05 if TIME == "t20" else 0.018
+				l.light_energy = e * (1.0 + w * sin(t * 7.3) + w * 0.8 * sin(t * 23.1 + 1.0)) * dip
+			"candle": l.light_energy = e * (1.0 + 0.08 * sin(t * 9.1) + 0.06 * sin(t * 15.7 + 2.0) + 0.04 * sin(t * 31.0))
+			"batt": l.light_energy = e * (1.0 + 0.01 * sin(t * 3.0))
+
 func _rain():
 	var r := S.env_node.find_child("rain", true, false) as MeshInstance3D
 	if r == null: return
@@ -497,7 +592,9 @@ func _player():
 	player = preload("res://scripts/player.gd").new()
 	var cs := CollisionShape3D.new(); var cap := CapsuleShape3D.new(); cap.radius = 0.17; cap.height = 1.6
 	cs.shape = cap; cs.position.y = 0.8
-	player.wall_min_slide_angle = 0.0   # walking nearly head-on into a wall or a person slides along it instead of stopping (試作33「窮屈感」)
+	player.wall_min_slide_angle = 0.0
+	player.floor_max_angle = deg_to_rad(52.0)   # 段階2: the stairs are ramps (42° up, 39° down to the cellar)
+	player.floor_snap_length = 0.35   # walking nearly head-on into a wall or a person slides along it instead of stopping (試作33「窮屈感」)
 	player.add_child(cs)
 	var head := Node3D.new(); head.name = "Head"; player.add_child(head)
 	var cam := Camera3D.new(); cam.name = "Camera"; cam.fov = ARGS.get("fov", 62.0); cam.near = 0.05; head.add_child(cam)
@@ -509,6 +606,8 @@ func _player():
 	if S.has("spawn"):
 		player.global_position = Vector3(S.spawn[0], 0.0, -S.spawn[1])
 		player.yaw = -atan2(S.look[0] - S.spawn[0], S.look[1] - S.spawn[1])
+	if SCENE == "house" and SET.has("house_pos"):   # T: the next time, standing where you stood
+		player.global_position = SET.house_pos[0]; player.yaw = SET.house_pos[1]; player.pitch = SET.house_pos[2]
 	if ARGS.has("noclip"): player.collision_layer = 0; player.collision_mask = 0; player.fly = true
 	if ARGS.has("pose"):
 		var q = ARGS["pose"]
@@ -578,7 +677,7 @@ func _status(changed: String):
 		note.anchor_left = 0.0; note.anchor_top = 1.0; note.anchor_bottom = 1.0
 		note.offset_left = 28 * u; note.offset_bottom = -24 * u; note.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	var items := [
-		["scene", "第一章 夕方" if SCENE == "dusk" else "第二章 夜"],
+		["scene", ("家　" + String(TIME_LABEL.get(TIME, TIME))) if SCENE == "house" else ("第一章 夕方" if SCENE == "dusk" else "第二章 夜")],
 		["cam", "カメラ " + player.CAM_MODES[player.cam_mode]],
 		["gi", "照り返し " + GI_NAMES[gi_mode]],
 		["ht", "網点 " + ("全体" if ht_mode == 0 else "中心だけ細かく")],
@@ -658,13 +757,15 @@ func _card():
 	var font: FontFile = load("res://fonts/SerifJP-Bold.otf")   # the imported resource (load_dynamic_font fell back to a system sans on Windows)
 	var u: float = get_viewport().get_visible_rect().size.y / 1080.0
 	var rows := [["二十三時", 52, 0]]
+	if SCENE == "house": rows = [[String(TIME_LABEL.get(TIME, TIME)), 52, 0]]
 	if SCENE == "dusk": rows = [["第 一 章", 46, 40], ["「ルール」", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
 	card = make_card(self, rows, font)
 	# the keys: not on the card (the card is the interviewer's), but along the top once the scene has begun
 	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
 	foot = Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
-	if door_scene: foot.text = "ＷＡＳＤ 歩く　マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	if SCENE == "house": foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｔ 時刻　Ｎ 場面　Ｇ 照り返し　Ｐ 刷り　－／＝ 刷りの明るさ　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	elif door_scene: foot.text = "ＷＡＳＤ 歩く　マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -697,7 +798,7 @@ func _process(dt):
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
 	if foot:
-		foot.visible = t >= CARD_TIME and t < CARD_TIME + 12.0
+		foot.visible = t >= CARD_TIME and t < CARD_TIME + 12.0 and record == ""
 		foot.modulate.a = clamp((CARD_TIME + 12.0 - t) / 2.0, 0.0, 1.0)
 	player.input_enabled = t > CARD_TIME - 0.4
 	var lt: float = fmod(max(t - CARD_TIME, 0.0), LOOP)
@@ -727,6 +828,7 @@ func _process(dt):
 		door_pivot.rotation.y = S.door_rot + 0.006 * j
 		# her palm on the slit glass cuts the light coming in with every blow
 		if lights.has("blue"): lights.blue.light_energy = 1.4 * (1.0 - 0.45 * clamp(abs(j), 0.0, 1.0))
+	if SCENE == "house": _house_flicker(t, lt, p)
 	if lights.has("fres"):
 		var dip: float = 1.0 - 0.55 * p.call(lt, LIGHTNING_T + 0.15, 0.12) - 0.25 * p.call(lt, LIGHTNING_T + 0.4, 0.08)
 		lights.fres.light_energy = 9.0 * (1.0 + 0.03 * sin(t * 6.1) + 0.02 * sin(t * 17.3)) * dip
@@ -810,8 +912,15 @@ func _unhandled_input(e):
 				SET["pin"] = not SET.get("pin", false); _status("")
 			KEY_N:
 				_save_settings()
-				SCENE = "dusk" if SCENE == "night" else "night"
+				SCENE = {"dusk": "night", "night": "house", "house": "dusk"}.get(SCENE, "dusk") if ResourceLoader.exists("res://assets/house/scene.json") else ("dusk" if SCENE == "night" else "night")
 				get_tree().reload_current_scene()
+			KEY_T:
+				if SCENE == "house":   # 段階2: the next time of the night, in the same house, from where you stand
+					_save_settings()
+					var ts: Array = S.times
+					TIME = ts[(ts.find(TIME) + 1) % ts.size()]
+					SET["house_pos"] = [player.global_position, player.yaw, player.pitch]
+					get_tree().reload_current_scene()
 			KEY_7, KEY_8, KEY_9, KEY_0, KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
 				if SCENE == "dusk":
 					var which := "sun" if e.keycode in [KEY_7, KEY_8] else ("sky" if e.keycode in [KEY_9, KEY_0] else "key")
@@ -825,7 +934,8 @@ func _unhandled_input(e):
 				# a screenshot next to the exe, named with where the player stands, so the same view can be taken again
 				var img := get_viewport().get_texture().get_image()
 				var p: Vector3 = player.global_position; var t: float = Time.get_ticks_msec() / 1000.0
-				var name := "shot_%s_x%.2f_z%.2f_yaw%.0f_pitch%.0f_t%.1f.png" % [SCENE, p.x, p.z, rad_to_deg(player.yaw), rad_to_deg(player.pitch), t]
+				var name := "shot_%s_x%.2f_z%.2f_yaw%.0f_pitch%.0f_t%.1f.png" % [SCENE if SCENE != "house" else "house-" + TIME, p.x, p.z, rad_to_deg(player.yaw), rad_to_deg(player.pitch), t]
+				if SCENE == "house": name = name.replace(".png", "_y%.2f.png" % p.y)
 				if SCENE == "dusk":   # the dusk light set with 7/8, 9/0, [ ] goes into the name, to become the defaults
 					name = name.replace(".png", "_sun%.2f_sky%.2f_key%.2f.png" % [DUSK_K.sun, DUSK_K.sky, DUSK_K.key])
 				var dir := OS.get_executable_path().get_base_dir() if OS.has_feature("template") else ProjectSettings.globalize_path("user://")

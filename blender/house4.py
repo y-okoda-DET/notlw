@@ -343,7 +343,7 @@ def prune(box, keep=('ext_',), drop=()):
     print('prune: removed', gone)
 
 COLLIDE = ('wallcore', 'floor1', 'genkan', 'shoecab', 'door_living', 'door_dining', 'door_kitchen', 'door_toilet',
-           'door_pantry', 'door_cellar', 'door_front', 'door_back', 'fusuma', 'agarikamachi')
+           'door_pantry', 'door_cellar', 'door_front', 'door_back', 'fusuma', 'agarikamachi', 'floor2', 'floorB', 'door2_')
 def colliders():
     """Axis-aligned boxes for the player (Blender centre + size), from the built meshes; the staircase is one block
     (no climbing), the genkan step a ramp so you can walk back up. Floors are made .5 m deep."""
@@ -353,7 +353,7 @@ def colliders():
         bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
         lo = Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))
         hi = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
-        if o.name.startswith(('floor1', 'genkan')): lo.z = hi.z - .5
+        if o.name.startswith(('floor1', 'genkan', 'floor2', 'floorB')): lo.z = hi.z - .5
         if o.name.startswith('wallcore'):   # the core is the wall less its faces: collide with the whole thickness
             if hi.x - lo.x < hi.y - lo.y: lo.x -= .02; hi.x += .02
             else: lo.y -= .02; hi.y += .02

@@ -199,3 +199,14 @@
 - フォントは日本語の部分集合。英語以外（中国語など）を足すときは、その言語の字を含むフォントを別に用意する。
 - Steam の言語設定に合わせるのは Steamworks を入れるとき（今は PC の言語で選ばれる）。
 - 改行（2026-11-02、ユーザー「気持ち悪い箇所での改行を防ぎたい」）：text.csv の ja の列は、キーに文節の切れ目（U+200B）を入れたもの（extract.py が BudouX で入れる。BudouX は Apache-2.0、手元の道具としてだけ使い、ゲームには入らない）。story.gd wrap_text() はその切れ目と空白でだけ改行し、打ち始める前に改行を決める。fallback の言語は ja（訳のない言語でも切れ目が使われる）。T() は切れ目を取り除いた文字、Tw() は切れ目つき。Label の自動の訳は全体で切ってある（main.gd）。
+
+## 段階2：家まるごと（2026-11-03〜、blender/export_house.py・rooms2.py・times.py、godot の house 場面）
+- 人のいない家の全体を一つの glb（godot/assets/house/env.glb）にし、6つの時刻（times.TIMES：dusk t20 t23 t02 t0330 t0430）ごとに光（<時刻>/lights.json）・ライトマップ（<時刻>/lightmap.exr）・VoxelGI（<時刻>/gi.res）を持つ。形は一つなので 'lm' の UV も一つで、ライトマップだけを時刻で差し替えられる。
+- 時刻で変わる物はライトマップに入れない（export_house.DYN）：窓の板 board_*、発電機の延長コード gencord、玄関の扉 door_pivot、灯りの笠 lampshade_<光の名前>（その名前の光がある時刻だけ光る）、外の空の輪 ext_sky の明るさ。焼くときは時刻ごとに hide_render と材質を切り替えてから焼く（set_time）。Godot は scene.json の state で同じ切り替えをする（main.gd _house_state）。
+- 光は times.py に1か所。Blender の光（焼き込み用）に、Godot での作り方 'g'（kind・e・r・ang・sh・fog・flick）を付けて lights.json に書く。夜と夕方の場面のように Godot 側で名前ごとに値を書かない（main.gd _lights_house）。値は夜・夕方の場面で目で合わせた値から写した。
+- 階段は坂の当たり判定（rooms2.climb_boxes、scene.json の ramp と rx）。上り 42°、地下へ 39°。プレイヤーの floor_max_angle を 52° にした。踏み板そのものは当たらない。階段の開いた側（西）は 2階の手すりの高さまでの見えない壁（踏み外さない・階段の下に入らない）。
+- 2階・地下の確認画はプレイヤーの体を 1階の床に置き、目の高さだけ上げ下げして撮る（house_shots.py。close.py と同じ --shots）。体は真下の床に落ちる。
+- 地下の壁は house4 の洋館の壁（漆喰と腰板）で建つので、rooms2.cellar が高さ -.05 より下の面の材質をコンクリートに差し替える。
+- 扉の開く向き：export_house.build の角度は真上の図（$WORK/hs/top.py）で確かめた。1階のトイレは +92（-92 だと奥の細い廊下をふさぐ）、2階の寝室1は -92・寝室2は +92（逆だと廊下側に開く）。
+- build.sh は house も書き出す（SCENES の既定に house）。VoxelGI は時刻ごとに焼く（--bake-gi --scene=house --time=…）。
+- 走っている build.sh を書き換えない（bash は走りながらファイルを読むので、途中で壊れる）。書き換えるなら止めてから、または写しを走らせる。
