@@ -43,6 +43,7 @@ def mats(M):
     M['towel'] = mat_basic('towel', (.55, .6, .65), .95)
     # his handwriting (blender/lived_tex.py)
     M['calendar'] = lib.mat_image('lived_calendar', lib.tex_path('lived_calendar'), rough=.85, bump=0)
+    M['photo'] = lib.mat_image('lived_photo', lib.tex_path('lived_photo'), rough=.5, bump=0)
     M['ledgerpage'] = lib.mat_image('lived_ledgerpage', lib.tex_path('lived_ledger'), rough=.85, bump=0)
 
 def phm(a, x, y, z, rz=0.0, rx=0.0, ry=0.0, s=1.0, name=None):
@@ -110,7 +111,12 @@ def hall(M):
     # his orange vest and cap on the first hook (Tripo, the user's: 2026-11-04); the second hook is empty
     import furnish as F
     F.tripo_prop('vest', (X(4.0) + W + .183 * .8 + .004, Y(1.62), 1.76 - .98 * .8), math.pi / 2, .8, name='lived_vest')
-    ghost_frames(M, 'Y', 4, 1, [(4.3, 4.75, 1.35, 1.7), (4.95, 5.6, 1.3, 1.78)])
+    ghost_frames(M, 'Y', 4, 1, [(4.3, 4.75, 1.35, 1.7)])
+    # the one frame left: him and his hunting party on the forest road (the user's image, 2026-11-04)
+    xf = X(4.0) + W
+    box('lived_photoframe', 4.0 + W, 4.95, 4.0 + W + .022, 5.6, 1.3, 1.78, M['walnut'])
+    prim('plane', 'lived_photomat', loc=(xf + .0225, Y(5.275), 1.54), rot=(math.pi / 2, 0, math.pi / 2), scale=(.3, .215, 1), mat=M['label'])
+    prim('plane', 'lived_photo', loc=(xf + .0232, Y(5.275), 1.54), rot=(math.pi / 2, 0, math.pi / 2), scale=(.26, .195, 1), mat=M['photo'])
     # the genkan: his rubber boots by the shoe cabinet (the user's Tripo pair; Poly Haven's when it is not there),
     # work gloves on its top
     if not F.tripo_prop('boots', (X(5.42), Y(.7), H4.ZG), math.pi / 2, .41, name='lived_boots'):
