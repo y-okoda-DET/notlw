@@ -48,6 +48,7 @@ def build():
     boxes += b2
     for k, piv in d2.items(): piv.rotation_euler.z = math.radians({'bed1': -92, 'bed2': 92, 'bed3': 92, 'bath': -92}[k])
     boxes += rooms2.climb_boxes()
+    import lived; lived.build(M)   # the owner's life left in the house (2026-11-04)
     # each lampshade its own material, so its glow can follow its light
     for o in [o for o in bpy.data.objects if o.name.startswith('lampshade_')]:
         if o.data.materials: o.data.materials[0] = o.data.materials[0].copy()
