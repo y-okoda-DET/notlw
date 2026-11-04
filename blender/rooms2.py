@@ -84,7 +84,7 @@ def study(M):
     box('study_cab', 6.4, .1, 8.0, .12, 0, 1.75, M['walnut'])          # back
     box('study_cab', 6.4, .1, 6.44, .55, 0, 1.75, M['walnut']); box('study_cab', 7.96, .1, 8.0, .55, 0, 1.75, M['walnut'])
     box('study_cab', 6.4, .1, 8.0, .55, 0, .1, M['walnut']); box('study_cab', 6.4, .1, 8.0, .55, 1.71, 1.75, M['walnut'])
-    box('study_cabglass', 6.45, .552, 7.95, .556, .1, 1.7, M['glass'])
+    # no glass in front: in Godot the pane read as an opaque board and hid the fox and the pheasant (試作45)
     # the Tripo fox on the bottom shelf in profile and the cock pheasant on the middle one (the built birds only without them)
     fox = F.tripo_prop('fox', (X(7.2), Y(.33), .25), math.radians(90), .72, name='study_fox')
     if fox: box('study_foxbase', 6.83, .19, 7.57, .47, .22, .25, M['walnut'])   # one board under the whole fox (ユーザー)

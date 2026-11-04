@@ -135,9 +135,13 @@ def lights(t):
         # blocked by the trees, and a soft one went through every wall in Godot). What comes in is the cold sky in the
         # east windows: a soft light outside each, aimed in and down, so the gaps between the boards throw bars.
         for (nm, px, py, z, k) in (('dawn_study', 10, 1.7, H4.SILL1 + H4.WH1 + .5, 1.0), ('dawn_kitchen', 10, 6.2, H4.SILL1 + H4.WH1 + .5, 1.0),
-                                   ('dawn_bed3', 10, 1.9, H4.F2 + 2.1, 1.0), ('dawn_bath', 10, 6.5, H4.F2 + 2.1, .6)):
+                                   ('dawn_bed3', 10, 1.9, H4.F2 + 2.1, .55), ('dawn_bath', 10, 6.5, H4.F2 + 2.1, .6)):
             src = (X(px + 1.3), Y(py - .25), z); dst = (X(px - 2.2), Y(py + .2), z - 1.9 if z < 2.5 else z - 2.0)
             L.append(_g(lib.area(nm, src, dst, 30 * k, k=11000, size=(1.0, 1.0)), kind='spot', e=4.0 * k, ang=48, sh=1, size=.08, fog=1.0, spec=.15))
+        # the paler sky to the south, in the living room's boarded front windows (試作45: the room was black at 4:30)
+        for (nm, px) in (('dawn_living1', 1.2), ('dawn_living2', 2.9)):
+            src = (X(px), Y(-1.3), 2.6); dst = (X(px), Y(2.2), .5)
+            L.append(_g(lib.area(nm, src, dst, 15, k=10000, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=1.0, spec=.15))
         w.inputs[0].default_value = (*lib.kelvin(11000), 1); w.inputs[1].default_value = .12
         L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
     bpy.context.view_layer.update()
