@@ -74,7 +74,9 @@ def study(M):
     box('study_desk', 9.25, 1.15, 9.85, 2.45, .33, .37, M['walnut'])
     legs('study_deskleg', 9.25, 1.15, 9.85, 2.45, .33, .06, M['walnut'], inset=.02)
     collide(9.25, 1.15, 9.85, 2.45, 0, .38)
-    box('study_zabuton', 8.6, 1.5, 9.1, 2.0, .03, .1, M['cushion'])
+    import furnish as F
+    if not F.tripo_prop('zabuton', (X(8.85), Y(1.75), .03), .15, .5, name='study_zabuton'):   # the user's Tripo cushion
+        box('study_zabuton', 8.6, 1.5, 9.1, 2.0, .03, .1, M['cushion'])
     cyl('study_ashtray', 9.6, 1.4, .37, .4, .06, M['iron'])
     for i, (x, y, a) in enumerate(((9.55, 1.95, .2), (9.5, 2.1, -.1))):
         prim('plane', 'study_paper', loc=(X(x), Y(y), .371 + i * .001), rot=(0, 0, a), scale=(.12, .17, 1), mat=M['screen'])

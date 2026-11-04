@@ -23,7 +23,7 @@ E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
 # these get LM_BOOST times the atlas area instead: scaled up for the unwrap, then put back.
-TRIPO_LIVED = ('lived_vest', 'lived_boots', 'lived_kettle'); LM_BOOST = 3.0
+TRIPO_LIVED = ('lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton'); LM_BOOST = 3.0
 
 _bake_object = E.bake_object
 def _bake_sized(o, size=1024):

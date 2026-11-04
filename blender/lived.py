@@ -102,6 +102,10 @@ def living(M):
         box('lived_string', dx, 4.04, dx + .01, 4.34, 0, .168, M['string'])
     phm('hatchet', .9, 4.2, .168 + .015, ry=math.pi / 2, rz=.35, name='lived_hatchet')   # laid on the bundle, for the kindling
 
+    # a deer's hide on the floor before the stove's hearth (the user's Tripo; one of his own deer)
+    import furnish as F
+    F.tripo_prop('hide', (X(1.75), Y(3.55), .002), .08, 1.3, name='lived_hide')
+
 def hall(M):
     # the two hooks his vest and cap hung on, by the genkan (Tripo: the vest itself, 画像生成とTripo_2回目), and the
     # frames along the hall
@@ -164,6 +168,9 @@ def study(M):
     phm('vintage_binocular', 9.68, 2.28, .37 + .027, rz=.5, name='lived_binocular')
     phm('cigarette_pack', 9.72, 1.28, .37, rz=1.2, name='lived_cigs')
     phm('vintage_lighter', 9.74, 1.52, .37 + .029, rx=math.pi / 2, rz=.4, name='lived_lighter')
+    # his blankets folded in the corner by the fusuma (the user's Tripo)
+    import furnish as F
+    F.tripo_prop('blanket', (X(6.38), Y(3.22), .03), .1, .55, name='lived_blanket')
     # his books on the tokonoma's side: plain spines (no titles to read)
     for i in range(7):
         h = .21 + .03 * ((i * 37) % 3); w = .025 + .01 * ((i * 13) % 2)
