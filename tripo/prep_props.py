@@ -33,8 +33,12 @@ def prep(n):
         bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < CUT[n]], context='VERTS')
         for v in bm.verts: v.co.z -= CUT[n]
         bm.to_mesh(o.data); bm.free()
-    if n in FLAT:
-        for v in o.data.vertices: v.co.z *= FLAT[n]
+    if n in FLAT:   # its underside (pale leather) crossed the top once pressed flat and showed through in patches: dropped
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(o.data); bm.normal_update()
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.normal.z < 0], context='FACES')
+        for v in bm.verts: v.co.z *= FLAT[n]
+        bm.to_mesh(o.data); bm.free()
     t0 = sum(len(p.vertices) - 2 for p in o.data.polygons)
     md = o.modifiers.new('dec', 'DECIMATE'); md.ratio = min(1.0, TARGET[n] / max(1, t0))
     bpy.ops.object.modifier_apply(modifier='dec')

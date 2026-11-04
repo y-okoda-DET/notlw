@@ -24,6 +24,7 @@ E.NO_LM = tuple(E.NO_LM) + DYN
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
 # these get LM_BOOST times the atlas area instead: scaled up for the unwrap, then put back.
 TRIPO_LIVED = ('lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton'); LM_BOOST = 3.0
+LM_BOOST_OF = {'lived_hide': 8.0}   # the hide still came out in light and dark blocks at 3 (試作47)
 
 _bake_object = E.bake_object
 def _bake_sized(o, size=1024):
@@ -102,7 +103,8 @@ def join_static():
             c = o.matrix_world.translation.copy(); boost.append(c)
             a = o.data.attributes.new('lmboost', 'INT', 'POINT')
             for v in a.data: v.value = len(boost)
-            o.scale = o.scale * LM_BOOST
+            k = next((v for key, v in LM_BOOST_OF.items() if o.name.startswith(key)), LM_BOOST)
+            boost[-1] = (c, k); o.scale = o.scale * k
     for o in statics:
         if len(o.data.uv_layers) == 0: o.data.uv_layers.new(name='UVMap')
         o.data.uv_layers[0].name = 'UVMap'
@@ -118,7 +120,7 @@ def join_static():
         mw = j.matrix_world; inv = mw.inverted()
         for v, a in zip(me.vertices, me.attributes['lmboost'].data):
             if a.value:
-                c = boost[a.value - 1]; w = mw @ v.co; v.co = inv @ (c + (w - c) / LM_BOOST)
+                c, k = boost[a.value - 1]; w = mw @ v.co; v.co = inv @ (c + (w - c) / k)
         me.attributes.remove(me.attributes['lmboost'])
     return j
 
