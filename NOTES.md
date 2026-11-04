@@ -217,3 +217,7 @@
 - ライトマップ（EXR）を BC6H（Godot の VRAM 圧縮、high_quality）で取り込むと、家の1時刻が 50MB → 4MB。4:30 の居間・寝室・書斎を刷りなしで前後に並べ、見分けがつかなかった（$WORK/bc6/cmp.png）。build.sh が取り込みの設定を書き換える。
 - 家のライトマップは 512 回（export_house.py、LM_SAMPLES）。128 回＋ノイズ除去では、暗い部屋（書斎）の壁と棚にまだらが残った。512 回で大きく減った（4:30 の書斎の刷りなし、前後で見比べ、$WORK/bc6/cmp512.png）。1時刻 56 秒。居間の壁の黒い点々は壁紙の柄。
 - 2026-11-04 glTF を読み込んでパーツを join したあとは、読み込んだ Object の参照が消えている（ReferenceError: StructRNA of type Object has been removed）。名前で控えて bpy.data.objects.get(名前) で取り直す（lived.phm）。
+- 2026-11-04 Godot の家にはリフレクションプローブがないので、金属1の材質（ステンレスの調理台、こんろ）は映す物がなく真っ黒になる。家の場面だけ steel を金属.35・粗さ.38 にした（lived.steel）。
+- 2026-11-04 glTF のガラス（KHR_materials_transmission）は Godot で光の焼き込みを受けた不透明な円盤になる（掛け時計の面が橙一色）。Poly Haven のモデルは _glass の面を消して読み込む（lived.phm）。
+- 2026-11-04 Tripo の布やゴム（2万三角形に減らした物）は、光の焼き込みの UV が1テクセルより小さい島に割れて、まだらになる。焼き込みから外すと、焼き込みの照り返しの場面では真っ黒になる。UV を作るときだけ3倍に大きくして、焼き込みの面積を9倍にした（export_house.LM_BOOST）。まだらはほぼ消える。
+- 2026-11-04 FAST の家の焼き込みは32サンプルでしみだらけになる。確認画像は FAST=1 LM_SAMPLES=512 で撮る（1時刻40秒ほどで済む）。

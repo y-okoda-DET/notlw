@@ -64,6 +64,14 @@ def phm(a, x, y, z, rz=0.0, rx=0.0, ry=0.0, s=1.0, name=None):
         ob = bpy.data.objects.get(n)
         if ob is not None and ob.name != keep: bpy.data.objects.remove(ob)
     o = bpy.data.objects[keep]
+    # glass (KHR transmission) comes into Godot as an opaque disc lit by the lightmap (the clock's face turned solid
+    # orange in 試作46): its faces are dropped, a clock face and thin lenses read without them
+    gl = [i for i, m in enumerate(o.data.materials) if m and m.name.endswith('_glass')]
+    if gl:
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in gl], context='FACES')
+        bm.to_mesh(o.data); bm.free()
     bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     o.name = name or f'phm_{a}'
@@ -99,9 +107,14 @@ def hall(M):
     for y in (1.62, 1.84):
         o = prim('cylinder', 'lived_hookbase', loc=(X(4.0) + W + .006, Y(y), 1.64), rot=(0, math.pi / 2, 0), scale=(.02, .02, .006), mat=M['walnut'], vertices=10)
         o = prim('cylinder', 'lived_hook', loc=(X(4.0) + W + .025, Y(y), 1.65), rot=(0, math.pi / 2 - .3, 0), scale=(.005, .005, .03), mat=M['steel'], vertices=6)
+    # his orange vest and cap on the first hook (Tripo, the user's: 2026-11-04); the second hook is empty
+    import furnish as F
+    F.tripo_prop('vest', (X(4.0) + W + .183 * .8 + .004, Y(1.62), 1.76 - .98 * .8), math.pi / 2, .8, name='lived_vest')
     ghost_frames(M, 'Y', 4, 1, [(4.3, 4.75, 1.35, 1.7), (4.95, 5.6, 1.3, 1.78)])
-    # the genkan: his rubber boots by the shoe cabinet, work gloves on its top
-    phm('rubber_boots', 5.42, .7, H4.ZG, rz=math.pi / 2, name='lived_boots')
+    # the genkan: his rubber boots by the shoe cabinet (the user's Tripo pair; Poly Haven's when it is not there),
+    # work gloves on its top
+    if not F.tripo_prop('boots', (X(5.42), Y(.7), H4.ZG), math.pi / 2, .41, name='lived_boots'):
+        phm('rubber_boots', 5.42, .7, H4.ZG, rz=math.pi / 2, name='lived_boots')
     phm('garden_gloves_01', 5.8, 1.12, H4.ZG + .91, rz=.7, s=.9, name='lived_gloves')
 
 def kitchen(M):
@@ -153,6 +166,12 @@ def study(M):
     for i, a in enumerate((.4, 1.9, 3.1)):
         o = prim('cylinder', 'lived_butt', loc=(X(9.6 + .025 * math.cos(a)), Y(1.4 + .025 * math.sin(a)), .405), rot=(math.pi / 2, 0, a), scale=(.004, .004, .016), mat=M['butt'], vertices=6)
 
+def steel(M):
+    # stainless at metallic 1 has nothing to reflect in Godot (no reflection probe in the house): the counter tops and
+    # the stove came out black in 試作45/46. Half metal keeps its sheen from the lights and the lightmap.
+    p = M['steel'].node_tree.nodes.get('Principled BSDF')
+    if p: p.inputs['Metallic'].default_value = .35; p.inputs['Roughness'].default_value = .38
+
 def build(M):
-    mats(M)
+    mats(M); steel(M)
     living(M); hall(M); kitchen(M); study(M)

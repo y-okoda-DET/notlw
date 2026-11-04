@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import bpy
 from mathutils import Vector
 
-TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000}
-SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024}
+TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000}
+SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024}
 SRC = f'{P.WORK}/tripo'
 CUT = {'fox': .066}   # the height of Tripo's base (the front paws stand at .07 on nothing)
 
@@ -43,8 +43,8 @@ def prep(n):
     # metallic/roughness from Tripo is noise on a stuffed animal or a white car's paint: fixed values instead
     for sock in ('Metallic', 'Roughness'):
         for l in list(bsdf.inputs[sock].links): nt.links.remove(l)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = .45 if n == 'car' else .8
+    bsdf.inputs['Metallic'].default_value = 0.0   # the kettle too: half-metal reads black in Godot without a probe
+    bsdf.inputs['Roughness'].default_value = {'car': .45, 'kettle': .5}.get(n, .8)
     for x in [x for x in nt.nodes if x.type == 'TEX_IMAGE']:
         if not x.outputs[0].links: nt.nodes.remove(x); continue
         img = x.image

@@ -95,14 +95,14 @@ def calendar_page():
     ink = Image.new('RGBA', (W, H), (0, 0, 0, 0)); di = ImageDraw.Draw(ink)
     for n in range(1, LAST_X + 1):
         cx, cy = cells[n]; m = 16 + R.uniform(-3, 3)
-        jline(di, (cx + m, cy + m), (cx + cw - m, cy + ch - m), (30, 30, 34, 235), 5)
-        jline(di, (cx + cw - m + R.uniform(-4, 4), cy + m), (cx + m, cy + ch - m + R.uniform(-4, 4)), (30, 30, 34, 235), 5)
+        jline(di, (cx + m, cy + m), (cx + cw - m, cy + ch - m), (30, 30, 34, 240), 10)
+        jline(di, (cx + cw - m + R.uniform(-4, 4), cy + m), (cx + m, cy + ch - m + R.uniform(-4, 4)), (30, 30, 34, 240), 10)
     cx, cy = cells[15]; ccx, ccy = cx + 34, cy + 30
     pts = [(ccx + (38 + R.uniform(-2, 2)) * math.cos(a), ccy + (30 + R.uniform(-2, 2)) * math.sin(a))
            for a in [math.radians(-40 + k * 13) for k in range(31)]]   # a little more than once round, as a pen does
-    for k in range(len(pts) - 1): di.line([pts[k], pts[k + 1]], fill=(200, 30, 26, 240), width=6)
+    for k in range(len(pts) - 1): di.line([pts[k], pts[k + 1]], fill=(200, 30, 26, 245), width=11)
     ink = ink.filter(ImageFilter.GaussianBlur(.8)); im.alpha_composite(ink)
-    hand_text(im, (cx + 12, cy + 58), '解禁', hand(38), (200, 30, 26, 250), rot=-6, jit=2, sw=2)
+    hand_text(im, (cx + 12, cy + 58), '解禁', hand(38), (200, 30, 26, 250), rot=-6, jit=2, sw=3)
     # a nail hole and the faint curl of a page that hung for a season
     d = ImageDraw.Draw(im); d.ellipse((W / 2 - 7, 10, W / 2 + 7, 24), fill=(70, 66, 60))
     im.convert('RGB').save(f'{OUT}/lived_calendar.png')

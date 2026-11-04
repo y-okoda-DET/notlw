@@ -20,6 +20,10 @@ os.makedirs(OUT, exist_ok=True)
 E.OUT = OUT
 DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_')   # switched per time in Godot: kept out of the joined, lightmapped mesh
 E.NO_LM = tuple(E.NO_LM) + DYN
+# Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
+# vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
+# these get LM_BOOST times the atlas area instead: scaled up for the unwrap, then put back.
+TRIPO_LIVED = ('lived_vest', 'lived_boots', 'lived_kettle'); LM_BOOST = 3.0
 
 _bake_object = E.bake_object
 def _bake_sized(o, size=1024):
@@ -92,6 +96,13 @@ def join_static():
     for o in statics: o.select_set(True)
     bpy.context.view_layer.objects.active = statics[0]
     bpy.ops.object.convert(target='MESH')
+    boost = []
+    for o in statics:
+        if o.name.startswith(TRIPO_LIVED):
+            c = o.matrix_world.translation.copy(); boost.append(c)
+            a = o.data.attributes.new('lmboost', 'INT', 'POINT')
+            for v in a.data: v.value = len(boost)
+            o.scale = o.scale * LM_BOOST
     for o in statics:
         if len(o.data.uv_layers) == 0: o.data.uv_layers.new(name='UVMap')
         o.data.uv_layers[0].name = 'UVMap'
@@ -103,6 +114,12 @@ def join_static():
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=.002)
     bpy.ops.object.mode_set(mode='OBJECT')
+    if boost and 'lmboost' in me.attributes:
+        mw = j.matrix_world; inv = mw.inverted()
+        for v, a in zip(me.vertices, me.attributes['lmboost'].data):
+            if a.value:
+                c = boost[a.value - 1]; w = mw @ v.co; v.co = inv @ (c + (w - c) / LM_BOOST)
+        me.attributes.remove(me.attributes['lmboost'])
     return j
 
 def bake_time(j, t, size, samples):
@@ -140,7 +157,7 @@ if __name__ == '__main__':
     print('baked', len(baked))
     j = join_static()
     size = int(os.environ.get('LM_SIZE', '2048'))
-    samples = 32 if os.environ.get('FAST') else int(os.environ.get('LM_SAMPLES', '512'))   # 128 left blotches in the dim rooms (書斎、試作45)
+    samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '512'))   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
     sel = os.environ.get('TIMES', '').split(',') if os.environ.get('TIMES') else TM.TIMES
     for t in TM.TIMES:
         set_time(t, M)
