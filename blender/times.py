@@ -64,6 +64,12 @@ P_CANDLE = (X(8.76), Y(7.62), 1.0)
 P_PHONE_M = (X(9.62), Y(1.72), H4.F2 + .62)
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+def cabinet():
+    """The battery LED bars in the study's cabinet (rooms2.night_lights): the same at every time."""
+    out = []
+    for nm, z in (('cab_led', 1.37), ('cab_led2', .87)):
+        out.append(_g(lib.point(nm, (X(7.2), Y(.42), z), 1.0, k=4300, radius=.02), kind='omni', e=.2, r=1.1, att=1.6, sh=1, fog=0, size=.02, spec=.2))
+    return out
 def candles(e=.5):
     return _g(lib.point('candle_kitchen', P_CANDLE, 8 * e / .5, k=1800, radius=.03), kind='omni', e=e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
 def storm(e=.1):
@@ -144,6 +150,7 @@ def lights(t):
             L.append(_g(lib.area(nm, src, dst, 15, k=10000, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=1.0, spec=.15))
         w.inputs[0].default_value = (*lib.kelvin(11000), 1); w.inputs[1].default_value = .12
         L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
+    L += cabinet()
     bpy.context.view_layer.update()
     return L
 

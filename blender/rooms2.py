@@ -117,6 +117,11 @@ def night_lights(M):
         M['flame'] = mat_basic('flame', (1, .7, .3), .4, emit=lib.kelvin(1800), estr=8)
         M['wax'] = mat_basic('wax', (.85, .82, .74), .5)
         M['phonescr'] = mat_basic('phonescr', (.6, .75, 1), .3, emit=lib.kelvin(8000), estr=3)
+    # the owner's battery LED bars inside the study cabinet, under the two upper shelves (ユーザー「書斎の棚は光を足す」,
+    # 試作45: through the print the fox and the pheasant were black). Battery, so they burn on through the outage
+    if 'cabled' not in M: M['cabled'] = mat_basic('cabled', (.95, .93, .88), .4, emit=lib.kelvin(4300), estr=4)
+    box('lampshade_cab_led', 6.5, .44, 7.9, .47, 1.385, 1.398, M['cabled'])
+    box('lampshade_cab_led2', 6.5, .44, 7.9, .47, .885, .898, M['cabled'])
     x, y, z = 1.85, 1.6, .4
     cyl('lantern_base', x, y, z, z + .05, .055, M['plastic'], 16)
     cyl('lampshade_lantern_living', x, y, z + .05, z + .2, .045, M['lanternglow'], 16)
