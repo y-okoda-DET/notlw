@@ -214,3 +214,5 @@
 - 窓ガラス（winglass）は Blender では影を落とさない（visible_shadow False）が、Godot では落としていた。外からの光（夜明け、稲光、雨の空）が窓で全部止まっていた。main.gd で winglass の影を切った。
 - 4:30 の夜明けは太陽でなく、東の窓の外に置いたやわらかいスポット（times.py dawn_*）。日の出前で、低い東は林と尾根に隠れる（太陽を置いたら木の影で家に届かなかった）。窓の板の隙間が床に筋を落とす。
 - 試作45で、VoxelGI の焼き込み（--bake-gi --scene=dusk）が1時間止まった。夕方の env.glb が使う画像（env_furn_deerear.png）が消えていて glb が読めず、main.gd の _process がエラーを出し続けて終わらなかった。家の書き出しで共有の部品（furnish.py）を変えたら、夕方も書き出し直す（FAST でも SCENES="dusk house"）。build.sh の GI の焼き込みに timeout を付けるのは次に build.sh が止まっているときに。
+- ライトマップ（EXR）を BC6H（Godot の VRAM 圧縮、high_quality）で取り込むと、家の1時刻が 50MB → 4MB。4:30 の居間・寝室・書斎を刷りなしで前後に並べ、見分けがつかなかった（$WORK/bc6/cmp.png）。build.sh が取り込みの設定を書き換える。
+- 家のライトマップは 512 回（export_house.py、LM_SAMPLES）。128 回＋ノイズ除去では、暗い部屋（書斎）の壁と棚にまだらが残った。512 回で大きく減った（4:30 の書斎の刷りなし、前後で見比べ、$WORK/bc6/cmp512.png）。1時刻 56 秒。居間の壁の黒い点々は壁紙の柄。

@@ -62,6 +62,9 @@ $G --headless --path . --import > /dev/null 2>&1
 for f in $(grep -l "size_limit=0" assets/*.import assets/dusk/*.import assets/house/*.import assets/faces/*.import 2>/dev/null | grep -v exr); do sed -i 's/size_limit=0/size_limit=2048/' $f; done
 # 家と外の画像は WebP の非可逆（品質 0.85）で持つ。可逆のままだと外の画像だけで zip の上限 400MiB を超える
 for f in $(grep -l "compress/mode=0" assets/env_*.png.import assets/dusk/env_*.png.import assets/house/env_*.png.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=1/; s/compress\/lossy_quality=0.7/compress\/lossy_quality=0.85/' $f; done
+# ライトマップ（EXR）は BC6H（VRAM 圧縮の HDR、高品質）で持つ。無圧縮だと家の6時刻だけで 300MB、夜の 4096 で 200MB あり、
+# zip が上限の 400MiB を超えた（試作45）。なめらかな明るさだけの画なので BC6H にした（前後の見比べは NOTES.md）
+for f in $(grep -l "compress/mode=0" assets/lightmap.exr.import assets/dusk/lightmap.exr.import assets/house/*/lightmap.exr.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=2/; s/compress\/high_quality=false/compress\/high_quality=true/' $f; done
 $G --headless --path . --import > /dev/null 2>&1
 # VoxelGI：焼くのは家（env）だけ。家・光・場面の設定・Godot のスクリプトとシェーダーが前回と同じなら前の gi.res を使う
 GIS="night dusk"; [ -f assets/house/scene.json ] && GIS="$GIS $(cd $KF && python3 -c "import times; print(' '.join('house:' + t for t in times.TIMES))")"
@@ -74,7 +77,7 @@ for sc in $GIS; do
   C=$W/cache/gi/${sc/:/-}-$K.res
   if [ -f $C ]; then cp $C $A/gi.res; echo "  $sc gi: cache hit $K" >> $L
   else
-    xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=$SC ${TM:+--time=$TM} > /dev/null 2>&1
+    timeout 1800 xvfb-run -a -s "-screen 0 960x540x24" $G --path . --windowed --resolution 960x540 -- --bake-gi --scene=$SC ${TM:+--time=$TM} > /dev/null 2>&1
     S=$(stat -c %s $A/gi.res 2>/dev/null || echo 0)
     if [ $S -gt 100000 ]; then mkdir -p $W/cache/gi; cp $A/gi.res $C; ls -t $W/cache/gi/${sc/:/-}-*.res | tail -n +5 | xargs -r rm; echo "  $sc gi: baked $K ($S bytes)" >> $L
     else echo "GI_FAIL $sc gi.res $S bytes (Vulkan がない？ SETUP.md 3)" >> $L; exit 1; fi

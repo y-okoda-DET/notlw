@@ -139,7 +139,7 @@ if __name__ == '__main__':
     print('baked', len(baked))
     j = join_static()
     size = int(os.environ.get('LM_SIZE', '2048'))
-    samples = 32 if os.environ.get('FAST') else 128
+    samples = 32 if os.environ.get('FAST') else int(os.environ.get('LM_SAMPLES', '512'))   # 128 left blotches in the dim rooms (書斎、試作45)
     sel = os.environ.get('TIMES', '').split(',') if os.environ.get('TIMES') else TM.TIMES
     for t in TM.TIMES:
         set_time(t, M)
