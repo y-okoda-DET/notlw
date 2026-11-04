@@ -12,6 +12,7 @@ from mathutils import Vector
 TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000}
 SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024}
 SRC = f'{P.WORK}/tripo'
+CUT = {'fox': .066}   # the height of Tripo's base (the front paws stand at .07 on nothing)
 
 def prep(n):
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -25,6 +26,12 @@ def prep(n):
     for e in [e for e in bpy.context.scene.objects if e != o]: bpy.data.objects.remove(e)
     o.parent = None
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if n in CUT:   # Tripo's own base, under the hind feet only: cut away (the user wants a board under the whole animal; it is built where it is placed)
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < CUT[n]], context='VERTS')
+        for v in bm.verts: v.co.z -= CUT[n]
+        bm.to_mesh(o.data); bm.free()
     t0 = sum(len(p.vertices) - 2 for p in o.data.polygons)
     md = o.modifiers.new('dec', 'DECIMATE'); md.ratio = min(1.0, TARGET[n] / max(1, t0))
     bpy.ops.object.modifier_apply(modifier='dec')

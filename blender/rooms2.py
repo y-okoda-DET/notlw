@@ -86,7 +86,8 @@ def study(M):
     box('study_cab', 6.4, .1, 8.0, .55, 0, .1, M['walnut']); box('study_cab', 6.4, .1, 8.0, .55, 1.71, 1.75, M['walnut'])
     box('study_cabglass', 6.45, .552, 7.95, .556, .1, 1.7, M['glass'])
     # the Tripo fox on the bottom shelf in profile and the cock pheasant on the middle one (the built birds only without them)
-    fox = F.tripo_prop('fox', (X(7.2), Y(.33), .22), math.radians(90), .72, name='study_fox')
+    fox = F.tripo_prop('fox', (X(7.2), Y(.33), .25), math.radians(90), .72, name='study_fox')
+    if fox: box('study_foxbase', 6.83, .19, 7.57, .47, .22, .25, M['walnut'])   # one board under the whole fox (ユーザー)
     phe = F.tripo_prop('pheasant', (X(7.2), Y(.33), .92), 0.0, .6, name='study_pheasant')
     birds = () if (fox and phe) else ((6.8, .25), (7.5, .25), (6.9, .95), (7.6, .95))
     for (x, z) in birds:
