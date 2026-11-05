@@ -231,7 +231,7 @@ def foundation(M, OW):
                 _box('ext_cwell', ax, fixed, n, (a + b) / 2, WOFF + .025, (z0 + z1) / 2, (b - a) / 2, .006, (z1 - z0) / 2, M['ext_glass'])
 
 # ------------------------------------------------------------------ ground, drive, trees, sky
-def site(M, with_trees=True):
+def site(M, with_trees=True, cut_house=False):
     # ground: a grid following ground(), coarse far out
     R = 30.0; xs = np.concatenate([np.linspace(-R, -12, 7)[:-1], np.arange(-12, 12.01, .5), np.linspace(12, R, 7)[1:]])
     V = []; F = []
@@ -241,6 +241,17 @@ def site(M, with_trees=True):
     for j in range(n - 1):
         for i in range(n - 1):
             a = j * n + i; F.append((a, a + 1, a + n + 1, a + n))
+    if cut_house:
+        # the ground's slope passes under the house at -.55 .. -1.8, through the cellar (-2.45 .. -.3): seen from inside
+        # it, a slab of earth crossed the room (試作48の確認). The squares whose middle is inside the footprint go, and
+        # the corners left inside it are pulled out to its edge, so the ground still meets the walls.
+        x0, x1, y0, y1 = H4.X(0), H4.X(10), YN, YS
+        inside = lambda x, y: x0 < x < x1 and y0 < y < y1
+        F = [f for f in F if not inside(sum(V[k][0] for k in f) / 4, sum(V[k][1] for k in f) / 4)]
+        for k, (x, y, z) in enumerate(V):
+            if inside(x, y):
+                d = min((x - x0, 'x', x0), (x1 - x, 'x', x1), (y - y0, 'y', y0), (y1 - y, 'y', y1))
+                V[k] = (d[2], y, z) if d[1] == 'x' else (x, d[2], z)
     for nm, mat, dz, uvs in (('ext_ground', M['ext_ground'], 0, 3.0), ('ext_litter', M['ext_litter'], .008, 4.0)):
         o = lib.mesh_obj(nm, [(x, y, z + dz) for (x, y, z) in V], F); o.data.materials.append(mat); lib.uv_box(o, uvs)
     # gravel drive from the front porch toward the south-east (the private road, Natsuki's car)
@@ -315,8 +326,9 @@ def mats(M):
         M['ext_sky'] = sky
 
 TIME = 'dusk'
-def build_ext4(M, with_trees=True, time='dusk'):
-    """time: 'dusk' (第1章の夕方) or 'night' (23:00, rain: a dark sky ring)."""
+def build_ext4(M, with_trees=True, time='dusk', cut_house=False):
+    """time: 'dusk' (第1章の夕方) or 'night' (23:00, rain: a dark sky ring). cut_house: no ground inside the house's
+    footprint (the whole-house scene, where the cellar can be walked: the ground's slope ran through it)."""
     global TIME; TIME = time
     random.seed(51); SHUTTERS.clear()
     mats(M)
@@ -324,7 +336,7 @@ def build_ext4(M, with_trees=True, time='dusk'):
     roof(M)
     porches(M)
     foundation(M, OW)
-    site(M, with_trees)
+    site(M, with_trees, cut_house)
     for o in [o for o in bpy.data.objects if o.name.startswith('ext_') and o.type == 'MESH' and o.data.materials and o.data.materials[0] == M['ext_trim']]:
         lib.uv_box(o, 1.0)
     return {'ground': ground}

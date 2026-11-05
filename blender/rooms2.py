@@ -4,6 +4,7 @@ Plan coordinates (house4: x east, y back), as furnish.py. build(M) makes it all 
 
 Whose room is whose (企画書「間取り」, kept to what the story needs):
   寝室1 (SW, over the living room)   澪と夏希: two beds, their bags; the window looks south over the porch side
+  (2F and the cellar, what is in them: see the note at upstairs() below)
   寝室2 (NW)                          桐生と大河: two beds, the camera cases, the make-up kit's empty foam
   寝室3 (SE, over the study)          真琴: she lies down here at 3:30 with a headache (the CO comes up the stair)
   洗面・浴室 (NE)                     a tiled bathroom with a deep tub, the washbasin, a washing machine
@@ -14,7 +15,7 @@ Whose room is whose (企画書「間取り」, kept to what the story needs):
 import math, random
 import bpy
 from mathutils import Vector
-import lib, house4 as H4
+import lib, house4 as H4, cloth, lived
 from lib import prim, mat_basic, mat_image, tex_path
 import furnish as F
 from furnish import box, cyl, legs, collide
@@ -133,94 +134,310 @@ def night_lights(M):
         cyl('candle', cx, cy, .862, .862 + h, .012, M['wax'], 10)
         prim('uv_sphere', 'lampshade_candle_kitchen', loc=(X(cx), Y(cy), .862 + h + .012), scale=(.006, .006, .013), mat=M['flame'], segments=8, ring_count=6)
     cyl('candle_saucer', 8.76, 7.62, .862, .868, .09, M['fridge'], 16)
-    o = prim('cube', 'phone_makoto', loc=(X(9.62), Y(1.72), F2 + .556), rot=(0, 0, .3), scale=(.035, .072, .004), mat=M['plastic'])
-    prim('plane', 'lampshade_phone_makoto', loc=(X(9.62), Y(1.72), F2 + .561), rot=(0, 0, .3), scale=(.032, .068, 1), mat=M['phonescr'])
+    o = prim('cube', 'phone_makoto', loc=(X(9.62), Y(1.72), F2 + .62), rot=(0, 0, .3), scale=(.035, .072, .004), mat=M['plastic'])   # on her nightstand
+    prim('plane', 'lampshade_phone_makoto', loc=(X(9.62), Y(1.72), F2 + .625), rot=(0, 0, .3), scale=(.032, .068, 1), mat=M['phonescr'])
 
-# ---------------------------------------------------------------- 2F
-def bed(M, x0, y0, x1, y1, head='w', blanket=None, rumpled=0.0, name='bed'):
-    box(f'{name}_frame', x0, y0, x1, y1, .1, .32, M['walnut'], col=True)
-    legs(f'{name}_leg', x0, y0, x1, y1, .1, .05, M['walnut'], inset=.01)
-    box(f'{name}_mattress', x0 + .02, y0 + .02, x1 - .02, y1 - .02, .32, .5, M['bedding'])
-    hx = {'w': (x0, x0 + .05), 'e': (x1 - .05, x1)}.get(head)
-    hy = {'s': (y0, y0 + .05), 'n': (y1 - .05, y1)}.get(head)
-    if hx: box(f'{name}_head', hx[0], y0, hx[1], y1, .1, .95, M['walnut'])
-    if hy: box(f'{name}_head', x0, hy[0], x1, hy[1], .1, .95, M['walnut'])
-    # pillow at the head end, blanket over the rest (pushed back when slept in)
-    if head == 'w': p = (x0 + .08, y0 + .12, x0 + .45, y1 - .12); b = (x0 + .55 + rumpled, y0 + .0, x1 + .01, y1 + .01)
-    elif head == 'e': p = (x1 - .45, y0 + .12, x1 - .08, y1 - .12); b = (x0 - .01, y0, x1 - .55 - rumpled, y1 + .01)
-    elif head == 'n': p = (x0 + .12, y1 - .45, x1 - .12, y1 - .08); b = (x0 - .01, y0 - .01, x1 + .01, y1 - .55 - rumpled)
-    else: p = (x0 + .12, y0 + .08, x1 - .12, y0 + .45); b = (x0 - .01, y0 + .55 + rumpled, x1 + .01, y1 + .01)
-    o = box(f'{name}_pillow', *p, .5, .62, M['bedding']); lib.smooth(o)
-    box(f'{name}_blanket', *b, .49, .54, blanket or M['blanket'])
+# ---------------------------------------------------------------- 2F and the cellar: what is lived in (段階2, 2026-11-05)
+# Two layers in every room (2026-11-04 the owner's life left after the cleaning; 2026-11-05 the crew's night over it):
+# the owner's things are old and put away (his iron beds, his chest, his futons, the pale squares where his pictures
+# hung, the curtains the sun has faded); the crew's are new and strewn (bags open on the floor, rolled sleeping bags,
+# a crate of supplies with the cassette stove, cup noodles and gas, flashlights, drinking water), and they write on
+# what they brought, on tape (lived2_tex.py). Cloth falls by the cloth simulation (cloth.py). Tripo's cloth (the user's,
+# 画像生成とTripo_4回目) replaces the stand-ins when it comes: hoodie, duffel, sleepsack, futon, sleepbag.
+from mathutils import Matrix, Vector as V3
 
-def bag(M, x, y, w, d, h, mat, name='bag', rot=0.0):
-    o = prim('cube', name, loc=(X(x), Y(y), h / 2), rot=(0, 0, rot), scale=(w / 2, d / 2, h / 2), mat=mat)
+def mats2(M):
+    if 'sbag' in M: return
+    M['sbag'] = mat_basic('sbag', (.78, .3, .06), .55)          # the crew's sleeping bags: orange nylon
+    M['sbag_in'] = mat_basic('sbag_in', (.05, .07, .16), .7)     # their navy lining
+    M['hoodie'] = mat_basic('hoodie', (.32, .32, .33), .95)
+    M['curtain'] = mat_image('curtain', tex_path('knit'), rough=.95, coords='UV', bump=.05, tint=(.78, .72, .6))
+    M['futon'] = mat_basic('futon', (.78, .74, .64), .95)
+    M['mattress'] = mat_basic('mattress', (.6, .58, .53), .95)   # an old sheet: not the paper's white through the print
+    M['coat'] = mat_basic('coat', (.2, .17, .14), .9)
+    M['refl'] = mat_basic('refl', (.04, .04, .045), .6)
+    M['futon2'] = mat_image('futon2', tex_path('plaid'), rough=.95, coords='UV', bump=.03, tint=(.85, .62, .55))
+    M['stove'] = mat_basic('stove', (.75, .74, .7), .35)
+    M['stovetop'] = mat_basic('stovetop', (.08, .08, .08), .5, metal=.3)
+    M['gascan'] = mat_basic('gascan', (.85, .45, .08), .35)
+    M['cup'] = mat_basic('cup', (.86, .84, .78), .5)
+    M['cupband'] = mat_basic('cupband', (.62, .1, .07), .5)
+    M['pet'] = mat_basic('pet', (.72, .8, .84), .1)
+    M['petcap'] = mat_basic('petcap', (.1, .25, .6), .4)
+    M['polyw'] = mat_basic('polyw', (.84, .84, .8), .45)
+    M['polyb'] = mat_basic('polyb', (.08, .22, .55), .4)
+    M['cbox'] = mat_basic('cbox', (.55, .42, .26), .9)
+    M['dust'] = mat_basic('dust', (.66, .64, .58), .95)
+
+def tape(M, n, at, normal, w, up=(0, 0, 1), name=None):
+    """A strip of tape with writing on it (lived2_tex.py crew_<n>), w metres long, centred at world `at` on a surface
+    facing `normal`; the writing's top toward `up` (projected on the surface), read from in front of it."""
+    k = f'crew_{n}'
+    if k not in M: M[k] = mat_image(k, tex_path(k), rough=.6, bump=0)
+    im = next(x for x in M[k].node_tree.nodes if x.type == 'TEX_IMAGE').image
+    h = w * im.size[1] / im.size[0]
+    nz = V3(normal).normalized(); u = V3(up); u = (u - nz * u.dot(nz)).normalized()
+    r = u.cross(nz).normalized()   # the reader's right, looking at the face
+    R = Matrix((r, u, nz)).transposed().to_4x4()
+    o = prim('plane', name or f'tape_{n}', loc=V3(at) + nz * .0015, mat=M[k])
+    o.rotation_mode = 'XYZ'; o.rotation_euler = R.to_euler(); o.scale = (w / 2, h / 2, 1)
+    return o
+
+def apply_bevel(o, width, seg=3):
+    bv = o.modifiers.new('bv', 'BEVEL'); bv.width = width; bv.segments = seg
+    bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier='bv')
+    return o
+
+DIRS = {'w': (-1, 0), 'e': (1, 0), 'n': (0, 1), 's': (0, -1)}   # plan directions
+def bed(M, cx, cy, head='w', blanket=None, rumpled=0.0, name='bed', z=0.0, seed=1):
+    """The owner's old iron bed (Poly Haven old_bed_frame: the rental kept his beds), a thin mattress, a pillow, and a
+    blanket dropped on it by the cloth simulation; slept in (rumpled > 0), it is shoved back toward the foot."""
+    hd = DIRS[head]
+    rz = {'w': math.pi / 2, 'e': -math.pi / 2, 'n': math.pi, 's': 0.0}[head]
+    fr = lived.phm('old_bed_frame', cx, cy, z, rz=rz, name=f'{name}_frame')
+    lx = head in 'we'
+    hx, hy = (.94, .42) if lx else (.42, .94)
+    collide(cx - hx - .04, cy - hy - .04, cx + hx + .04, cy + hy + .04, z, z + .66)
+    mt = apply_bevel(box(f'{name}_mattress', cx - hx, cy - hy, cx + hx, cy + hy, z + .49, z + .64, M['mattress']), .035)
+    px, py = cx + hd[0] * .7, cy + hd[1] * .7
+    pl = prim('cube', f'{name}_pillow', loc=(X(px), Y(py), z + .69), rot=(0, 0, rz + .05 * (seed % 3 - 1)), scale=(.29, .17, .075), mat=M['bedding'])
+    bpy.ops.object.select_all(action='DESELECT'); pl.select_set(True); bpy.context.view_layer.objects.active = pl
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    sb = pl.modifiers.new('sb', 'SUBSURF'); sb.levels = 3; bpy.ops.object.modifier_apply(modifier='sb')
+    for c in pl.data.vertices:   # a pillow: full in the middle, thin at its edges, a dent where a head was
+        c.co.z *= (1.0 - .45 * (abs(c.co.x) / .29) ** 4) * (1.0 - .35 * (abs(c.co.y) / .17) ** 4)
+        if c.co.z > 0: c.co.z -= .025 * math.exp(-(c.co.x ** 2 + c.co.y ** 2) / .012) * (seed % 2)
+    pl.data.update()
+    # the blanket: across the bed and hanging down its sides; a slept-in one bunched toward the foot
+    L = 1.55 - .25 * rumpled; Wd = 1.45
+    off = .2 + .35 * rumpled
+    bx, by = cx - hd[0] * off, cy - hd[1] * off
+    size = (L, Wd) if lx else (Wd, L)
+    push = None
+    if rumpled: push = (-hd[0] * .45 * rumpled, hd[1] * .45 * rumpled)   # toward the foot (world Y is plan -y)
+    cloth.drop(f'{name}_blanket', (X(bx), Y(by)), size, z + .95, blanket or M['blanket'], [mt, pl, fr], res=.03, frames=80,
+               rumple=.12 + .15 * rumpled, seed=seed, floor=z, push=push, bend=.15)
+    return mt
+
+def bag(M, x, y, w, d, h, mat, name='bag', rot=0.0, z=0.0, tag=None):
+    o = prim('cube', name, loc=(X(x), Y(y), z + h / 2), rot=(0, 0, rot), scale=(w / 2, d / 2, h / 2), mat=mat)
     bv = o.modifiers.new('bv', 'BEVEL'); bv.width = min(w, d, h) * .3; bv.segments = 3
-    lib.tube(f'{name}_handle', [(X(x) - w * .25, Y(y), h), (X(x), Y(y), h + .08), (X(x) + w * .25, Y(y), h)], [.01] * 3, M['plastic'], seg=6, sub=3)
-    collide(x - w / 2, y - d / 2, x + w / 2, y + d / 2, 0, h)
+    lib.tube(f'{name}_handle', [(X(x) - w * .25, Y(y), z + h), (X(x), Y(y), z + h + .08), (X(x) + w * .25, Y(y), z + h)], [.01] * 3, M['plastic'], seg=6, sub=3)
+    collide(x - w / 2, y - d / 2, x + w / 2, y + d / 2, z, z + h)
+    if tag: tape(M, tag, (X(x) + .1 * math.cos(rot), Y(y) + .1 * math.sin(rot), z + h), (0, 0, 1), .12, up=(-math.sin(rot), math.cos(rot), 0), name=f'{name}_tape')
+    return o
+
+def duffel(M, x, y, z, rot, mat, name, tag=None):
+    if F.tripo_prop('duffel', (X(x), Y(y), z), rot, .62, name=name):
+        collide(x - .3, y - .3, x + .3, y + .3, z, z + .3); return
+    bag(M, x, y, .6, .32, .3, mat, name, rot, z, tag)
+
+def sleeproll(M, x, y, z, rot, name):
+    """A sleeping bag rolled in its stuff sack, lying on its side (Tripo sleepsack, or a built one)."""
+    if F.tripo_prop('sleepsack', (X(x), Y(y), z), rot, .42, name=name): return
+    o = prim('cylinder', name, loc=(X(x), Y(y), z + .12), rot=(math.pi / 2, 0, rot), scale=(.12, .12, .2), mat=M['sbag'], vertices=18)
+    apply_bevel(o, .04)
+    e = (math.cos(rot + math.pi / 2), math.sin(rot + math.pi / 2))   # the sack's axis (world)
+    prim('cylinder', f'{name}_cord', loc=(X(x) + e[0] * .205, Y(y) + e[1] * .205, z + .12), rot=(math.pi / 2, 0, rot), scale=(.03, .03, .012), mat=M['plastic'], vertices=10)
+
+def stove(M, x, y, z, rot=0.0, name='cstove'):
+    """A cassette stove (built: the shape is simple and known), its can in, the lid down, a pot of nothing on it."""
+    c, s = math.cos(rot), math.sin(rot)
+    def at(dx, dy, dz): return (X(x) + dx * c - dy * s, Y(y) + dx * s + dy * c, z + dz)
+    b = prim('cube', name, loc=at(0, 0, .045), rot=(0, 0, rot), scale=(.17, .145, .045), mat=M['stove']); apply_bevel(b, .012)
+    prim('cube', f'{name}_top', loc=at(.02, 0, .091), rot=(0, 0, rot), scale=(.13, .13, .002), mat=M['stovetop'])
+    prim('cylinder', f'{name}_burner', loc=at(.02, 0, .097), scale=(.045, .045, .006), mat=M['stovetop'], vertices=20)
+    for k in range(4):
+        a = rot + k * math.pi / 2 + math.pi / 4
+        prim('cube', f'{name}_trivet', loc=(at(.02, 0, .1)[0] + .075 * math.cos(a), at(.02, 0, .1)[1] + .075 * math.sin(a), z + .1),
+             rot=(0, 0, a), scale=(.03, .004, .008), mat=M['stovetop'])
+    prim('cube', f'{name}_lid', loc=at(-.13, 0, .06), rot=(0, 0, rot), scale=(.035, .13, .025), mat=M['stove'])
+    prim('cylinder', f'{name}_knob', loc=at(.17, -.08, .045), rot=(0, math.pi / 2, rot), scale=(.018, .018, .012), mat=M['plastic'], vertices=12)
+
+def gascan(M, x, y, z, rot=0.0, name='gascan', lying=True):
+    if lying: o = prim('cylinder', name, loc=(X(x), Y(y), z + .034), rot=(math.pi / 2, 0, rot), scale=(.034, .034, .095), mat=M['gascan'], vertices=14)
+    else: o = prim('cylinder', name, loc=(X(x), Y(y), z + .095), scale=(.034, .034, .095), mat=M['gascan'], vertices=14)
+    return o
+
+def cupnoodle(M, x, y, z, name='cup'):
+    o = prim('cone', name, loc=(X(x), Y(y), z + .05), scale=(.048, .048, .05), mat=M['cup'], vertices=16, radius1=.86, radius2=1.0, depth=2)
+    prim('cylinder', f'{name}_band', loc=(X(x), Y(y), z + .06), scale=(.0465, .0465, .014), mat=M['cupband'], vertices=16)
+    prim('cylinder', f'{name}_lid', loc=(X(x), Y(y), z + .1), scale=(.049, .049, .002), mat=M['cup'], vertices=16)
+
+def pet(M, x, y, z, name='pet', lying=False, rot=0.0):
+    if lying:
+        prim('cylinder', name, loc=(X(x), Y(y), z + .05), rot=(math.pi / 2, 0, rot), scale=(.05, .05, .14), mat=M['pet'], vertices=14)
+    else:
+        prim('cylinder', name, loc=(X(x), Y(y), z + .14), scale=(.05, .05, .14), mat=M['pet'], vertices=14)
+        prim('cylinder', f'{name}_cap', loc=(X(x), Y(y), z + .3), scale=(.016, .016, .02), mat=M['petcap'], vertices=10)
+
+def polytank(M, x, y, z, rot=0.0, name='polytank', tag='water'):
+    """The crew's 20 L water tank: white, a blue cap and its spout on top, tape on its front."""
+    o = prim('cube', name, loc=(X(x), Y(y), z + .2), rot=(0, 0, rot), scale=(.15, .1, .2), mat=M['polyw']); apply_bevel(o, .03)
+    c, s = math.cos(rot), math.sin(rot)
+    prim('cylinder', f'{name}_cap', loc=(X(x) - .08 * c, Y(y) - .08 * s, z + .42), scale=(.03, .03, .02), mat=M['polyb'], vertices=14)
+    lib.tube(f'{name}_handle', [(X(x) + .02 * c, Y(y) + .02 * s, z + .4), (X(x) + .07 * c, Y(y) + .07 * s, z + .45), (X(x) + .12 * c, Y(y) + .12 * s, z + .4)], [.012] * 3, M['polyw'], seg=6, sub=3)
+    collide(x - .16, y - .16, x + .16, y + .16, z, z + .45)
+    if tag: tape(M, tag, (X(x) + .101 * s, Y(y) - .101 * c, z + .24), (s, -c, 0), .14, name=f'{name}_tape')   # on its front (local -y)
+
+def curtain(M, ax, fixed, inward, a, b, z0, z1, name):
+    """The owner's faded curtains, a panel gathered at each side of a window on a thin rod. ax 'X': a window along plan
+    x in the wall at plan y = fixed; inward: +1 when the room is toward +plan (y or x)."""
+    d = .17    # off the wall's line: in front of the casing
+    rodz = z1 + .1
+    for k, (p, q) in enumerate(((a - .2, a + .22), (b - .22, b + .2))):
+        mid = (p + q) / 2
+        if ax == 'X':
+            c = (X(mid), Y(fixed + inward * d)); rot = (math.pi / 2, 0, 0)
+        else:
+            c = (X(fixed + inward * d), Y(mid)); rot = (math.pi / 2, 0, math.pi / 2)
+        h = rodz - z0
+        cloth.drop(f'{name}_{k}', c, (q - p, h), z0 + h / 2, M['curtain'], (), rot=rot, res=.03, frames=50, slack=1.0, rumple=.0,
+                   seed=k, pin=rodz - .02, pleat=(.035, .11), bend=.3, stiff=12.0, thick=.004)
+    if ax == 'X':
+        lib.tube(f'{name}_rod', [(X(a - .3), Y(fixed + inward * d), rodz), (X(b + .3), Y(fixed + inward * d), rodz)], [.008] * 2, M['steel'], seg=8, sub=1)
+    else:
+        lib.tube(f'{name}_rod', [(X(fixed + inward * d), Y(a - .3), rodz), (X(fixed + inward * d), Y(b + .3), rodz)], [.008] * 2, M['steel'], seg=8, sub=1)
 
 def upstairs(M):
     z = F2
-    def at(o):   # everything below was laid out at floor 0; lift it to the 2F floor
-        o.location.z += z
-    c0 = len(F.COL)
-    # 寝室1 (x 0..4, y 0..4.2): Mio and Natsuki
-    bed(M, .1, .3, 2.1, 1.25, head='w', blanket=M['blanket'], rumpled=.3, name='bed1a')
-    bed(M, .1, 2.6, 2.1, 3.55, head='w', blanket=M['blanket2'], name='bed1b')
-    box('bed1_table', .1, 1.65, .5, 2.15, 0, .55, M['oak'], col=True)
-    bag(M, 2.9, .6, .6, .35, .38, M['bagred'], 'bag_natsuki', .2)      # Natsuki's bag, open on the floor (she went out)
-    bag(M, 3.4, 3.7, .55, .3, .35, M['bagnavy'], 'bag_mio', -.1)
-    o = prim('plane', 'natsuki_shirt', loc=(X(1.4), Y(.8), .545), rot=(0, 0, .4), scale=(.25, .3, 1), mat=M['bagolive'])
-    # 寝室2 (x 0..4, y 4.2..8): Kiryu and Taiga; the camera cases, the make-up kit
-    bed(M, .1, 4.5, 2.1, 5.45, head='w', blanket=M['blanket'], name='bed2a')
-    bed(M, .1, 6.9, 2.1, 7.85, head='w', blanket=M['blanket'], rumpled=.4, name='bed2b')
-    box('case_cam', 2.8, 4.45, 3.5, 4.9, 0, .32, M['case'], col=True)
-    box('case_cam_foam', 2.85, 4.5, 3.45, 4.85, .32, .34, M['foam'])
-    box('case_light', 2.5, 7.3, 3.6, 7.75, 0, .22, M['case'], col=True)
-    box('makeup_box', 3.0, 5.6, 3.45, 5.9, 0, .25, M['bagolive'], col=True)
+    mats2(M)
+    import lived; lived.mats(M)
+    # the owner's curtains on every bedroom window, pulled aside
+    s0, s1 = H4.SILL2, H4.SILL2 + H4.WH2
+    for (ax, fx, inw, a, b, nm) in (('X', 0, 1, .8, 2.2, 'cur1s'), ('Y', 0, 1, 1.2, 2.6, 'cur1w'), ('X', 8, -1, 1.2, 2.8, 'cur2n'),
+                                    ('Y', 0, 1, 5.4, 6.8, 'cur2w'), ('X', 0, 1, 6.6, 8.0, 'cur3s'), ('Y', 10, -1, 1.2, 2.6, 'cur3e')):
+        curtain(M, ax, fx, inw, a, b, s0 - .1, s1 + .05, nm)
+
+    # 寝室1 (x 0..4, y 0..4.2): Mio and Natsuki. Natsuki's bed slept on and left (she went out); her hoodie on it, her
+    # duffel open on the floor; Mio's bed made, her bag shut by it; their rolled sleeping bags at the foot (unused: the
+    # beds were there)
+    bed(M, 1.1, .62, 'w', M['blanket'], rumpled=.8, name='bed1a', z=z, seed=11)
+    bed(M, 1.1, 3.62, 'w', M['blanket2'], rumpled=0.0, name='bed1b', z=z, seed=12)
+    lived.phm('painted_wooden_nightstand', .38, 2.1, z, rz=math.pi / 2, name='bed1_table')   # under the west window's sill
+    collide(.12, 1.84, .64, 2.36, z, z + .62)
+    if not F.tripo_prop('hoodie', (X(1.25), Y(.6), z + .64), .5, .55, name='natsuki_hoodie'):
+        cloth.drop('natsuki_hoodie', (X(1.3), Y(.62)), (.55, .5), z + .9, M['hoodie'], [bpy.data.objects['bed1a_mattress']],
+                   res=.025, frames=40, rumple=.12, seed=5, bend=.2, thick=.006)
+    duffel(M, 2.75, .55, z, .25, M['bagred'], 'bag_natsuki', 'natsuki')
+    bag(M, 2.55, 3.85, .55, .3, .35, M['bagnavy'], 'bag_mio', -.1, z)
+    for i, (x, y) in enumerate(((2.35, 1.6), (2.35, 1.9))):
+        sleeproll(M, x, y, z, 0.0, f'sleepsack1_{i}')
+    lived.ghost_frames(M, 'Y', 4, -1, [(.9, 1.35, z + 1.3, z + 1.62), (1.5, 1.8, z + 1.36, z + 1.74)])
+
+    # 寝室2 (x 0..4, y 4.2..8): Kiryu and Taiga; the camera and light cases, the crew's crate of supplies on the floor
+    # (the cassette stove, gas, cup noodles, water), the owner's chest of drawers against the wall to the landing with
+    # the make-up kit on it
+    bed(M, 1.1, 4.85, 'w', M['blanket'], rumpled=.3, name='bed2a', z=z, seed=21)
+    bed(M, 1.1, 7.35, 'w', M['blanket'], rumpled=.9, name='bed2b', z=z, seed=22)
+    lived.phm('vintage_wooden_drawer_01', 4.0 - .07 - .34, 5.25, z, rz=-math.pi / 2, s=.62, name='bed2_chest')
+    collide(3.3, 4.7, 3.93, 5.8, z, z + .68)
+    zc = z + 1.09 * .62
+    box('makeup_box', 3.4, 4.85, 3.8, 5.15, zc, zc + .2, M['bagolive'])
+    tape(M, 'makeup', (X(3.6), Y(4.85) + .0, zc + .1), (0, 1, 0), .16)
     for i in range(4):
-        cyl('makeup_bottle', 3.08 + i * .1, 5.75, .25, .36 + .03 * (i % 2), .025, M['canred'] if i % 2 else M['plastic'], 10)
-    bag(M, 2.6, 6.4, .7, .38, .4, M['bagolive'], 'bag_taiga', .3)
-    # 寝室3 (x 6..10, y 0..4.2): Makoto (one bed, a futon rolled away)
-    bed(M, 8.3, .2, 9.9, 1.2, head='e', blanket=M['blanket2'], rumpled=.2, name='bed3')
-    box('bed3_table', 9.4, 1.4, 9.9, 1.85, 0, .55, M['oak'], col=True)
-    cyl('bed3_cup', 9.6, 1.6, .55, .64, .035, M['fridge'], 12)
-    box('futon_roll', 6.3, 3.5, 7.5, 3.95, 0, .35, M['bedding'], col=True)
-    bag(M, 7.3, .6, .5, .3, .34, M['bagnavy'], 'bag_makoto', .5)
+        cyl('makeup_bottle', 3.45 + i * .09, 5.35, zc, zc + .1 + .03 * (i % 2), .022, M['canred'] if i % 2 else M['plastic'], 10)
+    box('case_cam', 2.25, 4.42, 2.95, 4.87, z, z + .32, M['case'], col=True)
+    box('case_cam_foam', 2.3, 4.47, 2.9, 4.82, z + .32, z + .34, M['foam'])
+    tape(M, 'cam', (X(2.6), Y(4.42), z + .2), (0, 1, 0), .2)
+    box('case_light', 2.5, 7.4, 3.6, 7.85, z, z + .22, M['case'], col=True)
+    tape(M, 'light', (X(3.05), Y(7.4), z + .12), (0, 1, 0), .12)
+    # the crew's crate of supplies by the west wall between the beds, with the stove on a box beside it
+    cr = lived.phm('plastic_crate_02', 2.55, 6.05, z, rz=.08, name='crew_crate')
+    collide(2.28, 5.82, 2.82, 6.28, z, z + .26)
+    tape(M, 'crate', (X(2.55) + .0, Y(5.84), z + .17), (0, 1, 0), .15)
+    for i in range(3): gascan(M, 2.42 + i * .075, 6.08, z + .02, 0.0, f'gascan_{i}')
+    for i in range(3): cupnoodle(M, 2.66, 5.98 + i * .0, z + .02 + i * .1, f'cup_{i}')
+    cb = lived.phm('cardboard_box_01', 2.55, 6.7, z, rz=1.57, name='crew_box')
+    collide(2.28, 6.48, 2.82, 6.92, z, z + .34)
+    stove(M, 2.55, 6.7, z + .34, .1)
+    pet(M, 2.95, 6.45, z, 'pet_0'); pet(M, 3.05, 6.5, z, 'pet_1'); pet(M, 2.98, 6.62, z, 'pet_2', lying=True, rot=.6)
+    duffel(M, 1.0, 6.15, z, -.15, M['bagolive'], 'bag_taiga', 'taiga')
+    sleeproll(M, 2.3, 5.4, z, .3, 'sleepsack2_0')
+    lived.phm('pastic_torch_6v', 2.85, 4.75, z + .34, rz=.4, name='torch_kiryu')
+
+    # 寝室3 (x 6..10, y 0..4.2): Makoto. The owner's futons out of the closet, stacked by the wall; her bag; her phone and
+    # a flashlight on the nightstand
+    bed(M, 8.9, .72, 'e', M['blanket2'], rumpled=.35, name='bed3', z=z, seed=31)
+    lived.phm('painted_wooden_nightstand', 9.62, 1.62, z, rz=-math.pi / 2, name='bed3_table')
+    collide(9.36, 1.36, 9.88, 1.88, z, z + .62)
+    cyl('bed3_cup', 9.75, 1.45, z + .616, z + .7, .035, M['fridge'], 12)
+    lived.phm('small_plastic_torch', 9.52, 1.5, z + .616, rz=1.2, name='torch_makoto')
+    if not F.tripo_prop('futon', (X(6.95), Y(3.7), z), 0.0, .95, name='futon_stack'):
+        for i, (dx, h, m) in enumerate(((0, .14, 'futon'), (.02, .14, 'futon'), (-.03, .12, 'futon2'))):
+            o = box('futon_stack', 6.3 + dx, 3.4, 7.6 + dx, 4.08, z + i * .14, z + i * .14 + h, M[m]); apply_bevel(o, .05)
+    collide(6.25, 3.35, 7.65, 4.1, z, z + .42)
+    bag(M, 7.3, .5, .5, .3, .34, M['bagnavy'], 'bag_makoto', .5, z)
+    # the owner's chair by the east window, her jacket thrown over its back; her reflector in its round bag against
+    # the wall (she holds it open in the first chapter)
+    ch = lived.phm('painted_wooden_chair_01', 9.45, 3.1, z, rz=math.pi / 2 + .25, name='bed3_chair')
+    collide(9.18, 2.83, 9.72, 3.37, z, z + .5)
+    if ch:
+        cloth.drop('makoto_jacket', (X(9.5), Y(3.1)), (.62, .5), z + 1.1, M['coat'], [ch], res=.025, frames=60, rumple=.06, seed=33,
+                   floor=z, bend=.25, thick=.008)
+    o = prim('cylinder', 'makoto_reflector', loc=(X(9.9), Y(3.75), z + .33), rot=(0, math.pi / 2 - .2, 0), scale=(.33, .33, .025), mat=M['refl'], vertices=32)
+    apply_bevel(o, .02)
+    lived.ghost_frames(M, 'Y', 6, 1, [(2.7, 3.15, z + 1.32, z + 1.7)])
+
     # 洗面・浴室 (x 6..10, y 4.2..8): the washbasin and machine by the door, the tub behind a low tiled step
-    box('bath_floor', 6.06, 4.26, 9.94, 7.94, 0, .015, M['bathtile'], 1.0)
-    for (a, b, c, d) in ((8.0, 4.26, 8.06, 7.94), ):   # the glass partition's frame between the washroom and the bath
-        box('bath_part', a, b, c, 5.4, .015, 2.0, M['bathtile'], col=True)
-        box('bath_part', a, 6.4, c, d, .015, 2.0, M['bathtile'], col=True)
-    box('bath_tub', 8.5, 6.6, 9.94, 7.94, 0, .58, M['enamel'], col=True)
-    box('bath_water', 8.58, 6.68, 9.86, 7.86, .5, .505, M['glass'])
-    box('bath_stool', 8.9, 5.6, 9.2, 5.9, 0, .22, M['plastic'])
-    cyl('bath_shower', 9.9, 6.0, 1.0, 1.9, .012, M['steel'], 8)
-    box('wash_basin', 6.1, 4.9, 6.65, 5.7, 0, .82, M['cabinet'], col=True)
-    box('wash_top', 6.08, 4.88, 6.68, 5.72, .82, .86, M['enamel'])
-    box('wash_mirror', 6.07, 4.95, 6.09, 5.65, 1.05, 1.75, M['mirror'])
-    box('wash_machine', 6.1, 7.2, 6.7, 7.85, 0, .85, M['fridge'], col=True)
-    cyl('wash_machine_lid', 6.4, 7.52, .85, .86, .22, M['plastic'], 20)
+    box('bath_floor', 6.06, 4.26, 9.94, 7.94, z, z + .015, M['bathtile'], 1.0)
+    box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathtile'], col=True)
+    box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathtile'], col=True)
+    box('bath_tub', 8.5, 6.6, 9.94, 7.94, z, z + .58, M['enamel'], col=True)
+    box('bath_water', 8.58, 6.68, 9.86, 7.86, z + .5, z + .505, M['glass'])
+    box('bath_stool', 8.9, 5.6, 9.2, 5.9, z, z + .22, M['plastic'])
+    cyl('bath_shower', 9.9, 6.0, z + 1.0, z + 1.9, .012, M['steel'], 8)
+    box('wash_basin', 6.1, 4.9, 6.65, 5.7, z, z + .82, M['cabinet'], col=True)
+    box('wash_top', 6.08, 4.88, 6.68, 5.72, z + .82, z + .86, M['enamel'])
+    box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
+    box('wash_machine', 6.1, 7.2, 6.7, 7.85, z, z + .85, M['fridge'], col=True)
+    cyl('wash_machine_lid', 6.4, 7.52, z + .85, z + .86, .22, M['plastic'], 20)
     for i in range(3):
-        box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, 1.0, 1.45, M['towel'])
-    # lift everything built in this function (objects and colliders) to the 2F floor
-    for o in list(bpy.data.objects):
-        if o.get('_lifted') or o.parent is not None: continue
-        if o.name.startswith(('bed1', 'bed2', 'bed3', 'bag_', 'natsuki_shirt', 'case_', 'makeup_', 'futon_', 'bath_', 'wash_')):
-            o.location.z += z; o['_lifted'] = 1
-    for c in F.COL[c0:]: c['c'][2] = round(c['c'][2] + z, 3)
-    # the landing: a small table under the south window (the window over the front door: the porch and the car)
+        box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.0, z + 1.45, M['towel'])
+
+    # the landing: the runner; the crew's water and their rubbish by the bathroom door
     box('landing_runner', 4.12, 5.7, 5.9, 7.9, z, z + .008, M['rug'], 1.0)
+    polytank(M, 5.75, 7.78, z, math.pi, 'polytank_landing')
+    lived.phm('trashbag', 4.32, 7.72, z, rz=.7, s=.85, name='crew_trash')
+    collide(4.1, 7.5, 4.55, 7.95, z, z + .45)
 
 # ---------------------------------------------------------------- 地下 x 4..10, y 1..7 (the stair shaft x 5.06..6, y 2.5..5.64)
-GEN = (9.25, 6.25)    # the generator: plan centre, under the small window (east wall, y 6.15..6.75)
+# the generator: plan centre, against the east wall under the small window (y 6.15..6.75). Poly Haven's
+# portable_generator (CC0, its model number painted out: lived2_tex.py), long side along the wall, the control panel
+# and its sockets toward the room (west), the recoil starter toward the stair (south), the exhaust side to the window
+GEN = (9.45, 6.3)
+GEN_Z = ZB + .045
+GEN_SOCKET = (GEN[0] - .3, GEN[1] + .12, GEN_Z + .3)   # plan x, y, z: where the cord comes out of the panel
+GEN_EXHAUST = (GEN[0] + .3, GEN[1] - .05, GEN_Z + .3)
+def generator(M):
+    gx, gy = GEN
+    box('gen_plank', gx - .3, gy - .45, gx - .18, gy + .45, ZB, GEN_Z, M['board'])
+    box('gen_plank', gx + .18, gy - .45, gx + .3, gy + .45, ZB, GEN_Z, M['board'])
+    g = lived.phm('portable_generator', gx, gy, GEN_Z, rz=-math.pi / 2, name='generator')
+    if g:
+        im = lib.img(tex_path('gen_diff'))
+        for m in g.data.materials:
+            for n in m.node_tree.nodes:
+                if n.type == 'TEX_IMAGE' and n.image and 'diff' in n.image.name: n.image = im
+        # the owner's old tape on the panel: how to start it
+        tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
+    collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
+    # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
+    ex, ey, ez = GEN_EXHAUST
+    lib.tube('gen_hose', [(X(ex), Y(ey), ez), (X(ex + .12), Y(ey + .05), ez + .15), (X(9.82), Y(6.42), ZB + .8),
+                          (X(9.9), Y(6.45), ZB + 1.0), (X(10.15), Y(6.45), ZB + .97)], [.045] * 5, M['hose'], seg=12, sub=4)
+
 def cellar(M):
     z0 = ZB
-    # every face down here is bare concrete (the hall's plaster and beadboard came with the walls)
+    mats2(M)
+    import lived; lived.mats(M)
+    # every face down here is bare concrete (the hall's plaster and beadboard came with the walls; the stair shaft's
+    # walls too, which reach up to the 1F floor)
     for o in bpy.data.objects:
         if o.type != 'MESH' or not o.data.materials: continue
         bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
-        if max(v.z for v in bb) < -.05 and X(4) - .2 < min(v.x for v in bb) and max(v.x for v in bb) < X(10) + .2:
+        if max(v.z for v in bb) < .05 and min(v.z for v in bb) < -.5 and X(4) - .2 < min(v.x for v in bb) and max(v.x for v in bb) < X(10) + .2:
             for i, m in enumerate(o.data.materials):
                 if m and m.name.split('.')[0] in ('plaster', 'beadboard', 'trim', 'wallcore'): o.data.materials[i] = M['concrete']
     for o in [o for o in bpy.data.objects if o.name.startswith('floorB')]: o.data.materials[0] = M['cfloor']
@@ -228,74 +445,72 @@ def cellar(M):
     for i in range(7):   # the joists of the floor above, bare
         x = 4.3 + i * .9
         box('cellar_joist', x - .04, 1.0, x + .04, 7.0, -.52, -.33, M['agari'])
-    # the generator: a red open-frame portable, on two planks; fuel tank on top, the pull cord, the control panel
-    gx, gy = GEN; gz = z0 + .06
-    box('gen_plank', gx - .45, gy - .32, gx + .45, gy - .22, z0, gz, M['board'])
-    box('gen_plank', gx - .45, gy + .22, gx + .45, gy + .32, z0, gz, M['board'])
-    w, d, h = .62, .48, .5
-    for (sx, sy) in ((-1, -1), (1, -1), (-1, 1), (1, 1)):   # the tube frame
-        D_ = __import__('door').cyl_between
-        D_('gen_frame', (X(gx + sx * w / 2), Y(gy + sy * d / 2), gz), (X(gx + sx * w / 2), Y(gy + sy * d / 2), gz + h), .014, M['iron'], 8)
-    for zz in (gz + .01, gz + h):
-        for (a, b) in (((-1, -1), (1, -1)), ((-1, 1), (1, 1)), ((-1, -1), (-1, 1)), ((1, -1), (1, 1))):
-            __import__('door').cyl_between('gen_frame', (X(gx + a[0] * w / 2), Y(gy + a[1] * d / 2), zz), (X(gx + b[0] * w / 2), Y(gy + b[1] * d / 2), zz), .014, M['iron'], 8)
-    box('gen_engine', gx - .22, gy - .17, gx + .08, gy + .17, gz + .03, gz + .33, M['iron'])
-    box('gen_alt', gx + .08, gy - .14, gx + .28, gy + .14, gz + .05, gz + .3, M['genred'])
-    o = box('gen_tank', gx - .27, gy - .2, gx + .25, gy + .2, gz + .35, gz + .49, M['genred']); bv = o.modifiers.new('bv', 'BEVEL'); bv.width = .03; bv.segments = 3
-    cyl('gen_cap', gx - .1, gy, gz + .49, gz + .52, .035, M['iron'], 12)
-    box('gen_panel', gx + .29, gy - .12, gx + .31, gy + .12, gz + .1, gz + .3, M['plastic'])
-    for i in range(2): cyl('gen_socket', gx + .315, gy - .05 + i * .1, gz + .18, gz + .19, .025, M['genyel'], 10)
-    box('gen_muffler', gx - .3, gy - .1, gx - .22, gy + .1, gz + .1, gz + .3, M['steel'])
-    # the exhaust hose: a flexible metal duct from the muffler, up the wall and out of the small window
-    lib.tube('gen_hose', [(X(gx - .3), Y(gy), gz + .2), (X(gx - .45), Y(gy + .05), gz + .35), (X(gx - .3), Y(6.45), z0 + 1.0),
-                          (X(9.7), Y(6.45), z0 + 1.0), (X(9.95), Y(6.45), z0 + .95), (X(10.15), Y(6.45), z0 + .95)], [.045] * 6, M['hose'], seg=12, sub=4)
-    collide(gx - .45, gy - .32, gx + .45, gy + .32, z0, z0 + .6)
-    # fuel: red jerry cans along the north wall, one open beside the generator, a funnel
+    generator(M)
+    # fuel: the owner's steel jerrycans along the north wall, his tape on the green one; a funnel by the generator
+    for i, (a, x) in enumerate((('metal_jerrycan', 8.05), ('metal_jerrycan_green', 8.45), ('metal_jerrycan', 8.85))):
+        lived.phm(a, x, 6.83, z0, rz=0.0, name=f'fuelcan_{i}')
+    tape(M, 'gas', (X(8.45), Y(6.83 - .085), z0 + .3), (0, 1, 0), .13)
+    collide(7.85, 6.72, 9.05, 6.95, z0, z0 + .48)
+    lived.phm('plastic_jerrycan', 9.1, 5.55, z0, rz=.6, name='fuelcan_plastic')
+    prim('cone', 'funnel', loc=(X(8.85), Y(6.35), z0 + .08), rot=(math.pi, 0, 0), scale=(.08, .08, .08), mat=M['plastic'], vertices=12)
+    # the owner's things on two steel racks along the south wall (east of the barred door; the way past stays 1 m)
+    LV = (.0, .43, .92, 1.41)
+    for k, x in enumerate((6.97, 7.92)):
+        lived.phm('worn_metal_rack', x, 1.38, z0, name=f'crack_{k}')
+    collide(6.5, 1.08, 8.39, 1.68, z0, z0 + 1.9)
+    stuff = [('cardboard_box_01', 6.7, 1.0, 1.57, 1), ('can_rusted', 7.1, 1.0, 0, 1), ('oil_tin', 7.28, 1.0, .3, 1), ('can_rusted', 7.2, 1.0, 1.2, 2),
+             ('plastic_crate_03', 6.85, 1.0, 0, 2), ('wooden_bucket_01', 6.75, .7, 0, 0), ('cardboard_box_01', 7.65, .9, 1.57, 2),
+             ('oil_tin', 8.1, 1.0, .1, 1), ('can_rusted', 7.95, 1.0, 0, 3), ('plastic_crate_03', 7.9, 1.0, .05, 0),
+             ('vintage_suitcase', 7.9, .55, 0, 3)]
+    for i, (a, x, s, r, lv) in enumerate(stuff):
+        lived.phm(a, x, 1.4, z0 + LV[lv] + (.0 if lv == 0 else .005), rz=r, s=s, name=f'cshelf_{i}')
+    # his winter tyres stacked in the north-west corner, a ladder and a spade against the west wall, a saw on a nail
     for i in range(4):
-        x = 8.0 + i * .32
-        o = box('fuelcan', x, 6.62, x + .26, 6.92, z0, z0 + .38, M['canred'] if i != 2 else M['genyel'])
-        box('fuelcan_handle', x + .08, 6.72, x + .18, 6.82, z0 + .38, z0 + .44, M['canred'] if i != 2 else M['genyel'])
-    collide(8.0, 6.62, 9.3, 6.92, z0, z0 + .45)
-    prim('cone', 'funnel', loc=(X(8.6), Y(6.2), z0 + .08), scale=(.08, .08, .08), mat=M['plastic'], vertices=12)
-    # the owner's things on steel shelves along the south wall (east of the barred door; the way past them stays 1 m)
-    sx0, sx1, sy0, sy1 = 6.5, 8.1, 1.08, 1.5
-    for x in (sx0, sx1 - .05):
-        for y in (sy0, sy1 - .05): box('cshelf_post', x, y, x + .05, y + .05, z0, z0 + 1.8, M['steel'])
-    for k, zz in enumerate((.1, .6, 1.1, 1.6)):
-        box('cshelf', sx0, sy0, sx1, sy1, z0 + zz, z0 + zz + .02, M['steel'])
-        for j in range(4):
-            x = sx0 + .06 + j * .38
-            if (k + j) % 2: box('cshelf_box', x, sy0 + .04, x + .32, sy1 - .04, z0 + zz + .02, z0 + zz + .26, M['paperbag'])
-            else: cyl('cshelf_paint', x + .16, (sy0 + sy1) / 2, z0 + zz + .02, z0 + zz + .2, .09, M['steel'], 14)
-    collide(sx0, sy0, sx1, sy1, z0, z0 + 1.8)
-    # old furniture under a dust sheet in the south-east corner
-    o = box('csheet', 8.6, 1.15, 9.85, 2.3, z0, z0 + .85, M['sheet']); bv = o.modifiers.new('bv', 'BEVEL'); bv.width = .12; bv.segments = 4
-    collide(8.6, 1.15, 9.85, 2.3, z0, z0 + .9)
+        lived.phm('old_tyre', 4.45, 6.5, z0 + .083 + i * .165, rx=math.pi / 2, rz=.3 * i, name=f'ctyre_{i}')
+    collide(4.12, 6.18, 4.78, 6.82, z0, z0 + .66)
+    lived.phm('wooden_ladder', 4.32, 5.3, z0, rz=math.pi / 2, ry=0.0, name='cladder')
+    lived.phm('rusted_spade_01', 4.1, 5.95, z0, rx=-.12, rz=math.pi / 2, name='cspade')
+    lived.phm('handsaw_wood', 4.0 + .07, 4.6, z0 + 1.4, rx=math.pi / 2, rz=math.pi / 2, name='csaw')
+    lived.phm('metal_tool_chest', 9.65, 3.6, z0, rz=-math.pi / 2, name='ctoolchest')
+    collide(9.42, 3.25, 9.95, 3.95, z0, z0 + .65)
+    lived.phm('mousetrap', 9.85, 4.75, z0, rz=.4, name='cmousetrap')
+    # old furniture under a dust sheet in the south-east corner (a cabinet and a chair beneath)
+    a = box('csheet_under', 8.7, 1.2, 9.35, 1.7, z0, z0 + .95, M['dust'])
+    b = box('csheet_under', 9.35, 1.45, 9.85, 2.2, z0, z0 + .78, M['dust'])
+    cloth.drop('csheet', (X(9.28), Y(1.7)), (1.9, 1.75), z0 + 1.25, M['dust'], [a, b], res=.035, frames=80, rumple=.08, seed=41, floor=z0, bend=.3)
+    collide(8.6, 1.15, 9.9, 2.3, z0, z0 + .95)
     # the breaker and the generator's change-over switch by the stair's foot
-    box('breaker', 6.95, 2.42, 7.4, 2.47, z0 + 1.2, z0 + 1.65, M['fridge'])
-    box('changeover', 7.5, 2.42, 7.75, 2.47, z0 + 1.2, z0 + 1.5, M['genyel'])
+    # (on the stair shaft's east wall: they had stood in the air at y 2.45, where no wall is)
+    box('breaker', 6.065, 3.0, 6.11, 3.45, z0 + 1.2, z0 + 1.65, M['fridge'])
+    box('changeover', 6.065, 3.6, 6.11, 3.85, z0 + 1.2, z0 + 1.5, M['genyel'])
     # the bare bulb on its cord over the middle of the room (the generator's circuit)
     cyl('cbulb_cord', 7.9, 4.2, -.62, -.33, .006, M['plastic'], 6)
     cyl('cbulb_socket', 7.9, 4.2, -.68, -.62, .02, M['plastic'], 10)
-    g = prim('uv_sphere', 'lampshade_lamp_cellar', loc=(X(7.9), Y(4.2), -.72), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
-    # a sleeping mat and a blanket left by the barred door (where Taiga is put at 0:00)
-    box('cmat', 4.3, 1.2, 4.95, 2.95, z0, z0 + .02, M['bagolive'])
-    box('cblanket', 4.35, 1.3, 4.9, 2.0, z0 + .02, z0 + .08, M['blanket'])
+    prim('uv_sphere', 'lampshade_lamp_cellar', loc=(X(7.9), Y(4.2), -.72), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
+    # where Taiga is put at 0:00, by the barred door: a crew's sleeping bag open on the concrete (orange, its navy lining
+    # turned back), a flashlight, a bottle of water
+    if not F.tripo_prop('sleepbag', (X(4.65), Y(2.05), z0), math.pi / 2, 1.9, name='csleepbag'):
+        lump = prim('cube', 'csleepbag_pillow', loc=(X(4.62), Y(1.35), z0 + .06), scale=(.2, .13, .06), mat=M['bagolive'])
+        apply_bevel(lump, .05, 4)
+        cloth.drop('csleepbag', (X(4.63), Y(2.05)), (.78, 1.95), z0 + .35, M['sbag'], [lump], res=.03, frames=60, rumple=.1, seed=43,
+                   floor=z0, bend=.6, stiff=10.0, thick=.03, mat2=M['sbag_in'])
+    lived.phm('pastic_torch_6v', 5.0, 3.15, z0, rz=2.2, name='torch_cellar')
+    pet(M, 4.3, 3.05, z0, 'pet_cellar', lying=True, rot=.9)
     # the west part (x 4..5.06, behind the stair shaft): wood stacked for the stove
     for i in range(9):
         r = random.Random(i)
-        o = prim('cylinder', 'cwood', loc=(X(4.35), Y(3.0 + (i % 3) * .14), z0 + .07 + (i // 3) * .13), rot=(0, math.pi / 2, r.uniform(-.1, .1)),
+        o = prim('cylinder', 'cwood', loc=(X(4.35), Y(3.6 + (i % 3) * .14), z0 + .07 + (i // 3) * .13), rot=(0, math.pi / 2, r.uniform(-.1, .1)),
                  scale=(.06, .06, .3), mat=M['agari'], vertices=10)
-    collide(4.05, 2.9, 4.7, 3.4, z0, z0 + .4)
+    collide(4.05, 3.5, 4.7, 4.0, z0, z0 + .4)
 
 # ---------------------------------------------------------------- the generator's cord (20:00 on: the only power in the house)
 def cord(M):
     """From the generator's socket across the cellar floor, up the cellar stair's west edge, through the cellar door,
     along the lobby and the hall's west wall to the fresnel's stand (stage.FRESNEL). Night only (Godot hides it at dusk)."""
     import stage as St
-    gx, gy = GEN
     step = lambda y: -(5.6 - y) / 3.0 * (-ZB)   # the cellar stair's tread line at plan y (z 0 at 5.6, ZB at 2.6)
-    pts = [(gx + .32, gy, ZB + .19), (gx + .5, gy - .3, ZB + .01), (8.0, 3.0, ZB + .01), (6.3, 2.35, ZB + .01), (5.5, 2.3, ZB + .01),
+    sx, sy, sz = GEN_SOCKET
+    pts = [(sx, sy, sz), (sx - .12, sy, sz - .05), (sx - .2, sy - .1, ZB + .01), (8.0, 3.0, ZB + .01), (6.3, 2.35, ZB + .01), (5.5, 2.3, ZB + .01),
            (5.18, 2.7, ZB + .02)]
     for y in (3.0, 3.6, 4.2, 4.8, 5.4):
         pts.append((5.16, y, step(y) + .03))

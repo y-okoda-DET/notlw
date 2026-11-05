@@ -69,7 +69,7 @@ def build():
     pnl = prim('cube', 'blue_panel', loc=(bx, by, bz), scale=(.13, .02, .1), mat=M['black'])
     pnl.rotation_euler = (dt - Vector((bx, by, bz))).to_track_quat('-Y', 'Z').to_euler()
     porch = prim('cube', 'porch', loc=(St.DOOR_C, St.YF + 1.0, Hm.ZG - .03), scale=(1.6, 1.0, .03), mat=M['floor']); lib.uv_box(porch, .87)
-    import house4_ext as HX; HX.build_ext4(M, with_trees=True)
+    import house4_ext as HX; HX.build_ext4(M, with_trees=True, cut_house=True)
     for o in [o for o in bpy.data.objects if o.type == 'LIGHT']: bpy.data.objects.remove(o)   # times.py makes them
     bpy.context.view_layer.update()
     return M, boxes
