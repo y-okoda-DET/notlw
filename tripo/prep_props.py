@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import bpy
 from mathutils import Vector
 
-TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000}
-SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024}
+TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000, 'hoodie': 12000, 'futon': 12000, 'sleepbag': 14000, 'sleepsack': 8000}
+SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024, 'hoodie': 1024, 'futon': 1024, 'sleepbag': 1024, 'sleepsack': 1024}
 SRC = f'{P.WORK}/tripo'
 CUT = {'fox': .066}
 FLAT = {'hide': .13}   # Tripo made the hide a slab (.16 of its length): pressed down to a skin's thickness   # the height of Tripo's base (the front paws stand at .07 on nothing)

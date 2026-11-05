@@ -115,8 +115,8 @@ def night_lights(M):
     """Battery and flame, the crew's and the house's emergency things: a camping lantern on the living room's low table
     (where they sit out the night), candles on the kitchen counter, Makoto's phone by her bed. Their glow is a
     lampshade_<light> (times.py decides when each is lit)."""
-    if 'lanternglow' not in M:
-        M['lanternglow'] = mat_basic('lanternglow', (.95, .9, .8), .4, emit=lib.kelvin(3300), estr=4)
+    if 'lanternglow' not in M: M['lanternglow'] = mat_basic('lanternglow', (.95, .9, .8), .4, emit=lib.kelvin(3300), estr=4)
+    if 'flame' not in M:
         M['flame'] = mat_basic('flame', (1, .7, .3), .4, emit=lib.kelvin(1800), estr=8)
         M['wax'] = mat_basic('wax', (.85, .82, .74), .5)
         M['phonescr'] = mat_basic('phonescr', (.6, .75, 1), .3, emit=lib.kelvin(8000), estr=3)
@@ -235,7 +235,7 @@ def duffel(M, x, y, z, rot, mat, name, tag=None):
 
 def sleeproll(M, x, y, z, rot, name):
     """A sleeping bag rolled in its stuff sack, lying on its side (Tripo sleepsack, or a built one)."""
-    if F.tripo_prop('sleepsack', (X(x), Y(y), z), rot, .42, name=name): return
+    if F.tripo_prop('sleepsack', (X(x), Y(y), z), rot, .5, name=name): return
     o = prim('cylinder', name, loc=(X(x), Y(y), z + .12), rot=(math.pi / 2, 0, rot), scale=(.12, .12, .2), mat=M['sbag'], vertices=18)
     apply_bevel(o, .04)
     e = (math.cos(rot + math.pi / 2), math.sin(rot + math.pi / 2))   # the sack's axis (world)
@@ -317,7 +317,7 @@ def upstairs(M):
     bed(M, 1.1, 3.62, 'w', M['blanket2'], rumpled=0.0, name='bed1b', z=z, seed=12)
     lived.phm('painted_wooden_nightstand', .38, 2.1, z, rz=math.pi / 2, name='bed1_table')   # under the west window's sill
     collide(.12, 1.84, .64, 2.36, z, z + .62)
-    if not F.tripo_prop('hoodie', (X(1.25), Y(.6), z + .64), .5, .55, name='natsuki_hoodie'):
+    if not F.tripo_prop('hoodie', (X(1.25), Y(.6), z + .64), .5, .5, name='natsuki_hoodie'):
         cloth.drop('natsuki_hoodie', (X(1.3), Y(.62)), (.55, .5), z + .9, M['hoodie'], [bpy.data.objects['bed1a_mattress']],
                    res=.025, frames=40, rumple=.12, seed=5, bend=.2, thick=.006)
     duffel(M, 2.75, .55, z, .25, M['bagred'], 'bag_natsuki', 'natsuki')
@@ -416,10 +416,11 @@ def generator(M):
     box('gen_plank', gx + .18, gy - .45, gx + .3, gy + .45, ZB, GEN_Z, M['board'])
     g = lived.phm('portable_generator', gx, gy, GEN_Z, rz=-math.pi / 2, name='generator')
     if g:
-        im = lib.img(tex_path('gen_diff'))
+        im, nr = lib.img(tex_path('gen_diff')), lib.img(tex_path('gen_nor'), srgb=False)
         for m in g.data.materials:
             for n in m.node_tree.nodes:
                 if n.type == 'TEX_IMAGE' and n.image and 'diff' in n.image.name: n.image = im
+                elif n.type == 'TEX_IMAGE' and n.image and 'nor' in n.image.name: n.image = nr
         # the owner's old tape on the panel: how to start it
         tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
@@ -481,20 +482,38 @@ def cellar(M):
     collide(8.6, 1.15, 9.9, 2.3, z0, z0 + .95)
     # the breaker and the generator's change-over switch by the stair's foot
     # (on the stair shaft's east wall: they had stood in the air at y 2.45, where no wall is)
-    box('breaker', 6.065, 3.0, 6.11, 3.45, z0 + 1.2, z0 + 1.65, M['fridge'])
-    box('changeover', 6.065, 3.6, 6.11, 3.85, z0 + 1.2, z0 + 1.5, M['genyel'])
+    # (試作50: two flat boxes read as stand-in boards through the print) the breaker is Poly Haven's power_box_01, its
+    # door left open (the crew switched over to the generator); the change-over switch a grey steel case with its lever
+    # thrown down, a conduit up into the joists
+    lived.phm('power_box_01', 6.06 + .047, 3.15, z0 + 1.45, rz=math.pi / 2, name='breaker')
+    if 'greypaint' not in M: M['greypaint'] = mat_basic('greypaint', (.40, .41, .40), .55)
+    co = box('changeover', 6.06, 3.62, 6.17, 3.86, z0 + 1.18, z0 + 1.5, M['greypaint']); apply_bevel(co, .008, 2)
+    box('changeover_lid', 6.17, 3.64, 6.178, 3.84, z0 + 1.2, z0 + 1.48, M['greypaint'])
+    box('changeover_pivot', 6.12, 3.86, 6.15, 3.885, z0 + 1.36, z0 + 1.4, M['steel'])
+    lib.tube('changeover_lever', [(X(6.135), Y(3.885), z0 + 1.38), (X(6.135), Y(3.93), z0 + 1.3), (X(6.135), Y(3.94), z0 + 1.22)], [.007] * 3, M['plastic'], seg=8, sub=2)
+    cyl('changeover_conduit', 6.115, 3.74, z0 + 1.5, -.05, .012, M['greypaint'], 8)
+    cyl('breaker_conduit', 6.09, 3.1, z0 + 1.7, -.05, .014, M['greypaint'], 8)
     # the bare bulb on its cord over the middle of the room (the generator's circuit)
     cyl('cbulb_cord', 7.9, 4.2, -.62, -.33, .006, M['plastic'], 6)
     cyl('cbulb_socket', 7.9, 4.2, -.68, -.62, .02, M['plastic'], 10)
-    prim('uv_sphere', 'lampshade_lamp_cellar', loc=(X(7.9), Y(4.2), -.72), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
+    bl = prim('uv_sphere', 'lampshade_lamp_cellar', loc=(X(7.9), Y(4.2), -.72), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
+    bl.visible_shadow = False   # the light sits inside it: its glass shadowed the whole room in the bake (試作50; main.gd the same in Godot)
     # where Taiga is put at 0:00, by the barred door: a crew's sleeping bag open on the concrete (orange, its navy lining
     # turned back), a flashlight, a bottle of water
-    if not F.tripo_prop('sleepbag', (X(4.65), Y(2.05), z0), math.pi / 2, 1.9, name='csleepbag'):
+    if not F.tripo_prop('sleepbag', (X(4.65), Y(2.05), z0), 0.0, 1.9, name='csleepbag'):
         lump = prim('cube', 'csleepbag_pillow', loc=(X(4.62), Y(1.35), z0 + .06), scale=(.2, .13, .06), mat=M['bagolive'])
         apply_bevel(lump, .05, 4)
         cloth.drop('csleepbag', (X(4.63), Y(2.05)), (.78, 1.95), z0 + .35, M['sbag'], [lump], res=.03, frames=60, rumple=.1, seed=43,
                    floor=z0, bend=.6, stiff=10.0, thick=.03, mat2=M['sbag_in'])
     lived.phm('pastic_torch_6v', 5.0, 3.15, z0, rz=2.2, name='torch_cellar')
+    # the crew's battery lantern left on the floor by it (試作50: the bulb is behind the stair shaft from here, and
+    # this corner was black); lit from 23:00 (times.lantern_cellar)
+    if 'lanternglow' not in M: M['lanternglow'] = mat_basic('lanternglow', (.95, .9, .8), .4, emit=lib.kelvin(3300), estr=4)
+    x, y, z = 5.3, 1.5, z0
+    cyl('clantern_base', x, y, z, z + .05, .055, M['plastic'], 16)
+    cyl('lampshade_lantern_cellar', x, y, z + .05, z + .2, .045, M['lanternglow'], 16).visible_shadow = False
+    cyl('clantern_top', x, y, z + .2, z + .24, .055, M['plastic'], 16)
+    lib.tube('clantern_handle', [(X(x) - .04, Y(y), z + .24), (X(x), Y(y), z + .3), (X(x) + .04, Y(y), z + .24)], [.004] * 3, M['steel'], seg=6, sub=3)
     pet(M, 4.3, 3.05, z0, 'pet_cellar', lying=True, rot=.9)
     # the west part (x 4..5.06, behind the stair shaft): wood stacked for the stove
     for i in range(9):

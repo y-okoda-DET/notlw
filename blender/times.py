@@ -53,7 +53,7 @@ def _g(o, **g):
 def lobby(e=1.25):
     return _g(lib.point('lamp_lobby', P_LOBBY, 40 * e / 1.25, k=2700, radius=.06), kind='omni', e=e, r=3.5, att=1.4, sh=1, fog=.3, size=.06, flick='gen')
 
-def cellar(e=1.6):
+def cellar(e=2.6):   # 1.6 left the cellar unreadable through the print (試作49): a bare bulb in a small concrete room
     return _g(lib.point('lamp_cellar', P_CELLAR, 60 * e / 1.6, k=2600, radius=.03), kind='omni', e=e, r=7.0, att=1.3, sh=1, fog=.5, size=.03, flick='gen')
 
 def fresnel(e=9.0, w=520):
@@ -62,6 +62,9 @@ def fresnel(e=9.0, w=520):
 P_LANTERN = (X(1.85), Y(1.6), .55)
 P_CANDLE = (X(8.76), Y(7.62), 1.0)
 P_PHONE_M = (X(9.62), Y(1.72), H4.F2 + .62)
+P_LANTERN_C = (X(5.3), Y(1.5), H4.ZB + .15)   # the crew's lantern by the sleeping bag in the cellar (rooms2.cellar)
+def lantern_cellar(e=1.0):
+    return _g(lib.point('lantern_cellar', P_LANTERN_C, 12 * e, k=3300, radius=.05), kind='omni', e=.5 * e, r=3.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def cabinet():
@@ -98,6 +101,11 @@ def lights(t):
         L.append(_g(lib.point('lamp_dining', P_DINING, 50, k=2800, radius=.1), kind='omni', e=1.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 60, k=2900, radius=.08), kind='omni', e=1.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(cellar(1.2))
+        # the dusk sky in 寝室1's south and west windows (試作49-51: the room was black through the print; the low sun
+        # is behind the cedars by then and the upstairs has no lamp lit)
+        for (nm, src, dst) in (('dusk_bed1s', (X(1.5), Y(-1.3), H4.F2 + 2.0), (X(1.8), Y(2.4), H4.F2 + .4)),
+                               ('dusk_bed1w', (X(-1.3), Y(1.9), H4.F2 + 2.0), (X(2.4), Y(2.1), H4.F2 + .4))):
+            L.append(_g(lib.area(nm, src, dst, 15, k=4200, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=.6, spec=.15))
     elif t == 't20':
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
         # battery LED panel, gelled blue for tonight's planned shot, is the one light anyone can carry about; the
@@ -110,7 +118,7 @@ def lights(t):
     elif t == 't23':
         # the 第2章 door scene as tuned (export_godot): the fresnel on the generator's cord, the blue panel at the door,
         # the rain sky at the slit, the lobby bulb, the camera's tally
-        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern()); L.append(candles())
+        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern()); L.append(candles()); L.append(lantern_cellar())
         L.append(_g(lib.area('blue_door', BLUE_P, (St.DOOR_C, St.YF - .1, 1.2), 7, color=(.4, .56, 1.0), size=(.24, .18), spread=75),
                     kind='spot', e=1.4, ang=37, sh=1, size=.2))
         L.append(_g(lib.area('rain_sky', (SLIT - .5, St.YF + 1.4, 2.2), (SLIT, St.YF + .2, 1.1), 6, k=14000, size=(.8, .8)), kind='spot', e=1.6, ang=40, sh=1, size=.6))
@@ -119,7 +127,7 @@ def lights(t):
     elif t == 't02':
         # Kiryu goes: the front door stands open on the rain, the fresnel (still on the cord) lights the doorway from
         # behind; the blue panel's battery is flat (six hours)
-        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(.8)); L.append(candles(.4))
+        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(.8)); L.append(candles(.4)); L.append(lantern_cellar(.8))
         L.append(_g(lib.area('rain_sky', (St.DOOR_C, St.YF + 1.6, 2.4), (St.DOOR_C, St.YF - .5, .6), 6, k=14000, size=(1.2, 1.2)), kind='spot', e=1.2, ang=45, sh=1, size=.6))
         L.append(_g(lib.area('lightning', (St.DOOR_C + .6, St.YF + 3.0, 2.6), (St.DOOR_C, St.YF - .5, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
         L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
@@ -129,14 +137,14 @@ def lights(t):
         # person. The tally of the camera Mio set up is still red. Lightning through the gaps of the boards.
         L.append(lobby(1.4)); L.append(cellar())
         L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.3, r=.7, sh=0, size=.005))
-        L.append(storm(.08)); L.append(lantern(.3)); L.append(candles(.25))
+        L.append(storm(.08)); L.append(lantern(.3)); L.append(candles(.25)); L.append(lantern_cellar(.3))
         # Makoto upstairs with her headache: her phone face up on the bedside table, the screen still on
         L.append(_g(lib.point('phone_makoto', P_PHONE_M, 1.5, k=8000, radius=.02), kind='omni', e=.35, r=1.8, att=1.5, sh=1, fog=.1, size=.02))
         L.append(_g(lib.area('lightning', (X(10) + 2.5, Y(5.0), 2.0), (X(8), Y(5.0), 1.0), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
     elif t == 't0430':
         # first light: the storm has passed east of the ridge; the low sky there comes through the gaps between the
         # boards in thin cold bars that cross the floors. The lobby bulb still burns (the generator runs to 5:00).
-        L.append(lobby()); L.append(cellar())
+        L.append(lobby()); L.append(cellar()); L.append(lantern_cellar(.2))
         # not a sun: the sun is not up yet and the wood and the ridge hide the low east anyway (a sun here was
         # blocked by the trees, and a soft one went through every wall in Godot). What comes in is the cold sky in the
         # east windows: a soft light outside each, aimed in and down, so the gaps between the boards throw bars.

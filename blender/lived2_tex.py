@@ -53,19 +53,20 @@ def label(n):
 def generator():
     """The generator's colour image with its model number painted out: each box is filled with the yellow sampled
     just above it, with a little of the image's grain kept."""
-    src = f'{P.ASSETS}/phm/portable_generator/textures/portable_generator_diff_1k.jpg'
-    im = Image.open(src).convert('RGB')
-    W = im.width / 1024
-    # (box, the clean patch of the same paint to tile over it)
-    for (box, pat) in (((386, 986, 536, 1018), (540, 984, 572, 1016)),    # the big EN2500 on the front (yellow)
-                       ((312, 882, 350, 895), (356, 882, 394, 895))):     # the small red badge (on the dark band)
-        x0, y0, x1, y1 = [int(v * W) for v in box]
-        p = im.crop(tuple(int(v * W) for v in pat))
-        for x in range(x0, x1, p.width):
-            for y in range(y0, y1, p.height):
-                q = p.transpose(Image.FLIP_LEFT_RIGHT) if ((x - x0) // p.width) % 2 else p
-                im.paste(q.crop((0, 0, min(p.width, x1 - x), min(p.height, y1 - y))), (x, y))
-    im.save(f'{OUT}/gen_diff.png')
+    for kind in ('diff', 'nor_gl'):   # the normal map too: the letters were embossed in it and still showed (試作48)
+        src = f'{P.ASSETS}/phm/portable_generator/textures/portable_generator_{kind}_1k.jpg'
+        im = Image.open(src).convert('RGB')
+        W = im.width / 1024
+        # (box, the clean patch of the same paint to tile over it)
+        for (box, pat) in (((386, 986, 536, 1018), (540, 984, 572, 1016)),    # the big EN2500 on the front (yellow)
+                           ((312, 882, 350, 895), (356, 882, 394, 895))):     # the small red badge (on the dark band)
+            x0, y0, x1, y1 = [int(v * W) for v in box]
+            p = im.crop(tuple(int(v * W) for v in pat))
+            for x in range(x0, x1, p.width):
+                for y in range(y0, y1, p.height):
+                    q = p.transpose(Image.FLIP_LEFT_RIGHT) if ((x - x0) // p.width) % 2 else p
+                    im.paste(q.crop((0, 0, min(p.width, x1 - x), min(p.height, y1 - y))), (x, y))
+        im.save(f'{OUT}/gen_{kind.split("_")[0]}.png')
 
 if __name__ == '__main__':
     for n in LABELS: label(n)
