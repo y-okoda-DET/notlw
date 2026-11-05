@@ -86,14 +86,41 @@ done
 sed -i -E "s#RULES_proto[0-9]+/RULES.exe#RULES_proto$N/RULES.exe#" export_presets.cfg
 D=$BUILD/RULES_proto$N; rm -rf $D; mkdir -p $D
 echo "== export $(date +%T)" >> $L
+# 配布の版（FAST なし）は pck を2つに分ける：本体（物語の場面）RULES.pck と、家まるごと RULES_house.pck（main.gd _house_pack）。
+# 1つだと zip が 400MiB を超えた（試作54、526MiB。決定事項 2026-11-04）。FAST の確認用は1つのまま（house_shots.py・check.sh がそのまま使える）
+SPLIT=; [ -z "$FAST" ] && [ -f assets/house/scene.json ] && SPLIT=1
+python3 - "$SPLIT" <<'PY'
+import sys, glob, re
+split = sys.argv[1] == '1'
+p = 'export_presets.cfg'; s = open(p).read()
+s = re.sub(r'\n\[preset\.1\].*', '', s, flags=re.S).rstrip('\n') + '\n'
+s = re.sub(r'exclude_filter="[^"]*"', 'exclude_filter="scripts/dbg*.gd' + (', assets/house/*' if split else '') + '"', s, count=1)
+if split:
+    files = sorted({f[:-7] for f in glob.glob('assets/house/**/*.import', recursive=True)} | set(glob.glob('assets/house/**/*.res', recursive=True)))
+    s += ('\n[preset.1]\n\nname="House"\nplatform="Windows Desktop"\nrunnable=false\ndedicated_server=false\ncustom_features=""\n'
+          'export_filter="resources"\nexport_files=PackedStringArray(' + ', '.join('"res://%s"' % f for f in files) + ')\n'
+          'include_filter="assets/house/*.json"\nexclude_filter=""\nexport_path=""\nencryption_include_filters=""\nencryption_exclude_filters=""\n'
+          'encrypt_pck=false\nencrypt_directory=false\n\n[preset.1.options]\n\ntexture_format/s3tc_bptc=true\ntexture_format/etc2_astc=false\n'
+          'binary_format/architecture="x86_64"\n')
+open(p, 'w').write(s)
+PY
 $G --headless --path . --export-release "Windows Desktop" $D/RULES.exe > $W/export${N}w.log 2>&1
 [ -f $D/RULES.pck ] || { echo EXPORT_FAIL >> $L; exit 1; }
+if [ -n "$SPLIT" ]; then
+  $G --headless --path . --export-pack "House" $D/RULES_house.pck >> $W/export${N}w.log 2>&1
+  [ -f $D/RULES_house.pck ] || { echo EXPORT_HOUSE_FAIL >> $L; exit 1; }
+fi
 if [ -n "$FAST" ]; then
   echo "FAST（確認用。配布しない。zip なし）" >> $L
 else
   if [ -f $BUILD/hajimeni$N.txt ]; then cp $BUILD/hajimeni$N.txt $D/はじめに.txt; else echo "NO_HAJIMENI (zip にはじめにが入っていない)" >> $L; fi
-  cd $BUILD && rm -f RULES_proto$N.zip && zip -qr RULES_proto$N.zip RULES_proto$N
-  ls -la $D $BUILD/RULES_proto$N.zip >> $L
-  S=$(stat -c %s $BUILD/RULES_proto$N.zip); [ $S -gt 419430400 ] && echo "ZIP_OVER_400MiB $S" >> $L
+  # zip も2つ：本体（RULES.exe・RULES.pck・はじめに）と家（RULES_house.pck）。同じフォルダに展開してもらう
+  cd $BUILD && rm -f RULES_proto$N.zip RULES_proto${N}_house.zip
+  zip -qr RULES_proto$N.zip RULES_proto$N -x "RULES_proto$N/RULES_house.pck"
+  [ -f $D/RULES_house.pck ] && zip -qr RULES_proto${N}_house.zip RULES_proto$N/RULES_house.pck
+  ls -la $D $BUILD/RULES_proto$N*.zip >> $L
+  for z in $BUILD/RULES_proto$N.zip $BUILD/RULES_proto${N}_house.zip; do
+    [ -f $z ] || continue; S=$(stat -c %s $z); [ $S -gt 419430400 ] && echo "ZIP_OVER_400MiB $z $S" >> $L
+  done
 fi
 echo "== DONE $(date +%T)" >> $L

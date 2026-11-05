@@ -57,6 +57,8 @@ def main():
     vs = sys.argv[2].split(',') if len(sys.argv) > 2 else list(VIEWS)
     G = P.GODOT; src = os.environ.get('PCK')
     base = f"--main-pack {src}" if src else f"--path {P.RULES}"
+    hp = os.path.join(os.path.dirname(src), 'RULES_house.pck') if src else ''
+    hp = f'--housepack={hp}' if hp and os.path.exists(hp) else ''   # a split release (build.sh): the house is its own pack
     RES = os.environ.get('RES', '960x540'); RW, RH = map(int, RES.split('x'))
     OUT = f'{P.WORK}/house'; os.makedirs(OUT, exist_ok=True)
     pr = os.environ.get('PRINT', '1')
@@ -68,7 +70,7 @@ def main():
         n = 12 * len(vs)
         cmd = (f'cd /tmp && timeout {240 + 40 * len(vs)} xvfb-run -a -s "-screen 0 {RES}x24" {G} {base} --windowed --resolution {RES} '
                f'--write-movie {tmp}.png --fixed-fps 24 --quit-after {n} -- --record=poses --nocard --scene=house --time={t} '
-               f'--gi={os.environ.get("GI", "baked")} --print={pr} {os.environ.get("GARGS", "")} "--shots={shots}"')
+               f'--gi={os.environ.get("GI", "baked")} --print={pr} {hp} {os.environ.get("GARGS", "")} "--shots={shots}"')
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if 'SHOTS' not in r.stdout: print(r.stdout[-3000:], r.stderr[-3000:])
         for i, v in enumerate(vs):

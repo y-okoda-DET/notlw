@@ -39,7 +39,21 @@ var door_scene := false            # 段階1: 第2章 23:00, the door (scripts/d
 static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
 
+# 段階2: the whole house is its own pack (RULES_house.pck beside RULES.pck, build.sh), so that the zip stays under the
+# 400MiB the user can send and a change to the story scenes alone does not send the house again (決定事項 2026-11-04).
+# Looked for beside the executable, or where --housepack=<file> says (the check shots run the editor binary with
+# --main-pack, which Godot keeps out of the arguments a script can read).
+func _house_pack():
+	var fs := [OS.get_executable_path().get_base_dir() + "/RULES_house.pck"]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--housepack="): fs.push_front(a.substr(12))
+	for f in fs:
+		if FileAccess.file_exists(f):
+			ProjectSettings.load_resource_pack(f, false)
+			return
+
 func _ready():
+	_house_pack()
 	get_tree().root.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # every string is translated by hand (story.gd T/Tw), with the phrase marks handled
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--record="): record = a.substr(9)
