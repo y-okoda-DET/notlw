@@ -82,6 +82,8 @@ func _ready():
 		if a.begins_with("--gi="): ARGS["gi"] = a.substr(5)
 		if a.begins_with("--gie="): ARGS["gie"] = a.substr(6)
 		if a.begins_with("--lme="): ARGS["lme"] = a.substr(6)
+		if a.begins_with("--fogd="): ARGS["fogd"] = float(a.substr(7))   # the outside's distance haze (check shots)
+		if a.begins_with("--fogl="): ARGS["fogl"] = float(a.substr(7))
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -163,6 +165,11 @@ func _environment():
 		env.ambient_light_energy = 0.1
 	if SCENE == "house":
 		env.ambient_light_color = Color(ST.amb[0], ST.amb[1], ST.amb[2]); env.ambient_light_energy = ST.ambe
+	if SCENE == "house" and S.has("walk"):   # 段階2 外: the woods fade into the sky with distance, outside only (_outside_fog)
+		env.fog_enabled = true; env.fog_mode = Environment.FOG_MODE_EXPONENTIAL; env.fog_density = 0.0
+		var a: Color = Color(ST.amb[0], ST.amb[1], ST.amb[2]); var mx: float = max(a.r, max(a.g, a.b))
+		env.fog_light_color = Color(a.r / mx, a.g / mx, a.b / mx); env.fog_light_energy = ST.sky * float(ARGS.get("fogl", 0.35))
+		env.fog_sun_scatter = 0.0; env.fog_sky_affect = 0.0
 	if ARGS.has("bright"): env.ambient_light_energy = 3.0; env.volumetric_fog_enabled = false
 	we.environment = env
 	add_child(we)
@@ -480,6 +487,8 @@ func _house_state():
 		var nm := String(mi.name)
 		if nm.begins_with("board_"): mi.visible = ST.boards
 		elif nm.begins_with("gencord"): mi.visible = ST.cord
+		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
+		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true
@@ -573,6 +582,7 @@ func _box(center_b: Array, size_b: Array):
 func _colliders():
 	if S.has("boxes"):   # the v4 house: boxes measured from the built meshes (house4.colliders), props from stage.py
 		for b in S.boxes:
+			if b.has("times") and not (TIME in b.times): continue   # the slip's edge: only once the shoulder has gone
 			if b.has("ramp"):
 				var sb := StaticBody3D.new(); var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
 				bx.size = Vector3(b.s[0], b.s[2], b.s[1]); cs.shape = bx; sb.add_child(cs); add_child(sb)
@@ -583,6 +593,13 @@ func _colliders():
 			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 			cy.radius = o[2]; cy.height = 2.0; c2.shape = cy; s2.add_child(c2); add_child(s2)
 			s2.global_position = b2g([o[0], o[1], 1.0])
+		if S.has("walk"):   # 段階2 外: the ground, the roads and the slip walk on their own meshes (outside.py WALK_MESHES)
+			for mi in S.env_node.find_children("ext_*", "MeshInstance3D", true, false):
+				if not mi.visible: continue
+				var nm := String(mi.name)
+				for w in S.walk:
+					if nm == w or nm.begins_with(w + "_") or nm.begins_with(w + "."):
+						mi.create_trimesh_collision(); break
 		return
 	var XL = -1.6; var XR = 1.6; var YB = 0.6; var YF = 6.3; var ZG = S.ZG; var YG = 4.6
 	_box([0, (YB + YG) / 2.0, -0.25], [3.4, YG - YB, 0.5])                 # hall floor
@@ -811,6 +828,7 @@ func _process(dt):
 	if ARGS.has("shots"):
 		t = _shot_tick()
 		if t < 0.0: return
+	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -867,6 +885,15 @@ func _process(dt):
 # moved back by the frames before it, the anims seeked again, a new player body (made on the last, unused frame of the
 # shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
 # same unused frame). Returns the clock, or -1 when done.
+func _outside_fog(dt: float):
+	# no haze in the house; out of it, distance fades the woods (eased over a few metres from the walls)
+	var h0: Array = S.gi_box[0]; var h1: Array = S.gi_box[1]
+	var p: Vector3 = player.global_position
+	var bx: float = p.x; var by: float = -p.z
+	var dx: float = max(max(h0[0] - bx, bx - h1[0]), 0.0); var dy: float = max(max(h0[1] - by, by - h1[1]), 0.0)
+	var k: float = clamp(sqrt(dx * dx + dy * dy) / 4.0, 0.0, 1.0)
+	env.fog_density = float(ARGS.get("fogd", 0.006)) * k
+
 func _shot_tick() -> float:
 	var per: int = ARGS.get("shotframes", 12)
 	var F: int = Engine.get_process_frames()
@@ -880,7 +907,7 @@ func _shot_tick() -> float:
 		S["shot_idx"] = idx
 		var q = ARGS["shots"][idx]
 		ARGS["at"] = str(q[5]); S.erase("at_seeked")
-		player.global_position = Vector3(q[0], 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])
+		player.global_position = Vector3(q[0], q[6] if q.size() > 6 else 0.0, q[1]); player.yaw = deg_to_rad(q[2]); player.pitch = deg_to_rad(q[3])   # q[6]: where the body stands (outside, on the slope)
 		player.eye_height = q[4]; (player.get_node("Head") as Node3D).position.y = q[4]
 		player.auto_path = [[0.0, q[0], q[1], q[2], q[3]], [99.0, q[0], q[1], q[2], q[3]]]; player.auto_t = 0.0
 		var off: float = -float(idx * per) / 24.0

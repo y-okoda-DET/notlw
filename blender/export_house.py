@@ -69,7 +69,7 @@ def build():
     pnl = prim('cube', 'blue_panel', loc=(bx, by, bz), scale=(.13, .02, .1), mat=M['black'])
     pnl.rotation_euler = (dt - Vector((bx, by, bz))).to_track_quat('-Y', 'Z').to_euler()
     porch = prim('cube', 'porch', loc=(St.DOOR_C, St.YF + 1.0, Hm.ZG - .03), scale=(1.6, 1.0, .03), mat=M['floor']); lib.uv_box(porch, .87)
-    import house4_ext as HX; HX.build_ext4(M, with_trees=True, cut_house=True)
+    import house4_ext as HX; HX.build_ext4(M, with_trees=True, cut_house=True, wide=True)
     for o in [o for o in bpy.data.objects if o.type == 'LIGHT']: bpy.data.objects.remove(o)   # times.py makes them
     bpy.context.view_layer.update()
     return M, boxes
@@ -82,6 +82,9 @@ def set_time(t, M):
     bpy.data.objects['door_pivot'].rotation_euler.z = math.radians(st['front'])
     L = TM.lights(t)
     lit = {o.name for o in L}
+    for o in bpy.data.objects:   # the shoulder on the forest road: whole until the storm takes it (outside.py)
+        if o.name.startswith('ext_slipok_'): o.hide_render = st.get('slip', False)
+        elif o.name.startswith('ext_slipfall_'): o.hide_render = not st.get('slip', False)
     for o in [o for o in bpy.data.objects if o.name.startswith('lampshade_')]:
         m = o.data.materials[0]; p = m.node_tree.nodes.get('Principled BSDF')
         if p: p.inputs['Emission Strength'].default_value = 4.0 if o.name[len('lampshade_'):].split('.')[0] in lit else 0.0
@@ -174,13 +177,15 @@ if __name__ == '__main__':
     gx0, gy0, gz0 = H4.X(0) - .3, H4.Y(8) - .3, H4.ZB - .1
     gx1, gy1, gz1 = H4.X(10) + .3, St.YF + .6, H4.H2 + .4
     boxes = boxes + [dict(c=[St.DOOR_C, St.YF + .95, Hm.ZG - .28], s=[2.8, 1.8, .5])]
-    # the outside is not built to walk yet (段階2 の次の作業): an unseen fence round the porch so the open door does not
-    # let you walk off into the void
-    for (cx, cy, sx, sy) in ((St.DOOR_C - 1.42, St.YF + .95, .05, 1.8), (St.DOOR_C + 1.42, St.YF + .95, .05, 1.8), (St.DOOR_C, St.YF + 1.87, 2.9, .05)):
-        boxes.append(dict(c=[cx, cy, 1.0], s=[sx, sy, 2.4]))
-    props = [[*St.TRIPOD_N, .18], [*St.FRESNEL, .25], [*St.APPLEBOX, .18]]
+    # the outside can be walked (outside.py): the ground's collision is built in Godot from its meshes (walk), unseen
+    # walls round where one may go, the car, the trunks near the paths; a ramp down the porch's two steps
+    import outside as OS, house4_ext as HX
+    y1 = H4.Y(-1.5); zd = H4.ZG - .03
+    boxes.append(dict(c=[St.DOOR_C, y1 + .32, (zd + HX.GZ) / 2 - .02], s=[1.5, math.hypot(.64, zd - HX.GZ), .04], ramp=1, rx=-math.atan2(zd - HX.GZ, .64)))
+    boxes += OS.walk_boxes() + OS.car_boxes()
+    props = [[*St.TRIPOD_N, .18], [*St.FRESNEL, .25], [*St.APPLEBOX, .18]] + OS.tree_trunks()
     json.dump(dict(YF=St.YF, ZG=Hm.ZG, boxes=boxes, props=props, spawn=list(St.PLAYER), look=list(St.PLAYER_LOOK),
-                   gi_box=[[gx0, gy0, gz0], [gx1, gy1, gz1]], mark=[*St.MARK, 0], house=True,
+                   gi_box=[[gx0, gy0, gz0], [gx1, gy1, gz1]], mark=[*St.MARK, 0], house=True, walk=list(OS.WALK_MESHES),
                    times=TM.TIMES, labels=TM.LABEL, state=TM.STATE, fps=24, loop=20.0, knocks=[]),
               open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

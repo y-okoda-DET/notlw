@@ -39,12 +39,13 @@ LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't2
 # the state of the house at each time (Godot reads this from scene.json)
 STATE = {
     #        boards  front door (deg open)  cord  print exposure  ambient (colour, energy)       sky ring (emission, tint)        fog
-    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.1, sky=.75, skyc=[1, 1, 1], fog=.05),
-    't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06),
-    't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085),
-    't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085),
-    't0330': dict(boards=True, front=0, cord=True, exp=1.8, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07),
-    't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06),
+    # slip: the forest road's outer shoulder at the bend has gone (outside.py; the storm takes it before 桐生 goes out at 2:00)
+    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.1, sky=.75, skyc=[1, 1, 1], fog=.05, slip=False),
+    't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False),
+    't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False),
+    't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True),
+    't0330': dict(boards=True, front=0, cord=True, exp=1.8, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True),
+    't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06, slip=True),
 }
 
 def _g(o, **g):

@@ -229,3 +229,14 @@
 - 2026-11-05 地面（house4_ext.site の ext_ground）は家の下も通っていて、東へ下る坂が地下室（-2.45〜-.3）を斜めに横切っていた。地下に下りると土の板が部屋を切って見えた（家まるごとの確認画で、地下の視点が外の地面ばかりだった）。家まるごとの場面だけ、家の外形の中の地面を抜く（build_ext4 の cut_house）。夜・夕方の場面は地下に入らないので変えない（光の焼き直しを避ける）。
 - 2026-11-05 光を中に入れた灯りの玉（lampshade_lamp_cellar、12角の球）が影を落とし、地下の床と壁に12角の暗いしみと大きな楕円の影が出ていた（試作50、刷りなしで撮って分かった）。Blender では visible_shadow False、Godot では main.gd の影を落とさない名前の一覧に cbulb_・lampshade_lamp_cellar・lampshade_lantern_cellar を足した。ほかの笠（居間のスタンドなど）は笠の影が見えてよいので変えていない。暗い部屋の原因は、刷りありの画だけでは分からない。PRINT=0 で撮って形と光を分けて見る。
 - 2026-11-05 試作54で zip が 526MiB（pck 678MB のうち家が 416MB：VoxelGI 6時刻で 118MB、家の画像と env.glb）。決めてあった通り pck を2つに分けた（build.sh：配布の版だけ。本体のプリセットで assets/house/* を除き、2つ目のプリセット House に家の資源を並べて --export-pack）。main.gd の _house_pack が RULES.exe の隣の RULES_house.pck を load_resource_pack する。--main-pack はスクリプトから読めない（OS.get_cmdline_args に出ない）ので、確認の撮影では --housepack=<file> を渡す（house_shots.py が PCK の隣にあれば付ける）。zip は本体 251MiB・家 275MiB。main.gd を変えると VoxelGI のキャッシュの鍵が変わり、次の build で焼き直しになる。
+
+## 段階2 外：車・林道・崩れる路肩（2026-11-05、blender/outside_geo.py・outside.py、試作55）
+- 地形・道の形は outside_geo.py（bpy なし。godot/house_shots.py も使う）。terrain(x, y) が自然の地面（家の周りは house4_ext.ground をそのまま、15〜30m で南東へ下る斜面に混ぜる。沢は直線に沿ったガウスのくぼみ）。道は Road（0.25m ごとの点・向き・高さ。高さは地面を 10m でならし、林道は勾配 11% まで）。final(x, y, 'ok'|'fall') が道を切り込んだ地面（山側：側溝→擁壁→上の斜面、谷側：路肩→盛土の斜面）。私道は林道のあとに当てる（分かれ目で林道の擁壁を開けるため）。最後に林道の幅の中は路盤の高さに戻す（私道の切り盛りがアスファルトの上に出ないように）。
+- 地面は1枚の三角形分割（scipy Delaunay）。遠くは 5m、道の 45m 以内は 1.5m、道のすぐ脇・家の周りは 0.5m、道の縁と擁壁の足は道の点そのものを頂点にする。15cm より近い点は捨てる（細い三角形）。路肩の範囲（slip_region）の三角形は ext_slipok_ground と ext_slipfall_ground の2枚に分け、範囲の外では崩れの深さが0なので継ぎ目はそろう。
+- 崩れの形は scarp_edge（道の中心から何mまで残るか。真ん中で外側 1.6m が落ちる、縁はぎざぎざ）と slip_depth（割れ口で 1.6m の崖、下へ薄くなる崩れ土）。
+- Godot：家まるごとの scene.json に walk（地面と道のメッシュの名前）を書き、main.gd が見えているメッシュに create_trimesh_collision する。歩ける範囲の外は 1m のます目の境に見えない箱（walk_boxes、約700個）。箱に times があれば、その時刻だけ（崩れた後の割れ口）。車は箱3つ、歩ける所の近くのスギは幹の円柱（props）。ポーチの2段は坂の箱。
+- 確認画の外の位置は house_shots.py の o_*（`house_shots.py dusk,t02 outside`）。体を地面の高さに置くため --shots の7つ目に体の高さ（main.gd _shot_tick）。
+- スギ約1800本で、この作業環境（llvmpipe）の撮影は1枚およそ2〜3分。house_shots.py は PER=200 で1枚あたりの待ち時間を延ばす（既定の 40 秒では外の画が MISSING になる）。
+- 外の霧は env.fog（距離の霧）。家の外形から4mかけて濃くなり、家の中は0（main.gd _outside_fog）。色は時刻の環境光の色、明るさは空の輪の明るさ×0.35。確認の引数 --fogd= --fogl=。
+- Blender の Workbench は EGL がないので撮れない。Cycles はスギの葉の透明で1枚5分以上かかる。形の確認は pck から PRINT=0 GARGS=--bright で撮るのが一番速い。
+- 刷りではアスファルトの明るさ .2 が夕方でもインクの一色になり、ひび（細い線）は見えなかった。.27 にし、ひびは外側の板が数cm沈んだ段にした。

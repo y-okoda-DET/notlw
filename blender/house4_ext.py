@@ -232,6 +232,8 @@ def foundation(M, OW):
 
 # ------------------------------------------------------------------ ground, drive, trees, sky
 def site(M, with_trees=True, cut_house=False):
+    if WIDE:   # the whole-house scene: the land out to the forest road and the slip (outside.py, 2026-11-05)
+        import outside; outside.site(M, cut_house); return
     # ground: a grid following ground(), coarse far out
     R = 30.0; xs = np.concatenate([np.linspace(-R, -12, 7)[:-1], np.arange(-12, 12.01, .5), np.linspace(12, R, 7)[1:]])
     V = []; F = []
@@ -326,10 +328,11 @@ def mats(M):
         M['ext_sky'] = sky
 
 TIME = 'dusk'
-def build_ext4(M, with_trees=True, time='dusk', cut_house=False):
+WIDE = False
+def build_ext4(M, with_trees=True, time='dusk', cut_house=False, wide=False):
     """time: 'dusk' (第1章の夕方) or 'night' (23:00, rain: a dark sky ring). cut_house: no ground inside the house's
     footprint (the whole-house scene, where the cellar can be walked: the ground's slope ran through it)."""
-    global TIME; TIME = time
+    global TIME, WIDE; TIME = time; WIDE = wide
     random.seed(51); SHUTTERS.clear()
     mats(M)
     OW = walls(M)

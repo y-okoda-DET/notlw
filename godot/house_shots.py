@@ -44,7 +44,42 @@ VIEWS = {
     'cnw':     (8.4, 6.4, ZB + 1.55, 4.2, 6.75, ZB + .4, '地下の北西（冬タイヤ、脚立）'),
 }
 
+# 段階2 外 (outside_geo.py): Blender coordinates, the body standing on the ground there.
+# name: (where: a road and metres along it from a mark, or Blender x, y), (look at: Blender x, y, z), label
+def _out_views():
+    import outside_geo as G
+    R, D = G.ROAD, G.DRIVE
+    def on(road, i, a=0.0): p = road.P[i] + road.N[i] * a; return float(p[0]), float(p[1]), float(road.z[i])
+    i = G.SLIP_IDX; o = G.SLIP_SIDE; st = R.step
+    J = G.J_IDX
+    v = {
+        'o_porch':   ((.2, 8.35, -.21), on(R, J + int(14 / st)), '玄関のポーチから私道と車'),
+        'o_car':     (on(D, int(12.5 / D.step), -.4), on(D, int(4 / D.step), 0)[:2] + (.9,), '私道の下から車と家'),
+        'o_junct':   (on(R, J + int(5 / st), 0), (.5, 7.0, 1.5), '林道から私道の入口と家（木の間）'),
+        'o_road':    (on(R, J + int(30 / st), .4), on(R, i - int(6 / st), 0)[:2] + (float(R.z[i - int(6 / st)]) + .5,), '林道を下る（擁壁とガードレール）'),
+        'o_slip':    (on(R, i - int(17 / st), -.4 * o), on(R, i, 1.2 * o)[:2] + (float(R.z[i]) + .1,), '曲がり角の路肩（上から来て）'),
+        'o_slipc':   (on(R, i - int(5 / st), -1.2 * o), on(R, i + int(1 / st), 1.2 * o)[:2] + (float(R.z[i]) - .6,), '路肩のひび（2時からは崩れた縁）'),
+        'o_up':      (on(R, i + int(18 / st), .3), on(R, i, 1.0 * o)[:2] + (float(R.z[i]) + .5,), '谷から上ってきて曲がり角（到着の道）'),
+    }
+    return v
+OUTV = None
+def label(v):
+    if v.startswith('o_'):
+        global OUTV
+        if OUTV is None: OUTV = _out_views()
+        return OUTV[v][2]
+    return VIEWS[v][6]
+
 def pose(v):
+    global OUTV
+    if v.startswith('o_'):
+        if OUTV is None: OUTV = _out_views()
+        (bx, by, bz), (tx, ty, tz), _ = OUTV[v]
+        gx, gz, tgx, tgz = bx, -by, tx, -ty
+        eye = 1.55
+        yaw = math.degrees(math.atan2(-(tgx - gx), -(tgz - gz)))
+        pitch = math.degrees(math.atan2(tz - (bz + eye), math.hypot(tgx - gx, tgz - gz)))
+        return f'{gx:.3f},{gz:.3f},{yaw:.1f},{pitch:.1f},{eye:.3f},2.0,{bz + .03:.3f}'
     cx, cy, cz, lx, ly, lz, _ = VIEWS[v]
     bx, by = B(cx, cy); tx, ty = B(lx, ly)
     gx, gz = bx, -by; tgx, tgz = tx, -ty
@@ -55,6 +90,7 @@ def pose(v):
 def main():
     ts = sys.argv[1].split(',') if len(sys.argv) > 1 and sys.argv[1] != 'all' else TIMES
     vs = sys.argv[2].split(',') if len(sys.argv) > 2 else list(VIEWS)
+    if vs == ['outside']: vs = ['o_porch', 'o_car', 'o_junct', 'o_road', 'o_slip', 'o_slipc', 'o_up']
     G = P.GODOT; src = os.environ.get('PCK')
     base = f"--main-pack {src}" if src else f"--path {P.RULES}"
     hp = os.path.join(os.path.dirname(src), 'RULES_house.pck') if src else ''
@@ -68,7 +104,7 @@ def main():
             if f.startswith(f'tmp_{t}_'): os.remove(f'{OUT}/{f}')
         shots = ';'.join(pose(v) for v in vs)
         n = 12 * len(vs)
-        cmd = (f'cd /tmp && timeout {240 + 40 * len(vs)} xvfb-run -a -s "-screen 0 {RES}x24" {G} {base} --windowed --resolution {RES} '
+        cmd = (f'cd /tmp && timeout {240 + int(os.environ.get("PER", "40")) * len(vs)} xvfb-run -a -s "-screen 0 {RES}x24" {G} {base} --windowed --resolution {RES} '
                f'--write-movie {tmp}.png --fixed-fps 24 --quit-after {n} -- --record=poses --nocard --scene=house --time={t} '
                f'--gi={os.environ.get("GI", "baked")} --print={pr} {hp} {os.environ.get("GARGS", "")} "--shots={shots}"')
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -91,7 +127,7 @@ def main():
             d.text((x + 8, y + 3), cap, fill=(0, 40, 90), font=font)
         S.save(path)
     for t in ts:
-        sheet([(f'{OUT}/{t}_{v}.png', VIEWS[v][6]) for v in vs], 2, f'{OUT}/sheet_{t}.png')
+        sheet([(f'{OUT}/{t}_{v}.png', label(v)) for v in vs], 2, f'{OUT}/sheet_{t}.png')
     for v in vs:
         sheet([(f'{OUT}/{t}_{v}.png', LABEL[t]) for t in ts], 3 if len(ts) > 2 else len(ts), f'{OUT}/times_{v}.png')
     print('HOUSE_SHOTS_DONE')
