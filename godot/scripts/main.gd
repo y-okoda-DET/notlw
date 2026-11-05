@@ -84,6 +84,7 @@ func _ready():
 		if a.begins_with("--lme="): ARGS["lme"] = a.substr(6)
 		if a.begins_with("--fogd="): ARGS["fogd"] = float(a.substr(7))   # the outside's distance haze (check shots)
 		if a.begins_with("--fogl="): ARGS["fogl"] = float(a.substr(7))
+		if a.begins_with("--glassd="): ARGS["glassd"] = float(a.substr(9))
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -117,7 +118,7 @@ func _ready():
 		if SCENE == "house" and mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON: mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
-	if SCENE == "house": _house_state(); _lights_house()
+	if SCENE == "house": _house_state(); _lights_house(); _window_glass()
 	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
 	_gi()
@@ -885,6 +886,26 @@ func _process(dt):
 # moved back by the frames before it, the anims seeked again, a new player body (made on the last, unused frame of the
 # shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
 # same unused frame). Returns the clock, or -1 when done.
+func _window_glass():
+	# 段階2 室内の質感: the panes were opaque grey (glTF's transmission comes in as a solid surface), so every window read
+	# as a blank card (and printed as paper). Now old, faintly dirty clear glass: the sugi and the sky outside show through
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.roughness = 0.08; m.metallic_specular = 0.6
+	# years of dust and dried rain on the outside: streaks running down, thicker toward the sill (a noise stretched
+	# tall, through a ramp from clear to grey film)
+	var nz := FastNoiseLite.new(); nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH; nz.frequency = 0.03; nz.fractal_octaves = 4; nz.seed = 7
+	var tex := NoiseTexture2D.new(); tex.width = 256; tex.height = 256; tex.seamless = true; tex.noise = nz
+	var g := Gradient.new()
+	g.set_color(0, Color(0.55, 0.58, 0.57, 0.04)); g.set_color(1, Color(0.62, 0.6, 0.55, float(ARGS.get("glassd", 0.38))))
+	g.add_point(0.55, Color(0.56, 0.58, 0.56, 0.1))
+	tex.color_ramp = g
+	m.albedo_texture = tex; m.albedo_color = Color(1, 1, 1, 1)
+	m.uv1_scale = Vector3(3.0, 0.6, 1.0)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for mi in S.env_node.find_children("winglass*", "MeshInstance3D", true, false):
+		mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
 func _outside_fog(dt: float):
 	# no haze in the house; out of it, distance fades the woods (eased over a few metres from the walls)
 	var h0: Array = S.gi_box[0]; var h1: Array = S.gi_box[1]
