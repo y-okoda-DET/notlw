@@ -167,7 +167,7 @@ def mats2(M):
     M['polyw'] = mat_basic('polyw', (.84, .84, .8), .45)
     M['polyb'] = mat_basic('polyb', (.08, .22, .55), .4)
     M['cbox'] = mat_basic('cbox', (.55, .42, .26), .9)
-    M['dust'] = mat_basic('dust', (.66, .64, .58), .95)
+    M['dust'] = mat_basic('dust', (.46, .45, .41), .95)   # .66 burnt white near the bulb through the print (試作52)
 
 def tape(M, n, at, normal, w, up=(0, 0, 1), name=None):
     """A strip of tape with writing on it (lived2_tex.py crew_<n>), w metres long, centred at world `at` on a surface
@@ -219,6 +219,25 @@ def bed(M, cx, cy, head='w', blanket=None, rumpled=0.0, name='bed', z=0.0, seed=
     cloth.drop(f'{name}_blanket', (X(bx), Y(by)), size, z + .95, blanket or M['blanket'], [mt, pl, fr], res=.03, frames=80,
                rumple=.12 + .15 * rumpled, seed=seed, floor=z, push=push, bend=.15)
     return mt
+
+def hardcase(M, name, x0, y0, x1, y1, z, h, open_lid=False):
+    """A crew's hard equipment case (試作52: a plain box read as a stand-in): rounded body, the lid's seam a dark band
+    round it, two latches and a fold-down handle on the front (plan y0 side), ribs on the lid."""
+    o = box(name, x0, y0, x1, y1, z, z + h, M['case'], col=True); apply_bevel(o, .015, 3)
+    hz = z + h * .72
+    box(f'{name}_seam', x0 - .004, y0 - .004, x1 + .004, y1 + .004, hz - .006, hz + .006, M['plastic'])
+    w = x1 - x0
+    for fx in (.22, .78):
+        lx = x0 + w * fx
+        box(f'{name}_latch', lx - .03, y0 - .016, lx + .03, y0, hz - .045, hz + .025, M['steel'])
+    box(f'{name}_hinge', (x0 + x1) / 2 - .07, y0 - .02, (x0 + x1) / 2 + .07, y0, z + h * .45, z + h * .45 + .025, M['plastic'])
+    lib.tube(f'{name}_handle', [(X((x0 + x1) / 2 - .06), Y(y0 - .012), z + h * .47), (X((x0 + x1) / 2 - .05), Y(y0 - .03), z + h * .3),
+                                (X((x0 + x1) / 2 + .05), Y(y0 - .03), z + h * .3), (X((x0 + x1) / 2 + .06), Y(y0 - .012), z + h * .47)],
+             [.009] * 4, M['plastic'], seg=6, sub=2)
+    for k in range(3):   # ribs across the lid
+        rx = x0 + w * (.25 + .25 * k)
+        box(f'{name}_rib', rx - .012, y0 + .03, rx + .012, y1 - .03, z + h, z + h + .008, M['case'])
+    return o
 
 def bag(M, x, y, w, d, h, mat, name='bag', rot=0.0, z=0.0, tag=None):
     o = prim('cube', name, loc=(X(x), Y(y), z + h / 2), rot=(0, 0, rot), scale=(w / 2, d / 2, h / 2), mat=mat)
@@ -338,11 +357,10 @@ def upstairs(M):
     tape(M, 'makeup', (X(3.6), Y(4.85) + .0, zc + .1), (0, 1, 0), .16)
     for i in range(4):
         cyl('makeup_bottle', 3.45 + i * .09, 5.35, zc, zc + .1 + .03 * (i % 2), .022, M['canred'] if i % 2 else M['plastic'], 10)
-    box('case_cam', 2.25, 4.42, 2.95, 4.87, z, z + .32, M['case'], col=True)
-    box('case_cam_foam', 2.3, 4.47, 2.9, 4.82, z + .32, z + .34, M['foam'])
-    tape(M, 'cam', (X(2.6), Y(4.42), z + .2), (0, 1, 0), .2)
-    box('case_light', 2.5, 7.4, 3.6, 7.85, z, z + .22, M['case'], col=True)
-    tape(M, 'light', (X(3.05), Y(7.4), z + .12), (0, 1, 0), .12)
+    hardcase(M, 'case_cam', 2.25, 4.42, 2.95, 4.87, z, .32)
+    tape(M, 'cam', (X(2.95) + .008, Y(4.645), z + .14), (1, 0, 0), .2)
+    hardcase(M, 'case_light', 2.5, 7.4, 3.6, 7.85, z, .22)
+    tape(M, 'light', (X(3.6) + .008, Y(7.625), z + .09), (1, 0, 0), .12)
     # the crew's crate of supplies by the west wall between the beds, with the stove on a box beside it
     cr = lived.phm('plastic_crate_02', 2.55, 6.05, z, rz=.08, name='crew_crate')
     collide(2.28, 5.82, 2.82, 6.28, z, z + .26)
@@ -509,7 +527,7 @@ def cellar(M):
     # the crew's battery lantern left on the floor by it (試作50: the bulb is behind the stair shaft from here, and
     # this corner was black); lit from 23:00 (times.lantern_cellar)
     if 'lanternglow' not in M: M['lanternglow'] = mat_basic('lanternglow', (.95, .9, .8), .4, emit=lib.kelvin(3300), estr=4)
-    x, y, z = 5.3, 1.5, z0
+    x, y, z = 5.45, 1.25, z0
     cyl('clantern_base', x, y, z, z + .05, .055, M['plastic'], 16)
     cyl('lampshade_lantern_cellar', x, y, z + .05, z + .2, .045, M['lanternglow'], 16).visible_shadow = False
     cyl('clantern_top', x, y, z + .2, z + .24, .055, M['plastic'], 16)

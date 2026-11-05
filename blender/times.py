@@ -62,9 +62,9 @@ def fresnel(e=9.0, w=520):
 P_LANTERN = (X(1.85), Y(1.6), .55)
 P_CANDLE = (X(8.76), Y(7.62), 1.0)
 P_PHONE_M = (X(9.62), Y(1.72), H4.F2 + .62)
-P_LANTERN_C = (X(5.3), Y(1.5), H4.ZB + .15)   # the crew's lantern by the sleeping bag in the cellar (rooms2.cellar)
+P_LANTERN_C = (X(5.45), Y(1.25), H4.ZB + .15)   # the crew's lantern by the sleeping bag in the cellar (rooms2.cellar)
 def lantern_cellar(e=1.0):
-    return _g(lib.point('lantern_cellar', P_LANTERN_C, 12 * e, k=3300, radius=.05), kind='omni', e=.5 * e, r=3.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+    return _g(lib.point('lantern_cellar', P_LANTERN_C, 8 * e, k=3300, radius=.05), kind='omni', e=.35 * e, r=3.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def cabinet():
