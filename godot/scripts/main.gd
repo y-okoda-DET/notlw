@@ -87,6 +87,7 @@ func _ready():
 		if a.begins_with("--glassd="): ARGS["glassd"] = float(a.substr(9))
 		if a == "--nowear": ARGS["nowear"] = true      # 段階2 使い込みの跡 off (before/after shots)
 		if a == "--weardbg": ARGS["weardbg"] = true    # the wear decals in red (where they land)
+		if a == "--minicam": ARGS["minicam"] = true    # check stills: 澪の小さなカメラ, the old boxes and the new model side by side
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -121,6 +122,7 @@ func _ready():
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
 	_camcorder_lcd()
+	if ARGS.has("minicam"): _minicam_dbg()
 	if SCENE == "house": _house_state(); _lights_house(); _window_glass(); _wear()
 	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
@@ -889,6 +891,20 @@ func _process(dt):
 # moved back by the frames before it, the anims seeked again, a new player body (made on the last, unused frame of the
 # shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
 # same unused frame). Returns the clock, or -1 when done.
+func _minicam_dbg():
+	# where story.gd sets the little camera down at the start (on the shoe cupboard); the old one (boxes) 18 cm to its left
+	var at := b2g([-0.72, 3.81, 0.312])
+	var ps: PackedScene = load("res://props/minicam.glb")
+	if ps:
+		var m3: Node3D = ps.instantiate(); add_child(m3); m3.global_position = at + Vector3(0, 0.038, 0); m3.rotation.y = 0.6
+	var sil := StandardMaterial3D.new(); sil.albedo_color = Color(0.62, 0.62, 0.6); sil.roughness = 0.35; sil.metallic = 0.5
+	var blk := StandardMaterial3D.new(); blk.albedo_color = Color(0.08, 0.08, 0.09); blk.roughness = 0.5
+	var old := Node3D.new(); add_child(old); old.global_position = at + Vector3(-0.18, 0, 0.0); old.rotation.y = 0.6
+	for q in [[Vector3(0.055, 0.065, 0.115), Vector3.ZERO, sil], [Vector3(0.006, 0.05, 0.068), Vector3(-0.031, 0.002, -0.006), sil], [Vector3(0.03, 0.04, 0.03), Vector3(0, -0.052, 0), blk]]:
+		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = q[0]; mi.mesh = bm; mi.position = q[1]; mi.material_override = q[2]; old.add_child(mi)
+	var cy := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.021; cm.bottom_radius = 0.023; cm.height = 0.035; cy.mesh = cm
+	cy.material_override = blk; cy.position = Vector3(0, 0.004, -0.072); cy.rotation = Vector3(PI / 2, 0, 0); old.add_child(cy)
+
 func _camcorder_lcd():
 	# the crew's camcorder (blender/camcorder.py): its flip-out screen shows ● REC and the tape running. In the world,
 	# small (7 cm), read only up close. The counter starts where the night has got to (LP, a 90-minute tape)

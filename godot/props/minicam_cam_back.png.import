@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://blqx8edjcat1w"
+path="res://.godot/imported/minicam_cam_back.png-a461ddf06b00a9af27fe2100b7e43f81.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "312520cc297b2d03a1afc25cf6f3e9a1"
+}
+
+[deps]
+
+source_file="res://props/minicam_cam_back.png"
+dest_files=["res://.godot/imported/minicam_cam_back.png-a461ddf06b00a9af27fe2100b7e43f81.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

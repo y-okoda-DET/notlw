@@ -335,3 +335,180 @@ def build(M, loc, yaw, head_z):
             bpy.ops.object.modifier_apply(modifier=m.name)
     for e in [o for o in bpy.data.objects if o.name.startswith(('vcam_root', 'vcam_lcdpivot'))]: bpy.data.objects.remove(e)
     return body
+
+# ---------------------------------------------------------------- 澪の小さなカメラ（定点に置く）
+# 第1章で澪が持ち歩き、廊下に置く手のひら大のビデオカメラ（godot/scripts/story.gd _fixed_cam が godot/props/minicam.glb を
+# 読む）。ユーザー「主人公が持つ（設置する）カメラのデザインもクオリティアップさせよう」2026-11-06。銀色（黒は刷りで手の中の
+# 闇に消えた）、レンズの刻印とフード、たたんだ液晶、ファインダー、握りのベルト、録画ボタン、下に小さなクランプ。
+# 上に撮影部のマスキングテープ「定点 ②」。赤ランプ（recdot）と光は Godot が作る（録画の切り替え）。
+# Blender: +Y = the lens's way, +Z up, origin at the body's centre (glTF: the lens to Godot's -Z).
+SW, SL, SH = .055, .115, .065
+
+def small_body_tex():
+    s = 512; r = _rng(91)
+    a = np.full((s, s, 3), 150, np.float32) * np.array([1, 1, .98])
+    a += 10 * (r.random((s, s, 1)) - .5)
+    a += 3 * (r.random((1, s, 1)) - .5) * 2   # a faint brushed grain (one way)
+    im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(.7))
+    im = _wear(im, 92, grime_bottom=False, scratches=25, k=.5)
+    p = f'{W}/mini_body.png'; im.save(p); return p
+
+def small_tape_tex():
+    w, h = 420, 110
+    im = Image.new('RGB', (w, h), (222, 208, 168))
+    a = np.asarray(im).astype(np.float32) * (.94 + .1 * _rng(93).random((h, w, 1))); im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(im)
+    d.text((24, h // 2 + 4), '定点 ②', fill=(24, 24, 30), font=ImageFont.truetype(FONT_HAND, 74), anchor='lm', stroke_width=2, stroke_fill=(24, 24, 30))
+    d.text((w - 18, h // 2 + 10), '廊下', fill=(170, 30, 24), font=ImageFont.truetype(FONT_HAND, 40), anchor='rm', stroke_width=1, stroke_fill=(170, 30, 24))
+    m = Image.new('L', (w, h), 255); dm = ImageDraw.Draw(m); r = _rng(94)
+    for y in range(0, h, 6):
+        dm.rectangle([0, y, int(r.integers(0, 12)), y + 6], fill=0); dm.rectangle([w - int(r.integers(0, 12)), y, w, y + 6], fill=0)
+    bg = Image.new('RGB', (w, h), (150, 150, 148)); im = Image.composite(im.filter(ImageFilter.GaussianBlur(.6)), bg, m)
+    p = f'{W}/mini_tape.png'; im.save(p); return p
+
+def build_small():
+    import bpy, bmesh
+    from mathutils import Vector, Matrix
+    os.makedirs(W, exist_ok=True)
+    T = dict(body=small_body_tex(), side=side_tex(), back=back_tex(), lens=lens_tex(), tape=small_tape_tex())
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    M = {}
+    def mat(name, col, rough=.5, metal=0., img=None, spec=.5):
+        if name in M: return M[name]
+        m = bpy.data.materials.new(name); m.use_nodes = True; b = m.node_tree.nodes['Principled BSDF']
+        b.inputs['Base Color'].default_value = (*col, 1); b.inputs['Roughness'].default_value = rough; b.inputs['Metallic'].default_value = metal
+        b.inputs['Specular IOR Level'].default_value = spec
+        if img:
+            t = m.node_tree.nodes.new('ShaderNodeTexImage'); t.image = bpy.data.images.load(img)
+            m.node_tree.links.new(t.outputs['Color'], b.inputs['Base Color'])
+        M[name] = m; return m
+    root = bpy.data.objects.new('minicam', None); bpy.context.scene.collection.objects.link(root)
+    def link(name, bm, m, smooth=True):
+        me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+        o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); o.parent = root
+        me.materials.append(m)
+        if smooth:
+            for p in me.polygons: p.use_smooth = True
+        return o
+    def rbox(name, c, s, m, bev=.003, seg=3):
+        bm = bmesh.new(); bmesh.ops.create_cube(bm, size=1.0)
+        for v in bm.verts: v.co = Vector((c[0] + v.co.x * s[0], c[1] + v.co.y * s[1], c[2] + v.co.z * s[2]))
+        if bev: bmesh.ops.bevel(bm, geom=list(bm.edges), offset=bev, segments=seg, affect='EDGES', profile=.5)
+        return link(name, bm, m)
+    def tube(name, a, b, r, m, seg=20, caps=True, r2=None):
+        a, b = Vector(a), Vector(b); bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=caps, segments=seg, radius1=r, radius2=r if r2 is None else r2, depth=(b - a).length)
+        q = (b - a).to_track_quat('Z', 'Y').to_matrix().to_4x4()
+        bmesh.ops.transform(bm, matrix=Matrix.Translation((a + b) / 2) @ q, verts=bm.verts)
+        return link(name, bm, m)
+    def plate(name, corners, m, uvs=((0, 0), (1, 0), (1, 1), (0, 1))):
+        bm = bmesh.new(); vs = [bm.verts.new(Vector(c)) for c in corners]; f = bm.faces.new(vs); uv = bm.loops.layers.uv.new()
+        for l, t in zip(f.loops, uvs): l[uv].uv = t
+        return link(name, bm, m, False)
+    sil = mat('mini_body', (1, 1, 1), .4, 0., img=T['body'])   # not metal: Godot's house has no reflection probe, metal went black (NOTES 2026-11-04)
+    blk = mat('mini_black', (.03, .03, .032), .35)
+    rub = mat('mini_rubber', (.03, .03, .03), .85, spec=.2)
+    glass = mat('mini_glass', (.01, .015, .03), .04, spec=1.0)
+    coat = mat('mini_coat', (.12, .06, .16), .05, .3, spec=1.0)
+    # body: rounded, the front narrowing round the lens, the grip side (right, +X) fuller
+    bm = bmesh.new(); bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=4, use_grid_fill=True)
+    for v in bm.verts:
+        x, y, z = v.co.x * SW, v.co.y * SL, v.co.z * SH
+        t = max(0.0, (y - .01) / (SL / 2 - .01))
+        x *= 1 - .2 * t; z = z * (1 - .16 * t) - .004 * t
+        if v.co.x > 0: x += .005 * math.exp(-((y + .005) / .04) ** 2)
+        v.co = Vector((x, y - .006, z))
+    bmesh.ops.bevel(bm, geom=[e for e in bm.edges if len(e.link_faces) == 2 and e.calc_face_angle(0) > .5], offset=.013, segments=5, affect='EDGES', profile=.5)   # only the corners: the flat grid's edges crumpled
+    body = link('mini_body', bm, sil)
+    import lib; lib.uv_box(body, .12)
+    # the lens out of the front: a black barrel, the ribbed ring, the printed front ring, the glass, a short hood
+    ly0 = SL / 2 - .016; lz = .002
+    tube('mini_barrel', (0, ly0, lz), (0, ly0 + .03, lz), .022, blk, 28)
+    bm = bmesh.new(); n = 48; rings = []
+    for side in (0, 1):
+        ring = []
+        for i in range(n):
+            a = 2 * math.pi * i / n; r = .0238 if i % 2 == 0 else .0230
+            ring.append(bm.verts.new((r * math.cos(a), ly0 + .006 + side * .012, lz + r * math.sin(a))))
+        rings.append(ring)
+    for i in range(n):
+        j = (i + 1) % n; bm.faces.new([rings[0][i], rings[0][j], rings[1][j], rings[1][i]])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces); link('mini_ring', bm, rub, False)
+    yf = ly0 + .0305; bm = bmesh.new(); uv = bm.loops.layers.uv.new(); n = 64; ri, ro = .015, .0215
+    vi = [bm.verts.new((ri * math.cos(2 * math.pi * i / n), yf, lz + ri * math.sin(2 * math.pi * i / n))) for i in range(n + 1)]
+    vo = [bm.verts.new((ro * math.cos(2 * math.pi * i / n), yf, lz + ro * math.sin(2 * math.pi * i / n))) for i in range(n + 1)]
+    for i in range(n):
+        f = bm.faces.new([vi[i], vo[i], vo[i + 1], vi[i + 1]])
+        for l in f.loops:
+            k = (vi + vo).index(l.vert); l[uv].uv = ((k % (n + 1)) / n, 1.0 if k > n else 0.0)
+    lr = link('mini_lensprint', bm, mat('mini_lensprint', (1, 1, 1), .4, img=T['lens']), False)
+    for p in lr.data.polygons:
+        if p.normal.y < 0: p.flip()
+    tube('mini_glass', (0, yf - .005, lz), (0, yf - .0035, lz), .015, glass, 32)
+    tube('mini_coat', (0, yf - .008, lz), (0, yf - .0065, lz), .0095, coat, 24)
+    hd = tube('mini_hood', (0, yf, lz), (0, yf + .012, lz), .0218, blk, 32, caps=False, r2=.025)
+    hd.modifiers.new('sol', 'SOLIDIFY').thickness = .0015
+    # viewfinder pod on the top at the back, a rubber eyecup
+    rbox('mini_vf', (.004, -.042, SH / 2 + .008), (.018, .032, .015), blk, .005)
+    tube('mini_eyecup', (.004, -.058, SH / 2 + .008), (.004, -.069, SH / 2 + .009), .009, rub, 18, r2=.0105)
+    # mic grille on the top front
+    tube('mini_mic', (0, .008, SH / 2 + .002), (0, .04, SH / 2 + .002), .008, blk, 18)
+    for k in range(6): tube('mini_mic', (0, .011 + k * .005, SH / 2 + .0022), (0, .0122 + k * .005, SH / 2 + .0022), .0083, sil, 18)
+    # the flip screen folded on the left: a panel with a seam, its hinge at the front
+    rbox('mini_lcd', (-SW / 2 - .003, -.004, .004), (.006, .068, .046), sil, .003)
+    rbox('mini_lcdseam', (-SW / 2 - .0062, -.004, .004), (.0006, .06, .038), blk, 0)
+    rbox('mini_hinge', (-SW / 2 - .002, .032, .004), (.006, .008, .02), blk, .002)
+    # the grip side: the black printed panel, the strap over it
+    xs = SW / 2 + .0062
+    plate('mini_side', [(xs + .001, -.05, -.026), (xs + .001, .042, -.026), (xs, .042, .012), (xs, -.05, .012)], mat('mini_sideprint', (1, 1, 1), .45, img=T['side']))
+    bm = bmesh.new(); pts = [(-.055, 0), (-.035, .01), (0, .013), (.025, .011), (.042, 0)]
+    vv = [(bm.verts.new((xs + .001 + o, y - .004, -.018)), bm.verts.new((xs + .001 + o, y - .004, .006))) for (y, o) in pts]
+    for k in range(len(vv) - 1): bm.faces.new([vv[k][0], vv[k + 1][0], vv[k + 1][1], vv[k][1]])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    st = link('mini_strap', bm, rub); s1 = st.modifiers.new('sol', 'SOLIDIFY'); s1.thickness = .005; s1.offset = 1
+    # the back: battery, the printed panel and the START/STOP button
+    rbox('mini_batt', (0, -SL / 2 - .016, -.008), (.042, .016, .036), blk, .003)
+    for k in range(4): rbox('mini_batt', (0, -SL / 2 - .0245, -.022 + k * .009), (.036, .0015, .0025), blk, .0006)
+    yb = -SL / 2 - .0062
+    plate('mini_back', [(-.024, yb, .011), (.024, yb, .011), (.024, yb, .03), (-.024, yb, .03)], mat('mini_backprint', (1, 1, 1), .45, img=T['back']))
+    tube('mini_startstop', (-.01, yb, .0205), (-.01, yb - .003, .0205), .0045, rub, 18)
+    # the crew's masking tape across the top, 「定点 ②」
+    tw, th = .046, .012
+    t = plate('mini_tape', [(-tw / 2, -th / 2, 0), (tw / 2, -th / 2, 0), (tw / 2, th / 2, 0), (-tw / 2, th / 2, 0)], mat('mini_tapeprint', (1, 1, 1), .8, img=T['tape']),
+              uvs=((0, 1), (0, 0), (1, 0), (1, 1)))
+    t.location = (-.012, -.012, SH / 2 + .0058); t.rotation_euler.z = math.radians(92)
+    # under it: a small clamp to set it anywhere (a ball head on a jaw clamp, its screw and knob)
+    tube('mini_mount', (0, 0, -SH / 2 + .002), (0, 0, -SH / 2 - .006), .012, blk, 20)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=10, radius=.0085, location=(0, 0, -SH / 2 - .012))
+    b = bpy.context.active_object; b.name = 'mini_ball'; b.parent = root; b.data.materials.append(mat('mini_chrome', (.7, .7, .7), .3, .2))
+    tube('mini_neck', (0, 0, -SH / 2 - .018), (0, 0, -SH / 2 - .026), .006, blk, 16)
+    rbox('mini_jaw', (0, 0, -SH / 2 - .03), (.026, .03, .008), blk, .002)
+    rbox('mini_jawback', (0, -.013, -SH / 2 - .045), (.026, .006, .03), blk, .002)
+    rbox('mini_jawlow', (0, 0, -SH / 2 - .06), (.026, .03, .007), blk, .002)
+    tube('mini_screw', (0, .006, -SH / 2 - .068), (0, .006, -SH / 2 - .056), .003, mat('mini_chrome', (.7, .7, .7), .3, .2), 10)
+    tube('mini_knob', (0, .006, -SH / 2 - .078), (0, .006, -SH / 2 - .068), .009, rub, 14)
+    for o in [o for o in bpy.data.objects if o.type == 'MESH']:
+        for m in list(o.modifiers):
+            bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o
+            bpy.ops.object.modifier_apply(modifier=m.name)
+    return root
+
+if __name__ == '__main__':
+    build_small()
+    import bpy
+    glb = f'{P.RULES}/props/minicam.glb'
+    bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_apply=True, export_yup=True)
+    print('EXPORTED', glb)
+    if '--noprev' not in sys.argv:
+        from mathutils import Vector
+        s = bpy.context.scene; s.render.engine = 'CYCLES'; s.cycles.samples = 32; s.cycles.device = 'CPU'
+        s.render.resolution_x, s.render.resolution_y = 900, 700; s.view_settings.view_transform = 'AgX'
+        w = bpy.data.worlds.new('W'); s.world = w; w.use_nodes = True; w.node_tree.nodes['Background'].inputs[0].default_value = (.35, .33, .3, 1)
+        cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); s.collection.objects.link(cam); s.camera = cam; cam.data.lens = 50
+        l = bpy.data.objects.new('key', bpy.data.lights.new('key', 'AREA')); s.collection.objects.link(l); l.data.energy = 12; l.data.size = .4
+        l.location = (.3, .2, .45); l.rotation_euler = (Vector((0, 0, 0)) - l.location).to_track_quat('-Z', 'Y').to_euler()
+        for n, eye in (('front', (.22, .3, .12)), ('back', (-.2, -.3, .14)), ('right', (.35, -.05, .02))):
+            cam.location = eye; cam.rotation_euler = (Vector((0, 0, -.01)) - Vector(eye)).to_track_quat('-Z', 'Y').to_euler()
+            s.render.filepath = f'{W}/mini_{n}.png'; bpy.ops.render.render(write_still=True)
+    print('MINICAM_DONE')

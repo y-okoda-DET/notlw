@@ -253,3 +253,5 @@
 - 初めの濃さ（アルファ .3〜.4、色 .2）は刷りでも刷りなしでも見えなかった。wear_tex.GAIN＝2、色 .13 にした。位置の確かめは --weardbg（Decal を赤く光らせる）、外すのは --nowear。main.gd の引数は1つずつ書いて読むので、新しい引数は ARGS の読み込みに足す（足さないと黙って無視される）。
 - 2026-11-06 main.gd に `var x := {...}.get(k, 0.0)` と書くと「Variant から型を推測」の警告がエラー扱いになり、main.gd 全体が読めなくなる。build.sh の VoxelGI の焼き込み（--bake-gi）は止まったまま 30 分の timeout まで待つ（夜と夕方は「baked」と出ても中身は前のキャッシュの形）。main.gd を変えたら、build の前に `godot --path godot --quit-after 30 -- --scene=house` を回して SCRIPT ERROR がないか見る。型は `var x: float = ...` と書く。
 - 2026-11-06 三脚とビデオカメラ（camcorder.py）は光の焼き込みに入れない（vcam_・tpd_ を export_godot.NO_LM に）。小さな部品が env_static の焼き込みに入ると1テクセルより細かくなる。液晶の時間は Godot の Label3D（main.gd _camcorder_lcd：lcd のメッシュの面の向きと中心から置く）。赤ランプの光の位置は door.rec_pos（times.py も使う）。
+
+- 2026-11-06 家の中の小物を metallic にすると黒く写る：家には反射のプローブがなく、金属は映り込む物がないので真っ黒になる（小さな定点カメラの銀の本体）。銀は metallic 0 で色を明るくし、つや（roughness .3〜.4）で見せる。新旧を並べて確かめるには GARGS=--minicam で close.py（main.gd _minicam_dbg、置いた所に新と旧の箱を並べる）。

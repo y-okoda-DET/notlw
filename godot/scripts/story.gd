@@ -354,28 +354,25 @@ func _fixed_cam():
 	fixed_cam = Node3D.new(); fixed_cam.name = "fixedcam"
 	# silver, like the consumer camcorders of the time: a black one in her hand vanished into the dark of the print
 	var dark := StandardMaterial3D.new(); dark.albedo_color = Color(0.62, 0.62, 0.6); dark.roughness = 0.35; dark.metallic = 0.5
-	var grey := StandardMaterial3D.new(); grey.albedo_color = Color(0.08, 0.08, 0.09); grey.roughness = 0.5
-	var glass := StandardMaterial3D.new(); glass.albedo_color = Color(0.02, 0.03, 0.05); glass.roughness = 0.05; glass.metallic = 0.6
 	var mk = func(mesh: Mesh, mat: Material, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
 		var mi := MeshInstance3D.new(); mi.mesh = mesh; mi.material_override = mat; mi.position = pos; mi.rotation = rot
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 		fixed_cam.add_child(mi); return mi
-	var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
-	mk.call(body, dark, Vector3(0, 0.0, 0.0))
-	var lens := CylinderMesh.new(); lens.top_radius = 0.021; lens.bottom_radius = 0.023; lens.height = 0.035
-	mk.call(lens, grey, Vector3(0, 0.004, -0.072), Vector3(PI / 2, 0, 0))
-	var eye := CylinderMesh.new(); eye.top_radius = 0.016; eye.bottom_radius = 0.016; eye.height = 0.004
-	mk.call(eye, glass, Vector3(0, 0.004, -0.091), Vector3(PI / 2, 0, 0))
-	var lcd := BoxMesh.new(); lcd.size = Vector3(0.006, 0.05, 0.068)
-	mk.call(lcd, dark, Vector3(-0.031, 0.002, -0.006))
-	var clamp_m := BoxMesh.new(); clamp_m.size = Vector3(0.03, 0.04, 0.03)
-	mk.call(clamp_m, grey, Vector3(0, -0.052, 0.0))
+	# the model: blender/camcorder.py build_small (godot/props/minicam.glb; ユーザー「主人公が持つカメラもクオリティアップ」
+	# 2026-11-06). Raised .038 so the clamp's foot sits where the old box clamp's did (.072 under the origin)
+	var ps: PackedScene = load("res://props/minicam.glb")
+	if ps:
+		var m3: Node3D = ps.instantiate(); m3.position = Vector3(0, 0.038, 0); fixed_cam.add_child(m3)
+		for mi in m3.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+	else:
+		var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
+		mk.call(body, dark, Vector3(0, 0.0, 0.0))
 	var led := OmniLight3D.new(); led.name = "rec"; led.light_color = Color(1.0, 0.2, 0.08); led.light_energy = 0.0
-	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.0, 0.03, -0.05)
+	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.0, 0.068, -0.05)
 	fixed_cam.add_child(led)
 	var dot := SphereMesh.new(); dot.radius = 0.004; dot.height = 0.008
 	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.25, 0.05, 0.03); dm.emission_enabled = true; dm.emission = Color(1, 0.2, 0.05); dm.emission_energy_multiplier = 0.0
-	var d := mk.call(dot, dm, Vector3(0.0, 0.034, -0.05)) as MeshInstance3D; d.name = "recdot"
+	var d := mk.call(dot, dm, Vector3(0.012, 0.071, -0.048)) as MeshInstance3D; d.name = "recdot"
 	main.add_child(fixed_cam)
 	fixed_cam.global_position = g([-0.72, 3.81, 0.24 + 0.072])
 	fixed_cam.rotation.y = 0.6
