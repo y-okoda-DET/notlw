@@ -274,11 +274,11 @@ def build(M, loc, yaw, head_z):
     pan.location = (hx - .006, hy, hz); pan.rotation_euler.z = math.radians(-100)   # swung out and round to face back
     pw, ph = .074, .056
     po = rbox('vcam_lcdpanel', (0, -pw / 2 - .003, 0), (.007, pw, ph), body_m, .003); po.parent = pan
-    scr = plate('lcd', [(-.0037, -pw + .002, -ph / 2 + .005), (-.0037, -.008, -ph / 2 + .005), (-.0037, -.008, ph / 2 - .005), (-.0037, -pw + .002, ph / 2 - .005)],
+    scr = plate('lcd', [(.0037, -pw + .002, -ph / 2 + .005), (.0037, -.008, -ph / 2 + .005), (.0037, -.008, ph / 2 - .005), (.0037, -pw + .002, ph / 2 - .005)],
                 mat('lcd', (1, 1, 1), .2, img=T['lcd'], emit=True, estr=.8))
     scr.parent = pan
     for p in scr.data.polygons:
-        if p.normal.x > 0: p.flip()
+        if p.normal.x < 0: p.flip()   # the screen on the panel's inner face (toward the body when shut): opened, it faces back, to Kiryu. 試作58〜62 had it on the outer face, toward the subject (ユーザー「モニター部は桐生の方を向いているように」)
     # the left side where the panel was: its recess (darker), MENU and the DV socket's cover
     rbox('vcam_recess', (-BWd / 2 + .0005, -.0, zc + .006), (.002, .072, .052), blk, .001)
     # ---- the red lamp at the front of the top, the crew's tape across the top behind the mic

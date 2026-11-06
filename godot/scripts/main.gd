@@ -919,8 +919,9 @@ func _camcorder_lcd():
 	var ctr := Vector3.ZERO
 	for v in vs: ctr += gt * v
 	ctr /= vs.size()
-	var body := find_children("vcam_body*", "MeshInstance3D", true, false)
-	if not body.is_empty() and n.dot(ctr - (body[0] as MeshInstance3D).global_transform * (body[0] as MeshInstance3D).get_aabb().get_center()) < 0: n = -n
+	# the screen's own normal (it faces back, to the one filming: the side away from the body was wrong once it did)
+	var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	if nrm.size() > 0 and n.dot(gt.basis * nrm[0]) < 0: n = -n
 	var up := Vector3.UP - n * n.dot(Vector3.UP); up = up.normalized()
 	var lab := Label3D.new()
 	lab.pixel_size = 0.00015; lab.font_size = 40; lab.outline_size = 0
