@@ -114,7 +114,7 @@ func _ready():
 	door_pivot = S.env_node.find_child("door_pivot", true, false) as Node3D
 	if door_pivot: S["door_rest"] = door_pivot.position; S["door_rot"] = door_pivot.rotation.y
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
-		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky", "lamp_", "winglass", "cbulb_", "lampshade_lamp_cellar", "lampshade_lantern_cellar"]:   # the cellar bulb and lantern: their own glass round the light shadowed the room in a 12-sided blot (試作50); ext_sky: the sky ring round the wood (it shaded the ground near it)
+		for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "cscol", "csleg", "recled", "rain", "nphone", "kphone", "slitglass", "lcd", "ext_sky", "lamp_", "winglass", "cbulb_", "lampshade_lamp_cellar", "lampshade_lantern_"]:   # the cellar bulb and lantern: their own glass round the light shadowed the room in a 12-sided blot (試作50); ext_sky: the sky ring round the wood (it shaded the ground near it)
 			if String(mi.name).begins_with(pre): mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		# the whole house is single-sided walls: a low sun from outside sees their backs, which a one-sided shadow pass
 		# culls, and the dawn came through every wall (段階2, 4:30 の廊下が真っ白)

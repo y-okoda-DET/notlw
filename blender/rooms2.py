@@ -130,6 +130,14 @@ def night_lights(M):
     cyl('lampshade_lantern_living', x, y, z + .05, z + .2, .045, M['lanternglow'], 16)
     cyl('lantern_top', x, y, z + .2, z + .24, .055, M['plastic'], 16)
     lib.tube('lantern_handle', [(X(x) - .04, Y(y), z + .24), (X(x), Y(y), z + .3), (X(x) + .04, Y(y), z + .24)], [.004] * 3, M['steel'], seg=6, sub=3)
+    # the crew's lanterns upstairs and on the landing (times.crew_lanterns: lit from 23:00)
+    import times as TM
+    for n, (x, y) in TM.P_CREW.items():
+        z = F2
+        cyl(f'{n}_base', x, y, z, z + .05, .055, M['plastic'], 16)
+        cyl(f'lampshade_{n}', x, y, z + .05, z + .2, .045, M['lanternglow'], 16).visible_shadow = False
+        cyl(f'{n}_top', x, y, z + .2, z + .24, .055, M['plastic'], 16)
+        lib.tube(f'{n}_handle', [(X(x) - .04, Y(y), z + .24), (X(x), Y(y), z + .3), (X(x) + .04, Y(y), z + .24)], [.004] * 3, M['steel'], seg=6, sub=3)
     for i, (cx, cy, h) in enumerate(((8.7, 7.62, .14), (8.82, 7.55, .1), (8.76, 7.7, .17))):
         cyl('candle', cx, cy, .862, .862 + h, .012, M['wax'], 10)
         prim('uv_sphere', 'lampshade_candle_kitchen', loc=(X(cx), Y(cy), .862 + h + .012), scale=(.006, .006, .013), mat=M['flame'], segments=8, ring_count=6)

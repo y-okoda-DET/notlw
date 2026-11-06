@@ -66,6 +66,13 @@ P_PHONE_M = (X(9.62), Y(1.72), H4.F2 + .62)
 P_LANTERN_C = (X(5.45), Y(1.25), H4.ZB + .15)   # the crew's lantern by the sleeping bag in the cellar (rooms2.cellar)
 def lantern_cellar(e=1.0):
     return _g(lib.point('lantern_cellar', P_LANTERN_C, 8 * e, k=3300, radius=.05), kind='omni', e=.35 * e, r=3.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+# the crew's battery lanterns left lit upstairs and on the landing after the outage (ユーザー 2026-11-06 「部屋の仕上がり
+# レビュー」: at 23:00 the bedrooms and the landing were black through the print; the windows are boarded and the storm
+# has no moon, so the light has to be one they carried in). rooms2.night_lights puts each lantern where its light is
+P_CREW = {'lantern_bed1': (1.9, 2.3), 'lantern_bed2': (2.6, 6.0), 'lantern_bed3': (8.0, 2.2), 'lantern_landing': (5.2, 7.3)}
+def crew_lanterns(e=1.0):
+    return [_g(lib.point(n, (X(x), Y(y), H4.F2 + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=3.8, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+            for n, (x, y) in P_CREW.items()]
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def cabinet():
@@ -119,7 +126,8 @@ def lights(t):
     elif t == 't23':
         # the 第2章 door scene as tuned (export_godot): the fresnel on the generator's cord, the blue panel at the door,
         # the rain sky at the slit, the lobby bulb, the camera's tally
-        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern()); L.append(candles()); L.append(lantern_cellar())
+        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(2.0)); L.append(candles(1.0)); L.append(lantern_cellar())
+        L.extend(crew_lanterns())   # lantern 2.0, candles 1.0: at 1.0 / .5 the living room and the kitchen went black in the print (レビュー 試作63)
         L.append(_g(lib.area('blue_door', BLUE_P, (St.DOOR_C, St.YF - .1, 1.2), 7, color=(.4, .56, 1.0), size=(.24, .18), spread=75),
                     kind='spot', e=1.4, ang=37, sh=1, size=.2))
         L.append(_g(lib.area('rain_sky', (SLIT - .5, St.YF + 1.4, 2.2), (SLIT, St.YF + .2, 1.1), 6, k=14000, size=(.8, .8)), kind='spot', e=1.6, ang=40, sh=1, size=.6))
@@ -128,7 +136,7 @@ def lights(t):
     elif t == 't02':
         # Kiryu goes: the front door stands open on the rain, the fresnel (still on the cord) lights the doorway from
         # behind; the blue panel's battery is flat (six hours)
-        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(.8)); L.append(candles(.4)); L.append(lantern_cellar(.8))
+        L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(1.6)); L.append(candles(.8)); L.append(lantern_cellar(.8)); L.extend(crew_lanterns(.8))
         L.append(_g(lib.area('rain_sky', (St.DOOR_C, St.YF + 1.6, 2.4), (St.DOOR_C, St.YF - .5, .6), 6, k=14000, size=(1.2, 1.2)), kind='spot', e=1.2, ang=45, sh=1, size=.6))
         L.append(_g(lib.area('lightning', (St.DOOR_C + .6, St.YF + 3.0, 2.6), (St.DOOR_C, St.YF - .5, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
         L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
@@ -138,7 +146,7 @@ def lights(t):
         # person. The tally of the camera Mio set up is still red. Lightning through the gaps of the boards.
         L.append(lobby(1.4)); L.append(cellar())
         L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.3, r=.7, sh=0, size=.005))
-        L.append(storm(.08)); L.append(lantern(.3)); L.append(candles(.25)); L.append(lantern_cellar(.3))
+        L.append(storm(.08)); L.append(lantern(.3)); L.append(candles(.25)); L.append(lantern_cellar(.3)); L.extend(crew_lanterns(.3))
         # Makoto upstairs with her headache: her phone face up on the bedside table, the screen still on
         L.append(_g(lib.point('phone_makoto', P_PHONE_M, 1.5, k=8000, radius=.02), kind='omni', e=.35, r=1.8, att=1.5, sh=1, fog=.1, size=.02))
         L.append(_g(lib.area('lightning', (X(10) + 2.5, Y(5.0), 2.0), (X(8), Y(5.0), 1.0), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
