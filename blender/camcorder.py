@@ -485,9 +485,12 @@ def build_small():
     tube('mini_neck', (0, 0, -SH / 2 - .018), (0, 0, -SH / 2 - .026), .006, blk, 16)
     rbox('mini_jaw', (0, 0, -SH / 2 - .03), (.026, .03, .008), blk, .002)
     rbox('mini_jawback', (0, -.013, -SH / 2 - .045), (.026, .006, .03), blk, .002)
-    rbox('mini_jawlow', (0, 0, -SH / 2 - .06), (.026, .03, .007), blk, .002)
-    tube('mini_screw', (0, .006, -SH / 2 - .068), (0, .006, -SH / 2 - .056), .003, mat('mini_chrome', (.7, .7, .7), .3, .2), 10)
-    tube('mini_knob', (0, .006, -SH / 2 - .078), (0, .006, -SH / 2 - .068), .009, rub, 14)
+    # the lower jaw is a flat foot (it stands on a box top as well as gripping a rail); the screw's knob on its side.
+    # 試作60 had the knob under the foot: set on the apple box it stood on the knob, the clamp in the air (ユーザー
+    # 「浮いていると不自然」)
+    rbox('mini_jawlow', (0, 0, -SH / 2 - .0605), (.03, .034, .008), blk, .002)
+    tube('mini_screw', (.013, .006, -SH / 2 - .0605), (.017, .006, -SH / 2 - .0605), .003, mat('mini_chrome', (.7, .7, .7), .3, .2), 10)
+    tube('mini_knob', (.017, .006, -SH / 2 - .0605), (.025, .006, -SH / 2 - .0605), .009, rub, 14)
     for o in [o for o in bpy.data.objects if o.type == 'MESH']:
         for m in list(o.modifiers):
             bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o

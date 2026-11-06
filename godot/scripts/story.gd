@@ -38,7 +38,7 @@ var RESTS := [
 	["rail", [0.30, 3.65, 1.20], [0.30, 0.95, 3.69]],    # handrail: newel cap at the foot up to near the top (filled in _ready)
 	["point", [0.30, 3.65, 1.19], 0.09],                 # the newel cap
 	["box", [0.97, 5.60, 0.75], [0.20, 0.55]],           # shoe cabinet top (half sizes x, y)
-	["box", [-0.60, 3.85, 0.24], [0.22, 0.14]],          # the apple box
+	["box", [-0.60, 3.85, 0.20], [0.15, 0.08]],            # the apple box (its top at .20: export_dusk applebox; .24 left the camera 4 cm in the air)
 ]
 static var PLACED := {}        # where she set the small camera (Godot): the 23:00 scene shows it there, still recording
 var items := {}     # key -> {pos (Godot), r, kind, name}
@@ -124,7 +124,7 @@ func _items():
 	add.call("fresnel", [-0.50, 2.90, 1.95], 0.22, "look", "照明")
 	add.call("note", [0.72, 0.67, 1.45], 0.13, "look", "扉の貼り紙")
 	add.call("shoes", [0.30, 5.55, -0.12], 0.35, "look", "靴")
-	add.call("fixedcam", [-0.72, 3.81, 0.30], 0.18, "take", "小さいカメラ")
+	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
 	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
 
 # ================================================================ the words, in the player's language
@@ -359,10 +359,11 @@ func _fixed_cam():
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 		fixed_cam.add_child(mi); return mi
 	# the model: blender/camcorder.py build_small (godot/props/minicam.glb; ユーザー「主人公が持つカメラもクオリティアップ」
-	# 2026-11-06). Raised .038 so the clamp's foot sits where the old box clamp's did (.072 under the origin)
+	# 2026-11-06). Raised .025 so the clamp's flat foot (.097 under the model's centre) sits where the old box clamp's did
+	# (.072 under the origin)
 	var ps: PackedScene = load("res://props/minicam.glb")
 	if ps:
-		var m3: Node3D = ps.instantiate(); m3.position = Vector3(0, 0.038, 0); fixed_cam.add_child(m3)
+		var m3: Node3D = ps.instantiate(); m3.position = Vector3(0, 0.025, 0); fixed_cam.add_child(m3)
 		for mi in m3.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 	else:
 		var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
@@ -374,7 +375,7 @@ func _fixed_cam():
 	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.25, 0.05, 0.03); dm.emission_enabled = true; dm.emission = Color(1, 0.2, 0.05); dm.emission_energy_multiplier = 0.0
 	var d := mk.call(dot, dm, Vector3(0.012, 0.071, -0.048)) as MeshInstance3D; d.name = "recdot"
 	main.add_child(fixed_cam)
-	fixed_cam.global_position = g([-0.72, 3.81, 0.24 + 0.072])
+	fixed_cam.global_position = g([-0.60, 3.85, 0.20 + 0.072])   # the middle of the apple box (at -.72, 3.81 it hung past the edge, 試作61)
 	fixed_cam.rotation.y = 0.6
 
 func _set_rec(on: bool):

@@ -892,14 +892,14 @@ func _process(dt):
 # shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
 # same unused frame). Returns the clock, or -1 when done.
 func _minicam_dbg():
-	# where story.gd sets the little camera down at the start (on the shoe cupboard); the old one (boxes) 18 cm to its left
-	var at := b2g([-0.72, 3.81, 0.312])
+	# where story.gd sets the little camera down at the start (on the shoe cupboard); the old one (boxes) 13 cm to its right (both on the apple box)
+	var at := b2g([-0.60, 3.85, 0.272])
 	var ps: PackedScene = load("res://props/minicam.glb")
 	if ps:
-		var m3: Node3D = ps.instantiate(); add_child(m3); m3.global_position = at + Vector3(0, 0.038, 0); m3.rotation.y = 0.6
+		var m3: Node3D = ps.instantiate(); add_child(m3); m3.global_position = at + Vector3(0, 0.025, 0); m3.rotation.y = 0.6
 	var sil := StandardMaterial3D.new(); sil.albedo_color = Color(0.62, 0.62, 0.6); sil.roughness = 0.35; sil.metallic = 0.5
 	var blk := StandardMaterial3D.new(); blk.albedo_color = Color(0.08, 0.08, 0.09); blk.roughness = 0.5
-	var old := Node3D.new(); add_child(old); old.global_position = at + Vector3(-0.18, 0, 0.0); old.rotation.y = 0.6
+	var old := Node3D.new(); add_child(old); old.global_position = at + Vector3(0.13, 0, 0.0); old.rotation.y = 0.6
 	for q in [[Vector3(0.055, 0.065, 0.115), Vector3.ZERO, sil], [Vector3(0.006, 0.05, 0.068), Vector3(-0.031, 0.002, -0.006), sil], [Vector3(0.03, 0.04, 0.03), Vector3(0, -0.052, 0), blk]]:
 		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = q[0]; mi.mesh = bm; mi.position = q[1]; mi.material_override = q[2]; old.add_child(mi)
 	var cy := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.021; cm.bottom_radius = 0.023; cm.height = 0.035; cy.mesh = cm

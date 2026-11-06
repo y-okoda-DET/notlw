@@ -119,16 +119,25 @@ def pose_natsuki(n, t):
     C.rot_world(n, 'spine_03', E.axis_local(n, (1, 0, 0)), -3 * laugh)
     E.idle(n, t, 3.0, breath=.28, amp=1.0, rate=1.1)
 
+# the camcorder body on the tripod (camcorder.build at door.HEAD_Z): its centre .01 m behind the tripod axis, mid
+# height 1.497; Kiryu's right hand: palm .075 m out from the centre line (the side .045, the strap .052, half a hand), the
+# wrist .08 behind the centre (the back face .095)
+CAM_FWD, CAM_MID, KIRYU_HAND_OUT, KIRYU_HAND_BACK = -.01, 1.497, .09, .08
+
 def pose_kiryu(k, t):
     kl = lambda v: C.local(k, v)
     # framing her on the camera's flip-out screen; looks up over it twice
     up = E.snap(t, 6.5, .45) * (1 - E.snap(t, 8.6, .5)) + E.snap(t, 15.2, .45) * (1 - E.snap(t, 17.0, .5))
-    # his hands are on the camera on the tripod (cx, cy): the right rests on top of the body, palm down; the left holds
-    # the body's left side at his left, palm in, the elbow out by his side (not in front of his stomach)
+    # his right hand holds the camcorder as one does: palm flat on its right side (the hand-strap side), the wrist just
+    # behind the back, fingers along the body toward the lens. 試作60 had it "resting on top, palm down": the wrist sat
+    # 2 cm over the top and the fingers ran across and up past the far side, the hand hanging in the air (ユーザー
+    # 「桐生の手はまだ変な場所にある」). Camera axes from the tripod's yaw (205): forward (-sin, cos), right (cos, sin)
     cx, cy = St.TRIPOD_D
-    lv = E.axis_local(k, (1, 0, 0)); lv.z = 0; lv.normalize()
-    C.arm_to(k, 'r', Vector((cx - .03, cy + .07, 1.575)), Vector((-.35, .2, -.3))); C.palm_to(k, 'r', Vector((cx - .03, cy + .07, 1.2)))
-    C.grip(k, 'r', .25, thumb=.2)
+    yw = math.radians(205); fw = Vector((-math.sin(yw), math.cos(yw), 0)); rt = Vector((math.cos(yw), math.sin(yw), 0))
+    body = Vector((cx, cy, 0)) + fw * CAM_FWD; body.z = CAM_MID
+    wrist = body + rt * KIRYU_HAND_OUT - fw * KIRYU_HAND_BACK
+    C.arm_hand(k, 'r', wrist, fw + rt * .12 + Vector((0, 0, -.08)), -rt * C.palm_sign(k, 'r'), -1, drop=(20, 35, 50, 65))   # the fingers splay in from the hand bone's axis: aimed .12 out, they lie along the side
+    C.grip(k, 'r', .1, thumb=.05)   # flat along the side: at .3 the fingertips went 3 cm into the body
     # 試作19b（ユーザーの選択）：the left arm hangs at his side. Raised to the camera's side, the shirt under it folded
     # inside out (7 ways tried: NOTES.md). The right hand alone works the camera.
     C.arm_to(k, 'l', kl((.24, .03, .84)), E.axis_local(k, (.2, 1, 0))); C.palm_to(k, 'l', kl((0, .03, .84)))
