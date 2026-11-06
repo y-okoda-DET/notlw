@@ -151,7 +151,7 @@ def cstand(base, head_h, M):
     face.visible_shadow = False
     return p
 
-HEAD_Z = 1.40                  # the top of the tripod's head (the camera's plate)
+HEAD_Z = 1.45                  # the top of the tripod head (the plate). 1.40 left 桐生の手 (dusk) floating 5 cm over the camera (試作58)
 
 def rec_pos(loc, yaw):
     """world position of the camcorder's red lamp (times.py puts the rec_light there)"""

@@ -912,13 +912,13 @@ func _camcorder_lcd():
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_child(lab)
 	lab.global_transform = Transform3D(Basis(up.cross(n), up, n), ctr + n * 0.0015 + up * 0.016)
-	var base := {"night": 2465.0, "dusk": 252.0}.get(SCENE, 0.0)
+	var base: float = {"night": 2465.0, "dusk": 252.0}.get(SCENE, 0.0)
 	if SCENE == "house": base = {"dusk": 252.0, "t20": 1000.0, "t23": 2465.0, "t02": 3757.0, "t0330": 4438.0, "t0430": 4880.0}.get(TIME, 0.0)
 	var t := [base]
 	get_tree().process_frame.connect(func():
 		t[0] += get_process_delta_time()
 		var s := int(t[0])
-		var dot := "●" if fmod(t[0], 1.0) < 0.6 else "  "
+		var dot: String = "●" if fmod(t[0], 1.0) < 0.6 else "  "
 		lab.text = "%s REC  %d:%02d:%02d" % [dot, s / 3600, (s / 60) % 60, s % 60])
 
 func _wear():
