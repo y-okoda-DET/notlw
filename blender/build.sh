@@ -35,6 +35,7 @@ if [[ " $SCENES " == *" dusk "* ]]; then
 fi
 if [[ " $SCENES " == *" house "* ]]; then
   echo "== house $(date +%T)" >> $L
+  python3 wear_tex.py > $W/wear${N}.log 2>&1   # 段階2 使い込みの跡の画像（godot/assets は git に入らない）
   FAST=$FAST python3 export_house.py > $W/export${N}h.log 2>&1 || { echo HOUSE_FAIL >> $L; exit 1; }
   grep -E "^lightmap .*(baked|hit)" $W/export${N}h.log | sed 's/^/  house /' >> $L
   for t in $(python3 -c "import times; print(' '.join(times.TIMES))"); do python3 denoise_lm.py -- $RULES/assets/house/$t/lightmap.exr >> $W/export${N}h.log 2>&1; done

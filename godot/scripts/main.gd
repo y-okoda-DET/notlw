@@ -85,6 +85,8 @@ func _ready():
 		if a.begins_with("--fogd="): ARGS["fogd"] = float(a.substr(7))   # the outside's distance haze (check shots)
 		if a.begins_with("--fogl="): ARGS["fogl"] = float(a.substr(7))
 		if a.begins_with("--glassd="): ARGS["glassd"] = float(a.substr(9))
+		if a == "--nowear": ARGS["nowear"] = true      # 段階2 使い込みの跡 off (before/after shots)
+		if a == "--weardbg": ARGS["weardbg"] = true    # the wear decals in red (where they land)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -118,7 +120,8 @@ func _ready():
 		if SCENE == "house" and mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON: mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
-	if SCENE == "house": _house_state(); _lights_house(); _window_glass()
+	_camcorder_lcd()
+	if SCENE == "house": _house_state(); _lights_house(); _window_glass(); _wear()
 	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
 	_gi()
@@ -886,6 +889,61 @@ func _process(dt):
 # moved back by the frames before it, the anims seeked again, a new player body (made on the last, unused frame of the
 # shot before, so the physics before the pose is a fresh run's) and the fog's temporal history dropped (fog off on that
 # same unused frame). Returns the clock, or -1 when done.
+func _camcorder_lcd():
+	# the crew's camcorder (blender/camcorder.py): its flip-out screen shows ● REC and the tape running. In the world,
+	# small (7 cm), read only up close. The counter starts where the night has got to (LP, a 90-minute tape)
+	var found := find_children("lcd*", "MeshInstance3D", true, false)
+	if found.is_empty(): return
+	var mi: MeshInstance3D = found[0]
+	var arr = mi.mesh.surface_get_arrays(0)
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var gt := mi.global_transform
+	var a := gt * vs[0]; var b := gt * vs[1]; var c := gt * vs[2]
+	var n := (b - a).cross(c - a).normalized()
+	var ctr := Vector3.ZERO
+	for v in vs: ctr += gt * v
+	ctr /= vs.size()
+	var body := find_children("vcam_body*", "MeshInstance3D", true, false)
+	if not body.is_empty() and n.dot(ctr - (body[0] as MeshInstance3D).global_transform * (body[0] as MeshInstance3D).get_aabb().get_center()) < 0: n = -n
+	var up := Vector3.UP - n * n.dot(Vector3.UP); up = up.normalized()
+	var lab := Label3D.new()
+	lab.pixel_size = 0.00015; lab.font_size = 40; lab.outline_size = 0
+	lab.modulate = Color(0.92, 0.92, 0.88); lab.shaded = false; lab.double_sided = false
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	add_child(lab)
+	lab.global_transform = Transform3D(Basis(up.cross(n), up, n), ctr + n * 0.0015 + up * 0.016)
+	var base := {"night": 2465.0, "dusk": 252.0}.get(SCENE, 0.0)
+	if SCENE == "house": base = {"dusk": 252.0, "t20": 1000.0, "t23": 2465.0, "t02": 3757.0, "t0330": 4438.0, "t0430": 4880.0}.get(TIME, 0.0)
+	var t := [base]
+	get_tree().process_frame.connect(func():
+		t[0] += get_process_delta_time()
+		var s := int(t[0])
+		var dot := "●" if fmod(t[0], 1.0) < 0.6 else "  "
+		lab.text = "%s REC  %d:%02d:%02d" % [dot, s / 3600, (s / 60) % 60, s % 60])
+
+func _wear():
+	# 段階2 室内の質感（試作57）: years of use, as Decals placed from the plan (blender/wear.py): grime along the skirting,
+	# hands on the door jambs, the floor worn through the doorways, damp streaks under the windows, old leaks on the
+	# ceilings. Images from blender/wear_tex.py. Nothing re-baked: the lightmaps and the pack stay as they were
+	if ARGS.has("nowear") or not S.has("wear"): return
+	var tex := {}
+	for d in S.wear:
+		var k: String = d.k
+		if not tex.has(k): tex[k] = load("res://assets/wear/%s.png" % k)
+		var dc := Decal.new()
+		dc.texture_albedo = tex[k]
+		dc.size = Vector3(d.s[0], d.s[2], d.s[1])   # x along the image's width, y the projection's depth, z its height
+		dc.normal_fade = 0.4                         # not smeared down the sides of casings and stools
+		var n := b2g(d.n).normalized(); var u := b2g(d.u).normalized()
+		var z: Vector3
+		if absf(n.y) > 0.9: z = n.cross(u).normalized()   # floor or ceiling: the image's height across the opening
+		else: z = Vector3(0, -1, 0)                       # a wall: the image's top up
+		var x := n.cross(z).normalized()
+		dc.transform = Transform3D(Basis(x, n, z), b2g(d.c))
+		if ARGS.has("weardbg"): dc.modulate = Color(1, 0, 0); dc.texture_emission = tex[k]; dc.emission_energy = 40.0
+		add_child(dc)
+	print("WEAR ", S.wear.size())
+
 func _window_glass():
 	# 段階2 室内の質感: the panes were opaque grey (glTF's transmission comes in as a solid surface), so every window read
 	# as a blank card (and printed as paper). Now old, faintly dirty clear glass: the sugi and the sky outside show through

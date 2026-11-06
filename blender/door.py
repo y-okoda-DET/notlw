@@ -151,18 +151,21 @@ def cstand(base, head_h, M):
     face.visible_shadow = False
     return p
 
+HEAD_Z = 1.40                  # the top of the tripod's head (the camera's plate)
+
+def rec_pos(loc, yaw):
+    """world position of the camcorder's red lamp (times.py puts the rec_light there)"""
+    import camcorder as C
+    f = (-math.sin(yaw), math.cos(yaw)); r = (math.cos(yaw), math.sin(yaw))
+    b, a, c = C.REC_AT
+    return (loc[0] + f[0] * a + r[0] * b, loc[1] + f[1] * a + r[1] * b, HEAD_Z + c)
+
 def tripod(loc, yaw, M):
-    x, y = loc
-    for k in range(3):
-        a = k / 3 * math.tau + yaw
-        cyl_between('tpleg', (x, y, 1.32), (x + math.cos(a) * .28, y + math.sin(a) * .28, .0), .011, M['metal'], 8)
-    cyl_between('tpcol', (x, y, 1.3), (x, y, 1.42), .02, M['metal'], 8)
-    body = prim('cube', 'vcam_body', loc=(x, y, 1.5), scale=(.055, .11, .06), mat=M['black']); body.rotation_euler.z = yaw
-    lens = cyl_between('lens', (x, y, 1.5), (x - math.sin(yaw) * .17, y + math.cos(yaw) * .17, 1.5), .042, M['rubber'], 16)
-    lcd = prim('cube', 'lcd', loc=(x - .07, y, 1.51), scale=(.004, .045, .035), mat=mat_basic('lcd', (.02, .03, .03), .2, emit=(.25, .3, .35), estr=.6))
-    lcd.rotation_euler.z = yaw + .9
-    led = prim('uv_sphere', 'recled', loc=(x + .03, y + .06, 1.565), radius=.006, mat=M['rec'])
-    r = lib.point('rec_light', (x + .03, y + .075, 1.57), .25, color=(1, .03, .01), radius=.004)
+    """The crew's video tripod and the tape camcorder on it (blender/camcorder.py; ユーザー「箱物っぽさが強すぎる」
+    「ラジオくらいの仕上がりにしたい」2026-11-06). `yaw`: the lens looks along (-sin yaw, cos yaw). Returns the body."""
+    import camcorder as C
+    body = C.build(M, loc, yaw, HEAD_Z)
+    lib.point('rec_light', rec_pos(loc, yaw), .25, color=(1, .03, .01), radius=.004)
     return body
 
 def build(style='main'):

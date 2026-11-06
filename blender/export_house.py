@@ -184,7 +184,8 @@ if __name__ == '__main__':
     boxes.append(dict(c=[St.DOOR_C, y1 + .32, (zd + HX.GZ) / 2 - .02], s=[1.5, math.hypot(.64, zd - HX.GZ), .04], ramp=1, rx=-math.atan2(zd - HX.GZ, .64)))
     boxes += OS.walk_boxes() + OS.car_boxes()
     props = [[*St.TRIPOD_N, .18], [*St.FRESNEL, .25], [*St.APPLEBOX, .18]] + OS.tree_trunks()
-    json.dump(dict(YF=St.YF, ZG=Hm.ZG, boxes=boxes, props=props, spawn=list(St.PLAYER), look=list(St.PLAYER_LOOK),
+    import wear as WR   # 段階2 使い込みの跡: Decals placed from the plan (Godot main.gd _wear)
+    json.dump(dict(YF=St.YF, ZG=Hm.ZG, boxes=boxes, props=props, wear=WR.decals(), spawn=list(St.PLAYER), look=list(St.PLAYER_LOOK),
                    gi_box=[[gx0, gy0, gz0], [gx1, gy1, gz1]], mark=[*St.MARK, 0], house=True, walk=list(OS.WALK_MESHES),
                    times=TM.TIMES, labels=TM.LABEL, state=TM.STATE, fps=24, loop=20.0, knocks=[]),
               open(f'{OUT}/scene.json', 'w'), indent=1)

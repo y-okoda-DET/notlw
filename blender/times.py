@@ -17,7 +17,7 @@ the same scale, and the night/dusk scenes were tuned by eye in Godot). Positions
 import math, json
 import bpy
 from mathutils import Vector
-import lib, house4 as H4, stage as St
+import lib, house4 as H4, stage as St, door as D
 
 X, Y = H4.X, H4.Y
 
@@ -124,20 +124,20 @@ def lights(t):
                     kind='spot', e=1.4, ang=37, sh=1, size=.2))
         L.append(_g(lib.area('rain_sky', (SLIT - .5, St.YF + 1.4, 2.2), (SLIT, St.YF + .2, 1.1), 6, k=14000, size=(.8, .8)), kind='spot', e=1.6, ang=40, sh=1, size=.6))
         L.append(_g(lib.area('lightning', (SLIT + .4, St.YF + 2.5, 2.2), (SLIT, St.YF, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
-        L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
+        L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
     elif t == 't02':
         # Kiryu goes: the front door stands open on the rain, the fresnel (still on the cord) lights the doorway from
         # behind; the blue panel's battery is flat (six hours)
         L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(.8)); L.append(candles(.4)); L.append(lantern_cellar(.8))
         L.append(_g(lib.area('rain_sky', (St.DOOR_C, St.YF + 1.6, 2.4), (St.DOOR_C, St.YF - .5, .6), 6, k=14000, size=(1.2, 1.2)), kind='spot', e=1.2, ang=45, sh=1, size=.6))
         L.append(_g(lib.area('lightning', (St.DOOR_C + .6, St.YF + 3.0, 2.6), (St.DOOR_C, St.YF - .5, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
-        L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
+        L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
     elif t == 't0330':
         # the fresnel's lamp has blown (tungsten, seven hours on a generator's surges). What is left in the hall is the
         # lobby bulb at its far end: whoever comes down the hall from the back comes against it, a shape before a
         # person. The tally of the camera Mio set up is still red. Lightning through the gaps of the boards.
         L.append(lobby(1.4)); L.append(cellar())
-        L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.3, r=.7, sh=0, size=.005))
+        L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.3, r=.7, sh=0, size=.005))
         L.append(storm(.08)); L.append(lantern(.3)); L.append(candles(.25)); L.append(lantern_cellar(.3))
         # Makoto upstairs with her headache: her phone face up on the bedside table, the screen still on
         L.append(_g(lib.point('phone_makoto', P_PHONE_M, 1.5, k=8000, radius=.02), kind='omni', e=.35, r=1.8, att=1.5, sh=1, fog=.1, size=.02))
@@ -158,7 +158,7 @@ def lights(t):
             src = (X(px), Y(-1.3), 2.6); dst = (X(px), Y(2.2), .5)
             L.append(_g(lib.area(nm, src, dst, 15, k=10000, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=1.0, spec=.15))
         w.inputs[0].default_value = (*lib.kelvin(11000), 1); w.inputs[1].default_value = .12
-        L.append(_g(lib.point('rec_light', (St.TRIPOD_N[0] + .03, St.TRIPOD_N[1] + .075, 1.57), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
+        L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
     L += cabinet()
     bpy.context.view_layer.update()
     return L
