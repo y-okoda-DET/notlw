@@ -138,7 +138,7 @@ def lights(t):
                                    ('dusk_bathn', (X(7.1), Y(9.3), H4.F2 + 2.0), (X(5.2), Y(7.1), H4.F2 + .3), 1.2),
                                    # the study's south and east windows (試作71: the blanket in its corner and the cushion
                                    # at the desk did not read through the print at dusk)
-                                   ('dusk_studys', (X(8.9), Y(-1.3), 2.0), (X(8.3), Y(2.4), .1), 2.2),
+                                   ('dusk_studys', (X(8.9), Y(-1.3), 2.0), (X(8.3), Y(2.4), .1), 1.5),   # 2.2 (試作72): the blanket's corner wall went paper white
                                    ('dusk_studye', (X(11.3), Y(1.7), 2.0), (X(7.4), Y(2.7), .1), 1.2)):
             L.append(_g(lib.area(nm, src, dst, 15 * e_ / 2.2 * DUSK_WIN, k=4200, size=(1.0, 1.0)), kind='spot', e=e_ * DUSK_WIN, ang=48, sh=1, size=.08, fog=.6, spec=.15))
     elif t == 't20':

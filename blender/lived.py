@@ -43,7 +43,7 @@ def mats(M):
     M['towel'] = mat_basic('towel', (.55, .6, .65), .95)
     # his handwriting (blender/lived_tex.py)
     M['calendar'] = lib.mat_image('lived_calendar', lib.tex_path('lived_calendar'), rough=.85, bump=0)
-    M['photo'] = lib.mat_image('lived_photo', lib.tex_path('lived_photo'), rough=.5, bump=0)
+    M['photo'] = lib.mat_image('lived_photo', lib.tex_path('lived_photo_lift'), rough=.9, bump=0)   # lift: the user's print (lived_photo.jpg) levelled up and matte, it was a dark square with a glare at dusk through the print (試作73)
     M['ledgerpage'] = lib.mat_image('lived_ledgerpage', lib.tex_path('lived_ledger'), rough=.85, bump=0)
 
 def phm(a, x, y, z, rz=0.0, rx=0.0, ry=0.0, s=1.0, name=None):
