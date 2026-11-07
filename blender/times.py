@@ -37,10 +37,13 @@ TIMES = ['dusk', 't20', 't23', 't02', 't0330', 't0430']
 LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't23': '二十三時', 't02': '二時', 't0330': '三時半', 't0430': '四時半（夜明け）'}
 
 # the state of the house at each time (Godot reads this from scene.json)
+# 試作68 (レビュー 試作65: at dusk the shadow side was lifted by the world, the ambient and the fog into one murk, the
+# lit side no brighter than the dark): less world in the bake, half the ambient, less fog, the window light up
+DUSK_WIN = 2.0   # 1.4 (試作68): the lit walls upstairs came up, the print's darkest ink was already the shadows' floor
 STATE = {
     #        boards  front door (deg open)  cord  print exposure  ambient (colour, energy)       sky ring (emission, tint)        fog
     # slip: the forest road's outer shoulder at the bend has gone (outside.py; the storm takes it before 桐生 goes out at 2:00)
-    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.1, sky=.75, skyc=[1, 1, 1], fog=.05, slip=False),
+    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.05, sky=.75, skyc=[1, 1, 1], fog=.03, slip=False),
     't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False),
     't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False),
     't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True),
@@ -110,12 +113,12 @@ def lights(t):
         s = lib.sun('sun', (0, 0, 0), 14, k=2200, angle=.8)
         s.rotation_euler = Vector((.3, -.95, -.25)).to_track_quat('-Z', 'Y').to_euler()
         L.append(_g(s, kind='sun', e=2.4, sh=1, fog=1.6, ang=.8, spec=.3))
-        w.inputs[0].default_value = (*lib.kelvin(3400), 1); w.inputs[1].default_value = .35
+        w.inputs[0].default_value = (*lib.kelvin(3400), 1); w.inputs[1].default_value = .2   # .35 lifted every shadow into one murk through the print (レビュー 試作65)
         L.append(_g(lib.area('door_sky', (St.DOOR_C, St.YF + .25, 1.1), (St.DOOR_C - .16, 3.5, .7), 30, k=4200, size=(.8, 2.1), spread=120),
                     kind='spot', e=1.1, ang=60, sh=0, size=.6, spec=.15))
         L.append(fresnel(2.6, 160))
         L.append(lobby())
-        L.append(_g(lib.point('lamp_living', P_LIVING, 130, k=2800, radius=.1), kind='omni', e=3.5, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        L.append(_g(lib.point('lamp_living', P_LIVING, 186, k=2800, radius=.1), kind='omni', e=5.0, r=5.0, att=1.3, sh=1, fog=0, size=.08))   # 3.5 left the living room under the print's ink (試作69)
         L.append(_g(lib.point('lamp_dining', P_DINING, 50, k=2800, radius=.1), kind='omni', e=1.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 60, k=2900, radius=.08), kind='omni', e=1.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(cellar(1.2))
@@ -123,15 +126,17 @@ def lights(t):
         # is behind the cedars by then and the upstairs has no lamp lit)
         for (nm, src, dst) in (('dusk_bed1s', (X(1.5), Y(-1.3), H4.F2 + 2.0), (X(1.8), Y(2.4), H4.F2 + .4)),
                                ('dusk_bed1w', (X(-1.3), Y(1.9), H4.F2 + 2.0), (X(2.4), Y(2.1), H4.F2 + .4))):
-            L.append(_g(lib.area(nm, src, dst, 15, k=4200, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=.6, spec=.15))
+            L.append(_g(lib.area(nm, src, dst, 15 * DUSK_WIN, k=4200, size=(1.0, 1.0)), kind='spot', e=2.2 * DUSK_WIN, ang=48, sh=1, size=.08, fog=.6, spec=.15))
         # the same through the other upstairs windows (レビュー 試作63: 寝室2・3, the landing and the stairwell dissolved
         # into the print at dusk). West and south take the low sky at full, north and east the cooler half of it
         for (nm, src, dst, e_) in (('dusk_bed2w', (X(-1.3), Y(6.1), H4.F2 + 2.0), (X(2.4), Y(6.3), H4.F2 + .4), 2.2),
                                    ('dusk_bed2n', (X(2.0), Y(9.3), H4.F2 + 2.0), (X(2.1), Y(5.6), H4.F2 + .4), 1.2),
                                    ('dusk_bed3s', (X(7.3), Y(-1.3), H4.F2 + 2.0), (X(7.6), Y(2.4), H4.F2 + .4), 2.2),
                                    ('dusk_bed3e', (X(11.3), Y(1.9), H4.F2 + 2.0), (X(7.6), Y(2.0), H4.F2 + .4), 1.2),
-                                   ('dusk_stairs', (X(5.0), Y(-1.3), H4.F2 + 2.2), (X(5.0), Y(3.0), H4.F2 - .6), 2.2)):
-            L.append(_g(lib.area(nm, src, dst, 15 * e_ / 2.2, k=4200, size=(1.0, 1.0)), kind='spot', e=e_, ang=48, sh=1, size=.08, fog=.6, spec=.15))
+                                   ('dusk_stairs', (X(5.0), Y(-1.3), H4.F2 + 2.2), (X(5.0), Y(3.0), H4.F2 - .6), 2.2),
+                                   # the landing has no window: the bathroom's north one, through its door (試作69)
+                                   ('dusk_bathn', (X(7.1), Y(9.3), H4.F2 + 2.0), (X(5.2), Y(7.1), H4.F2 + .3), 1.2)):
+            L.append(_g(lib.area(nm, src, dst, 15 * e_ / 2.2 * DUSK_WIN, k=4200, size=(1.0, 1.0)), kind='spot', e=e_ * DUSK_WIN, ang=48, sh=1, size=.08, fog=.6, spec=.15))
     elif t == 't20':
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
         # battery LED panel, gelled blue for tonight's planned shot, is the one light anyone can carry about; the
