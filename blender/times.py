@@ -92,7 +92,7 @@ def cabinet():
     """The battery LED bars in the study's cabinet (rooms2.night_lights): the same at every time."""
     out = []
     for nm, z in (('cab_led', 1.37), ('cab_led2', .87)):
-        out.append(_g(lib.point(nm, (X(7.2), Y(.42), z), 1.0, k=4300, radius=.02), kind='omni', e=.2, r=1.1, att=1.6, sh=1, fog=0, size=.02, spec=.2))
+        out.append(_g(lib.point(nm, (X(7.2), Y(.42), z), 1.0, k=4300, radius=.02), kind='omni', e=.2, r=1.1, att=1.6, sh=0 if nm == 'cab_led2' else 1, fog=0, size=.02, spec=.2))   # cab_led2: the fox's shadow on the back board read as a second beast through the print (レビュー 試作65)
     return out
 def candles(e=.5):
     return _g(lib.point('candle_kitchen', P_CANDLE, 8 * e / .5, k=1800, radius=.03), kind='omni', e=e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
@@ -152,7 +152,7 @@ def lights(t):
         L.append(fresnel()); L.append(lobby()); L.append(cellar()); L.append(storm()); L.append(lantern(2.0)); L.append(candles(1.0)); L.append(lantern_cellar())
         L.extend(crew_lanterns())   # lantern 2.0, candles 1.0: at 1.0 / .5 the living room and the kitchen went black in the print (レビュー 試作63)
         L.append(_g(lib.area('blue_door', BLUE_P, (St.DOOR_C, St.YF - .1, 1.2), 7, color=(.4, .56, 1.0), size=(.24, .18), spread=75),
-                    kind='spot', e=1.4, ang=37, sh=1, size=.2))
+                    kind='spot', e=1.4, ang=50, satt=3.0, sh=1, size=.2))
         L.append(_g(lib.area('rain_sky', (SLIT - .5, St.YF + 1.4, 2.2), (SLIT, St.YF + .2, 1.1), 6, k=14000, size=(.8, .8)), kind='spot', e=1.6, ang=40, sh=1, size=.6))
         L.append(_g(lib.area('lightning', (SLIT + .4, St.YF + 2.5, 2.2), (SLIT, St.YF, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
         L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))

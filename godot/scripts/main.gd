@@ -527,6 +527,7 @@ func _lights_house():
 				l = o
 			"spot":
 				l = _mk_spot(L, g.e, g.get("ang", 30.0), g.get("size", 0.1), g.get("sh", 1) > 0)
+				if g.has("satt"): (l as SpotLight3D).spot_angle_attenuation = g.satt   # a soft edge (blue_door: its hard rim was an oval on the front door, レビュー 試作65)
 			"sun":
 				var d := DirectionalLight3D.new()
 				d.light_color = Color(L.color[0], L.color[1], L.color[2]).linear_to_srgb()
