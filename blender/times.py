@@ -69,12 +69,17 @@ def lantern_cellar(e=1.0):
 # the crew's battery lanterns left lit upstairs and on the landing after the outage (ユーザー 2026-11-06 「部屋の仕上がり
 # レビュー」: at 23:00 the bedrooms and the landing were black through the print; the windows are boarded and the storm
 # has no moon, so the light has to be one they carried in). rooms2.night_lights puts each lantern where its light is
-P_CREW = {'lantern_bed1': (1.9, 2.3, H4.F2), 'lantern_bed2': (2.6, 6.0, H4.F2), 'lantern_bed3': (8.0, 2.2, H4.F2), 'lantern_landing': (5.2, 7.3, H4.F2),
-          'lantern_study': (9.0, 2.45, 0.0)}   # the study: on the floor by his low desk (試作64: the desk was black at 23:00)
-# candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00)
-P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74)}
+# 試作67 (レビュー: five lanterns on the floor in the middle of each room, the same round pool, read as markers): each
+# stands where its owner put it down. bed1: on the nightstand between the girls' beds; bed2: on the chest of drawers
+# by the make-up kit; bed3: on Makoto's nightstand; the landing: the one left on the floor, at the head of the stair so
+# the treads catch it going down; the study: by his low desk
+P_CREW = {'lantern_bed1': (.38, 2.1, H4.F2 + .616), 'lantern_bed2': (3.62, 5.62, H4.F2 + .676), 'lantern_bed3': (9.6, 1.76, H4.F2 + .616),
+          'lantern_landing': (5.5, 5.82, H4.F2), 'lantern_study': (9.0, 2.45, 0.0)}
+# candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00; 試作67:
+# the kitchen's sink side still black)
+P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74), 'candle_sink': (6.85, 7.62, .862)}
 def crew_lanterns(e=1.0):
-    return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=3.8, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+    return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=4.5, att=1.3, sh=1, fog=.2, size=.05, flick='batt')
             for n, (x, y, z) in P_CREW.items()] + \
            [_g(lib.point(n, (X(x), Y(y), z + .2), 8 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
             for n, (x, y, z) in P_CANDLES.items()]
