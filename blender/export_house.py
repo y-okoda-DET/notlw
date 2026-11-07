@@ -163,7 +163,7 @@ if __name__ == '__main__':
     print('baked', len(baked))
     j = join_static()
     size = int(os.environ.get('LM_SIZE', '2048'))
-    samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '512'))   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
+    samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '8192'))   # 8192 (試作72; 2048 in 71): at 512 the dusk walls' bounce came out grainy with dark clouds (レビュー 63・65: 刷りなしの黒い染み)   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
     sel = os.environ.get('TIMES', '').split(',') if os.environ.get('TIMES') else TM.TIMES
     for t in TM.TIMES:
         set_time(t, M)
