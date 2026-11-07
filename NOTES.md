@@ -262,3 +262,4 @@
 - 2026-11-06 ビデオカメラの開く液晶：画面は板の「閉じたとき本体に向く面」に貼る。外の面に貼ると、開いたとき撮られる側を向く（試作58〜62）。Godot の _camcorder_lcd は、画面の向きをメッシュの法線から取る（本体から離れる向き、で決めると開いた液晶では逆になる）。
 
 - 2026-11-06 23時の部屋が刷りで黒になる件（レビュー）：窓は板、嵐で月もないので、光はロケ隊が持ち込んだ物にする（times.crew_lanterns、rooms2.night_lights に同じ場所のランタン）。居間のランタン 1.0 → 2.0、台所のろうそく .5 → 1.0。部屋に一つ光だまりがあると、刷りで家具が影絵として読める（試作64）。ランタンの笠は自分の光を遮るので、Godot で影を落とさない（main.gd の lampshade_lantern_）。
+- 2026-11-07 地下の「黒い扉」（試作65のレビュー）は扉ではなく、地下の階段の脇の配電盤（Poly Haven power_box_01、2万面）の開いた扉だった。焼き込みの UV が1テクセルより小さい島に割れて、そこが 0 の黒になった（63 ではたまたま明るいテクセルに乗っていた。64/65 で家に物が増えて並びが変わった）。影の置き場（positional shadow atlas）を 8192 にしても変わらないことを先に確かめた。直し方は Tripo の布と同じ LM_BOOST（export_house.LM_BOOST_OF の breaker 6.0）。探し方：Godot で env_static に create_trimesh_collision して画面の点から光線を当て、当たった点を Blender（bpy で env.glb を読む）の closest_point_on_mesh で材質名と 'lm' の UV を出す（$WORK/probe2/find3.gd、$WORK/probe3/lm.py）。

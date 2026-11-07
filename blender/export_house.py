@@ -23,8 +23,9 @@ E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
 # these get LM_BOOST times the atlas area instead: scaled up for the unwrap, then put back.
-TRIPO_LIVED = ('lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton', 'natsuki_hoodie', 'futon_stack', 'csleepbag', 'sleepsack', 'csheet'); LM_BOOST = 3.0
-LM_BOOST_OF = {'lived_hide': 8.0}   # the hide still came out in light and dark blocks at 3 (試作47)
+# breaker: Poly Haven's power_box_01 (21k faces) in the cellar, its open door came out black at 試作64/65 (a sub-texel island)
+TRIPO_LIVED = ('breaker', 'lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton', 'natsuki_hoodie', 'futon_stack', 'csleepbag', 'sleepsack', 'csheet'); LM_BOOST = 3.0
+LM_BOOST_OF = {'lived_hide': 8.0, 'breaker': 6.0}   # the hide still came out in light and dark blocks at 3 (試作47)
 
 _bake_object = E.bake_object
 def _bake_sized(o, size=1024):
