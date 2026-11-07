@@ -69,10 +69,15 @@ def lantern_cellar(e=1.0):
 # the crew's battery lanterns left lit upstairs and on the landing after the outage (ユーザー 2026-11-06 「部屋の仕上がり
 # レビュー」: at 23:00 the bedrooms and the landing were black through the print; the windows are boarded and the storm
 # has no moon, so the light has to be one they carried in). rooms2.night_lights puts each lantern where its light is
-P_CREW = {'lantern_bed1': (1.9, 2.3), 'lantern_bed2': (2.6, 6.0), 'lantern_bed3': (8.0, 2.2), 'lantern_landing': (5.2, 7.3)}
+P_CREW = {'lantern_bed1': (1.9, 2.3, H4.F2), 'lantern_bed2': (2.6, 6.0, H4.F2), 'lantern_bed3': (8.0, 2.2, H4.F2), 'lantern_landing': (5.2, 7.3, H4.F2),
+          'lantern_study': (9.0, 2.45, 0.0)}   # the study: on the floor by his low desk (試作64: the desk was black at 23:00)
+# candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00)
+P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74)}
 def crew_lanterns(e=1.0):
-    return [_g(lib.point(n, (X(x), Y(y), H4.F2 + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=3.8, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
-            for n, (x, y) in P_CREW.items()]
+    return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=3.8, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
+            for n, (x, y, z) in P_CREW.items()] + \
+           [_g(lib.point(n, (X(x), Y(y), z + .2), 8 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
+            for n, (x, y, z) in P_CANDLES.items()]
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def cabinet():
@@ -114,6 +119,14 @@ def lights(t):
         for (nm, src, dst) in (('dusk_bed1s', (X(1.5), Y(-1.3), H4.F2 + 2.0), (X(1.8), Y(2.4), H4.F2 + .4)),
                                ('dusk_bed1w', (X(-1.3), Y(1.9), H4.F2 + 2.0), (X(2.4), Y(2.1), H4.F2 + .4))):
             L.append(_g(lib.area(nm, src, dst, 15, k=4200, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=.6, spec=.15))
+        # the same through the other upstairs windows (レビュー 試作63: 寝室2・3, the landing and the stairwell dissolved
+        # into the print at dusk). West and south take the low sky at full, north and east the cooler half of it
+        for (nm, src, dst, e_) in (('dusk_bed2w', (X(-1.3), Y(6.1), H4.F2 + 2.0), (X(2.4), Y(6.3), H4.F2 + .4), 2.2),
+                                   ('dusk_bed2n', (X(2.0), Y(9.3), H4.F2 + 2.0), (X(2.1), Y(5.6), H4.F2 + .4), 1.2),
+                                   ('dusk_bed3s', (X(7.3), Y(-1.3), H4.F2 + 2.0), (X(7.6), Y(2.4), H4.F2 + .4), 2.2),
+                                   ('dusk_bed3e', (X(11.3), Y(1.9), H4.F2 + 2.0), (X(7.6), Y(2.0), H4.F2 + .4), 1.2),
+                                   ('dusk_stairs', (X(5.0), Y(-1.3), H4.F2 + 2.2), (X(5.0), Y(3.0), H4.F2 - .6), 2.2)):
+            L.append(_g(lib.area(nm, src, dst, 15 * e_ / 2.2, k=4200, size=(1.0, 1.0)), kind='spot', e=e_, ang=48, sh=1, size=.08, fog=.6, spec=.15))
     elif t == 't20':
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
         # battery LED panel, gelled blue for tonight's planned shot, is the one light anyone can carry about; the
