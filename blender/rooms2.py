@@ -528,6 +528,11 @@ def cellar(M):
     cyl('cbulb_socket', 7.9, 4.2, -.68, -.62, .02, M['plastic'], 10)
     bl = prim('uv_sphere', 'lampshade_lamp_cellar', loc=(X(7.9), Y(4.2), -.72), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
     bl.visible_shadow = False   # the light sits inside it: its glass shadowed the whole room in the bake (試作50; main.gd the same in Godot)
+    # 試作80: the second bulb over the west strip by the barred door (times.P_CELLAR_W), in a pull-chain socket on the joist
+    if not lived.phm('pull_chain_light_socket', 4.55, 2.25, -.33, name='cbulb_w_socket'):
+        cyl('cbulb_w_socket', 4.55, 2.25, -.5, -.33, .02, M['plastic'], 10)
+    bw = prim('uv_sphere', 'lampshade_lamp_cellarw', loc=(X(4.55), Y(2.25), -.535), scale=(.03, .03, .04), mat=M['bulb'], segments=12, ring_count=8)
+    bw.visible_shadow = False
     # where Taiga is put at 0:00, by the barred door: a crew's sleeping bag open on the concrete (orange, its navy lining
     # turned back), a flashlight, a bottle of water
     if not F.tripo_prop('sleepbag', (X(4.65), Y(2.05), z0), 0.0, 1.9, name='csleepbag'):

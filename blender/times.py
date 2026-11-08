@@ -27,6 +27,7 @@ P_LIVING = (X(3.75), Y(2.93), 1.08)
 P_DINING = (X(2.0), Y(6.35), 1.56)
 P_KITCHEN = (X(7.9), Y(5.6), 1.84)
 P_CELLAR = (X(7.9), Y(4.2), -.72)
+P_CELLAR_W = (X(4.55), Y(2.25), -.535)   # 試作80: the second bulb, over the sleeping bag's corner
 FRES_HP = Vector((St.FRESNEL[0], St.FRESNEL[1], 2.12)); FRES_AIM = Vector((*St.MARK, 0.0))
 FRES_P = tuple(FRES_HP + (FRES_AIM - FRES_HP).normalized() * .12)
 BX, BY, BZ = St.SHOECAB_TOP; BZ += .12
@@ -203,6 +204,13 @@ def lights(t):
             L.append(_g(lib.area(nm, src, dst, 15, k=10000, size=(1.0, 1.0)), kind='spot', e=2.2, ang=48, sh=1, size=.08, fog=1.0, spec=.15))
         w.inputs[0].default_value = (*lib.kelvin(11000), 1); w.inputs[1].default_value = .12
         L.append(_g(lib.point('rec_light', D.rec_pos(St.TRIPOD_N, math.radians(205)), .25, color=(1, .03, .01), radius=.004), kind='omni', e=.25, r=.6, sh=0, size=.005))
+    # 試作80 (レビュー 試作73: by the barred door, where Taiga's sleeping bag is, the stair shaft hid the one bulb and the
+    # corner was black at dusk): the owner's second bulb on the same circuit, a pull-chain socket on the joist over the
+    # west strip (rooms2.cellar). Lit whenever the first one is, at half
+    for o in list(L):
+        if o.name == 'lamp_cellar':
+            e = json.loads(o['g'])['e'] * .5
+            L.append(_g(lib.point('lamp_cellarw', P_CELLAR_W, 60 * e / 1.6, k=2600, radius=.03), kind='omni', e=e, r=5.0, att=1.3, sh=1, fog=.5, size=.03, flick='gen'))
     L += cabinet()
     bpy.context.view_layer.update()
     return L
