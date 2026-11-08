@@ -271,4 +271,5 @@
 - 灯りを1つ動かすと、別の画（廊下から見た階段、踊り場）が暗くなる。動かしたら、その灯りが届いていた画を全部撮り直す。
 - ディスクが一杯だと書き出しの pck が途中で切れ、house_shots はプロジェクト管理画面を撮る（project.binary が読めない）。古い確認の画（probe の連番 png）を消して書き出し直す。
 - house_shots.py の GPRE で --script を差し込める（例：灯りを1つ消して撮る probe）。
+- 「光源のない光」を探すときは、house_shots.py の GPRE と probe（灯りを位置で消す off.gd）で1つずつ消して撮る。名前は @OmniLight3D@N なので位置で当てる（Blender (x,y,z) → Godot (x, z, -y)）。試作75では、どれも画の外の本物の灯りだった。
 

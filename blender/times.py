@@ -88,10 +88,12 @@ CREW_E = {'lantern_bed1': .5, 'lantern_bed2': .5, 'lantern_bed3': .5, 'lantern_s
 # candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00; 試作67:
 # the kitchen's sink side still black)
 P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74), 'candle_sink': (6.85, 7.62, .862)}
+# 試作76 (レビュー 試作73「調理台の橙」): the candles' bounce was baked as strong as a lantern's (8), and the wall over
+# the south counter went one flat orange up to the ceiling even with the live candles off. Baked at half; live unchanged
 def crew_lanterns(e=1.0):
     return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e * CREW_E[n], k=3300, radius=.05), kind='omni', e=.7 * e * CREW_E[n], r=4.5, att=1.3, sh=1, fog=.2, size=.05, flick='batt')
             for n, (x, y, z) in P_CREW.items()] + \
-           [_g(lib.point(n, (X(x), Y(y), z + .2), 8 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
+           [_g(lib.point(n, (X(x), Y(y), z + .2), 4 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
             for n, (x, y, z) in P_CANDLES.items()]
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
