@@ -75,14 +75,21 @@ def lantern_cellar(e=1.0):
 # 試作67 (レビュー: five lanterns on the floor in the middle of each room, the same round pool, read as markers): each
 # stands where its owner put it down. bed1: on the nightstand between the girls' beds; bed2: on the chest of drawers
 # by the make-up kit; bed3: on Makoto's nightstand; the landing: the one left on the floor, at the head of the stair so
-# the treads catch it going down; the study: by his low desk
+# the treads catch it going down (試作74: on the stair itself); the study: by his low desk (試作74: on it)
 P_CREW = {'lantern_bed1': (.38, 2.1, H4.F2 + .616), 'lantern_bed2': (3.62, 5.62, H4.F2 + .676), 'lantern_bed3': (9.6, 1.76, H4.F2 + .616),
-          'lantern_landing': (5.5, 5.82, H4.F2), 'lantern_study': (9.0, 2.45, 0.0)}
+          'lantern_stair': (5.75, 4.56, 1.904), 'lantern_landing': (5.2, 7.3, H4.F2), 'lantern_study': (9.42, 2.3, .37)}
+# 試作74 (レビュー 試作73: from 67 the stair seen from the hall and the study desk went dark at 23:00): a lantern left on
+# the stair's ninth tread (east half, out of the way of feet), so the treads below and the hall catch it; the study's
+# stands on his desk by the ledger (on the floor it sat below the desk top and lit only the tatami). The bedroom ones at
+# half (レビュー 試作73: the lantern on the table by the window blew out through the print). 試作75: with only the stair
+# one the landing went black, so the landing keeps one by the bathroom door, low (試作65's place); the desk's at .6 blew
+# the desk's far half out
+CREW_E = {'lantern_bed1': .5, 'lantern_bed2': .5, 'lantern_bed3': .5, 'lantern_stair': 1.0, 'lantern_landing': .5, 'lantern_study': .35}
 # candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00; 試作67:
 # the kitchen's sink side still black)
 P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74), 'candle_sink': (6.85, 7.62, .862)}
 def crew_lanterns(e=1.0):
-    return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e, k=3300, radius=.05), kind='omni', e=.7 * e, r=4.5, att=1.3, sh=1, fog=.2, size=.05, flick='batt')
+    return [_g(lib.point(n, (X(x), Y(y), z + .15), 8 * e * CREW_E[n], k=3300, radius=.05), kind='omni', e=.7 * e * CREW_E[n], r=4.5, att=1.3, sh=1, fog=.2, size=.05, flick='batt')
             for n, (x, y, z) in P_CREW.items()] + \
            [_g(lib.point(n, (X(x), Y(y), z + .2), 8 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
             for n, (x, y, z) in P_CANDLES.items()]

@@ -107,7 +107,7 @@ def main():
             if f.startswith(f'tmp_{t}_'): os.remove(f'{OUT}/{f}')
         shots = ';'.join(pose(v) for v in vs)
         n = 12 * len(vs)
-        cmd = (f'cd /tmp && timeout {240 + int(os.environ.get("PER", "40")) * len(vs)} xvfb-run -a -s "-screen 0 {RES}x24" {G} {base} --windowed --resolution {RES} '
+        cmd = (f'cd /tmp && timeout {240 + int(os.environ.get("PER", "40")) * len(vs)} xvfb-run -a -s "-screen 0 {RES}x24" {G} {base} {os.environ.get("GPRE", "")} --windowed --resolution {RES} '
                f'--write-movie {tmp}.png --fixed-fps 24 --quit-after {n} -- --record=poses --nocard --scene=house --time={t} '
                f'--gi={os.environ.get("GI", "baked")} --print={pr} {hp} {os.environ.get("GARGS", "")} "--shots={shots}"')
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
