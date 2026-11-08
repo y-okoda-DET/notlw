@@ -504,7 +504,7 @@ def cellar(M):
     lived.phm('handsaw_wood', 4.0 + .07, 4.6, z0 + 1.4, rx=math.pi / 2, rz=math.pi / 2, name='csaw')
     lived.phm('metal_tool_chest', 9.65, 3.6, z0, rz=-math.pi / 2, name='ctoolchest')
     collide(9.42, 3.25, 9.95, 3.95, z0, z0 + .65)
-    lived.phm('mousetrap', 9.85, 4.75, z0, rz=.4, name='cmousetrap')
+    lived.phm('mousetrap', 9.0, 4.3, z0, rz=.4, name='cmousetrap')   # 試作77: was at the east wall, where the old cupboard is now
     # old furniture under a dust sheet in the south-east corner (a cabinet and a chair beneath)
     a = box('csheet_under', 8.7, 1.2, 9.35, 1.7, z0, z0 + .95, M['dust'])
     b = box('csheet_under', 9.35, 1.45, 9.85, 2.2, z0, z0 + .78, M['dust'])
@@ -551,6 +551,21 @@ def cellar(M):
         o = prim('cylinder', 'cwood', loc=(X(4.35), Y(3.6 + (i % 3) * .14), z0 + .07 + (i // 3) * .13), rot=(0, math.pi / 2, r.uniform(-.1, .1)),
                  scale=(.06, .06, .3), mat=M['agari'], vertices=10)
     collide(4.05, 3.5, 4.7, 4.0, z0, z0 + .4)
+    # 試作77 (レビュー 試作73: the cellar and Taiga's corner read empty through the print): his pickles in two cedar tubs
+    # against the north wall, a river stone on each lid, a clay crock beside them; the old kitchen cupboard, its paint
+    # peeling, put down here when the kitchen was redone, along the east wall (the mousetrap goes in front of it); by
+    # the sleeping bag the crew's first-aid case and a thermos (Poly Haven's soil bags and gallon bottle carry brand
+    # names: not used)
+    for i, x in enumerate((6.52, 7.17)):
+        lived.phm('wooden_bucket_02', x, 6.6, z0, rz=.7 * i, name=f'ctub_{i}')
+        cyl(f'ctublid_{i}', x, 6.6, z0 + .27, z0 + .29, .26, M['agari'], 24)   # the drop lid (落とし蓋) inside the rim (試作78: the stone floated over the open tub)
+        lived.phm('stone_01', x + .03, 6.58, z0 + .29, rz=1.1 + i, s=2.2, name=f'ctubstone_{i}')
+    lived.phm('planter_pot_clay', 7.66, 6.72, z0, rz=.4, name='ccrock')
+    collide(6.2, 6.28, 7.8, 6.95, z0, z0 + .4)
+    lived.phm('painted_wooden_cabinet', 9.62, 4.85, z0, rz=-math.pi / 2, name='ccupboard')   # its front is -Y in the model: -pi/2 faces the room
+    collide(9.3, 4.23, 9.95, 5.47, z0, z0 + 1.18)
+    lived.phm('medical_box', 5.17, 1.78, z0, rz=.35, name='cfirstaid')
+    lived.phm('plastic_thermos', 5.2, 2.32, z0, rz=.8, name='cthermos')
 
 # ---------------------------------------------------------------- the generator's cord (20:00 on: the only power in the house)
 def cord(M):

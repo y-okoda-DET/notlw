@@ -272,4 +272,6 @@
 - ディスクが一杯だと書き出しの pck が途中で切れ、house_shots はプロジェクト管理画面を撮る（project.binary が読めない）。古い確認の画（probe の連番 png）を消して書き出し直す。
 - house_shots.py の GPRE で --script を差し込める（例：灯りを1つ消して撮る probe）。
 - 「光源のない光」を探すときは、house_shots.py の GPRE と probe（灯りを位置で消す off.gd）で1つずつ消して撮る。名前は @OmniLight3D@N なので位置で当てる（Blender (x,y,z) → Godot (x, z, -y)）。試作75では、どれも画の外の本物の灯りだった。
+- Poly Haven の模型は向きがまちまち。置く前に Cycles（CPU、8サンプル）で ±Y から2枚撮って前を確かめる（/home/claude/work/probe3/front.py の形。Workbench はここでは落ちる）。painted_wooden_cabinet は前が -Y。
+- close.py の <t> はループの時刻（数）で、時刻（t23）は GARGS="--time=t23" で渡す。標的は Blender 座標。
 
