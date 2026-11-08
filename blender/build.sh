@@ -38,7 +38,7 @@ if [[ " $SCENES " == *" house "* ]]; then
   python3 wear_tex.py > $W/wear${N}.log 2>&1   # 段階2 使い込みの跡の画像（godot/assets は git に入らない）
   FAST=$FAST python3 export_house.py > $W/export${N}h.log 2>&1 || { echo HOUSE_FAIL >> $L; exit 1; }
   grep -E "^lightmap .*(baked|hit)" $W/export${N}h.log | sed 's/^/  house /' >> $L
-  for t in $(python3 -c "import times; print(' '.join(times.TIMES))"); do python3 denoise_lm.py -- $RULES/assets/house/$t/lightmap.exr >> $W/export${N}h.log 2>&1; done
+  for t in $(python3 -c "import times; print(' '.join(times.TIMES))"); do LM_IDS=$W/lm_ids_house.npy python3 denoise_lm.py -- $RULES/assets/house/$t/lightmap.exr >> $W/export${N}h.log 2>&1; done
 fi
 [ "$SCENES" != "night dusk house" ] && echo "  書き出さなかった場面は前回のまま（FAST だけ。送る前は FAST なしで両方）" >> $L
 # 人体の構造の確認（顔・つま先の向き、ひじ・ひざの曲がる向き、前腕のねじれ）。NG なら止める

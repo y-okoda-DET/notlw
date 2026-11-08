@@ -119,7 +119,13 @@ def join_static():
     lm = me.uv_layers.new(name='lm'); me.uv_layers.active = lm; me.uv_layers['UVMap'].active_render = True
     bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=.002)
+    # 試作81 (階段と踊り場の壁のむら): with the many islands, smart_project's margin ate the sheet; the islands used 0.8% of
+    # the 2048 lightmap and the walls had 3 to 5 texels a metre, so each texel's noise was a 30 cm cloud. Packed again
+    # with a margin of about one texel: 46% of the sheet, about 25 texels a metre
+    bpy.ops.uv.select_all(action='SELECT')
+    bpy.ops.uv.pack_islands(rotate=True, margin_method='FRACTION', margin=float(os.environ.get('LM_MARGIN', '.0005')))
     bpy.ops.object.mode_set(mode='OBJECT')
+    lm_ids(me, f'{P.WORK}/lm_ids_house.npy')
     if boost and 'lmboost' in me.attributes:
         mw = j.matrix_world; inv = mw.inverted()
         for v, a in zip(me.vertices, me.attributes['lmboost'].data):
@@ -127,6 +133,31 @@ def join_static():
                 c, k = boost[a.value - 1]; w = mw @ v.co; v.co = inv @ (c + (w - c) / k)
         me.attributes.remove(me.attributes['lmboost'])
     return j
+
+def lm_ids(me, path, S=2048):
+    """The lightmap's island map (int32, bottom row first like the baked image; 0 = no island): denoise_lm.py smooths
+    inside each island only (試作81). Islands: polygons joined by loops on the same vertex with the same 'lm' UV."""
+    import numpy as np
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from PIL import Image, ImageDraw
+    nl, npl = len(me.loops), len(me.polygons)
+    lv = np.zeros(nl, np.int64); me.loops.foreach_get('vertex_index', lv)
+    uv = np.zeros(nl * 2); me.uv_layers['lm'].data.foreach_get('uv', uv); uv = uv.reshape(-1, 2)
+    lt = np.zeros(npl, np.int64); me.polygons.foreach_get('loop_total', lt)
+    lp = np.repeat(np.arange(npl), lt)
+    q = np.round(uv * S * 16).astype(np.int64)
+    _, kid = np.unique(np.stack([lv, q[:, 0], q[:, 1]], 1), axis=0, return_inverse=True); kid = kid.ravel()
+    nk = kid.max() + 1
+    _, lab = connected_components(coo_matrix((np.ones(nl), (lp, npl + kid)), shape=(npl + nk, npl + nk)), directed=False)
+    me.calc_loop_triangles(); n = len(me.loop_triangles)
+    tl = np.zeros(n * 3, np.int64); me.loop_triangles.foreach_get('loops', tl)
+    tp = np.zeros(n, np.int64); me.loop_triangles.foreach_get('polygon_index', tp)
+    img = Image.new('I', (S, S), 0); d = ImageDraw.Draw(img)
+    for tri, i in zip(uv[tl].reshape(-1, 3, 2) * S, lab[tp] + 1):
+        pts = [(x, S - y) for x, y in tri]; d.polygon(pts, fill=int(i), outline=int(i))
+    np.save(path, np.array(img, dtype=np.int32)[::-1])
+    print('lm_ids', path, flush=True)
 
 def bake_time(j, t, size, samples):
     s = bpy.context.scene; s.render.engine = 'CYCLES'; s.cycles.samples = samples; s.cycles.device = 'CPU'
@@ -163,7 +194,7 @@ if __name__ == '__main__':
     print('baked', len(baked))
     j = join_static()
     size = int(os.environ.get('LM_SIZE', '2048'))
-    samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '8192'))   # 8192 (試作72; 2048 in 71): at 512 the dusk walls' bounce came out grainy with dark clouds (レビュー 63・65: 刷りなしの黒い染み)   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
+    samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '1024'))   # 1024 (試作81): with the islands packed tight (57 times the texels) 8192 would take some 10 hours; the island-wise smoothing (denoise_lm.py) takes the grain   # 8192 (試作72; 2048 in 71): at 512 the dusk walls' bounce came out grainy with dark clouds (レビュー 63・65: 刷りなしの黒い染み)   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
     sel = os.environ.get('TIMES', '').split(',') if os.environ.get('TIMES') else TM.TIMES
     for t in TM.TIMES:
         set_time(t, M)

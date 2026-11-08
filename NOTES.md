@@ -274,4 +274,7 @@
 - 「光源のない光」を探すときは、house_shots.py の GPRE と probe（灯りを位置で消す off.gd）で1つずつ消して撮る。名前は @OmniLight3D@N なので位置で当てる（Blender (x,y,z) → Godot (x, z, -y)）。試作75では、どれも画の外の本物の灯りだった。
 - Poly Haven の模型は向きがまちまち。置く前に Cycles（CPU、8サンプル）で ±Y から2枚撮って前を確かめる（/home/claude/work/probe3/front.py の形。Workbench はここでは落ちる）。painted_wooden_cabinet は前が -Y。
 - close.py の <t> はループの時刻（数）で、時刻（t23）は GARGS="--time=t23" で渡す。標的は Blender 座標。
+- 家の焼き込みの UV：smart_project の island_margin=.002 は島の数（約18万）が多いと余白だけで画像が埋まり、面は0.8%しか使えなかった（壁1mに3〜5画素）。pack_islands(margin_method='FRACTION', margin=.0005) で詰め直すと46%。.001 だと5%しか使えない（境目がある）。測り方：env.glb の UVMap.001 の三角形の面積の合計（/home/claude/work/probe3/dens2.py）。
+- 島を詰めたら、焼き込みのぼかしは島ごとに（denoise_lm.py の LM_IDS）。普通のガウスだと隣の島（暗い小物）の色が混ざって、壁に黒い斑点が出る。
+- 書き出しだけやり直すとき（焼き込みの画像を差し替えた時など）：godot で --import のあと --export-release。export_presets.cfg は build.sh と同じ形に直してから。終わったら git checkout で戻す。
 
