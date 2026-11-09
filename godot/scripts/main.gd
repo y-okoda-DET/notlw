@@ -94,6 +94,8 @@ func _ready():
 		if a == "--nostory": ARGS["nostory"] = true
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
+		if a == "--genoff": ARGS["genoff"] = true
+		if a == "--ch2": ARGS["ch2"] = true   # 試作91: the house at 20:00 as 第2章 has it (the people; the story too unless checking)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
@@ -108,6 +110,10 @@ func _ready():
 	_load_scene(BASE + "env.glb", "env")
 	for n in ([] if ARGS.has("nochars") else CHARS):
 		if ResourceLoader.exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
+	ch2_house = (CH2 or ARGS.has("ch2")) and SCENE == "house"; CH2 = false
+	if ch2_house: _t20_people()
+	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
+		place_person("taiga", T20.taiga_gen.pos, T20.taiga_gen.yaw)
 	if ARGS.has("nochars"):   # the people's things go too (the reflector Makoto holds, the box and the tape)
 		for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
 			if String(mi.name).begins_with("reflector") or String(mi.name).begins_with("carrybox") or String(mi.name).begins_with("taperoll"): mi.visible = false
@@ -141,6 +147,9 @@ func _ready():
 		if CARD_TIME > 0.0: CARD_TIME = 3.0   # only the time card: the chapter's door was at 二十時
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
+	if ARGS.has("genoff"): generator(false)   # 試作91: the stills of 第2章 before the generator
+	if ch2_house and not checking:   # 試作91: 第2章 at 20:00 in the whole house, reached by playing 第1章
+		story = preload("res://scripts/story.gd").new(); story.main = self; story.house = true; add_child(story)
 	FROM_STORY = false
 	_card()
 	_restore_settings()
@@ -253,7 +262,7 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var fk: String = "natsuki_s" if (SCENE == "dusk" and k == "natsuki") else k   # her indoor head has its own UV layout
+			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house) and k == "natsuki") else k   # her indoor head has its own UV layout
 			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
@@ -1102,7 +1111,79 @@ func power_cut(dark := true):
 func power_eyes_open():
 	if env: create_tween().tween_property(env, "tonemap_exposure", 1.0, 2.5).set_ease(Tween.EASE_OUT)
 
+static var CH2 := false            # 試作91: the house was reached from 第1章's power cut (第2章 runs in it, at 20:00)
+var ch2_house := false
 static var FROM_STORY := false     # 段階1: the night was reached by playing (the door scene runs), not by N
+
+func to_house_ch2():
+	_save_settings()
+	SCENE = "house"; TIME = "t20"; CH2 = true
+	get_tree().reload_current_scene()
+
+# 試作91: the people at 20:00 (blender/export_t20.py). Each 第1章 body plays the 20:00 movement (<k>_t20.glb: the same
+# rig, a phone in the right hand); the phone gets a small torch, the body a column the player cannot walk through.
+var T20 := {}
+func _t20_people():
+	T20 = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/t20.json"))
+	for k in CHARS:
+		if not ResourceLoader.exists("res://assets/dusk/%s_t20.glb" % k): continue
+		_load_scene("res://assets/dusk/%s.glb" % k, k)
+		var inst: Node3D = S[k + "_node"]
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			if String(mi.name).begins_with("carrybox") or String(mi.name).begins_with("taperoll"): mi.visible = false
+		var mv: Node = (load("res://assets/dusk/%s_t20.glb" % k) as PackedScene).instantiate()
+		var src: AnimationPlayer = mv.find_children("*", "AnimationPlayer", true, false)[0]
+		var an: Animation = src.get_animation(src.get_animation_list()[0]).duplicate()
+		an.loop_mode = Animation.LOOP_LINEAR
+		var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+		for ap in inst.find_children("*", "AnimationPlayer", true, false):
+			ap.stop(); sk.reset_bone_poses()
+			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); ap.add_animation_library("t20", lib); ap.play("t20/loop")
+		for ba in mv.find_children("*", "BoneAttachment3D", true, false):
+			ba.get_parent().remove_child(ba); ba.owner = null
+			for c in ba.find_children("*", "", true, false): c.owner = null
+			sk.add_child(ba)
+			for ph in ba.find_children("*", "MeshInstance3D", true, false):
+				var sp := SpotLight3D.new(); sp.name = "torch"
+				sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 1.4; sp.spot_range = 6.0; sp.spot_angle = 30.0
+				sp.spot_attenuation = 1.2; sp.spot_angle_attenuation = 2.0; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
+				sp.light_specular = 0.2
+				# beside the phone, not under it: the phone mesh carries its object scale, and a scaled light turned the whole
+				# frame black (試作91)
+				var tf: Transform3D = ph.transform
+				sp.transform = Transform3D(tf.basis.orthonormalized(), tf.origin + tf.basis.orthonormalized() * Vector3(0, 0, -0.006))
+				ba.add_child(sp)
+				# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
+				var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.35
+				gl.omni_range = 0.9; gl.omni_attenuation = 1.6; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
+				gl.transform = Transform3D(Basis(), tf.origin + tf.basis.orthonormalized() * Vector3(0, 0, 0.05))
+				ba.add_child(gl)
+		mv.free()
+		var col := StaticBody3D.new(); var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new()
+		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)
+		S[k + "_col"] = col
+		place_person(k, T20[k].pos, T20[k].yaw)
+
+func place_person(k: String, pos: Array, yaw: float):
+	var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+	var rig := sk.get_parent() as Node3D
+	rig.global_transform = Transform3D(Basis(Vector3.UP, yaw), b2g(pos))
+	(S[k + "_col"] as Node3D).global_position = b2g(pos)
+
+# 試作91: the generator's circuit (the lobby bulb and the cellar's two): out until Mio starts it in 第2章
+var gen_on := true
+func generator(on: bool):
+	gen_on = on
+	for k in ["lamp_lobby", "lamp_cellar", "lamp_cellarw"]:
+		if lights.has(k): lights[k].visible = on
+	for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if not (nm.contains("lamp_lobby") or nm.contains("lamp_cellar")): continue
+		for i in range(mi.get_surface_override_material_count()):
+			var m := mi.get_surface_override_material(i) as StandardMaterial3D
+			if m: m.emission_enabled = on
+	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
+	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.3) if gi_mode == 0 else 0.0)
 
 func to_night(from_story := false):
 	_save_settings()

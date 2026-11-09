@@ -92,6 +92,7 @@ func _ready():
 	player = main.player
 	font = load("res://fonts/SerifJP-Bold.otf")
 	u = get_viewport().get_visible_rect().size.y / 1080.0
+	if house: _house_ready(); return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 3.985) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
@@ -501,6 +502,7 @@ func _process(dt):
 	(finder_ui as FinderFrame).tc = "0:%02d:%02d" % [int(t_now / 60.0) % 60, int(t_now) % 60]
 	finder_ui.queue_redraw()
 	if mode == END: _end_tick(dt); return
+	if house: _house_tick(dt)
 	if ch2: _radio_tick(dt)
 	# the head and the camera
 	var head: Node3D = player.get_node("Head")
@@ -551,6 +553,7 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 		var it = items[k]
 		if k == "fixedcam" and (holding_cam or cam_placed or not has_board): continue
 		if ch2 and k != "radio": continue          # after the power goes there is only the radio
+		if house and k == "taiga" and taiga_moving: continue
 		var to: Vector3 = it.pos - eye
 		var d := to.length()
 		var lim := 2.6 if it.kind == "talk" else 1.9
@@ -602,6 +605,7 @@ func _press():
 		return
 	if focus == "": return
 	var it = items[focus]
+	if house and focus.begins_with("g_"): _gen_use(focus); return
 	match focus:
 		"placed": _pick_up_again()
 		"fixedcam": _take_cam()
@@ -671,6 +675,7 @@ func _judge() -> Array:
 # ================================================================ conversations
 func _conversation(key: String) -> Array:
 	var n: int = talked.get(key, 0); talked[key] = n + 1
+	if house: return _house_conv(key, n)
 	match key:
 		"kiryu":
 			if not has_board:
@@ -836,6 +841,8 @@ func _advance():
 func _do(what: String):
 	print("STORY do ", what, " t=%.1f" % t_now)
 	match what:
+		"house_lights": main.generator(true); _gen_flicker()
+		"taiga_up": taiga_after = "door"
 		"board":
 			has_board = true; board_up = true
 		"rec_ready":
@@ -878,7 +885,11 @@ func _end_tick(dt):
 		_begin_ch2()
 	if card2_t >= 0.0:
 		card2_t += dt
-		if card2_t > 5.5: _ch2_start()
+		if card2_t > 5.5:
+			# 試作91: 第2章 goes on in the whole house at 20:00 (dark outside, the people where the outage left them,
+			# the generator in the cellar). Without the house pack, the old way: the radio in this hall
+			if ResourceLoader.exists("res://assets/house/scene.json") and not demo_on: card2_t = -1.0; main.to_house_ch2()
+			else: _ch2_start()
 
 # check stills of the page, the board and the finder at full size without playing up to them
 func _state(name: String):
@@ -1295,3 +1306,193 @@ func _demo2():
 		["until_talk"], ["auto", 1], ["until_free"],      # 大河: where? - もう一回
 		["rup", true], ["until_talk"], ["until_free"], ["until_end"],
 	]
+
+# ================================================================ 第2章 20:00 in the whole house (試作91)
+# The order (決定事項 2026-11-09, ユーザー「賛成！」): the power goes; Taiga takes Mio down to the generator; she starts
+# it (the fuel tap, the choke, the switch, the cord: the owner's tape says only 「チョーク 引いてから」); the change-over
+# switch lights the lobby and the cellar only (the generator feeds a few circuits); Taiga: 「停電したら、まずラジオだ」;
+# the radio on the apple box and Kiryu's rule 1; then the boards (the next prototype). main.gd made the people
+# (export_t20: phones out, each with a small torch) and turned the generator's circuit off.
+var house := false
+var hs := 0                    # 0 the card, 1 dark: follow Taiga, 2 the generator, 3 the lights are on: back up, 4 the radio
+var gen := {"fuel": false, "choke": false, "sw": false, "run": false, "fails": 0, "fails_c": 0, "run_t": 0.0}
+var taiga_at := "door"
+var taiga_after := ""          # where he goes next, the moment Mio is not looking at him
+var taiga_moving := false
+const GEN_P := 9.45            # rooms2.GEN (plan): the generator against the cellar's east wall, its panel to the west
+const GEN_Y := 6.3
+const ZB := -2.45
+
+func gp(x: float, y: float, z: float) -> Vector3:   # plan metres -> Godot
+	return g([x - 4.8, 6.3 - y, z])
+
+func _house_ready():
+	_page(); _board(); _finder(); _fixed_cam(); _lookers(); _radio()
+	if PLACED.is_empty(): fixed_cam.visible = false
+	else:
+		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
+	items = {}
+	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
+	main.TALK = {}
+	main.generator(false)
+	if main.env: main.env.tonemap_exposure = 0.0
+	# Mio where the take was: on the step above the genkan, facing the hall
+	player.global_position = gp(4.95, 2.3, 0.0); player.yaw = PI; player.pitch = 0.0
+
+func _person_item(k: String):
+	if not main.T20.has(k) or not main.S.has(k + "_node"): return
+	var p: Array = main.T20[k].pos if not (k == "taiga" and taiga_at == "gen") else main.T20.taiga_gen.pos
+	items[k] = {"pos": g([p[0], p[1], p[2] + 1.5]), "r": 0.3, "kind": "talk", "name": {"kiryu": "桐生", "natsuki": "夏希", "makoto": "真琴", "taiga": "大河"}[k]}
+
+func _move_taiga(where: String):
+	taiga_at = where
+	var J: Dictionary = main.T20.taiga_gen if where == "gen" else main.T20.taiga
+	main.place_person("taiga", J.pos, J.yaw)
+	_person_item("taiga")
+	if looks.has("taiga"):
+		var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
+		var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
+		looks.taiga.setup(fwd.normalized())
+
+func _house_tick(dt):
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var pz: float = player.global_position.y
+	if hs == 0:
+		hs = 1; main.power_eyes_open()
+		talk_with = ""
+		_start([{"who": "夏希", "text": "……え、停電？"},
+			{"who": "桐生", "text": "カット、カット。……ブレーカー？"},
+			{"who": "大河", "text": "いや、家じゅうだ。……発電機。地下だ。"},
+			{"who": "大河", "text": "澪、来て。手が足りない。"},
+			{"note": "［大河について、地下へ］"}])
+		taiga_after = ""
+		return
+	# Taiga goes ahead (or back up) while she is not looking at him: there is no walking for the people yet
+	if taiga_after != "" and taiga_after != taiga_at and mode == FREE:
+		var head: Vector3 = items.taiga.pos
+		if not cam.is_position_in_frustum(head) or head.distance_to(cam.global_position) > 7.0:
+			_move_taiga(taiga_after); taiga_after = ""
+	if hs == 1 and mode == FREE:
+		if taiga_at == "door" and items.taiga.pos.distance_to(cam.global_position) < 2.4 and not talked.has("t_stair"):
+			talked["t_stair"] = 1; talk_with = "taiga"
+			_start([{"who": "大河", "text": "先、下りる。足もと、気をつけて。急だから。"}])
+			taiga_after = "gen"
+		elif pz < -0.4 and taiga_at == "door": taiga_after = "gen"
+		if taiga_at == "gen" and pz < ZB + 0.5 and player.global_position.distance_to(gp(GEN_P, GEN_Y, ZB)) < 3.6:
+			hs = 2; _gen_items(); talk_with = "taiga"
+			_start([{"who": "大河", "text": "これ。管理の人に、一回だけ教わった。"},
+				{"who": "大河", "text": "燃料のつまみ開けて、スイッチ入れて、そこの綱を引く。……たしか、もう一個あった。"},
+				{"note": "［発電機を調べる］"}])
+	# a running engine with the choke still out floods and dies
+	if gen.run and gen.choke:
+		gen.run_t += dt
+		if gen.run_t > 14.0 and mode == FREE:
+			gen.run = false; gen.run_t = 0.0; talk_with = "taiga"
+			_start([{"who": "澪", "text": "エンジンが咳きこんで、止まりました。", "testimony": true},
+				{"who": "大河", "text": "かぶった。……チョーク、かかったらすぐ戻すんだ。"}])
+	if hs == 3 and pz > -0.3 and mode == FREE:
+		hs = 4; ch2 = true; mode = FREE
+		for k in items.keys(): if k.begins_with("g_"): items.erase(k)
+		items["radio"] = {"pos": g([RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07]), "r": 0.16, "kind": "take", "name": "ラジオ"}
+		talk_with = "taiga"
+		_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
+			{"who": "桐生", "text": "澪、つけて。……停電、ラジオ、山の中。『ミスト』の始まり方だな。"},
+			{"who": "夏希", "text": "桐生、今それ言う？"},
+			{"note": "［ラジオ｜Ｅ］"}])
+
+func _gen_items():
+	var add = func(key: String, p: Vector3, r: float, name: String): items[key] = {"pos": p, "r": r, "kind": "look", "name": name}
+	var x := GEN_P - 0.3   # the panel's face
+	add.call("g_fuel", gp(x, GEN_Y + 0.17, ZB + 0.56), 0.06, "燃料のつまみ")
+	add.call("g_choke", gp(x, GEN_Y + 0.03, ZB + 0.44), 0.06, "チョーク")
+	add.call("g_sw", gp(x, GEN_Y - 0.1, ZB + 0.56), 0.06, "エンジンのスイッチ")
+	add.call("g_tape", gp(x + 0.015, GEN_Y - 0.12, ZB + 0.52), 0.05, "古いテープ")
+	add.call("g_pull", gp(GEN_P, GEN_Y - 0.42, ZB + 0.42), 0.08, "引き綱")
+	add.call("g_gauge", gp(GEN_P, GEN_Y + 0.1, ZB + 0.66), 0.07, "燃料の目盛り")
+	add.call("g_change", gp(6.18, 3.75, ZB + 1.34), 0.12, "切り替えスイッチ")
+
+func _gen_use(key: String):
+	talk_with = ""
+	var say := func(text: String) -> Dictionary: return {"who": "澪", "text": text, "testimony": true}
+	match key:
+		"g_fuel":
+			gen.fuel = not gen.fuel
+			if not gen.fuel and gen.run: gen.run = false; _start([say.call("燃料のつまみを戻すと、しばらくしてエンジンが止まりました。")]); return
+			_start([say.call("燃料のつまみを、横から縦に回しました。" if gen.fuel else "燃料のつまみを、横に戻しました。")])
+		"g_choke":
+			if gen.run and gen.choke:
+				gen.choke = false; gen.run_t = 0.0; talk_with = "taiga"
+				_start([say.call("チョークを戻すと、音が落ち着きました。"),
+					{"who": "大河", "text": "よし。……あとは切り替え。階段の下の、灰色の箱。"}])
+				return
+			if gen.run: _start([say.call("チョークは、もう戻してありました。")]); return
+			gen.choke = not gen.choke
+			_start([say.call("チョークを、いっぱいに引きました。" if gen.choke else "チョークを、戻しました。")])
+		"g_sw":
+			gen.sw = not gen.sw
+			if not gen.sw and gen.run: gen.run = false; _start([say.call("スイッチを切ると、エンジンが止まりました。")]); return
+			_start([say.call("エンジンのスイッチを、入れました。" if gen.sw else "スイッチを、切りました。")])
+		"g_tape":
+			_start([say.call("操作盤に古いマスキングテープが貼ってあって、持ち主の字で『チョーク　引いてから』とだけ。")])
+		"g_gauge":
+			var k := [say.call("燃料の目盛りは、四分の一くらいでした。")]
+			if not talked.has("gauge"):
+				talked["gauge"] = 1; talk_with = "taiga"
+				k.append({"who": "大河", "text": "朝までは、もたないな。……夜中に一回、足しに来ないと。"})
+			_start(k)
+		"g_pull":
+			if gen.run: _start([say.call("エンジンは、もう回っていました。")]); return
+			if not gen.fuel or not gen.sw:
+				gen.fails += 1
+				var k := [say.call("引き綱を引きました。……空回りするだけでした。")]
+				if gen.fails >= 2:
+					talk_with = "taiga"; k.append({"who": "大河", "text": "スイッチ、入ってる？　燃料のつまみも。"})
+				_start(k); return
+			if not gen.choke:
+				gen.fails_c += 1
+				var k := [say.call("引き綱を引くと、一度だけ咳きこんで、止まりました。")]
+				if gen.fails_c >= 2:
+					talk_with = "taiga"; k.append({"who": "大河", "text": "……テープ。なんか貼ってあったろ。"})
+				_start(k); return
+			gen.run = true; gen.run_t = 0.0; talk_with = "taiga"
+			_start([say.call("三回引いて、かかりました。ひどい音でした。"),
+				{"who": "大河", "text": "かかった！　……チョーク。戻さないと、かぶる。"}])
+		"g_change":
+			if not gen.run or gen.choke:
+				_start([say.call("切り替えのレバーを動かしても、何も点きませんでした。")]); return
+			if hs >= 3: _start([say.call("レバーは、もう下りていました。")]); return
+			hs = 3; talk_with = "taiga"
+			_start([say.call("切り替えのレバーを下ろすと、頭の上で電球が点きました。"),
+				{"do": "house_lights"},
+				{"who": "大河", "text": "点いた。……でも、ここと前室だけか。"},
+				{"who": "大河", "text": "発電機につながってるの、一部の回路だけなんだって。管理の人が言ってた。"},
+				{"who": "大河", "text": "停電したら、まずラジオだ。これも管理の人。……上、戻ろう。"},
+				{"do": "taiga_up"},
+				{"note": "［一階へ］"}])
+
+func _gen_flicker():
+	# the bulbs come up unsteady on the engine (main.gd _house_flicker 'gen' keeps them breathing after)
+	for k in ["lamp_lobby", "lamp_cellar", "lamp_cellarw"]:
+		if not main.lights.has(k): continue
+		var l: Light3D = main.lights[k]; var e: float = l.get_meta("e")
+		l.set_meta("e", 0.0)
+		var tw := create_tween()
+		tw.tween_method(func(x): l.set_meta("e", e * x), 0.0, 0.6, 0.15)
+		tw.tween_method(func(x): l.set_meta("e", e * x), 0.6, 0.2, 0.2)
+		tw.tween_method(func(x): l.set_meta("e", e * x), 0.2, 1.0, 0.8)
+
+func _house_conv(key: String, n: int) -> Array:
+	match key:
+		"kiryu":
+			if hs <= 2: return [{"who": "桐生", "text": "電波、一本も立たない。……山だな。"}] if n == 0 else [{"who": "桐生", "text": "定点、回ってるな。……暗いけど、まあ、撮れてる。"}]
+			return [{"who": "桐生", "text": "点いた。……廊下は真っ暗のままだけどな。"}]
+		"natsuki":
+			if hs <= 2: return [{"who": "夏希", "text": "真っ暗。……澪、大河についてってあげて。"}]
+			return [{"who": "夏希", "text": "前室だけ明るいの、逆に怖くない？"}]
+		"makoto":
+			return [{"who": "真琴", "text": "レフ、どこ置いたっけ……。あ、ランタン、ここ置いときますね。"}] if n == 0 else [{"who": "真琴", "text": "電池、予備あります。ロケ用の。"}]
+		"taiga":
+			if hs == 1: return [{"who": "大河", "text": "地下。発電機、動かす。来て。"}]
+			if hs == 2: return [{"who": "大河", "text": "燃料のつまみ、スイッチ、綱。……もう一個、なんだっけ。"}]
+			return [{"who": "大河", "text": "上、戻ろう。ラジオ。"}]
+	return []
