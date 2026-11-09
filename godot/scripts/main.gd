@@ -852,6 +852,7 @@ func _process(dt):
 		t = _shot_tick()
 		if t < 0.0: return
 	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
+	if not walkers.is_empty(): _walk_tick(dt)
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -1171,10 +1172,91 @@ func _t20_people():
 			gl.position = c - n * 0.06
 			ba.add_child(gl)
 		mv.free()
+		_walk_anims(k, inst)
 		var col := StaticBody3D.new(); var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)
 		S[k + "_col"] = col
 		place_person(k, T20[k].pos, T20[k].yaw)
+
+# 試作93: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
+# the ground speed (m/s, along the floor) the feet were made for
+var WALKJ := {}
+var walkers := {}              # k -> {"pts": [Vector3], "i": int, "mode": String, "done": Callable}
+func _walk_anims(k: String, inst: Node):
+	var p := "res://assets/dusk/%s_walk.glb" % k
+	if not ResourceLoader.exists(p): return
+	if WALKJ.is_empty(): WALKJ = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/walk.json"))
+	var mv: Node = (load(p) as PackedScene).instantiate()
+	var src: AnimationPlayer = mv.find_children("*", "AnimationPlayer", true, false)[0]
+	var lib := AnimationLibrary.new()
+	for nm in src.get_animation_list():
+		var clip := String(nm).get_slice("_rig_", 1)
+		if clip == "": continue
+		var an: Animation = src.get_animation(nm).duplicate()
+		an.loop_mode = Animation.LOOP_LINEAR if clip in ["walk", "up", "down"] else Animation.LOOP_NONE
+		lib.add_animation(clip, an)
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("walk", lib)
+	mv.free()
+
+func _rig_of(k: String) -> Node3D:
+	return S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0].get_parent() as Node3D
+
+# walk k through plan points [x, y, z] (plan metres; z the floor's height); done() when there
+func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
+	if not S.has(k + "_node"): return
+	var ap: AnimationPlayer = S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
+	if not ap.has_animation("walk/walk"):   # no walk exported: the old way, there at once
+		var q: Array = plan_pts[-1]; place_person(k, [q[0] - 4.8, 6.3 - q[1], q[2]], _rig_of(k).global_rotation.y)
+		if done.is_valid(): done.call()
+		return
+	var pts := []
+	for q in plan_pts: pts.append(b2g([q[0] - 4.8, 6.3 - q[1], q[2]]))
+	walkers[k] = {"pts": pts, "i": 0, "mode": "", "done": done, "ap": ap, "yaw": end_yaw}
+
+func _walk_tick(dt: float):
+	for k in walkers.keys():
+		var w: Dictionary = walkers[k]
+		var rig := _rig_of(k)
+		if w.i >= w.pts.size():   # there: turn to face where the stand faces, then done
+			var y0 := rig.global_rotation.y
+			var y1 := move_toward(y0, y0 + wrapf(float(w.yaw) - y0, -PI, PI), dt * 2.2)
+			rig.global_transform = Transform3D(Basis(Vector3.UP, y1), rig.global_position)
+			if absf(wrapf(float(w.yaw) - y1, -PI, PI)) < 0.01:
+				walkers.erase(k)
+				if w.done.is_valid(): w.done.call()
+			continue
+		var p := rig.global_position
+		var seg: Vector3 = w.pts[w.i] - p
+		var hz := Vector2(seg.x, seg.z).length()
+		var mode := "walk"
+		if hz > 0.01 and absf(seg.y) / hz > 0.4: mode = "up" if seg.y > 0.0 else "down"
+		if mode != w.mode:
+			w.mode = mode; (w.ap as AnimationPlayer).play("walk/" + mode, 0.3)
+		var J: Dictionary = WALKJ.get(k, {}).get(mode, {})
+		var v: float = float(J.get("speed", 1.0))
+		if mode != "walk": v = 0.5 / float(J.get("dur", 1.0)) * 0.95   # a cycle is two treads of the house's stairs (25 cm and 23 cm deep): the feet land on them
+		var step := v * dt
+		if step >= hz:
+			p = w.pts[w.i]; w.i += 1
+		else:
+			p += seg * (step / hz)
+		var yaw := rig.global_rotation.y
+		if hz > 0.05: yaw = lerp_angle(yaw, atan2(seg.x, seg.z), minf(1.0, dt * 5.0))
+		rig.global_transform = Transform3D(Basis(Vector3.UP, yaw), p)
+		(S[k + "_col"] as Node3D).global_position = p
+		if w.i >= w.pts.size():
+			var ap: AnimationPlayer = w.ap
+			ap.play("t20/loop", 0.4)
+			# the stand has no track for the hips' place: put them back where the stand has them
+			var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+			var bi := sk.find_bone("pelvis")
+			get_tree().create_timer(0.45).timeout.connect(func(): if not walkers.has(k) or walkers[k].i >= walkers[k].pts.size(): sk.set_bone_pose_position(bi, sk.get_bone_rest(bi).origin))
+			if w.yaw == null:
+				walkers.erase(k)
+				if w.done.is_valid(): w.done.call()
+
+func walking(k: String) -> bool:
+	return walkers.has(k)
 
 func place_person(k: String, pos: Array, yaw: float):
 	var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]

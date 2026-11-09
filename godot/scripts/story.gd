@@ -843,7 +843,7 @@ func _do(what: String):
 	print("STORY do ", what, " t=%.1f" % t_now)
 	match what:
 		"house_lights": main.generator(true); _gen_flicker()
-		"taiga_up": taiga_after = "door"
+		"taiga_up": _walk_taiga("door")
 		"boards_start": _boards_start()
 		"boards_rest": _boards_show_rest()
 		"board":
@@ -1357,6 +1357,23 @@ func _move_taiga(where: String):
 		var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
 		looks.taiga.setup(fwd.normalized())
 
+# 試作93: he walks (main.walk_to, Mixamo's legs): the hall's end, the cellar door, down the stair, round to the generator
+const TAIGA_PATH := [[4.75, 6.05, 0.0], [5.2, 5.95, 0.0], [5.5, 5.8, 0.0], [5.5, 5.6, 0.0], [5.5, 2.6, ZB], [5.5, 2.15, ZB],
+	[6.8, 2.2, ZB], [8.2, 4.6, ZB], [8.5, 6.35, ZB]]
+func _walk_taiga(where: String):
+	taiga_after = ""; taiga_moving = true
+	var path: Array = TAIGA_PATH.slice(1) if where == "gen" else TAIGA_PATH.slice(0, -1)
+	if where == "door": path.reverse()
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_key("door_cellar"); dn.open_key("door_barred")
+	var J: Dictionary = main.T20.taiga_gen if where == "gen" else main.T20.taiga
+	main.walk_to("taiga", path, func():
+		taiga_moving = false; taiga_at = where; _person_item("taiga")
+		if looks.has("taiga"):
+			var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
+			var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
+			looks.taiga.setup(fwd.normalized()), float(J.yaw))
+
 func _house_tick(dt):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var pz: float = player.global_position.y
@@ -1379,8 +1396,8 @@ func _house_tick(dt):
 		if taiga_at == "door" and items.taiga.pos.distance_to(cam.global_position) < 2.4 and not talked.has("t_stair"):
 			talked["t_stair"] = 1; talk_with = "taiga"
 			_start([{"who": "大河", "text": "先、下りる。足もと、気をつけて。急だから。"}])
-			taiga_after = "gen"
-		elif pz < -0.4 and taiga_at == "door": taiga_after = "gen"
+			_walk_taiga("gen")
+		elif pz < -0.4 and taiga_at == "door" and not taiga_moving: taiga_after = "gen"
 		if taiga_at == "gen" and pz < ZB + 0.5 and player.global_position.distance_to(gp(GEN_P, GEN_Y, ZB)) < 3.6:
 			hs = 2; _gen_items(); talk_with = "taiga"
 			_start([{"who": "大河", "text": "これ。管理の人に、一回だけ教わった。"},
