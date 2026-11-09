@@ -606,6 +606,7 @@ func _press():
 	if focus == "": return
 	var it = items[focus]
 	if house and focus.begins_with("g_"): _gen_use(focus); return
+	if house and focus.begins_with("w_"): _board_use(focus); return
 	match focus:
 		"placed": _pick_up_again()
 		"fixedcam": _take_cam()
@@ -843,6 +844,8 @@ func _do(what: String):
 	match what:
 		"house_lights": main.generator(true); _gen_flicker()
 		"taiga_up": taiga_after = "door"
+		"boards_start": _boards_start()
+		"boards_rest": _boards_show_rest()
 		"board":
 			has_board = true; board_up = true
 		"rec_ready":
@@ -1187,7 +1190,7 @@ func _rule1_lines() -> Array:
 			{"who": "桐生", "text": "ルール１な。『スクリーム』のランディなら、まずそう言う。"},
 			{"who": "大河", "text": "窓、塞いどこう。板なら、地下にあった。"},
 			{"who": "夏希", "text": "……みんな、映画の観すぎ。"},
-			{"do": "ch2_cut"}]
+			{"do": "boards_start" if house else "ch2_cut"}]
 
 func _khz() -> float:
 	return AM_LO + tune * (AM_HI - AM_LO)
@@ -1314,7 +1317,7 @@ func _demo2():
 # the radio on the apple box and Kiryu's rule 1; then the boards (the next prototype). main.gd made the people
 # (export_t20: phones out, each with a small torch) and turned the generator's circuit off.
 var house := false
-var hs := 0                    # 0 the card, 1 dark: follow Taiga, 2 the generator, 3 the lights are on: back up, 4 the radio
+var hs := 0                    # 0 the card, 1 dark: follow Taiga, 2 the generator, 3 the lights are on: back up, 4 the radio, 5 the boards
 var gen := {"fuel": false, "choke": false, "sw": false, "run": false, "fails": 0, "fails_c": 0, "run_t": 0.0}
 var taiga_at := "door"
 var taiga_after := ""          # where he goes next, the moment Mio is not looking at him
@@ -1484,15 +1487,97 @@ func _gen_flicker():
 func _house_conv(key: String, n: int) -> Array:
 	match key:
 		"kiryu":
+			if hs == 5: return [{"who": "桐生", "text": "板の隙間から外が見える。……『ドーン・オブ・ザ・デッド』は、こっから先が長いんだよ。"}]
 			if hs <= 2: return [{"who": "桐生", "text": "電波、一本も立たない。……山だな。"}] if n == 0 else [{"who": "桐生", "text": "定点、回ってるな。……暗いけど、まあ、撮れてる。"}]
 			return [{"who": "桐生", "text": "点いた。……廊下は真っ暗のままだけどな。"}]
 		"natsuki":
+			if hs == 5: return [{"who": "夏希", "text": "……ほんとに打つんだ。あとで管理の人に、なんて言うの。"}]
 			if hs <= 2: return [{"who": "夏希", "text": "真っ暗。……澪、大河についてってあげて。"}]
 			return [{"who": "夏希", "text": "前室だけ明るいの、逆に怖くない？"}]
 		"makoto":
 			return [{"who": "真琴", "text": "レフ、どこ置いたっけ……。あ、ランタン、ここ置いときますね。"}] if n == 0 else [{"who": "真琴", "text": "電池、予備あります。ロケ用の。"}]
 		"taiga":
+			if hs == 5 and wins_done < 3: return [{"who": "大河", "text": "一階の窓。隙間、あけないで。……釘は斜めに。"}]
+			if hs == 5: return [{"who": "大河", "text": "地下の窓。勝手口から出て、家の裏。"}]
 			if hs == 1: return [{"who": "大河", "text": "地下。発電機、動かす。来て。"}]
 			if hs == 2: return [{"who": "大河", "text": "燃料のつまみ、スイッチ、綱。……もう一個、なんだっけ。"}]
 			return [{"who": "大河", "text": "上、戻ろう。ラジオ。"}]
 	return []
+
+# ================================================================ 第2章: the boards (試作92)
+# After rule 1 Taiga brings boards up from the cellar and they board the ground floor's windows from inside (rooms2.boards,
+# board_*, hidden until now). Mio does three windows herself (E on a window shows its boards); the others do the rest
+# while she is busy. Then the cellar's small window, the generator's exhaust, which can only be boarded from outside: out
+# by the back door, round the north-east corner. When it is done: the cut to 23:00 (ch2_cut).
+var wins := []                 # [{"boards": [MeshInstance3D], "c": Vector3}], one per window
+var wins_done := 0
+var cellar_boards := []
+var cellar_done := false
+const CELLAR_WIN := [10.0, 6.45, -1.4]     # plan: the cellar's window in the east wall (rooms2.boards)
+
+func _boards_start():
+	hs = 5; ch2 = false
+	holding_radio = false; radio_up = false; player.look_enabled = true
+	_radio_rest()
+	items.erase("radio")
+	var found := []
+	for mi in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+		mi.visible = false
+		if String(mi.name).begins_with("board_cellar"): cellar_boards.append(mi)
+		else: found.append(mi)
+	# one window = the boards whose centres chain together within 0.45 m (a window's boards are 0.12-0.26 m apart, windows are a wall's length apart)
+	wins = []
+	var left := found.duplicate()
+	while not left.is_empty():
+		var grp := [left.pop_back()]
+		var i := 0
+		while i < grp.size():
+			var a: Vector3 = (grp[i] as Node3D).global_position
+			for j in range(left.size() - 1, -1, -1):
+				if (left[j] as Node3D).global_position.distance_to(a) < 0.45: grp.append(left[j]); left.remove_at(j)
+			i += 1
+		var c := Vector3.ZERO
+		for b in grp: c += (b as Node3D).global_position
+		wins.append({"boards": grp, "c": c / grp.size()})
+	for i in range(wins.size()):
+		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
+	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
+	talk_with = "taiga"
+	script_q.push_back({"who": "澪", "text": "大河が、地下から板を抱えて上がってきました。古い、物置の棚板です。", "testimony": true})
+	script_q.push_back({"who": "大河", "text": "一階の窓、全部。手分けして。……澪、金づちと釘。"})
+	script_q.push_back({"note": "［窓に板を打つ｜Ｅ］"})
+
+func _board_use(key: String):
+	talk_with = ""
+	if key == "w_cellar":
+		# only from outside: from the cellar the window is up by the ceiling, behind the old shelves
+		if player.global_position.x < gp(CELLAR_WIN[0] + 0.15, 0.0, 0.0).x:
+			_start([{"who": "澪", "text": "地下の窓は、内側からは手が届きませんでした。", "testimony": true}]); return
+		cellar_done = true; items.erase("w_cellar")
+		for b in cellar_boards: (b as Node3D).visible = true
+		_start([{"who": "澪", "text": "地下の小さな窓に、外から板を四枚、打ちつけました。", "testimony": true},
+			{"who": "澪", "text": "……あのとき、窓から細いホースが出ていたのを、覚えています。", "testimony": true},
+			{"note": "（間）"},
+			{"do": "ch2_cut"}])
+		return
+	var w: Dictionary = wins[int(key.substr(2))]
+	items.erase(key)
+	for b in w.boards: (b as Node3D).visible = true
+	wins_done += 1
+	var k := [{"who": "澪", "text": ["窓に、板を打ちつけました。釘が、なかなか入らなくて。", "二枚目の窓。板と板のあいだに、少し隙間が残りました。", "三つ目。手のひらが、じんじんしました。"][min(wins_done - 1, 2)], "testimony": true}]
+	if wins_done == 3:
+		talk_with = "taiga"
+		k.append({"do": "boards_rest"})
+		k.append({"who": "澪", "text": "気がつくと、ほかの窓は、みんなが塞いでいました。", "testimony": true})
+		k.append({"who": "大河", "text": "あと、地下の窓。あそこは外からしか打てない。……勝手口から回って。"})
+		k.append({"who": "桐生", "text": "外、出るなって言ったばっかだけどな。"})
+		k.append({"who": "大河", "text": "すぐそこだ。家の裏。"})
+		k.append({"note": "［地下の窓を外から塞ぐ］"})
+	_start(k)
+
+func _boards_show_rest():
+	for i in range(wins.size()):
+		if not items.has("w_%d" % i): continue
+		items.erase("w_%d" % i)
+		for b in wins[i].boards: (b as Node3D).visible = true
+	items["w_cellar"] = {"pos": gp(CELLAR_WIN[0] + 0.3, CELLAR_WIN[1], CELLAR_WIN[2]), "r": 0.35, "kind": "look", "name": "地下の窓"}

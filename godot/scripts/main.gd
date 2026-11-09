@@ -148,6 +148,8 @@ func _ready():
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
 	if ARGS.has("genoff"): generator(false)   # 試作91: the stills of 第2章 before the generator
+	if "--boards" in OS.get_cmdline_user_args() and SCENE == "house":   # 試作92: stills of the boards as 第2章 leaves them at 20:00
+		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and not checking:   # 試作91: 第2章 at 20:00 in the whole house, reached by playing 第1章
 		story = preload("res://scripts/story.gd").new(); story.main = self; story.house = true; add_child(story)
 	FROM_STORY = false
