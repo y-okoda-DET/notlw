@@ -366,7 +366,7 @@ def colliders(stair_block=True):
             if hi.x - lo.x < hi.y - lo.y: lo.x -= .02; hi.x += .02
             else: lo.y -= .02; hi.y += .02
         b = dict(c=[round(v, 3) for v in (lo + hi) / 2], s=[round(v, 3) for v in hi - lo])
-        if o.name.startswith('door_'): b['door'] = o.name.split('.')[0][5:]
+        if o.name.startswith(('door_', 'door2_')): b['door'] = o.name.split('.')[0].split('_', 1)[1]   # 試作90: 2F's too
         out.append(b)
     x0, y0, x1, y1 = STAIR
     if stair_block:   # 試作89: in the whole house this block sat over the climbing ramps, and 2F and the cellar were shut

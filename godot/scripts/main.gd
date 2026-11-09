@@ -130,6 +130,8 @@ func _ready():
 	_colliders()
 	_rain()
 	_player()
+	if SCENE == "house":   # 試作90: E opens and shuts the doors (ユーザー「扉、開くと嬉しい」)
+		var dn = preload("res://scripts/doors.gd").new(); dn.name = "Doors"; add_child(dn); dn.setup(self)
 	_print_layer()
 	if SCENE == "dusk" and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 5.0
@@ -592,7 +594,7 @@ func _colliders():
 	if S.has("boxes"):   # the v4 house: boxes measured from the built meshes (house4.colliders), props from stage.py
 		for b in S.boxes:
 			if b.has("times") and not (TIME in b.times): continue   # the slip's edge: only once the shoulder has gone
-			if b.get("door", "") == "front" and SCENE == "house" and float(ST.get("front", 0)) > 30.0: continue   # 試作89: the front door stands open (dusk, 2:00): its closed box shut the house in
+			if b.has("door") and SCENE == "house": continue   # 試作90: in the whole house each leaf carries its own collision and turns with it (doors.gd)
 			if b.has("ramp"):
 				var sb := StaticBody3D.new(); var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
 				bx.size = Vector3(b.s[0], b.s[2], b.s[1]); cs.shape = bx; sb.add_child(cs); add_child(sb)

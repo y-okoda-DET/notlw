@@ -285,3 +285,5 @@
 - 家まるごとの当たり（試作88で再現：/home/claude/work/probe4/walk.gd を --headless で、--housepack= を付けて回すと、プレイヤーを自動で歩かせて位置を書き出せる。画を出すと遅すぎる）：(1) 上がりかまちの箱が玄関の坂の途中に 10cm 出ていて止まる、(2) 玄関の扉の箱が閉じた形のまま（夕方と2時は開いている）、(3) colliders() の「階段まるごとの箱」が上り下りの坂の上に残り、2階にも地下にも行けなかった。colliders(stair_block=False)、main.gd が開いた玄関の箱を落とす。
 - 試作87の pck（夕方だけの FAST）は家まるごとが読めなかった（env_*.png が足りない）。FAST で場面を絞ったあと家を撮るなら、前の家の画像が残っているか確かめる。
 
+- 試作89の歩き（walk.gd、--headless）：玄関⇄廊下、玄関から外（夕方）、2階の上り下り、地下の上り下り、すべて通れた。1つだけの pck（FAST）なら --housepack は要らない。
+- 扉の開け閉め（試作90、godot/scripts/doors.gd）：door_*/door2_* の板（焼き込みから外してある DYN）に、板の子として StaticBody3D を付けると、板と一緒に回る。scene.json の扉の箱（house4.colliders が 'door' を付ける。2階の door2_ も）は家まるごとでは全部落とす。どちらへ開くかは図面に書いていないので、±92° に回した板を少し縮めた箱で intersect_shape し、当たりが少ない方に開く。玄関だけは夕方の開き方（rest+105°）。カメラは撮影のたびに体が作り直されるので、毎フレーム player の Head/Camera を取り直す。GDScript の := は intersect_shape(...).size() の型を推せずパースエラーになる（: int と書く）。
