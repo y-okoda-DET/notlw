@@ -107,7 +107,7 @@ func toggle(d: MeshInstance3D):
 	create_tween().tween_property(s.pivot, "rotation:y", to, SWING).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	if s.pivot == main.door_pivot: main.S["door_rot"] = to
 
-# 試作93: someone else opens a door on their way (Taiga to the cellar): open it if it is shut, never say "locked"
+# 試作92: someone else opens a door on their way (Taiga to the cellar): open it if it is shut, never say "locked"
 func open_key(key: String):
 	for d in doors:
 		var s: Dictionary = doors[d]

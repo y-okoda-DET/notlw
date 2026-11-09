@@ -1,4 +1,4 @@
-"""第2章から：人の歩き（試作93）. Mixamo's walk, stairs and turns (ユーザーが渡した FBX, 段階2/mixamo/, not in git)
+"""第2章から：人の歩き（試作92）. Mixamo's walk, stairs and turns (ユーザーが渡した FBX, 段階2/mixamo/, not in git)
 put on the four make_tripo rigs: the legs, the hips and the spine come from Mixamo, the arms and the head stay ours
 (export_t20.pose: the phone in the right hand, its torch ahead), so the people walk with their phones out.
 

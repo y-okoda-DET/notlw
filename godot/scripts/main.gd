@@ -1178,7 +1178,7 @@ func _t20_people():
 		S[k + "_col"] = col
 		place_person(k, T20[k].pos, T20[k].yaw)
 
-# 試作93: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
+# 試作92: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
 # the ground speed (m/s, along the floor) the feet were made for
 var WALKJ := {}
 var walkers := {}              # k -> {"pts": [Vector3], "i": int, "mode": String, "done": Callable}

@@ -1357,7 +1357,7 @@ func _move_taiga(where: String):
 		var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
 		looks.taiga.setup(fwd.normalized())
 
-# 試作93: he walks (main.walk_to, Mixamo's legs): the hall's end, the cellar door, down the stair, round to the generator
+# 試作92: he walks (main.walk_to, Mixamo's legs): the hall's end, the cellar door, down the stair, round to the generator
 const TAIGA_PATH := [[4.75, 6.05, 0.0], [5.2, 5.95, 0.0], [5.5, 5.8, 0.0], [5.5, 5.6, 0.0], [5.5, 2.6, ZB], [5.5, 2.15, ZB],
 	[6.8, 2.2, ZB], [8.2, 4.6, ZB], [8.5, 6.35, ZB]]
 func _walk_taiga(where: String):
