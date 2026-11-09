@@ -33,6 +33,7 @@ if [[ " $SCENES " == *" dusk "* ]]; then
   grep -E "^lightmap|^LM_STALE" $W/export${N}d.log | sed 's/^/  dusk /' >> $L
   python3 denoise_lm.py -- $RULES/assets/dusk/lightmap.exr >> $W/export${N}d.log 2>&1
   python3 export_t20.py >> $W/export${N}d.log 2>&1 || { echo T20_FAIL >> $L; exit 1; }   # 試作91: the people of 第2章 at 20:00 (movement only)
+  python3 export_walk.py >> $W/export${N}d.log 2>&1 || { echo WALK_FAIL >> $L; exit 1; }   # 試作92: the walk, the stairs and the turns (Mixamo, 段階2/mixamo/) on the four
 fi
 if [[ " $SCENES " == *" house "* ]]; then
   echo "== house $(date +%T)" >> $L

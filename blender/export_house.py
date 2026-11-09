@@ -187,6 +187,44 @@ def bake_time(j, t, size, samples):
         if m is None: continue
         for n in [n for n in m.node_tree.nodes if n.name == '_lm' or (n.type == 'UVMAP' and n.uv_map == 'lm')]: m.node_tree.nodes.remove(n)
     bpy.data.images.remove(img)
+def split_env(j, cell=2.5):
+    """試作93 家まるごとの重さ: the joined house was one object of 1.1M triangles, so every shadowed lamp drew all of it
+    six times a frame and no room could be left out. After the bake, cut it into pieces by floor and a 2.5 m grid (the
+    lightmap UVs go with the faces, so the bake still fits). Godot lights each piece the same (main.gd _lightmap)."""
+    import bmesh
+    me = j.data; mw = j.matrix_world
+    bm = bmesh.new(); bm.from_mesh(me); bm.faces.ensure_lookup_table()
+    def key(f):
+        c = mw @ f.calc_center_median()
+        lv = 0 if c.z < -.25 else (1 if c.z < H4.F2 - .15 else 2)
+        return (lv, int(math.floor((c.x - H4.X(0) + .5) / cell)), int(math.floor((H4.Y(0) - c.y + .5) / cell)))
+    keys = [key(f) for f in bm.faces]
+    bm.free()
+    groups = sorted(set(keys))
+    print('split env into', len(groups))
+    bpy.ops.object.select_all(action='DESELECT'); j.select_set(True); bpy.context.view_layer.objects.active = j
+    for g in groups[1:]:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        me = j.data
+        sel = [k == g for k in keys]
+        me.polygons.foreach_set('select', sel)
+        vs = [False] * len(me.vertices)
+        for p_, on in zip(me.polygons, sel):
+            if on:
+                for vi in p_.vertices: vs[vi] = True
+        me.vertices.foreach_set('select', vs); me.edges.foreach_set('select', [False] * len(me.edges))
+        me.update()
+        bpy.context.scene.tool_settings.mesh_select_mode = (False, False, True)
+        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.separate(type='SELECTED')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        keys = [k for k in keys if k != g]
+    for o in bpy.context.selected_objects:
+        if o != j: o.select_set(False)
+    n = 0
+    for o in [o for o in bpy.data.objects if o.name.startswith('env_static')]:
+        n += 1
+    print('env pieces', n)
+
 
 if __name__ == '__main__':
     M, boxes = build()
@@ -195,6 +233,9 @@ if __name__ == '__main__':
     baked = E.simplify_materials()
     print('baked', len(baked))
     j = join_static()
+    if os.environ.get('SPLIT_TEST'):
+        import time; t0 = time.time(); split_env(j); print('SPLIT_TEST %.0f s' % (time.time() - t0),
+            sorted((len(o.data.polygons), o.name) for o in bpy.data.objects if o.name.startswith('env_static'))[-5:]); sys.exit(0)
     size = int(os.environ.get('LM_SIZE', '2048'))
     samples = int(os.environ.get('LM_SAMPLES', '32' if os.environ.get('FAST') else '1024'))   # 1024 (試作81): with the islands packed tight (57 times the texels) 8192 would take some 10 hours; the island-wise smoothing (denoise_lm.py) takes the grain   # 8192 (試作72; 2048 in 71): at 512 the dusk walls' bounce came out grainy with dark clouds (レビュー 63・65: 刷りなしの黒い染み)   # LM_SAMPLES=512 with FAST: check stills without the 32-sample blotches   # 128 left blotches in the dim rooms (書斎、試作45)
     sel = os.environ.get('TIMES', '').split(',') if os.environ.get('TIMES') else TM.TIMES
@@ -203,6 +244,7 @@ if __name__ == '__main__':
         TM.dump(f'{OUT}/{t}/lights.json') if os.path.isdir(f'{OUT}/{t}') else (os.makedirs(f'{OUT}/{t}'), TM.dump(f'{OUT}/{t}/lights.json'))
         if t in sel: bake_time(j, t, size, samples)
     for o in [o for o in bpy.data.objects if o.type == 'LIGHT']: bpy.data.objects.remove(o)
+    if os.environ.get('NOSPLIT') != '1': split_env(j)
     # the glb: dynamic things in their dusk state (Godot sets them per time)
     for o in bpy.data.objects: o.hide_render = False
     bpy.data.objects['door_pivot'].rotation_euler.z = 0

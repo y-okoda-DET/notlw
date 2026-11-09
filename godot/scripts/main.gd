@@ -387,22 +387,27 @@ func _lightmap():
 	if not FileAccess.file_exists(lp) and not ResourceLoader.exists(lp): return
 	var lm: Texture2D = load(lp)
 	var sh: Shader = load("res://shaders/lightmapped.gdshader")
-	var mi := S.env_node.find_child("env_static", true, false) as MeshInstance3D
-	if mi == null: return
-	for i in mi.mesh.get_surface_count():
-		var src := mi.get_active_material(i) as StandardMaterial3D
-		var m := ShaderMaterial.new(); m.shader = sh
-		if src:
-			m.set_shader_parameter("use_tex", src.albedo_texture != null)
-			if src.albedo_texture: m.set_shader_parameter("albedo_tex", src.albedo_texture)
-			m.set_shader_parameter("albedo_color", src.albedo_color)
-			m.set_shader_parameter("roughness_v", src.roughness)
-			m.set_shader_parameter("metallic_v", src.metallic)
-			if src.emission_enabled:
-				m.set_shader_parameter("emission_color", src.emission); m.set_shader_parameter("emission_energy", src.emission_energy_multiplier)
-		m.set_shader_parameter("lightmap", lm)
-		mi.set_surface_override_material(i, m)
-		lm_mats.append(m)
+	# 試作93: the house comes in pieces (export_house.split_env: by floor and a 2.5 m grid), each piece env_static*;
+	# pieces that share a material share one ShaderMaterial
+	var pieces: Array = S.env_node.find_children("env_static*", "MeshInstance3D", true, false)
+	if pieces.is_empty(): return
+	var made := {}
+	for mi in pieces:
+		for i in mi.mesh.get_surface_count():
+			var src := mi.get_active_material(i) as StandardMaterial3D
+			if made.has(src): mi.set_surface_override_material(i, made[src]); continue
+			var m := ShaderMaterial.new(); m.shader = sh; made[src] = m
+			if src:
+				m.set_shader_parameter("use_tex", src.albedo_texture != null)
+				if src.albedo_texture: m.set_shader_parameter("albedo_tex", src.albedo_texture)
+				m.set_shader_parameter("albedo_color", src.albedo_color)
+				m.set_shader_parameter("roughness_v", src.roughness)
+				m.set_shader_parameter("metallic_v", src.metallic)
+				if src.emission_enabled:
+					m.set_shader_parameter("emission_color", src.emission); m.set_shader_parameter("emission_energy", src.emission_energy_multiplier)
+			m.set_shader_parameter("lightmap", lm)
+			mi.set_surface_override_material(i, m)
+			lm_mats.append(m)
 
 func _set_gi(m: int):
 	gi_mode = m
@@ -1314,6 +1319,7 @@ func _house_cheaper():
 		var l = lights[k]
 		if l is OmniLight3D or l is SpotLight3D:
 			if not l.shadow_enabled: continue
+			if (l is OmniLight3D and l.omni_range < 1.5): l.shadow_enabled = false; continue   # a glow of a metre throws no shadow worth six passes
 			l.distance_fade_enabled = true; l.distance_fade_begin = 40.0; l.distance_fade_length = 5.0; l.distance_fade_shadow = 9.0; fl += 1
 	print("house occluders %d, cedars without shadow %d, lamps with near shadows only %d" % [n, far, fl])
 

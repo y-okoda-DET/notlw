@@ -556,7 +556,7 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 		if house and k == "taiga" and taiga_moving: continue
 		var to: Vector3 = it.pos - eye
 		var d := to.length()
-		var lim := 2.6 if it.kind == "talk" else 1.9
+		var lim := 2.6 if it.kind == "talk" or k == "w_cellar" else 1.9   # the cellar window: from the porch stair, a step above it
 		if d > lim: continue
 		var ang := acos(clamp(to.normalized().dot(dir), -1.0, 1.0))
 		var allow: float = atan2(it.r, d) + 0.05
@@ -1515,6 +1515,7 @@ func _house_conv(key: String, n: int) -> Array:
 			return [{"who": "真琴", "text": "レフ、どこ置いたっけ……。あ、ランタン、ここ置いときますね。"}] if n == 0 else [{"who": "真琴", "text": "電池、予備あります。ロケ用の。"}]
 		"taiga":
 			if hs == 5 and wins_done < 3: return [{"who": "大河", "text": "一階の窓。隙間、あけないで。……釘は斜めに。"}]
+			if hs == 5 and taiga_at == "out": return [{"who": "大河", "text": "照らしてる。……その下。手すりの下の、小さい窓。"}]
 			if hs == 5: return [{"who": "大河", "text": "地下の窓。勝手口から出て、家の裏。"}]
 			if hs == 1: return [{"who": "大河", "text": "地下。発電機、動かす。来て。"}]
 			if hs == 2: return [{"who": "大河", "text": "燃料のつまみ、スイッチ、綱。……もう一個、なんだっけ。"}]
@@ -1588,7 +1589,7 @@ func _board_use(key: String):
 		k.append({"who": "澪", "text": "気がつくと、ほかの窓は、みんなが塞いでいました。", "testimony": true})
 		k.append({"who": "大河", "text": "あと、地下の窓。あそこは外からしか打てない。……勝手口から回って。"})
 		k.append({"who": "桐生", "text": "外、出るなって言ったばっかだけどな。"})
-		k.append({"who": "大河", "text": "すぐそこだ。家の裏。"})
+		k.append({"who": "大河", "text": "すぐそこだ。家の裏。……先に出て、照らしとく。"})
 		k.append({"note": "［地下の窓を外から塞ぐ］"})
 	_start(k)
 
@@ -1598,3 +1599,34 @@ func _boards_show_rest():
 		items.erase("w_%d" % i)
 		for b in wins[i].boards: (b as Node3D).visible = true
 	items["w_cellar"] = {"pos": gp(CELLAR_WIN[0] + 0.3, CELLAR_WIN[1], CELLAR_WIN[2]), "r": 0.35, "kind": "look", "name": "地下の窓"}
+	# 試作93: outside at night it was black (Mio has no light): Taiga goes out first, by the kitchen and the back door,
+	# and stands on the back porch with his phone on the little window
+	taiga_moving = true
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_key("door_kitchen"); dn.open_key("door_back")
+	var from: Array = [4.75, 6.05, 0.0] if taiga_at == "door" else [8.5, 6.35, ZB]
+	var path := [from, [5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], TAIGA_OUT]
+	if taiga_at == "gen": path = TAIGA_PATH.slice(0, -1); path.reverse(); path += [[5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], TAIGA_OUT]
+	var w := gp(CELLAR_WIN[0], CELLAR_WIN[1], 0.0) - gp(TAIGA_OUT[0], TAIGA_OUT[1], 0.0)
+	main.walk_to("taiga", path, func():
+		taiga_moving = false; taiga_at = "out"
+		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
+		_aim_taiga_light(true), atan2(w.x, w.z))
+
+const TAIGA_OUT := [10.55, 5.65, 0.0]   # on the back porch, at the top of its stair, the cellar window below him to the north-west
+var taiga_aim: SpotLight3D
+func _aim_taiga_light(on: bool):
+	# his torch points ahead along the floor; here he holds it down over the rail onto the window: a light of the same
+	# make from his hand, the phone's own turned down meanwhile
+	var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
+	var torch := sk.find_child("torch", true, false) as SpotLight3D
+	if torch: torch.visible = not on
+	if not on:
+		if taiga_aim: taiga_aim.queue_free(); taiga_aim = null
+		return
+	var hand: Vector3 = torch.global_position if torch else gp(TAIGA_OUT[0], TAIGA_OUT[1], 1.2)
+	taiga_aim = SpotLight3D.new()
+	taiga_aim.light_color = Color(0.86, 0.92, 1.0); taiga_aim.light_energy = 2.4; taiga_aim.spot_range = 5.0; taiga_aim.spot_angle = 26.0
+	taiga_aim.spot_attenuation = 1.0; taiga_aim.spot_angle_attenuation = 1.6; taiga_aim.shadow_enabled = true; taiga_aim.light_volumetric_fog_energy = 0.25
+	main.add_child(taiga_aim)
+	taiga_aim.look_at_from_position(hand, gp(CELLAR_WIN[0] + 0.1, CELLAR_WIN[1], CELLAR_WIN[2]), Vector3.UP)
