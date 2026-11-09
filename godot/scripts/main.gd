@@ -1143,21 +1143,31 @@ func _t20_people():
 			ba.get_parent().remove_child(ba); ba.owner = null
 			for c in ba.find_children("*", "", true, false): c.owner = null
 			sk.add_child(ba)
-			for ph in ba.find_children("*", "MeshInstance3D", true, false):
-				var sp := SpotLight3D.new(); sp.name = "torch"
-				sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 1.4; sp.spot_range = 6.0; sp.spot_angle = 30.0
-				sp.spot_attenuation = 1.2; sp.spot_angle_attenuation = 2.0; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
-				sp.light_specular = 0.2
-				# beside the phone, not under it: the phone mesh carries its object scale, and a scaled light turned the whole
-				# frame black (試作91)
-				var tf: Transform3D = ph.transform
-				sp.transform = Transform3D(tf.basis.orthonormalized(), tf.origin + tf.basis.orthonormalized() * Vector3(0, 0, -0.006))
-				ba.add_child(sp)
-				# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
-				var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.35
-				gl.omni_range = 0.9; gl.omni_attenuation = 1.6; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
-				gl.transform = Transform3D(Basis(), tf.origin + tf.basis.orthonormalized() * Vector3(0, 0, 0.05))
-				ba.add_child(gl)
+			# the torch on the phone's back, the screen's glow toward the face: which side the screen is on comes from where
+			# its plane sits on the body's thin axis (export_t20 bakes the phone into the hand bone's frame)
+			var body: MeshInstance3D = null; var scr: MeshInstance3D = null
+			for mi2 in ba.find_children("*", "MeshInstance3D", true, false):
+				if String(mi2.name).ends_with("_scr"): scr = mi2
+				else: body = mi2
+			if body == null: continue
+			var bb: AABB = body.get_aabb(); var c: Vector3 = bb.get_center()
+			var ax := 1
+			if bb.size.x < bb.size.y and bb.size.x < bb.size.z: ax = 0
+			elif bb.size.z < bb.size.y: ax = 2
+			var n := Vector3.ZERO; n[ax] = 1.0
+			if scr and (scr.get_aabb().get_center() - c)[ax] > 0.0: n = -n   # n: out of the back
+			var up := Vector3.UP if abs(n.y) < 0.9 else Vector3.RIGHT
+			var sp := SpotLight3D.new(); sp.name = "torch"
+			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 2.0; sp.spot_range = 7.0; sp.spot_angle = 32.0
+			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
+			sp.light_specular = 0.2
+			sp.transform = Transform3D(Basis.looking_at(n, up), c + n * 0.01)
+			ba.add_child(sp)
+			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
+			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.5
+			gl.omni_range = 1.0; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
+			gl.position = c - n * 0.06
+			ba.add_child(gl)
 		mv.free()
 		var col := StaticBody3D.new(); var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)

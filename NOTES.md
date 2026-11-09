@@ -287,3 +287,6 @@
 
 - 試作89の歩き（walk.gd、--headless）：玄関⇄廊下、玄関から外（夕方）、2階の上り下り、地下の上り下り、すべて通れた。1つだけの pck（FAST）なら --housepack は要らない。
 - 扉の開け閉め（試作90、godot/scripts/doors.gd）：door_*/door2_* の板（焼き込みから外してある DYN）に、板の子として StaticBody3D を付けると、板と一緒に回る。scene.json の扉の箱（house4.colliders が 'door' を付ける。2階の door2_ も）は家まるごとでは全部落とす。どちらへ開くかは図面に書いていないので、±92° に回した板を少し縮めた箱で intersect_shape し、当たりが少ない方に開く。玄関だけは夕方の開き方（rest+105°）。カメラは撮影のたびに体が作り直されるので、毎フレーム player の Head/Camera を取り直す。GDScript の := は intersect_shape(...).size() の型を推せずパースエラーになる（: int と書く）。
+- 第2章の人（試作91、blender/export_t20.py）：体は第1章の glb をそのまま使い、動きだけ <k>_t20.glb（骨＋スマホ＋小さな三角形1枚）に書き出して、Godot で AnimationLibrary を足して流す。テクスチャを二度持たない。三角形を骨に皮付けしないと、glTF の骨が Godot で Skeleton3D にならない（ただのノードになる）。
+- 骨に親付けした物は、Godot では BoneAttachment3D になり、その物のノードの変換（位置・向き・大きさ）が捨てられる。スマホが 2m の箱で読み込まれ、黒い大きな板が画面をふさいだ（澪のすぐ後ろの桐生のせいだと誤解した）。export_t20 は、手の骨の頭の向きに物を置き、形の方に位置と大きさを焼き込む。大きさのある MeshInstance3D の子に光を付けると画面ごと黒くなった（光は BoneAttachment3D の子に、正規化した向きで）。
+- 確認画で「真っ暗」と出たら、まずカメラのすぐ前に何かいないか（PRINT=0 の生の画で見る）。

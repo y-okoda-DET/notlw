@@ -28,7 +28,7 @@ PLACE = {
     'makoto':  dict(at=(3.35, 3.75), face=(4.6, 2.6), z=0.0),        # just behind her, by the lantern
     'taiga':   dict(at=(4.75, 6.05), face=(4.75, 3.0), z=0.0),       # at the back of the hall by the cellar door, toward Mio
 }
-TAIGA_GEN = dict(at=(8.55, 5.25), face=(9.4, 6.1), z=H4.ZB)          # in the cellar, beside the generator
+TAIGA_GEN = dict(at=(8.5, 6.35), face=(9.2, 6.2), z=H4.ZB)            # in the cellar, at the generator's north-west, his light on its panel (8.55, 5.25 and 8.8, 5.65 stood between the stair and the panel; 9.75, 5.35 was inside the old cupboard)
 
 def yaw_to(at, face):
     a, f = Vector((X(at[0]), Y(at[1]))), Vector((X(face[0]), Y(face[1])))
@@ -59,9 +59,19 @@ def build():
     bpy.context.view_layer.update()
     for key, rig in rigs.items():
         C.reset_pose(rig); pose(key, rig, 0.0)
-        ph = S[key + '_ph']; mw = ph.matrix_world.copy()
+        # one mesh (body and screen), its whole placement baked into the vertices relative to the hand bone's head frame,
+        # the object itself exactly on that frame: Godot makes the bone-parented node a BoneAttachment3D, which takes the
+        # bone's pose and drops the node's own transform (試作91: the phones came in as 2 m cubes, the scale lost)
+        ph = S[key + '_ph']; scr = ph.children[0]
+        bpy.context.view_layer.update()
+        Mb = rig.matrix_world @ rig.pose.bones['hand_r'].matrix
+        for o in (ph, scr): o.data = o.data.copy()
+        scr.data.transform(Mb.inverted() @ scr.matrix_world); ph.data.transform(Mb.inverted() @ ph.matrix_world)
+        scr.parent = None
         ph.parent = rig; ph.parent_type = 'BONE'; ph.parent_bone = 'hand_r'
-        bpy.context.view_layer.update(); ph.matrix_world = mw
+        bpy.context.view_layer.update(); ph.matrix_world = Mb
+        scr.parent = ph; bpy.context.view_layer.update(); scr.matrix_world = Mb
+        S[key + '_scr'] = scr
     return rigs
 
 if __name__ == '__main__':
@@ -75,7 +85,7 @@ if __name__ == '__main__':
         stub = bpy.data.objects.new(f'{key}_t20stub', me); bpy.context.scene.collection.objects.link(stub)
         stub.parent = rig; vg = stub.vertex_groups.new(name='pelvis'); vg.add([0, 1, 2], 1.0, 'REPLACE')
         md = stub.modifiers.new('arm', 'ARMATURE'); md.object = rig
-        objs = [rig, S[key + '_ph'], stub]
+        objs = [rig, S[key + '_ph'], S[key + '_scr'], stub]
         E.export(f'{OUT}/{key}_t20.glb', objs)
         p = PLACE[key]
         out[key] = dict(pos=[X(p['at'][0]), Y(p['at'][1]), p['z']], yaw=yaw_to(p['at'], p['face']), rig=rig.name, phone=f'{key}_t20phone')
