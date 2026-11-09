@@ -87,7 +87,7 @@ def build():
         if ob is roll:
             C.place_in_hand(roll, n, 'r', (0, .085, -.012), (0, 90, 0))   # fingers through the hole, roll across the palm
         else:
-            ob.location = C.local(t, (0, -.3, 1.04)); ob.rotation_euler.z = t.rotation_euler.z
+            ob.location = C.local(t, (0, -.3, 1.01)); ob.rotation_euler.z = t.rotation_euler.z   # 試作87: down 3 cm onto the palms (試作86: a hand's depth above them)
         bpy.context.view_layer.update()
         mw = ob.matrix_world.copy(); ob.parent = rig; ob.parent_type = 'BONE'; ob.parent_bone = bone
         bpy.context.view_layer.update(); ob.matrix_world = mw
@@ -148,11 +148,15 @@ def pose_kiryu(k, t):
 
 def pose_taiga(tg, t):
     tl = lambda v: C.local(tg, v)
-    C.arm_to(tg, 'l', tl((.28, -.3, .99)), Vector((.4, .3, -.2)))   # hands outside the box's sides (half width .25): at .2 the forearms sank into it
-    C.arm_to(tg, 'r', tl((-.28, -.3, .99)), Vector((-.4, .3, -.2)))
+    # carried from below: the palms up under the bottom (.91, the box's centre at 1.01) near its side edges (half width .25), the fingers forward
+    # under it, the forearms along the sides (試作85, check.sh: at the wrist height .99 beside the box the hands hung by
+    # its lower corners holding nothing; up at the top edge, palms on the top, the elbows rose to the shoulders).
+    # Forearms outside the sides: with the hands at .2 they sank into it
+    C.arm_to(tg, 'l', tl((.215, -.23, .935)), Vector((.4, .3, -.3))); C.palm_to(tg, 'l', tl((.215, -.23, 1.4)))
+    C.arm_to(tg, 'r', tl((-.215, -.23, .935)), Vector((-.4, .3, -.3))); C.palm_to(tg, 'r', tl((-.215, -.23, 1.4)))
     C.rot_world(tg, 'spine_01', E.axis_local(tg, (1, 0, 0)), -4)
     C.rot_world(tg, 'head', (0, 0, 1), -10 + 25 * E.snap(t, 11.0, .5) * (1 - E.snap(t, 13.5, .5)))
-    C.grip(tg, 'l', .35); C.grip(tg, 'r', .35)
+    C.grip(tg, 'l', .2, thumb=.2); C.grip(tg, 'r', .2, thumb=.2)
     E.idle(tg, t, 2.0, breath=.31, amp=1.1, rate=1.25)
 
 def pose_makoto(m, t):
