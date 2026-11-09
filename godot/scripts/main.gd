@@ -592,6 +592,7 @@ func _colliders():
 	if S.has("boxes"):   # the v4 house: boxes measured from the built meshes (house4.colliders), props from stage.py
 		for b in S.boxes:
 			if b.has("times") and not (TIME in b.times): continue   # the slip's edge: only once the shoulder has gone
+			if b.get("door", "") == "front" and SCENE == "house" and float(ST.get("front", 0)) > 30.0: continue   # 試作89: the front door stands open (dusk, 2:00): its closed box shut the house in
 			if b.has("ramp"):
 				var sb := StaticBody3D.new(); var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
 				bx.size = Vector3(b.s[0], b.s[2], b.s[1]); cs.shape = bx; sb.add_child(cs); add_child(sb)
@@ -1088,10 +1089,16 @@ func _unhandled_input(e):
 				w.mode = Window.MODE_WINDOWED if w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN or w.mode == Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN
 
 # 段階1: the first take starts and the power goes. The film light and the bulb die; the sunset in the door stays.
-func power_cut():
+func power_cut(dark := true):
 	for k in ["fres_d", "lamp", "refl"]:
 		if lights.has(k): lights[k].visible = false
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
+	# 試作89 (ユーザー「そこで、電気が消えたんです。のところ、真っ暗になるのがよくない？」): the eye goes black with the lights,
+	# through her testimony line and the chapter card; it opens again, slowly, as chapter 2 begins (power_eyes_open)
+	if env and dark: create_tween().tween_property(env, "tonemap_exposure", 0.0, 0.12)
+
+func power_eyes_open():
+	if env: create_tween().tween_property(env, "tonemap_exposure", 1.0, 2.5).set_ease(Tween.EASE_OUT)
 
 static var FROM_STORY := false     # 段階1: the night was reached by playing (the door scene runs), not by N
 

@@ -42,7 +42,7 @@ F1_WALLS = [
     ('Y', 6, 1.4, 8, [(1.6, 2.45), (6.0, 6.85)], [], 0),        # hall | study (fusuma), kitchen
     ('X', 4.6, 0, 4, [(.6, 3.2)], [], 0),                       # living | dining: a wide opening
     ('X', 3.6, 6, 10, [], [], 0),                               # study | kitchen
-    ('Y', 8.6, 6.6, 8, [(6.9, 7.6)], [], 0), ('X', 6.6, 8.6, 10, [], [], 0),   # pantry
+    ('Y', 8.6, 6.6, 8, [(6.62, 7.3)], [], 0), ('X', 6.6, 8.6, 10, [], [], 0),   # pantry (試作89: was 6.9..7.6, the north counter ran 27 cm across it; ユーザー「台と扉を被らせたくない」)
     ('Y', 5.0, 6.8, 8, [(7.0, 7.7)], [], 0), ('X', 6.8, 5.0, 6, [], [], 0),    # toilet
     ('Y', 4, 0, 1.4, [], [], 0, ZG),                            # genkan's west side (the hall wall goes on down to the front)
 ]
@@ -60,7 +60,10 @@ STAIR = (5.1, 2.6, 5.95, 5.6)   # up-stair footprint; rises toward the back (nor
 NSTEP = 13
 
 def _face_holes(holes, wins, z0, sill, wh, top):
-    hs = [(a, b, z0, max(z0, 0) + DOOR_H) for (a, b) in holes] + [(a, b, sill, sill + wh) for (a, b) in wins]
+    # a door's head is DOOR_H above the 1F floor for the genkan's sunk walls (z0 = ZG), but above its own floor in the
+    # cellar (試作89, ユーザー「階段入り口の枠のようなもの、トル」: the barred door's head was at 1F + 2 m, 4.45 m up, and its
+    # linings rose through the hall floor beside the stair)
+    hs = [(a, b, z0, (z0 if z0 < -1 else max(z0, 0)) + DOOR_H) for (a, b) in holes] + [(a, b, sill, sill + wh) for (a, b) in wins]
     return hs
 
 def wall_v4(M, w, z0, top, sill, wh):
@@ -269,7 +272,7 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
             'dining': door_leaf(M, 'Y', 4, 6.1, 6.95, 0, name='door_dining'),
             'kitchen': door_leaf(M, 'Y', 6, 6.0, 6.85, 0, name='door_kitchen'),
             'toilet': door_leaf(M, 'Y', 5.0, 7.0, 7.7, 0, name='door_toilet'),
-            'pantry': door_leaf(M, 'Y', 8.6, 6.9, 7.6, 0, name='door_pantry'),
+            'pantry': door_leaf(M, 'Y', 8.6, 6.62, 7.3, 0, name='door_pantry'),
             # the front door swings out (Japanese genkan); the back door out onto the back porch
             'front': door_leaf(M, 'X', 0, 4.45, 5.55, ZG, hinge='lo', name='door_front', h=2.0 - ZG),
             'back': door_leaf(M, 'Y', 10, 4.4, 5.35, 0, hinge='lo', name='door_back'),
@@ -282,7 +285,7 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
         note = under_stair(M)
         piv = a['doors']['cellar']; note.parent = piv; note.location = note.location - piv.location   # the note goes with the door
         # thresholds: the gap under each leaf shows a board, not the dark beyond
-        for (ax, fx, lo, hi) in (('X', 5.6, 5.12, 5.93), ('Y', 4, 3.1, 3.95), ('Y', 4, 6.1, 6.95), ('Y', 6, 6.0, 6.85), ('Y', 5.0, 7.0, 7.7), ('Y', 8.6, 6.9, 7.6), ('Y', 6, 1.6, 2.45)):
+        for (ax, fx, lo, hi) in (('X', 5.6, 5.12, 5.93), ('Y', 4, 3.1, 3.95), ('Y', 4, 6.1, 6.95), ('Y', 6, 6.0, 6.85), ('Y', 5.0, 7.0, 7.7), ('Y', 8.6, 6.62, 7.3), ('Y', 6, 1.6, 2.45)):
             if ax == 'X': o = prim('cube', 'threshold', loc=((X(lo) + X(hi)) / 2, Y(fx), .006), scale=((hi - lo) / 2, T / 2, .006), mat=M['agari'])
             else: o = prim('cube', 'threshold', loc=(X(fx), (Y(lo) + Y(hi)) / 2, .006), scale=(T / 2, (hi - lo) / 2, .006), mat=M['agari'])
             lib.uv_box(o, 1.25)
@@ -344,12 +347,17 @@ def prune(box, keep=('ext_',), drop=()):
 
 COLLIDE = ('wallcore', 'floor1', 'genkan', 'shoecab', 'door_living', 'door_dining', 'door_kitchen', 'door_toilet',
            'door_pantry', 'door_cellar', 'door_front', 'door_back', 'fusuma', 'agarikamachi', 'floor2', 'floorB', 'door2_')
-def colliders():
+def colliders(stair_block=True):
     """Axis-aligned boxes for the player (Blender centre + size), from the built meshes; the staircase is one block
-    (no climbing), the genkan step a ramp so you can walk back up. Floors are made .5 m deep."""
+    (no climbing; the whole house passes stair_block=False and climbs on rooms2.climb_boxes), the genkan step a ramp
+    so you can walk back up. Floors are made .5 m deep. A door's box carries its name ('door'), so Godot can drop the
+    front door's while it stands open."""
     out = []; bpy.context.view_layer.update()
     for o in bpy.data.objects:
         if o.type != 'MESH' or not o.name.startswith(COLLIDE) or o.name.endswith('_knob'): continue
+        # 試作89 (ユーザー「玄関の方に行くと、室内に戻れなくなった」): the step's own box stood 10 cm proud of the ramp's
+        # surface where they meet, and the ramp alone takes you up
+        if o.name.startswith('agarikamachi') and not stair_block: continue
         bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
         lo = Vector((min(v.x for v in bb), min(v.y for v in bb), min(v.z for v in bb)))
         hi = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
@@ -357,8 +365,11 @@ def colliders():
         if o.name.startswith('wallcore'):   # the core is the wall less its faces: collide with the whole thickness
             if hi.x - lo.x < hi.y - lo.y: lo.x -= .02; hi.x += .02
             else: lo.y -= .02; hi.y += .02
-        out.append(dict(c=[round(v, 3) for v in (lo + hi) / 2], s=[round(v, 3) for v in hi - lo]))
+        b = dict(c=[round(v, 3) for v in (lo + hi) / 2], s=[round(v, 3) for v in hi - lo])
+        if o.name.startswith('door_'): b['door'] = o.name.split('.')[0][5:]
+        out.append(b)
     x0, y0, x1, y1 = STAIR
-    out.append(dict(c=[(X(x0) + X(x1)) / 2, (Y(y0) + Y(y1)) / 2, 1.3], s=[x1 - x0, y1 - y0, 2.6]))
+    if stair_block:   # 試作89: in the whole house this block sat over the climbing ramps, and 2F and the cellar were shut
+        out.append(dict(c=[(X(x0) + X(x1)) / 2, (Y(y0) + Y(y1)) / 2, 1.3], s=[x1 - x0, y1 - y0, 2.6]))
     out.append(dict(c=[X(5), Y(1.4) + .2, ZG / 2], s=[2.0, .45, .04], rx=math.atan2(ZG, .4), ramp=True))
     return out

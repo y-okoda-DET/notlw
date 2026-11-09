@@ -46,7 +46,7 @@ def build():
         A['doors'][k].rotation_euler.z = math.radians(ang)
     bpy.data.objects['door_barred_pivot'].rotation_euler.z = math.radians(-95)
     import furnish, rooms2
-    boxes = H4.colliders() + furnish.furnish(M)
+    boxes = H4.colliders(stair_block=False) + furnish.furnish(M)
     for (old, new) in (('furn_lampshade', 'lampshade_lamp_living'), ('furn_pendshade', 'lampshade_lamp_dining'),
                        ('furn_kshade', 'lampshade_lamp_kitchen'), ('lamp_globe', 'lampshade_lamp_lobby')):
         for o in [o for o in bpy.data.objects if o.name.startswith(old)]: o.name = new

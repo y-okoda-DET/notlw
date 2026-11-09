@@ -221,7 +221,7 @@ def pose_kiryu(k, t):
     j = jolts(t) * (t > 10.9)
     C.arm_to(k, 'l', kl((.2, -.02, .84)), Vector((.3, .3, 0)))
     C.rot_world(k, 'neck_01', axis_local(k, (1, 0, 0)), 18 - 30 * look - 3 * j)
-    C.rot_world(k, 'head', (0, 0, 1), 22 * look)
+    C.rot_world(k, 'neck_01', (0, 0, 1), 22 * look)   # the turn on the neck, not the head: the head's own share bent the lower face behind the upper (試作89, ユーザー「23時、桐生の顔、動かした時にゆがんでいる」; as 真琴 試作18)
     C.rot_world(k, 'spine_03', axis_local(k, (1, 0, 0)), -2 * j)
     # the phone first, the hand to it (chars.hold_phone): screen toward his eyes, fingers behind it, measured
     eyes = C.bone_head(k, 'head') + C.local(k, (0, -.08, .05)) - C.local(k, (0, 0, 0))

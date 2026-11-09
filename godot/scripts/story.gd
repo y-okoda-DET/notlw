@@ -67,6 +67,7 @@ var lines_box: VBoxContainer
 var tes_box: VBoxContainer     # Mio's answers to the interviewer (testimony)
 var offscreen: Array = ["ラジオ"]   # voices from off the frame: these lines keep the speaker's name
 var named := {}                     # who has had their name shown in this conversation (試作34「名前はその会話の最初だけ」)
+var last_who := ""                   # who spoke the line before (試作89: a name on every change of speaker; ユーザー「やめとけ、外に出るな。の前、桐生の名前がない」)
 var note_lb: Label             # the bracketed stage note (what she is looking at)
 var board_layer: CanvasLayer
 var board_rect: TextureRect
@@ -248,7 +249,7 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		var rule := ColorRect.new(); rule.color = Color(paper.r, paper.g, paper.b, 0.85)
 		rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(rule)
-	elif who != "" and kind == "say" and (who in offscreen or not named.has(who)):
+	elif who != "" and kind == "say" and (who in offscreen or not named.has(who) or who != last_who):
 		named[who] = true
 		var w := _label(20); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
@@ -258,6 +259,7 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 	if tes: t.add_theme_constant_override("line_spacing", int(6 * u))
 	row.add_child(t)
 	box.add_child(row)
+	if kind == "say" and who != "": last_who = who
 	if kind == "choose": row.set_meta("choice", true)
 	if not tes:
 		# two lines at most; but the choices (the struck-through ones too) stay with the first line that follows them
@@ -741,7 +743,7 @@ func _start(entries: Array):
 	print("STORY start ", focus, " t=%.1f" % t_now)
 	mode = TALK
 	_clear_page()
-	named.clear()
+	named.clear(); last_who = ""
 	rrow = {}
 	radio_up = false
 	_next()
@@ -895,7 +897,7 @@ func _state(name: String):
 		var parts := name.substr(5).split("_")
 		put.call(-0.2, 3.6, 6.0, 0.0)
 		if parts[0] == "rule1":
-			main.power_cut(); main.TALK = {}; ch2 = true; _start(_rule1_lines().slice(0, -1))
+			main.power_cut(false); main.TALK = {}; ch2 = true; _start(_rule1_lines().slice(0, -1))
 		else:
 			talked[parts[0]] = int(parts[1]) if parts.size() > 1 else 0
 			talk_with = parts[0] if WHO_KEY.values().has(parts[0]) else ""; _start(_conversation(parts[0]))
@@ -933,14 +935,14 @@ func _state(name: String):
 			demo = []; main.CARD_TIME = 0.0; main.power_cut(); mode = END; end_t = 9.5; _begin_ch2()
 		"radio", "radio_up", "radio_off", "radio_news", "radio_half":
 			# 第2章: the radio in her hand, held up to the dial, or tuned between stations
-			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			main.power_cut(false); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 2.0, -8.0); _take_radio(); script_q.clear(); mode = FREE; _clear_page()
 			radio_up = name != "radio"
 			tune = 0.43 if name == "radio_off" else (1017.0 - AM_LO) / (AM_HI - AM_LO)
 			if name == "radio_half": tune = (1011.0 - AM_LO) / (AM_HI - AM_LO)   # a little off: words drop out
 			if name in ["radio_news", "radio_half"]: bc_t = 2.9   # just before the second sentence (the place); shoot ~100 frames
 		"radio_rclick":   # 試作33: right-click while the line that says so is still on screen, then close the line
-			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			main.power_cut(false); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 2.0, -8.0); _take_radio()
 			await get_tree().create_timer(0.5).timeout
 			var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_RIGHT; ev.pressed = true
@@ -948,7 +950,7 @@ func _state(name: String):
 			await get_tree().create_timer(0.3).timeout
 			while mode == TALK: _press(); await get_tree().create_timer(0.3).timeout
 		"radio_box":
-			main.power_cut(); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
+			main.power_cut(false); main.TALK = {}; ch2 = true; mode = FREE; items.radio.kind = "take"
 			put.call(-0.20, 3.35, 29.5, -62.0)
 
 # ================================================================ unattended playthrough (for the check movie)
@@ -1115,6 +1117,7 @@ func _begin_ch2():
 func _ch2_start():
 	card2.visible = false; card2_t = -1.0
 	ch2 = true; mode = FREE
+	main.power_eyes_open()
 	items.radio.kind = "take"
 	talk_with = "taiga"
 	_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
