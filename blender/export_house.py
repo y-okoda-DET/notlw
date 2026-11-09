@@ -18,7 +18,7 @@ from lib import prim
 OUT = f'{P.RULES}/assets/house'
 os.makedirs(OUT, exist_ok=True)
 E.OUT = OUT
-DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_')   # switched per time in Godot: kept out of the joined, lightmapped mesh
+DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_')   # switched per time in Godot: kept out of the joined, lightmapped mesh
 E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
@@ -80,6 +80,8 @@ def set_time(t, M):
     for o in bpy.data.objects:
         if o.name.startswith('board_'): o.hide_render = not st['boards']
         if o.name.startswith('gencord'): o.hide_render = not st['cord']
+        if o.name.startswith('crew_') or (o.name.startswith('lampshade_') and o.name[len('lampshade_'):].split('.')[0] in TM.CREW_KEYS):
+            o.hide_render = not st.get('crew', True)
     bpy.data.objects['door_pivot'].rotation_euler.z = math.radians(st['front'])
     L = TM.lights(t)
     lit = {o.name for o in L}
@@ -219,6 +221,6 @@ if __name__ == '__main__':
     import wear as WR   # 段階2 使い込みの跡: Decals placed from the plan (Godot main.gd _wear)
     json.dump(dict(YF=St.YF, ZG=Hm.ZG, boxes=boxes, props=props, wear=WR.decals(), spawn=list(St.PLAYER), look=list(St.PLAYER_LOOK),
                    gi_box=[[gx0, gy0, gz0], [gx1, gy1, gz1]], mark=[*St.MARK, 0], house=True, walk=list(OS.WALK_MESHES),
-                   times=TM.TIMES, labels=TM.LABEL, state=TM.STATE, fps=24, loop=20.0, knocks=[]),
+                   times=TM.TIMES, labels=TM.LABEL, state=TM.STATE, crew_keys=TM.CREW_KEYS, fps=24, loop=20.0, knocks=[]),
               open(f'{OUT}/scene.json', 'w'), indent=1)
     print('EXPORTED')

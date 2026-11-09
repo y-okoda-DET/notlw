@@ -43,13 +43,15 @@ LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't2
 DUSK_WIN = 2.0   # 1.4 (試作68): the lit walls upstairs came up, the print's darkest ink was already the shadows' floor
 STATE = {
     #        boards  front door (deg open)  cord  print exposure  ambient (colour, energy)       sky ring (emission, tint)        fog
+    # crew: the crew's lanterns and candles are out (試作83, レビュー 試作82: at dusk, before the outage, the landing's
+    # lantern already stood there). They bring them out at the outage; Godot hides the crew_ props before (main.gd _house_state)
     # slip: the forest road's outer shoulder at the bend has gone (outside.py; the storm takes it before 桐生 goes out at 2:00)
-    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.05, sky=.75, skyc=[1, 1, 1], fog=.03, slip=False),
-    't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False),
-    't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False),
-    't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True),
-    't0330': dict(boards=True, front=0, cord=True, exp=1.8, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True),
-    't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06, slip=True),
+    'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.05, sky=.75, skyc=[1, 1, 1], fog=.03, slip=False, crew=False),
+    't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False, crew=False),
+    't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False, crew=True),
+    't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True, crew=True),
+    't0330': dict(boards=True, front=0, cord=True, exp=1.8, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True, crew=True),
+    't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06, slip=True, crew=True),
 }
 
 def _g(o, **g):
@@ -78,14 +80,17 @@ def lantern_cellar(e=1.0):
 # by the make-up kit; bed3: on Makoto's nightstand; the landing: the one left on the floor, at the head of the stair so
 # the treads catch it going down (試作74: on the stair itself); the study: by his low desk (試作74: on it)
 P_CREW = {'lantern_bed1': (.38, 2.1, H4.F2 + .616), 'lantern_bed2': (3.62, 5.62, H4.F2 + .676), 'lantern_bed3': (9.6, 1.76, H4.F2 + .616),
-          'lantern_stair': (5.75, 4.56, 1.904), 'lantern_landing': (5.2, 7.3, H4.F2), 'lantern_study': (9.42, 2.3, .37)}
+          'lantern_stair': (5.75, 4.56, 1.904), 'lantern_landing': (5.2, 7.3, H4.F2), 'lantern_study': (9.42, 2.3, .37),
+          # 試作83 (レビュー 試作82): with the lightmap packed tight the south counter's doors no longer took the light off its top
+          # and went one flat mid-tone through the print, their gaps lost. On the floor before the doors
+          'lantern_kitchen': (8.4, 4.95, 0.0)}   # 試作84: at (8.55, 4.6) and .5 the doors' right half blew out
 # 試作74 (レビュー 試作73: from 67 the stair seen from the hall and the study desk went dark at 23:00): a lantern left on
 # the stair's ninth tread (east half, out of the way of feet), so the treads below and the hall catch it; the study's
 # stands on his desk by the ledger (on the floor it sat below the desk top and lit only the tatami). The bedroom ones at
 # half (レビュー 試作73: the lantern on the table by the window blew out through the print). 試作75: with only the stair
 # one the landing went black, so the landing keeps one by the bathroom door, low (試作65's place); the desk's at .6 blew
 # the desk's far half out
-CREW_E = {'lantern_bed1': .5, 'lantern_bed2': .5, 'lantern_bed3': .5, 'lantern_stair': 1.0, 'lantern_landing': .5, 'lantern_study': .35}
+CREW_E = {'lantern_bed1': .5, 'lantern_bed2': .5, 'lantern_bed3': .5, 'lantern_stair': 1.0, 'lantern_landing': .5, 'lantern_study': .35, 'lantern_kitchen': .3}
 # candles the crew stood about downstairs (試作64: the south counter and the dining table were black at 23:00; 試作67:
 # the kitchen's sink side still black)
 P_CANDLES = {'candle_counter': (6.95, 3.95, .862), 'candle_dining': (2.0, 6.35, .74), 'candle_sink': (6.85, 7.62, .862)}
@@ -96,6 +101,8 @@ def crew_lanterns(e=1.0):
             for n, (x, y, z) in P_CREW.items()] + \
            [_g(lib.point(n, (X(x), Y(y), z + .2), 4 * e, k=1800, radius=.03), kind='omni', e=.8 * e, r=3.0, att=1.5, sh=1, fog=.1, size=.03, flick='candle')
             for n, (x, y, z) in P_CANDLES.items()]
+CREW_KEYS = list(P_CREW) + list(P_CANDLES)   # the crew's lights: props crew_<name>_*, glow lampshade_<name>
+
 def lantern(e=1.0):
     return _g(lib.point('lantern_living', P_LANTERN, 25 * e, k=3300, radius=.05), kind='omni', e=e, r=4.5, att=1.4, sh=1, fog=.2, size=.05, flick='batt')
 def cabinet():

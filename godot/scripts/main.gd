@@ -493,6 +493,7 @@ func _house_state():
 		var nm := String(mi.name)
 		if nm.begins_with("board_"): mi.visible = ST.boards
 		elif nm.begins_with("gencord"): mi.visible = ST.cord
+		elif nm.begins_with("crew_"): mi.visible = ST.get("crew", true)   # the crew's lanterns and candles, out from 23:00 (times.py)
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
 		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
@@ -500,6 +501,7 @@ func _house_state():
 	for L in arr: lit[L.name] = true
 	for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
 		var key := String(mi.name).substr(10).get_slice(".", 0).get_slice("_0", 0)
+		if key in S.get("crew_keys", []): mi.visible = ST.get("crew", true)
 		for i in range(mi.mesh.get_surface_count()):
 			var m := mi.get_active_material(i) as StandardMaterial3D
 			if m == null: continue
