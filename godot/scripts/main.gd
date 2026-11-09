@@ -95,6 +95,7 @@ func _ready():
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
+		if a == "--noocc": ARGS["noocc"] = true   # 試作92: without the occluders and the far cedars' shadows cut (to compare)
 		if a == "--ch2": ARGS["ch2"] = true   # 試作91: the house at 20:00 as 第2章 has it (the people; the story too unless checking)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
@@ -129,7 +130,7 @@ func _ready():
 	_faces()
 	_camcorder_lcd()
 	if ARGS.has("minicam"): _minicam_dbg()
-	if SCENE == "house": _house_state(); _lights_house(); _window_glass(); _wear()
+	if SCENE == "house": _house_state(); _lights_house(); _window_glass(); _wear(); _house_cheaper()
 	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
 	_gi()
@@ -1285,6 +1286,37 @@ func to_night(from_story := false):
 	FROM_STORY = from_story
 	get_tree().reload_current_scene()
 
+# 試作92: the whole house was heavy. 3586 cedar meshes (14M of the 16M triangles) were drawn from every room, and
+# again for each shadowed lamp. Inside, the house's own walls and floors now hide what is behind them (occlusion
+# culling: one box per wall piece of scene.json, its window and door holes left open, so the woods still show through a
+# window); far cedars cast no shadow. NOOCC=1 / --noocc for the old way.
+func _house_cheaper():
+	if ARGS.has("noocc"): return
+	get_viewport().use_occlusion_culling = true
+	var n := 0
+	for b in S.boxes:
+		if b.has("door") or b.has("ramp") or b.has("times"): continue
+		var sz: Array = b.s
+		var thin: float = minf(minf(sz[0], sz[1]), sz[2])
+		var area: float = sz[0] * sz[1] * sz[2] / maxf(thin, 0.001)
+		if thin > 0.2 or area < 0.25: continue   # walls and floors only, not furniture
+		var oc := OccluderInstance3D.new(); var bo := BoxOccluder3D.new()
+		bo.size = Vector3(sz[0], sz[2], sz[1]) * 0.98   # a hair inside the wall: never hides the wall's own face
+		oc.occluder = bo; oc.position = b2g(b.c); add_child(oc); n += 1
+	var far := 0
+	for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false):
+		if Vector2(mi.global_position.x, mi.global_position.z).length() > 28.0:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; far += 1
+	# the lamps' shadows are drawn every frame over the whole joined house (env: 1.1M triangles, one object, never
+	# culled by room), six times for each shadowed lamp: only lamps within 9 m of the eye cast shadows now
+	var fl := 0
+	for k in lights:
+		var l = lights[k]
+		if l is OmniLight3D or l is SpotLight3D:
+			if not l.shadow_enabled: continue
+			l.distance_fade_enabled = true; l.distance_fade_begin = 40.0; l.distance_fade_length = 5.0; l.distance_fade_shadow = 9.0; fl += 1
+	print("house occluders %d, cedars without shadow %d, lamps with near shadows only %d" % [n, far, fl])
+
 func _quality(high: bool):
 	quality_high = high
 	var vp := get_viewport()
@@ -1292,3 +1324,8 @@ func _quality(high: bool):
 	vp.scaling_3d_scale = 1.0 if high else 0.6
 	RenderingServer.environment_set_volumetric_fog_volume_size(96 if high else 48, 96 if high else 48)
 	for k in lights: if lights[k] is Light3D and lights[k].shadow_enabled: lights[k].shadow_blur = 1.0 if high else 0.5
+	# 試作92: 低 also draws each lamp's shadow in two passes instead of six, and the moon's in two splits
+	for k in lights:
+		var l = lights[k]
+		if l is OmniLight3D: l.omni_shadow_mode = OmniLight3D.SHADOW_CUBE if high else OmniLight3D.SHADOW_DUAL_PARABOLOID
+		elif l is DirectionalLight3D: l.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if high else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
