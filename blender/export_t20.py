@@ -40,12 +40,20 @@ S = {}
 def pose(key, rig, t):
     kl = lambda v: C.local(rig, v)
     seed = {'kiryu': 1.0, 'natsuki': 3.0, 'makoto': 7.0, 'taiga': 2.0}[key]
-    lift = {'kiryu': .22, 'natsuki': 0.0, 'makoto': -.04, 'taiga': -.12}[key]   # Kiryu holds his up (a signal), Taiga low, lighting the floor ahead
+    # Kiryu holds his up (a signal). 試作97 (ユーザー「大河、スマホ持ってない」「夏希、スマホを手に持ってない」): at the waist
+    # (Taiga -.12, Natsuki 0) the phone was lost against the body in the dark; at the chest, the screen toward the face
+    lift = {'kiryu': .22, 'natsuki': .1, 'makoto': -.04, 'taiga': .04}[key]
+    if key == 'taiga': C.rot_world(rig, 'spine_03', E.axis_local(rig, (1, 0, 0)), 4)   # 試作97: before the arms are set (they hang from it)
     C.arm_to(rig, 'l', kl((.2, -.04, .86)), Vector((.3, .3, 0)))
     C.grip(rig, 'l', .3)
     eyes = C.bone_head(rig, 'head') + C.local(rig, (0, -.08, .05)) - C.local(rig, (0, 0, 0))
     C.phone_grip3(rig, 'r', S[key + '_ph'], eyes, kl((-.05, -.3, 1.22 + lift + .01 * E.noise1(t, seed + 3))), Vector((-.3, .3, -.5)))
-    C.rot_world(rig, 'neck_01', E.axis_local(rig, (1, 0, 0)), 12 + 6 * (lift < 0))   # looking down at the screen
+    # looking down at the screen. 試作97: Taiga's 18 degrees pushed his collar out behind the neck (ユーザー「大河の首の後ろに
+    # 変な出っ張り」「服の襟も変」): the phone is higher now, and his neck bends less, the upper back a little instead
+    if key == 'taiga':
+        C.rot_world(rig, 'neck_01', E.axis_local(rig, (1, 0, 0)), 6)
+    else:
+        C.rot_world(rig, 'neck_01', E.axis_local(rig, (1, 0, 0)), 12 + 6 * (lift < 0))
     E.idle(rig, t, seed, breath=.26, amp=.9, rate=1.0)
 
 def build():

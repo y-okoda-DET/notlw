@@ -162,10 +162,11 @@ def lights(t):
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
         # battery LED panel, gelled blue for tonight's planned shot, is the one light anyone can carry about; the
         # windows are still bare (the boarding starts after the radio), the storm's sky faintly in them
+        # 試作97 (ユーザー「停電したはずなのにライトがついてる。停電している間の光源はスマホ、説明できるものだけにしたい」):
+        # only the generator's circuits are baked (main.gd keeps them dark until Mio starts it), and the storm's sky.
+        # The blue panel, the living room's lantern and the kitchen candles come out at 23:00 (the crew sets them up).
         L.append(lobby(.8)); L.append(cellar(1.2))
-        L.append(_g(lib.area('blue_door', BLUE_P, (St.DOOR_C, St.YF - .1, 1.2), 7, color=(.4, .56, 1.0), size=(.24, .18), spread=75),
-                    kind='spot', e=1.6, ang=37, sh=1, size=.2))
-        L.append(storm(.12)); L.append(lantern()); L.append(candles())
+        L.append(storm(.12))
         L.append(_g(lib.area('lightning', (SLIT + .4, St.YF + 2.5, 2.2), (SLIT, St.YF, 1.1), 0, k=16000, size=(1.5, 1.5)), kind='bolt', e=0))
     elif t == 't23':
         # the 第2章 door scene as tuned (export_godot): the fresnel on the generator's cord, the blue panel at the door,

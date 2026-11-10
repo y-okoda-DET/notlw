@@ -53,7 +53,7 @@ def front_tex():
     d.text((X(DX0) + 4 * K, Z(zf) - 4 * K), 'FM', fill=ink, font=f_m, anchor='lb')
     d.text((X(DX1) - 3 * K, Z(zf) - 4 * K), 'MHz', fill=ink, font=f_m, anchor='rb')
     # AM row (lower): ticks standing up from the line, numbers under it (x10 kHz)
-    za = DZ0 + .0125
+    za = DZ0 + .0165   # 試作97: room under the line for the bigger numbers
     d.line([nx(0), Z(za), nx(1), Z(za)], fill=ink, width=max(1, int(3 * K)))
     # 試作97 (ユーザー「ラジオ、目盛りが少し見づらい」): the AM row is the one she tunes; its marks and numbers
     # were 3 px and 21 pt at this size, finer than the print's dots. Heavier ticks, bigger numbers, every 100 kHz.

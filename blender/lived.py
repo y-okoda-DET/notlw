@@ -109,12 +109,15 @@ def living(M):
 def hall(M):
     # the two hooks his vest and cap hung on, by the genkan (Tripo: the vest itself, 画像生成とTripo_2回目), and the
     # frames along the hall
-    for y in (1.62, 1.84):
-        o = prim('cylinder', 'lived_hookbase', loc=(X(4.0) + W + .006, Y(y), 1.64), rot=(0, math.pi / 2, 0), scale=(.02, .02, .006), mat=M['walnut'], vertices=10)
-        o = prim('cylinder', 'lived_hook', loc=(X(4.0) + W + .025, Y(y), 1.65), rot=(0, math.pi / 2 - .3, 0), scale=(.005, .005, .03), mat=M['steel'], vertices=6)
+    # 試作97: in his study now, on its west wall north of the fusuma (in the hall it hung in the frame of 第1章's
+    # storyboard shot, where the old hall had no vest: ユーザー「ここにかかっていたベスト、1章ではなかった。別の場所にかける」)
+    HX = 6.0
+    for y in (2.95, 3.17):
+        o = prim('cylinder', 'lived_hookbase', loc=(X(HX) + W + .006, Y(y), 1.64), rot=(0, math.pi / 2, 0), scale=(.02, .02, .006), mat=M['walnut'], vertices=10)
+        o = prim('cylinder', 'lived_hook', loc=(X(HX) + W + .025, Y(y), 1.65), rot=(0, math.pi / 2 - .3, 0), scale=(.005, .005, .03), mat=M['steel'], vertices=6)
     # his orange vest and cap on the first hook (Tripo, the user's: 2026-11-04); the second hook is empty
     import furnish as F
-    F.tripo_prop('vest', (X(4.0) + W + .183 * .8 + .004, Y(1.62), 1.76 - .98 * .8), math.pi / 2, .8, name='lived_vest')
+    F.tripo_prop('vest', (X(HX) + W + .183 * .8 + .004, Y(2.95), 1.76 - .98 * .8), math.pi / 2, .8, name='lived_vest')
     ghost_frames(M, 'Y', 4, 1, [(4.3, 4.75, 1.35, 1.7)])
     # the one frame left: him and his hunting party on the forest road (the user's image, 2026-11-04)
     xf = X(4.0) + W

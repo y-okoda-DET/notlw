@@ -1207,7 +1207,7 @@ func _t20_people():
 			if scr and (scr.get_aabb().get_center() - c)[ax] > 0.0: n = -n   # n: out of the back
 			var up := Vector3.UP if abs(n.y) < 0.9 else Vector3.RIGHT
 			var sp := SpotLight3D.new(); sp.name = "torch"
-			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 2.0; sp.spot_range = 7.0; sp.spot_angle = 32.0
+			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 3.0; sp.spot_range = 8.0; sp.spot_angle = 34.0   # 試作97: 2.0; with the bulbs dark until the generator, the torches are the light (ユーザー「地下への階段真っ暗すぎる」)
 			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
 			sp.light_specular = 0.2
 			sp.transform = Transform3D(Basis.looking_at(n, up), c + n * 0.01)
@@ -1248,6 +1248,40 @@ func _rig_of(k: String) -> Node3D:
 	return S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0].get_parent() as Node3D
 
 # walk k through plan points [x, y, z] (plan metres; z the floor's height); done() when there
+# 試作97 (ユーザー「大河、立ち姿が変。木材を持ってない」): the boards up from the cellar, carried as he carried the box at
+# dusk (his 第1章 movement: both hands under it), the box made a bundle of old shelf boards; the phone in his pocket
+var carried := {}
+func carry_boards(k: String, on: bool):
+	if not S.has(k + "_node"): return
+	var inst: Node3D = S[k + "_node"]
+	var ap: AnimationPlayer = inst.find_children("*", "AnimationPlayer", true, false)[0]
+	var box := inst.find_child("carrybox", true, false) as MeshInstance3D
+	if box == null: return
+	if not carried.has(k):
+		var b := Node3D.new(); b.name = "boards_carried"
+		box.get_parent().add_child(b)
+		b.transform = Transform3D(box.transform.basis.orthonormalized(), box.transform.origin)
+		var mat: Material = null
+		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+			mat = (mi as MeshInstance3D).get_active_material(0); if mat: break
+		var hb: float = box.transform.basis.get_scale().y   # the box's half height: the bundle sits where its floor was
+		for i in 4:
+			var pm := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.95 - i * 0.04, 0.022, 0.15)
+			pm.mesh = bm; pm.material_override = mat
+			pm.position = Vector3((i % 2) * 0.03 - 0.015, -hb + 0.011 + i * 0.023, (i % 2) * 0.01)
+			pm.rotation.y = (i - 1.5) * 0.025
+			b.add_child(pm)
+		carried[k] = b
+	(carried[k] as Node3D).visible = on
+	box.visible = false
+	for ba in inst.find_children("*", "BoneAttachment3D", true, false):
+		if ba.find_child("torch", true, false): (ba as Node3D).visible = not on
+	var dusk := ""
+	for a in ap.get_animation_list():
+		if not (a.begins_with("t20/") or a.begins_with("walk/")): dusk = a; break
+	if on and dusk != "": ap.play(dusk, 0.5)
+	elif not on: ap.play("t20/loop", 0.5)
+
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return
 	var ap: AnimationPlayer = S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
@@ -1323,7 +1357,8 @@ func generator(on: bool):
 			var m := mi.get_surface_override_material(i) as StandardMaterial3D
 			if m: m.emission_enabled = on
 	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
-	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.3) if gi_mode == 0 else 0.0)
+	# 試作97: the 20:00 lightmap holds only the generator's bulbs and the storm's sky: off, almost nothing is left of it
+	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.04) if gi_mode == 0 else 0.0)
 
 # ------------------------------------------------------------------ 試作97: one stage (ステップ C)
 static var ONE := true

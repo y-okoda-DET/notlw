@@ -214,6 +214,24 @@ def porches(M):
     for sx in (-.47, .47):
         prim('cube', 'ext_bstringer', loc=((bx0 + bx1) / 2 + .15 + sx, by0 - nst * run / 2, -nst * rise / 2 - .1), rot=(a, 0, 0), scale=(.025, L / 2 + .05, .12), mat=tm)
 
+def back_porch_boxes():
+    """試作97 (ユーザー「勝手口から外に出ると落ちた」): the back porch's deck and stair had no collision (the player fell
+    through to the slope under it, NOTES), nor its rail. The deck, the rail on the east and the south, the stair as a
+    ramp, and the stair's two open sides. Boxes as export_house writes them (Blender coords, full sizes)."""
+    bx0, bx1 = X1 + WOFF, H4.X(11.4); by0, by1 = H4.Y(5.9), H4.Y(3.9)
+    cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
+    out = [dict(c=[cx, cy, -.06], s=[bx1 - bx0, by1 - by0, .12]),
+           dict(c=[bx1, cy, .5], s=[.08, by1 - by0, 1.0]),                 # the east rail
+           dict(c=[cx, by1, .5], s=[bx1 - bx0, .08, 1.0])]                 # the south rail
+    g_end = ground(cx, by0 - 2.4)
+    nst = max(3, int(round((0 - g_end) / .18))); rise = (0 - g_end) / nst; run = .26
+    L, Hh = nst * run, nst * rise
+    sx = cx + .15
+    out.append(dict(c=[sx, by0 - L / 2, -Hh / 2 - .04], s=[.9, math.hypot(L, Hh), .04], ramp=1, rx=math.atan2(Hh, L)))
+    for d in (-.5, .5):   # the stair's sides: no rail, but a body does not step off a stair's edge into the dark
+        out.append(dict(c=[sx + d, by0 - L / 2, -Hh / 2 + .3], s=[.06, L, Hh + 1.0]))
+    return out
+
 def foundation(M, OW):
     """Concrete from the ground up to the siding's foot; on the east the cellar wall shows above the falling ground."""
     for side, (ax, fixed, lo, hi, n, holes) in OW.items():

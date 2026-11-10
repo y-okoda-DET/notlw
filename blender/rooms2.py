@@ -454,11 +454,20 @@ def generator(M):
                 elif n.type == 'TEX_IMAGE' and n.image and 'nor' in n.image.name: n.image = nr
         # the owner's old tape on the panel: how to start it
         tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
+        # 試作97: and a word on tape by each control (the same places as story.gd _gen_items)
+        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .17), ZB + .625), (-1, 0, 0), .075)
+        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .1), ZB + .625), (-1, 0, 0), .09)
+        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .385), (-1, 0, 0), .09)
+        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .52), (0, -1, 0), .075)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST
     lib.tube('gen_hose', [(X(ex), Y(ey), ez), (X(ex + .12), Y(ey + .05), ez + .15), (X(9.82), Y(6.42), ZB + .8),
-                          (X(9.9), Y(6.45), ZB + 1.0), (X(10.15), Y(6.45), ZB + .97)], [.045] * 5, M['hose'], seg=12, sub=4)
+                          (X(9.9), Y(6.45), ZB + 1.0), (X(10.15), Y(6.45), ZB + .97),
+                          # 試作97: on out between the boards and down to the ground (ユーザー「窓からホースが出てない」: in 96 it
+                          # stopped inside the wall, behind the boards; Mio's testimony remembers it coming out)
+                          (X(10.45), Y(6.45), ZB + .98), (X(10.75), Y(6.5), ZB + .82), (X(11.0), Y(6.58), ZB + .6),
+                          (X(11.35), Y(6.68), ZB + .5)], [.045] * 9, M['hose'], seg=12, sub=4)
 
 def cellar(M):
     z0 = ZB
@@ -590,6 +599,7 @@ def cord(M):
     lib.tube('gencord', [(X(x), Y(y), z) for (x, y, z) in pts], [.006] * len(pts), M['cord'], seg=6, sub=3)
 
 # ---------------------------------------------------------------- the boards over the windows (23:00 on)
+DEER_X = 2.1   # furnish.deer(M, 2.1)
 def boards(M):
     """Rough boards nailed across every 1F window from inside (大河の主導で窓を板で塞ぐ), uneven, with gaps: the gaps are
     where the lightning and, at 4:30, the dawn come in. Named board_* (Godot shows them from 23:00). The cellar's small
@@ -608,6 +618,10 @@ def boards(M):
                 bw = rng.uniform(.12, .21); gap = rng.choice((.0, .01, .02, .035, .05))
                 z1 = min(s1 + .02, z + bw); tilt = rng.uniform(-.035, .035)
                 a0, b0 = a - rng.uniform(.06, .14), b + rng.uniform(.06, .14)
+                if ax == 'X' and fixed == 0 and b < 4:   # 試作97: the living room's front wall: the deer head hangs at x 2.1
+                    # between its two windows; the boards stop at the casing on its side (ユーザー「鹿の剥製にかからないように」)
+                    if b <= DEER_X: b0 = min(b0, b + .03)
+                    if a >= DEER_X: a0 = max(a0, a - .03)
                 if ax == 'X':
                     o = prim('cube', f'board_{n}', loc=((X(a0) + X(b0)) / 2, Y(off), (z + z1) / 2), rot=(0, tilt, 0), scale=((b0 - a0) / 2, .011, (z1 - z) / 2), mat=M['board'])
                 else:
@@ -618,7 +632,13 @@ def boards(M):
     # the cellar's small window, from outside (east wall x = 10, y 6.15..6.75, z -1.6..-1.2): four boards, nailed tight
     for i in range(4):
         z = -1.66 + i * .13
-        o = prim('cube', f'board_cellar{i}', loc=(X(10) + .28, Y(6.45), z + .06), rot=(rng.uniform(-.03, .03), 0, 0), scale=(.011, .45, .062), mat=M['board'])
+        rx = rng.uniform(-.03, .03)
+        if i == 1:   # 試作97: the hose comes out here: this board is two, either side of it
+            for k, (y0, y1) in enumerate(((6.0, 6.39), (6.51, 6.9))):
+                o = prim('cube', f'board_cellar{i}{"ab"[k]}', loc=(X(10) + .28, Y((y0 + y1) / 2), z + .06), rot=(rx, 0, 0), scale=(.011, (y1 - y0) / 2, .062), mat=M['board'])
+                lib.uv_box(o, 4.0)
+            continue
+        o = prim('cube', f'board_cellar{i}', loc=(X(10) + .28, Y(6.45), z + .06), rot=(rx, 0, 0), scale=(.011, .45, .062), mat=M['board'])
         lib.uv_box(o, 4.0)
     print('boards', n)
 

@@ -46,6 +46,11 @@ func setup(m):
 		var rest := 0.0
 		if piv == main.door_pivot: rest = float(main.S.get("door_rot", 0.0)) - deg_to_rad(float(ST.get("front", 0)))
 		doors[mi] = {"pivot": piv, "rest": rest, "open": cur, "is_open": absf(cur - rest) > 0.3, "locked": locked, "key": key, "box": bx, "body": sb}
+		# 試作97 (ユーザー「半開きみたいになっているのが変に感じた」): a door left ajar in the plans stood half open all night,
+		# and the story's open_key left it so. An open door here is open all the way (the front door keeps its dusk angle)
+		if doors[mi].is_open and piv != main.door_pivot and key != "door_barred":
+			doors[mi].open = rest + signf(cur - rest) * deg_to_rad(92.0)
+			piv.rotation.y = doors[mi].open
 	# a shut door opens to the side where the swept leaf meets the least (walls, furniture): the plans give no side
 	await get_tree().physics_frame
 	for mi in doors:

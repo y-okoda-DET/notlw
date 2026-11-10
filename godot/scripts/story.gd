@@ -399,20 +399,23 @@ func _fixed_cam():
 		var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
 		mk.call(body, dark, Vector3(0, 0.0, 0.0))
 	var led := OmniLight3D.new(); led.name = "rec"; led.light_color = Color(1.0, 0.2, 0.08); led.light_energy = 0.0
-	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.0, 0.068, -0.05)
+	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.012, 0.05, 0.08)
 	fixed_cam.add_child(led)
-	var dot := SphereMesh.new(); dot.radius = 0.004; dot.height = 0.008
+	var dot := SphereMesh.new(); dot.radius = 0.0055; dot.height = 0.011   # 試作97: 8 mm was lost in the print (ユーザー「赤いランプ、つくようにしたい」)
 	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.25, 0.05, 0.03); dm.emission_enabled = true; dm.emission = Color(1, 0.2, 0.05); dm.emission_energy_multiplier = 0.0
-	var d := mk.call(dot, dm, Vector3(0.012, 0.071, -0.048)) as MeshInstance3D; d.name = "recdot"
+	# 試作97: the tally on the front over the lens, and a second one on the back by the start button, the one she sees
+	# when it sits on the rail facing the hall (in 96 one dot floated 14 mm over the top, from the boxed stand-in)
+	var d := mk.call(dot, dm, Vector3(0.02, 0.053, -0.055)) as MeshInstance3D; d.name = "recdot"
+	var d2 := mk.call(dot, dm, Vector3(0.012, 0.046, 0.067)) as MeshInstance3D; d2.name = "recdot2"
 	main.add_child(fixed_cam)
 	fixed_cam.global_position = g([-0.60, 3.85, 0.20 + 0.072])   # the middle of the apple box (at -.72, 3.81 it hung past the edge, 試作61)
 	fixed_cam.rotation.y = 0.6
 
 func _set_rec(on: bool):
 	recording = on
-	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 0.6 if on else 0.0
+	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 1.2 if on else 0.0
 	var dm := (fixed_cam.get_node("recdot") as MeshInstance3D).material_override as StandardMaterial3D
-	dm.emission_energy_multiplier = 6.0 if on else 0.0
+	dm.emission_energy_multiplier = 16.0 if on else 0.0
 	(finder_ui as FinderFrame).rec = on
 
 # ================================================================ the one she talks to turns to her
@@ -1368,6 +1371,12 @@ func gp(x: float, y: float, z: float) -> Vector3:   # plan metres -> Godot
 func _house_ready():
 	_page(); _board(); _finder(); _fixed_cam(); _lookers(); _radio()
 	has_board = true   # 試作97: she still has Kiryu's board from 第1章 (Tab: what she is to do is in its margin)
+	# 試作97: her own phone, out like everyone's: its screen lights her hands and what is just before her (not a beam:
+	# the torch is the others'). With the power out it is, with theirs, all the light there is (ユーザー: 停電のあいだの光はスマホだけ)
+	var glow := OmniLight3D.new(); glow.name = "mio_phone"; glow.light_color = Color(0.8, 0.88, 1.0)
+	glow.light_energy = 0.45; glow.omni_range = 2.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = false
+	glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.05; glow.position = Vector3(0.12, -0.38, -0.32)
+	player.get_node("Head/Camera").add_child(glow)
 	if PLACED.is_empty(): fixed_cam.visible = false
 	else:
 		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
@@ -1575,6 +1584,7 @@ func _boards_start():
 		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	talk_with = "taiga"
+	main.carry_boards("taiga", true)
 	script_q.append_array(B("板.始まり"))
 
 func _board_use(key: String):
@@ -1606,6 +1616,7 @@ func _boards_show_rest():
 	# 試作93: outside at night it was black (Mio has no light): Taiga goes out first, by the kitchen and the back door,
 	# and stands on the back porch with his phone on the little window
 	taiga_moving = true
+	main.carry_boards("taiga", false)   # he sets them down by the stair and takes his phone out again
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_kitchen"); dn.open_key("door_back")
 	var from: Array = [4.75, 6.05, 0.0] if taiga_at == "door" else [8.5, 6.35, ZB]
