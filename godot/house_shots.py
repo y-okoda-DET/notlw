@@ -104,7 +104,7 @@ def main():
     vs = sys.argv[2].split(',') if len(sys.argv) > 2 else list(VIEWS)
     if vs == ['outside']: vs = ['o_porch', 'o_car', 'o_junct', 'o_road', 'o_slip', 'o_slipc', 'o_up']
     G = P.GODOT; src = os.environ.get('PCK')
-    base = f"--main-pack {src}" if src else f"--path {P.RULES}"
+    base = f"--main-pack {src}" if src else f"--path {os.environ.get('PROJ', P.RULES)}"   # PROJ: another project folder (a trial of a shader over an exported pack)
     hp = os.path.join(os.path.dirname(src), 'RULES_house.pck') if src else ''
     hp = f'--housepack={hp}' if hp and os.path.exists(hp) else ''   # a split release (build.sh): the house is its own pack
     RES = os.environ.get('RES', '960x540'); RW, RH = map(int, RES.split('x'))
