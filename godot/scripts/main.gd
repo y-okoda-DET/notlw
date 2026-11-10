@@ -1345,14 +1345,17 @@ func _bring(dir: String, things: Array):
 	if J.has("knocks"): S["knocks"] = J.knocks
 	if J.has("mark"): S["mark"] = J.mark
 	if things.is_empty(): return
-	var old: Node3D = (load(dir + "env.glb") as PackedScene).instantiate()
-	add_child(old)
-	for pre in things:
-		for mi in old.find_children(pre + "*", "MeshInstance3D", true, false):
-			var gt: Transform3D = (mi as Node3D).global_transform
-			mi.get_parent().remove_child(mi); mi.owner = null
-			S.env_node.add_child(mi); (mi as Node3D).global_transform = gt
-	old.queue_free()
+	# the things only the old scene's env.glb has (the reflector sways with Makoto: its movement is in that file's
+	# AnimationPlayer, so the file is played as it is and everything else in it taken out)
+	_load_scene(dir + "env.glb", "brought")
+	var old: Node3D = S.brought_node
+	for mi in old.find_children("*", "MeshInstance3D", true, false):
+		var want := false
+		for pre in things:
+			if String(mi.name).begins_with(pre): want = true
+		if not want: mi.free()
+	for l in old.find_children("*", "Light3D", true, false): l.free()
+	remove_child(old); S.env_node.add_child(old)   # story.gd and _rain look for these under the house
 
 func _ch1_set():
 	_bring("res://assets/dusk/", ["reflector"])
