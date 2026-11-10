@@ -1618,7 +1618,7 @@ func _demo_house():
 		["tune", u.call(1040.0), 1.8], ["wait", 2.0], ["tune", u.call(1017.0), 1.2],
 		["until_talk"], ["auto", 1], ["until_free"],
 		["rup", true], ["until", "hs", 5, 120.0], ["until_free"],
-		# three windows: the dining room's, the kitchen's two (Natsuki and Makoto stand in the living room's doorway)
+		# three windows: the dining room's, the kitchen's two (the dining room and kitchen are reached from the hall; the living room can be walked into past Makoto’s north side since 試作96)
 		["gop", 4.26, 6.29], ["gop", 3.74, 6.76], ["gop", 3.2, 7.5], ["use", "w_5"], ["until_free"],
 		["gop", 3.76, 6.74], ["gop", 4.89, 6.54], ["gop", 6.21, 6.54], ["gop", 6.61, 6.94], ["use", "w_4"], ["until_free"],
 		["gop", 8.36, 6.41], ["gop", 8.66, 6.34], ["use", "w_0"], ["until_free"],
