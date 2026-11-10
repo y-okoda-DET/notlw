@@ -1,6 +1,7 @@
 #!/bin/bash
 # 確認を1本で：bash blender/check.sh <確認する pck> [<直す前の pck>] [<指摘の一覧>]
 #   書き出しのあとに走らせる（run_in_background）。全部で約1時間。終わったら最後の行が CHECK_DONE か見る。
+#   0. 遊びの流れの自動の通し（playthrough.sh。画面なし）
 #   1. 人体の構造の自動確認（anatomy.py）。NG があっても止めずに最後まで撮り、一覧の先頭に出す
 #   2. 4方向（Blender、人物だけ）
 #   3. 指摘の項目：ユーザーの言葉と撮る位置を並べた一覧から、同じ位置を「直す前」「直した後」で撮って左右に並べる
@@ -28,6 +29,16 @@ echo "各行に ○（問題なし）か ×（問題あり、何がどう）を�
 echo
 [ -n "$FAST" ] && { echo "**速い確認（FAST、$WHO だけ）。この一覧で送ってはいけない。送る前に FAST なしの check.sh を回す。**"; echo; }
 } > $M
+
+# 0. 遊びの流れ：最初から 23時への切り替えまで、自動で通す（画面なし、1分ほど。godot/check/playthrough.sh）
+echo "== playthrough $(date +%T)" >> $L
+PT=$(bash $K/godot/check/playthrough.sh $AFTER 2>&1 | tail -4); echo "$PT" >> $L
+{
+echo "## 0. 遊びの流れ（自動の通し）：$(echo "$PT" | tail -1)"
+echo "$PT" | grep "DEMO FAIL\|SCRIPT ERROR" | sed 's/^/- [ ] ×：/'
+echo "- [ ] 通し_台詞.txt を読んだ（台詞の順、抜け、言い回し）。流れを変えた回は、動画（playthrough.sh <pck> movie）も見た"
+echo
+} >> $M
 
 V4WHO="taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto"
 if [ -n "$FAST" ]; then V4WHO=; for p in taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto; do case ",$WHO," in *",${p#d},"*) V4WHO="$V4WHO $p";; esac; done; fi

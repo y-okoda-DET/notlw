@@ -53,6 +53,8 @@ func _house_pack():
 			return
 
 func _ready():
+	if SCENES_RUN > 0: f0 = Engine.get_process_frames()
+	SCENES_RUN += 1
 	_house_pack()
 	get_tree().root.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # every string is translated by hand (story.gd T/Tw), with the phrase marks handled
 	for a in OS.get_cmdline_user_args():
@@ -93,6 +95,7 @@ func _ready():
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
 		if a == "--nostory": ARGS["nostory"] = true
+		if a == "--frameclock": ARGS["frameclock"] = true
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
@@ -860,7 +863,9 @@ func _card():
 # ------------------------------------------------------------------ time
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
-	if Engine.get_write_movie_path() != "": t = float(Engine.get_process_frames()) / float(ARGS.get("mfps", 24.0))
+	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
+	# counted from this scene's start (the playthrough goes from scene to scene)
+	if Engine.get_write_movie_path() != "" or ARGS.has("frameclock"): t = float(Engine.get_process_frames() - f0) / float(ARGS.get("mfps", 24.0))
 	if ARGS.has("shots"):
 		t = _shot_tick()
 		if t < 0.0: return
@@ -1127,6 +1132,8 @@ func power_cut(dark := true):
 func power_eyes_open():
 	if env: create_tween().tween_property(env, "tonemap_exposure", 1.0, 2.5).set_ease(Tween.EASE_OUT)
 
+static var SCENES_RUN := 0        # how many scenes this run has started (the frame clock starts again with each)
+var f0 := 0
 static var CH2 := false            # 試作91: the house was reached from 第1章's power cut (第2章 runs in it, at 20:00)
 var ch2_house := false
 static var FROM_STORY := false     # 段階1: the night was reached by playing (the door scene runs), not by N

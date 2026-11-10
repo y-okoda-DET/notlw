@@ -92,7 +92,10 @@ func _ready():
 	player = main.player
 	font = load("res://fonts/SerifJP-Bold.otf")
 	u = get_viewport().get_visible_rect().size.y / 1080.0
-	if house: _house_ready(); return
+	if house:
+		_house_ready()
+		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
+		return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 3.985) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
@@ -123,7 +126,7 @@ func _items():
 	add.call("taiga", [0.26, 6.47, 1.40], 0.32, "talk", "大河")
 	add.call("tape", [0.35, 4.10, 0.0], 0.16, "look", "床のテープ")
 	add.call("camcorder", [-0.45, 4.47, 1.36], 0.16, "look", "桐生のカメラ")
-	add.call("fresnel", [-0.50, 2.90, 1.95], 0.22, "look", "照明")
+	add.call("fresnel", [-0.10, 2.90, 1.95], 0.22, "look", "照明")
 	add.call("note", [0.72, 0.67, 1.45], 0.13, "look", "扉の貼り紙")
 	add.call("shoes", [0.30, 5.55, -0.12], 0.35, "look", "靴")
 	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
@@ -765,6 +768,7 @@ func _next():
 			fade_tw.chain().tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
+	if demo_on: print("SAY %s%s" % [(String(cur.who) + "：") if cur.has("who") else "", str(cur.get("text", cur.get("note", cur.get("choose", cur.get("do", "")))))])   # the unattended playthrough leaves what was said in the log
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0
 	if cur.has("do"):
@@ -873,6 +877,9 @@ func _do(what: String):
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0
+			if demo_on:
+				print("DEMO DONE t=%.1f fails=%d" % [t_now, demo_fails])
+				if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit(); return
 			main.to_night(true)
 
 func _end_tick(dt):
@@ -891,7 +898,7 @@ func _end_tick(dt):
 		if card2_t > 5.5:
 			# 試作91: 第2章 goes on in the whole house at 20:00 (dark outside, the people where the outage left them,
 			# the generator in the cellar). Without the house pack, the old way: the radio in this hall
-			if ResourceLoader.exists("res://assets/house/scene.json") and not demo_on: card2_t = -1.0; main.to_house_ch2()
+			if ResourceLoader.exists("res://assets/house/scene.json"): card2_t = -1.0; DEMO_HOUSE = demo_on; main.to_house_ch2()
 			else: _ch2_start()
 
 # check stills of the page, the board and the finder at full size without playing up to them
@@ -974,21 +981,21 @@ func _demo_script():
 	demo_on = true
 	demo = [
 		["wait", 1.5],
-		["go", 0.06, 2.45, 2.0, -4.0, 3.0], ["go", 0.06, 3.30, 0.0, -4.0, 2.6], ["go", -0.20, 3.60, 6.0, -2.0, 1.6],
-		["look", 6.0, 0.0, 1.4], ["wait", 0.6], ["e"], ["auto", 2], ["until_free"],       # 桐生: the job, the board
+		["gop", 4.25, 3.9], ["gop", 4.25, 3.1], ["gop", 4.6, 2.7],                     # past the lamp stand on the living-room side
+		["use", "kiryu"], ["auto", 2], ["until_free"],                                   # 桐生: the job, the board
 		["wait", 2.5], ["board", false],
-		["look", -43.0, -2.0, 1.2], ["e"], ["auto", 2], ["until_free"],                   # 夏希
-		["look", -48.0, -62.0, 1.2], ["wait", 0.5], ["e"], ["until_free"],               # the tape on the floor
-		["look", -77.0, -2.0, 1.2], ["e"], ["auto", 0], ["until_free"],                    # 真琴
-		["look", 58.0, -68.0, 1.4], ["wait", 0.5], ["e"], ["until_free"],                # the small camera on the apple box
+		["use", "natsuki"], ["auto", 2], ["until_free"],
+		["use", "tape"], ["until_free"],
+		["use", "makoto"], ["auto", 0], ["until_free"],
+		["use", "fixedcam"], ["until_free"],                                             # the small camera on the apple box
 		# first try: set it on the apple box and aim at the door - too low
 		["finder", true], ["wait", 0.6], ["look", 4.0, -4.0, 1.6], ["wait", 1.4], ["e"], ["until_free"],
-		["look", 58.0, -64.0, 1.0], ["wait", 0.4], ["e"],
+		["use", "placed"],
 		# up the walkway beside the stair, onto the handrail
-		["go", 0.06, 3.30, 160.0, -10.0, 1.8], ["go", 0.06, 2.90, 0.0, -10.0, 1.6],
-		["board", true], ["wait", 2.2], ["board", false],
-		["look", -90.0, 50.0, 1.4], ["finder", true], ["wait", 0.6],
-		["look", -6.0, -21.0, 2.0], ["board", true], ["wait", 2.4], ["board", false], ["wait", 0.6], ["e"], ["until_free"],
+		["gop", 4.83, 2.97],
+		["look", 0.0, -10.0, 1.0], ["board", true], ["wait", 2.2], ["board", false],
+		["look", -148.0, 32.0, 1.6], ["finder", true], ["wait", 0.6],
+		["look", -2.0, -22.0, 2.2], ["board", true], ["wait", 2.4], ["board", false], ["wait", 0.6], ["e"], ["until_free"],
 		["until_end"],
 	]
 
@@ -1017,16 +1024,7 @@ func _demo_tick(dt):
 		"finder": _set_finder(s[1]); done = true
 		"board": board_up = s[1]; done = true
 		"until_free":
-			if mode == TALK:
-				# read each line, then go on; choose the given option
-				if cur.has("choose") and not cur.get("chosen", false):
-					if demo_t > 1.6:
-						choice_idx = clamp(S_auto, 0, choice_lbs.size() - 1); _show_choice()
-					if demo_t > 2.6: _advance(); demo_t = 0.0
-				elif cur.has("text") and typed >= String(cur.text).length() and demo_t > 1.0 + String(cur.text).length() * 0.035:
-					_advance(); demo_t = 0.0
-				elif cur.has("note") and demo_t > 1.6:
-					_advance(); demo_t = 0.0
+			if mode == TALK: _demo_read()
 			else:
 				done = demo_t > 0.3
 		"until_end": done = false
@@ -1037,7 +1035,80 @@ func _demo_tick(dt):
 			var k: float = clamp(demo_t / float(s[2]), 0.0, 1.0)
 			tune = lerp(S_tune0, float(s[1]), k * k * (3.0 - 2.0 * k))
 			done = demo_t >= float(s[2])
+		# ---- the steps the whole house needs (試作96): places are plan metres, things are named by their key in items
+		"gop":   # ["gop", x, y, (pitch)] walk to a plan point at her own pace, turning to where she goes
+			var q := gp(float(s[1]), float(s[2]), 0.0); var p3: Vector3 = player.global_position
+			if mode == TALK: _demo_face(dt, rad_to_deg(player.yaw), rad_to_deg(player.pitch), p3.x, p3.z); _demo_hear(dt); return   # someone speaks: she stops and hears it out
+			var d2 := Vector2(q.x - p3.x, q.z - p3.z)
+			if demo_t <= dt * 1.5: demo_len = d2.length()
+			var yaw_to := rad_to_deg(atan2(-d2.x, -d2.y)) if d2.length() > 0.25 else rad_to_deg(player.yaw)
+			_demo_face(dt, yaw_to, float(s[3]) if s.size() > 3 else -7.0, q.x, q.z, 3.2)
+			if d2.length() < 0.1: done = true
+			elif demo_t > demo_len / 1.05 * 1.8 + 3.0: _demo_fail("gop %.2f,%.2f (%.2f m short)" % [s[1], s[2], d2.length()]); done = true
+		"aim":   # ["aim", key, secs] turn to a thing
+			if not items.has(s[1]): _demo_fail("aim: no " + String(s[1])); done = true
+			else: _demo_aim(dt, items[s[1]].pos); done = demo_t >= float(s[2])
+		"use":   # ["use", key] turn to a thing and press E when it is the thing she is looking at ("placed": the camera she set down)
+			var has: bool = items.has(s[1]) or (s[1] == "placed" and cam_placed)
+			if not has: _demo_fail("use: no " + String(s[1])); done = true
+			elif mode == FREE:
+				var at: Vector3 = fixed_cam.global_position if s[1] == "placed" else items[s[1]].pos
+				_demo_aim(dt, at)
+				if focus == String(s[1]) and demo_t > 1.0: _press(); done = true
+				elif demo_t > 5.0:
+					_demo_fail("use: %s not in reach (looking at '%s', %.2f m)" % [s[1], focus, at.distance_to((player.get_node("Head/Camera") as Camera3D).global_position)])
+					if items.has(s[1]): focus = String(s[1]); _press()
+					done = true
+		"until":   # ["until", what, value, secs] wait for the story: hs | taiga | stage (the radio's) | wins
+			if mode == TALK: _demo_hear(dt); return
+			var v = {"hs": hs, "taiga": taiga_at, "stage": radio_stage, "wins": wins_done, "cellar": cellar_done}.get(s[1])
+			done = v == s[2] or (typeof(v) == TYPE_INT and int(v) >= int(s[2]))
+			if not done and demo_t > float(s[3]): _demo_fail("until %s %s (is %s)" % [s[1], str(s[2]), str(v)]); done = true
+		"say": print("DEMO ", s[1], " t=%.1f" % t_now); done = true
+		"dump":   # where the things are, in plan metres (for writing these steps)
+			for k in items: print("DEMO item %s plan %.2f,%.2f z %.2f" % [k, items[k].pos.x + 4.8, 6.3 + items[k].pos.z, items[k].pos.y])
+			print("DEMO mio plan %.2f,%.2f z %.2f" % [player.global_position.x + 4.8, 6.3 + player.global_position.z, player.global_position.y]); done = true
+		"quit": print("DEMO DONE t=%.1f fails=%d" % [t_now, demo_fails]); get_tree().quit(); done = true
 	if done: demo_i += 1; demo_t = 0.0
+
+var demo_len := 0.0
+var demo_read_t := 0.0
+
+# a line comes while she is walking or waiting: the step's own clock stands still while she reads it
+func _demo_hear(dt: float):
+	var keep := demo_t - dt
+	demo_read_t += dt; demo_t = demo_read_t; _demo_read()
+	if demo_t == 0.0: demo_read_t = 0.0
+	demo_t = keep
+
+# read each line, then go on; choose the given option (S_auto)
+func _demo_read():
+	if cur.has("choose") and not cur.get("chosen", false):
+		if demo_t > 1.6:
+			choice_idx = clamp(S_auto, 0, choice_lbs.size() - 1); _show_choice()
+		if demo_t > 2.6: _advance(); demo_t = 0.0
+	elif cur.has("text") and typed >= String(cur.text).length() and demo_t > 1.0 + String(cur.text).length() * 0.035:
+		_advance(); demo_t = 0.0
+	elif cur.has("note") and demo_t > 1.6:
+		_advance(); demo_t = 0.0
+var demo_fails := 0
+static var DEMO_HOUSE := false   # the unattended playthrough came from 第1章: it goes on in the house
+
+func _demo_fail(what: String):
+	demo_fails += 1
+	print("DEMO FAIL step %d: %s  t=%.1f" % [demo_i, what, t_now])
+
+# the head turns as a person's does (no jump), the feet go to (x, z)
+func _demo_face(dt: float, yaw_deg: float, pitch_deg: float, x: float, z: float, rate := 4.0):
+	var y0 := rad_to_deg(player.yaw); var k := 1.0 - exp(-dt * rate)
+	var y := y0 + wrapf(yaw_deg - y0, -180.0, 180.0) * k
+	var pt: float = lerp(rad_to_deg(player.pitch), pitch_deg, k)
+	player.auto_path = [[0.0, x, z, y, pt]]; player.auto_t = 0.0
+
+func _demo_aim(dt: float, at: Vector3):
+	var eye: Vector3 = (player.get_node("Head/Camera") as Camera3D).global_position
+	var to := at - eye; var p: Vector3 = player.global_position
+	_demo_face(dt, rad_to_deg(atan2(-to.x, -to.z)), rad_to_deg(asin(clamp(to.normalized().y, -1.0, 1.0))), p.x, p.z, 5.0)
 
 var S_auto := 0
 var S_tune0 := 0.0
@@ -1632,3 +1703,47 @@ func _aim_taiga_light(on: bool):
 	taiga_aim.spot_attenuation = 1.0; taiga_aim.spot_angle_attenuation = 1.6; taiga_aim.shadow_enabled = true; taiga_aim.light_volumetric_fog_energy = 0.25
 	main.add_child(taiga_aim)
 	taiga_aim.look_at_from_position(hand, gp(CELLAR_WIN[0] + 0.1, CELLAR_WIN[1], CELLAR_WIN[2]), Vector3.UP)
+
+# ================================================================ the unattended playthrough of 第2章 in the whole house (試作96)
+# The power is out: down to the generator behind Taiga, start it the way a first-time player would (the cord first, then
+# the tape), the change-over switch, back up, the radio, three windows, the cellar window from outside, the cut to 23:00.
+# Any step that cannot be done prints DEMO FAIL (the check reads the log); the last line is DEMO DONE.
+func _demo_house():
+	demo_on = true; DEMO_HOUSE = false; demo_i = 0; demo_t = 0.0
+	var u := func(khz: float) -> float: return (khz - AM_LO) / (AM_HI - AM_LO)
+	demo = [
+		["until_free"],
+		["gop", 4.95, 2.75], ["gop", 4.22, 3.05], ["gop", 4.2, 3.8], ["gop", 4.75, 4.5], ["until_free"], ["wait", 4.0],   # round the lamp stand; 大河: 先、下りる
+		["gop", 4.75, 5.6], ["gop", 5.2, 5.95], ["gop", 5.5, 5.8], ["gop", 5.5, 2.6, -30.0], ["gop", 5.5, 2.15], ["gop", 6.8, 2.2], ["gop", 8.1, 4.6],
+		["until", "taiga", "gen", 40.0], ["gop", 8.65, 5.65], ["until", "hs", 2, 10.0], ["until_free"],
+		["use", "g_pull"], ["until_free"], ["use", "g_pull"], ["until_free"],     # the cord first: nothing (大河: スイッチ、入ってる？)
+		["use", "g_fuel"], ["until_free"], ["use", "g_sw"], ["until_free"],
+		["use", "g_pull"], ["until_free"],                                       # it coughs once
+		["use", "g_tape"], ["until_free"], ["use", "g_choke"], ["until_free"],
+		["use", "g_pull"], ["until_free"], ["use", "g_choke"], ["until_free"],   # it runs; the choke back
+		["use", "g_gauge"], ["until_free"],
+		["gop", 8.1, 4.6], ["gop", 6.85, 3.75], ["use", "g_change"], ["until_free"], ["until", "hs", 3, 5.0],
+		["gop", 6.8, 2.2], ["gop", 5.5, 2.15], ["gop", 5.5, 2.6, 28.0], ["gop", 5.5, 5.8, 28.0],
+		["gop", 5.14, 6.46], ["gop", 4.39, 6.46], ["until", "hs", 4, 10.0], ["until_free"],   # Taiga stands at the stair's top: round him by the north
+		["gop", 4.26, 3.9], ["gop", 4.26, 3.15], ["use", "radio"], ["until_free"],
+		["rup", true], ["wait", 1.0],
+		["tune", u.call(600.0), 2.2], ["wait", 2.4], ["tune", u.call(745.0), 2.0], ["wait", 4.0],
+		["tune", u.call(1040.0), 1.8], ["wait", 2.0], ["tune", u.call(1017.0), 1.2],
+		["until_talk"], ["auto", 1], ["until_free"],
+		["rup", true], ["until", "hs", 5, 120.0], ["until_free"],
+		# three windows: the dining room's, the kitchen's two (Natsuki and Makoto stand in the living room's doorway)
+		["gop", 4.26, 6.29], ["gop", 3.74, 6.76], ["gop", 3.2, 7.5], ["use", "w_5"], ["until_free"],
+		["gop", 3.76, 6.74], ["gop", 4.89, 6.54], ["gop", 6.21, 6.54], ["gop", 6.61, 6.94], ["use", "w_4"], ["until_free"],
+		["gop", 8.36, 6.41], ["gop", 8.66, 6.34], ["use", "w_0"], ["until_free"],
+		# out by the back door, down the porch stair, to the cellar's little window in Taiga's light
+		["until", "taiga", "out", 60.0],
+		["gop", 9.5, 4.9], ["gop", 10.55, 4.9], ["gop", 10.88, 5.8], ["gop", 10.88, 8.5, -20.0], ["gop", 10.88, 8.95], ["gop", 10.5, 8.4],
+		["use", "w_cellar"], ["until_free"], ["wait", 4.0],
+		["quit"],
+	]
+	# --demogo=x,y;x,y;... : only walk these plan points and say where she got to (to try a way through the house)
+	for a2 in OS.get_cmdline_user_args():
+		if a2.begins_with("--demogo="):
+			demo = [["until_free"]]
+			for q in a2.substr(9).split(";"): demo.append(["gop", float(q.get_slice(",", 0)), float(q.get_slice(",", 1))])
+			demo += [["dump"], ["quit"]]

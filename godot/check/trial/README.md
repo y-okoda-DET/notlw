@@ -18,3 +18,8 @@ cd godot && PROJ=$T WORK=/home/claude/work/after GARGS="--basepack=/path/RULES.p
 - `--dodge=` `--dodgemax=` は刷りの値をその場で変える（boot.gd）。
 - 1920x1080 は1か所あたり約1分。house_shots.py の時間切れは PER（1か所あたりの秒）で延ばす。足りないと MISSING が出る。
 - 刷りの割合（紙・青・橙・青緑）は `python3 godot/check/print_share.py 画像…`。
+
+## スクリプトをまるごと重ねる（2026-11-10、ステップ C）
+`bash godot/check/overlay.sh` が、いまのリポジトリの scripts/*.gd と shaders を重ねたプロジェクトを $WORK/overlay に作る
+（スクリプトは ov_ を付けた名前で置き、互いの読み込み先も書き換える）。pck と版の離れたスクリプトは assets と食い違うので、
+同じ版の pck に、スクリプトだけの変更を確かめるときに使う。通しは `OV=1 bash godot/check/playthrough.sh <pck>`。
