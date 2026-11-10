@@ -13,6 +13,7 @@ mkdir -p $O/shaders
 sed 's#run/main_scene="res://main.tscn"#run/main_scene="res://boot.tscn"#' $S/project.godot | grep -v "locale/translations" > $O/project.godot
 cp $S/check/trial/boot.tscn $O/
 cp $S/shaders/*.gdshader $O/shaders/
+rm -rf $O/story; cp -r $S/story $O/story   # 台本（スクリプトと同じく、いまのリポジトリの物）
 cat > $O/boot.gd <<'GD'
 extends Node
 func _ready():

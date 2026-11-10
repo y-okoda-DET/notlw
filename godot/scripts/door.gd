@@ -11,33 +11,12 @@ extends "res://scripts/story.gd"
 const MIO_AT := [0.12, 3.80]          # Blender x, y of her feet: by Natsuki's tape mark, the stair's foot at her right
 const DOOR_AT := [0.20, 6.30, 1.45]
 # [seconds after the card, who, words, how] | [t, "silence"] | [t, "note", words] | [t, "leave"] | [t, "end"]
-const LINES := [
-	[1.0, "澪", "二十三時ごろでした。夏希が、外から扉を叩いたんです。", "testimony"],
-	# she could not move: said first, so standing still reads as hers and not as a broken game (合格の試し1「操作合ってるかな？バグ？」)
-	[4.5, "澪", "足が、動きませんでした。", "testimony"],
-	[8.0, "夏希", "澪？　……澪、いるんでしょ。"],
-	[13.5, "大河", "開けんなよ。"],
-	[17.5, "夏希", "開けて。……ゾンビ映画ごっこはもういいから。話が、（雨の音）……ある。"],
-	[24.5, "桐生", "外にいたやつは、……潜伏期間かもしれない。『２８日後…』なら、もう間に合わない時間だ。", "to_mio"],
-	[30.5, "夏希", "澪。"],
-	[32.5, "silence"],
-	[46.5, "桐生", "夏希。車で朝まで待て。朝になったら、必ず入れる。", "to_door"],
-	[54.0, "夏希", "……澪は？"],
-	[56.0, "silence"],
-	[68.0, "夏希", "……わかった。"],
-	[71.0, "leave"],
-	[72.5, "note", "（足音が遠ざかる）"],
-	[75.0, "silence"],
-	[90.0, "澪", "夏希は、車に戻りました。……わかってくれたんだと、思います。", "testimony"],
-	[101.0, "end"],
-]
+# written in story/ch2_23.txt 【扉.流れ】 (the times, the words, who they are said to), read in _ready
+var LINES := []
 # E while she looks at the door (試作33「扉、調べられるようにしたい」): she does not speak in the hall (the silence goes on
-# counting); what comes is her answer months later, set apart at the top of the page. One look each, in this order.
-const DOOR_LOOKS := [
-	"扉は、叩かれるたびに少しだけ揺れていました。大河くんの手の下で。",
-	["細い窓に、夏希のスマホの明かりが映っていました。雨で、にじんで。", "細い窓は、もう暗いだけでした。"],
-	"『ハロウィン』で、ローリーが閉めた扉の向こうにいたのは、本物でした。……夏希は、夏希でした。",
-]
+# counting); what comes is her answer months later, set apart at the top of the page. One look each, in this order
+# (【扉.見る1】…: a second line is the one for after Natsuki has gone).
+var DOOR_LOOKS := []
 var looked := 0
 var dlook := {}                # the answer being typed: {lb, text, typed}
 var li := 0
@@ -50,6 +29,13 @@ var speaker := ""
 var slip := Vector2.ZERO
 
 func _ready():
+	for e in B("扉.流れ"):
+		if e.has("do"): LINES.append([e.t, e.do])
+		elif e.has("note"): LINES.append([e.t, "note", e.note])
+		else: LINES.append([e.t, e.who, e.text, "testimony" if e.get("testimony", false) else {"澪": "to_mio", "扉": "to_door"}.get(e.get("to", ""), "")])
+	var n := 1
+	while D.has("扉.見る%d" % n):
+		var l: Array = D.lines("扉.見る%d" % n); DOOR_LOOKS.append(l[0] if l.size() == 1 else l); n += 1
 	player = main.player
 	font = load("res://fonts/SerifJP-Bold.otf")
 	offscreen = ["ラジオ", "夏希"]   # behind the door
@@ -99,8 +85,11 @@ func _process(dt):
 	main.story_talking = true
 	if ended >= 0.0:
 		ended += dt
-		if ended > 8.0 and OS.get_cmdline_user_args().has("--demo"): get_tree().quit()
+		if ended > 8.0 and OS.get_cmdline_user_args().has("--demo"):
+			if not demo_on: print("DEMO DONE t=%.1f fails=%d" % [t_now, DEMO_FAILS]); demo_on = true
+			if "--demoquit" in OS.get_cmdline_user_args() or ended > 14.0: get_tree().quit()
 		return
+	if OS.get_cmdline_user_args().has("--demo"): _demo_door(dt)
 	while li < LINES.size() and t_now >= float(LINES[li][0]):
 		_event(LINES[li]); li += 1
 	# the door she is looking at, and her answer about it being typed
@@ -127,6 +116,7 @@ func _process(dt):
 	_update_looks()
 
 func _event(e: Array):
+	if OS.get_cmdline_user_args().has("--demo"): print("SAY %.1f " % float(e[0]), "：".join(e.slice(1, 3)) if e.size() > 2 else "＞" + String(e[1]))
 	match e[1]:
 		"silence":
 			_close_silence()
@@ -192,10 +182,23 @@ func _jump(t: float):
 		if cur.has("text"): typed = String(cur.text).length(); _type(cur_lb, String(cur.text), int(typed))
 	t_now = t
 
+# the unattended playthrough: she turns to the door three times and looks (E), as a player who tries the door would
+const DEMO_LOOKS := [20.0, 60.0, 80.0]
+func _demo_door(dt: float):
+	if looked >= DEMO_LOOKS.size() or looked >= DOOR_LOOKS.size() or t_now < DEMO_LOOKS[looked]: return
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := g(DOOR_AT) - cam.global_position
+	var k := 1.0 - exp(-dt * 4.0)
+	player.yaw = lerp_angle(player.yaw, atan2(-to.x, -to.z), k)
+	player.pitch = lerp(player.pitch, asin(clamp(to.normalized().y, -1.0, 1.0)), k)
+	if (-cam.global_basis.z).angle_to(to) < deg_to_rad(6.0): _look_door()
+	elif t_now > DEMO_LOOKS[looked] + 6.0: DEMO_FAILS += 1; print("DEMO FAIL door: cannot look at the door  t=%.1f" % t_now); looked += 1
+
 func _look_door():
 	var l = DOOR_LOOKS[looked]
 	var text: String = l if l is String else String(l[1] if main.S.has("natsuki_node") and not main.S.natsuki_node.visible else l[0])
 	looked += 1
+	if OS.get_cmdline_user_args().has("--demo"): print("SAY 澪＊：", text)
 	text = _wrap_row(Tw(text))
 	var r = _line_row("澪", "", SAY_SIZE, "testimony")
 	dlook = {"lb": r[1], "text": text, "typed": 0.0}

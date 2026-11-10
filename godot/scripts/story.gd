@@ -114,6 +114,10 @@ func _ready():
 func _rail_z(Y: float) -> float:
 	return 2.295 + ((6.3 - Y) - 3.985) * 0.9167 + 0.025
 
+const D := preload("res://scripts/daihon.gd")   # the words: godot/story/*.txt (書式は godot/story/README.md)
+func B(key: String, arg := "") -> Array:
+	return D.entries(key, arg)
+
 func g(v: Array) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
 
@@ -623,8 +627,7 @@ func _press():
 # ================================================================ the puzzle
 func _take_cam():
 	holding_cam = true
-	_start([{"who": "澪", "text": "定点のカメラは、小さいものでした。手のひらに乗るくらいの。", "testimony": true},
-		{"note": "［右クリックでのぞく　Ｅで置く］"}] if not talked.has("cam_hint") else [])
+	_start(B("カメラ.取る") if not talked.has("cam_hint") else [])
 	talked["cam_hint"] = true
 
 func _pick_up_again():
@@ -654,27 +657,17 @@ func _judge() -> Array:
 	var dpitch: float = placed.pitch - ta[1]
 	var horiz := Vector2(dp.x, dp.z).length()
 	print("STORY judge try %d horiz %.2f dz %.2f yaw %.1f pitch %.1f" % [tries, horiz, dp.y, rad_to_deg(dyaw), rad_to_deg(dpitch)])
-	var k := [{"who": "桐生", "text": "……どれ。"}]
+	var k := B("カメラ.見る")
 	if horiz < 0.5 and abs(dp.y) < 0.32 and abs(dyaw) < deg_to_rad(13) and abs(dpitch) < deg_to_rad(11):
 		cam_ok = true
-		k.append({"who": "桐生", "text": "それ。……完璧。コンテそのまんま。カーペンターでもそこに置く。"})
-		k.append({"who": "桐生", "text": "じゃ、回しといて。夜通しな。"})
-		k.append({"do": "rec_ready"})
-		return k
-	if tries >= 4 and horiz > 0.5:
-		k.append({"who": "桐生", "text": "階段の手すり。あそこに挟んで、玄関を見下ろす。『ハロウィン』の階段の画だよ。"})
-	elif dp.y < -0.32:
-		k.append({"who": "桐生", "text": "低い。それじゃロメロのゾンビの目線。もっと上から、玄関を見下ろしたいんだよ。"})
-	elif horiz > 0.5:
-		k.append({"who": "桐生", "text": "コンテ見て。手前に手すりが入ってるでしょ。"})
-	elif abs(dyaw) >= deg_to_rad(13):
-		k.append({"who": "桐生", "text": "もうちょい%s。扉が真ん中に来るように。" % ("右" if dyaw > 0 else "左")})
-	elif dpitch > 0:
-		k.append({"who": "桐生", "text": "上向きすぎ。天井はいらない、上がり框まで入れて。"})
-	else:
-		k.append({"who": "桐生", "text": "下向きすぎ。扉の上まで入れて。"})
-	k.append({"note": "［カメラを拾い直す｜Ｅ］"})
-	return k
+		return k + B("カメラ.合格")
+	if tries >= 4 and horiz > 0.5: k += B("カメラ.ヒント手すり")
+	elif dp.y < -0.32: k += B("カメラ.低い")
+	elif horiz > 0.5: k += B("カメラ.場所が違う")
+	elif abs(dyaw) >= deg_to_rad(13): k += B("カメラ.向き", "右" if dyaw > 0 else "左")
+	elif dpitch > 0: k += B("カメラ.上向き")
+	else: k += B("カメラ.下向き")
+	return k + B("カメラ.拾い直す")
 
 # ================================================================ conversations
 func _conversation(key: String) -> Array:
@@ -682,64 +675,19 @@ func _conversation(key: String) -> Array:
 	if house: return _house_conv(key, n)
 	match key:
 		"kiryu":
-			if not has_board:
-				return [{"who": "桐生", "text": "澪、ちょうどいい。定点、お願いしていい？"},
-					{"who": "桐生", "text": "コンテの十二番。廊下に一台、夜通し回しっぱなし。『パラノーマル・アクティビティ』の寝室のやつな。"},
-					{"who": "桐生", "text": "誰も見てないカメラが、全部見てた。『ブレア・ウィッチ・プロジェクト』から続く、正しいファウンドフッテージの作法。"},
-					{"choose": ["なんで夜通し？", "わかった。どこに置けばいい？", "それ、陽太が好きなやつだ"],
-					 "then": [[{"who": "桐生", "text": "何か起きたら、撮れてるだろ。……まあ、何も起きないけど。起きたら『REC』だ。"}],
-						[{"who": "桐生", "text": "それを探すのが澪の仕事。コンテと同じ画になるとこ。"}],
-						[{"who": "桐生", "text": "……だろ。あいつ、『パラノーマル』観たあと三日、廊下で寝てたからな。"}]]},
-					{"who": "桐生", "text": "カメラは、そこの箱の上。コンテ渡しとく。"},
-					{"do": "board"},
-					{"note": "［絵コンテ｜Tab］"}]
-			if cam_ok and not recording:
-				return [{"who": "桐生", "text": "録画、押した？　赤いランプ。押し忘れたら、ただの置物な。"}]
-			if not holding_cam and not cam_placed:
-				return [{"who": "桐生", "text": "カメラ、箱の上な。照明の横の。"}]
-			return [{"who": "桐生", "text": "のぞいて、コンテと同じ画になるとこ探して。キューブリックみたいに一ミリまでとは言わないから。"}]
-		"natsuki":
-			if n == 0:
-				return [{"who": "夏希", "text": "立ってるだけなのに、なんでこんなに疲れるんだろ。長回しってそういうもんか。"},
-					{"who": "夏希", "text": "澪、あのさ。"},
-					{"who": "夏希", "text": "上映会のあと、ちょっとだけ時間ある？"},
-					{"choose": ["あるよ", "なんの話？", "あとでね"],
-					 "then": [[{"who": "夏希", "text": "……ありがと。あとで言う。"}],
-						[{"who": "夏希", "text": "あとで。……今は、いい。"}],
-						[{"who": "夏希", "text": "うん。あとで。"}]]}]
-			return [{"who": "夏希", "text": "桐生、まだ？　このテイク、ヒッチコックの『ロープ』より長いよ。"}]
-		"makoto":
-			if n == 0:
-				return [{"who": "真琴", "text": "澪さん、これ、あとどのくらい持ってればいいんですか。"},
-					{"who": "真琴", "text": "レフ板って、腕にくるんですね……。"},
-					{"choose": ["代わろうか", "あと五分", "桐生に聞いて"],
-					 "then": [[{"who": "真琴", "text": "だ、大丈夫です！　新入りなので！"}],
-						[{"who": "真琴", "text": "五分……。はい。がんばります。"}],
-						[{"who": "真琴", "text": "桐生さん、さっきから「あと五分」しか言わないんです。"}]]}]
-			if n == 1:
-				return [{"who": "真琴", "text": "この前、桐生さんに『遊星からの物体Ｘ』を借りました。血液を熱した針で調べるところ、医学的には全然だめです。"}]
-			return [{"who": "真琴", "text": "ゾンビ映画って、最初に死ぬの、だいたい新入りですよね。……あ、笑うところでした。"}]
-		"taiga":
-			if n == 0:
-				return [{"who": "大河", "text": "ここ、停電多いらしいぞ。管理の人が言ってた。"},
-					{"who": "大河", "text": "地下に発電機あるってさ。いざとなったら俺が回す。任せとけ。"},
-					{"choose": ["いざって何", "詳しいね", "地下、行ったの？"],
-					 "then": [[{"who": "大河", "text": "……ゾンビとか？　『ナイト・オブ・ザ・デッド・リビング』なら、まず窓に板だろ。"}, {"who": "桐生", "text": "『ナイト・オブ・ザ・リビングデッド』な。"}],
-						[{"who": "大河", "text": "案内係だからな。玄関、裏、地下。全部見といた。"}],
-						[{"who": "大河", "text": "階段の下の扉な。貼り紙あったろ。"}]]}]
-			return [{"who": "大河", "text": "この箱、どこ置けって言われたっけ。……『ゾンビ』のモールなら、置き場に困んねえのにな。"}]
-		"tape":
-			return [{"who": "澪", "text": "夏希の立ち位置には、テープが貼ってありました。名前も書いてあって。字が、丸くて。", "testimony": true}]
-		"camcorder":
-			return [{"who": "澪", "text": "桐生さんの、いちばんいいカメラでした。『ハロウィン』を撮るならこれだ、って。あとで、私に貸してくれたんです。", "testimony": true}]
-		"fresnel":
-			return [{"who": "澪", "text": "照明は熱くて、近くに立つと顔が焼けそうでした。", "testimony": true}]
-		"note":
-			return [{"who": "澪", "text": "地下の扉には、貼り紙がありました。発電機、と書いてあったと思います。", "testimony": true}]
-		"shoes":
-			return [{"who": "澪", "text": "玄関に、みんなの靴がそろえてありました。そろえたのは、たぶん夏希です。", "testimony": true}]
-		"radio":
-			return [{"who": "澪", "text": "大河くんが、管理の人から借りてきたラジオでした。ここは停電が多いから、って。", "testimony": true}]
+			if not has_board: return B("桐生.頼む")
+			if cam_ok and not recording: return B("桐生.録画まだ")
+			if not holding_cam and not cam_placed: return B("桐生.カメラは箱")
+			return B("桐生.探して")
+		"natsuki": return B("夏希.一回目" if n == 0 else "夏希.二回目から")
+		"makoto": return B(["真琴.一回目", "真琴.二回目", "真琴.三回目から"][min(n, 2)])
+		"taiga": return B("大河.一回目" if n == 0 else "大河.二回目から")
+		"tape": return B("調べる.テープ")
+		"camcorder": return B("調べる.桐生のカメラ")
+		"fresnel": return B("調べる.照明")
+		"note": return B("調べる.貼り紙")
+		"shoes": return B("調べる.靴")
+		"radio": return B("調べる.ラジオ")
 	return []
 
 const WHO_KEY := {"桐生": "kiryu", "夏希": "natsuki", "真琴": "makoto", "大河": "taiga"}
@@ -853,8 +801,7 @@ func _do(what: String):
 		"board":
 			has_board = true; board_up = true
 		"rec_ready":
-			script_q.push_back({"note": "［録画｜Ｅ］"})
-			script_q.push_back({"do": "rec"})
+			script_q.append_array(B("録画.案内"))
 		"rec":
 			_set_rec(true)
 			# she looks up from the little camera to the take: Natsuki on her mark (the view turns by itself, then is hers again)
@@ -864,11 +811,7 @@ func _do(what: String):
 			player.auto_path = [[0.0, p.x, p.z, y0, rad_to_deg(player.pitch)], [2.2, p.x, p.z, y1, rad_to_deg(asin(to.normalized().y))]]
 			player.auto_t = 0.0
 			get_tree().create_timer(2.4).timeout.connect(func(): if demo.is_empty(): player.auto_path = [])
-			script_q.push_back({"who": "澪", "text": "録画のボタンを押しました。赤いランプが点いて。", "testimony": true})
-			script_q.push_back({"who": "桐生", "text": "よし、本番いこう。夏希、テープの上な。"})
-			script_q.push_back({"who": "夏希", "text": "はーい。テイクワン、一発でいこ。"})
-			script_q.push_back({"who": "桐生", "text": "よーい……"})
-			script_q.push_back({"do": "blackout"})
+			script_q.append_array(B("録画.本番"))
 		"blackout":
 			mode = END; end_t = 0.0; script_q.clear()
 			if cam_placed: PLACED = {"pos": fixed_cam.global_position, "basis": fixed_cam.global_basis}
@@ -877,17 +820,16 @@ func _do(what: String):
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0
-			if demo_on:
-				print("DEMO DONE t=%.1f fails=%d" % [t_now, demo_fails])
-				if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit(); return
+			if demo_on: print("DEMO ch2_cut t=%.1f fails=%d" % [t_now, demo_fails]); DEMO_FAILS += demo_fails   # the playthrough goes on at the door (door.gd)
 			main.to_night(true)
 
 func _end_tick(dt):
 	end_t += dt
 	if end_t > 2.4 and end_t < 9.0 and lines_box.get_child_count() == 0 and tes_box.get_child_count() == 0:
-		var r = _line_row("澪", "そこで、電気が消えたんです。", SAY_SIZE, "testimony")
+		var words: String = B("停電.証言")[0].text
+		var r = _line_row("澪", words, SAY_SIZE, "testimony")
 		r[1].text = ""
-		cur = {"text": _wrap_row(Tw("そこで、電気が消えたんです。"))}; cur_lb = r[1]; typed = 0.0
+		cur = {"text": _wrap_row(Tw(words))}; cur_lb = r[1]; typed = 0.0
 	if cur.has("text") and typed < String(cur.text).length():
 		typed += dt * 14.0; _type(cur_lb, String(cur.text), int(typed))
 	if end_t >= 100.0: return
@@ -898,7 +840,7 @@ func _end_tick(dt):
 		if card2_t > 5.5:
 			# 試作91: 第2章 goes on in the whole house at 20:00 (dark outside, the people where the outage left them,
 			# the generator in the cellar). Without the house pack, the old way: the radio in this hall
-			if ResourceLoader.exists("res://assets/house/scene.json"): card2_t = -1.0; DEMO_HOUSE = demo_on; main.to_house_ch2()
+			if ResourceLoader.exists("res://assets/house/scene.json"): card2_t = -1.0; DEMO_HOUSE = demo_on; DEMO_FAILS += demo_fails; main.to_house_ch2()
 			else: _ch2_start()
 
 # check stills of the page, the board and the finder at full size without playing up to them
@@ -1068,7 +1010,7 @@ func _demo_tick(dt):
 		"dump":   # where the things are, in plan metres (for writing these steps)
 			for k in items: print("DEMO item %s plan %.2f,%.2f z %.2f" % [k, items[k].pos.x + 4.8, 6.3 + items[k].pos.z, items[k].pos.y])
 			print("DEMO mio plan %.2f,%.2f z %.2f" % [player.global_position.x + 4.8, 6.3 + player.global_position.z, player.global_position.y]); done = true
-		"quit": print("DEMO DONE t=%.1f fails=%d" % [t_now, demo_fails]); get_tree().quit(); done = true
+		"quit": print("DEMO QUIT t=%.1f fails=%d" % [t_now, demo_fails]); get_tree().quit(); done = true
 	if done: demo_i += 1; demo_t = 0.0
 
 var demo_len := 0.0
@@ -1092,6 +1034,7 @@ func _demo_read():
 	elif cur.has("note") and demo_t > 1.6:
 		_advance(); demo_t = 0.0
 var demo_fails := 0
+static var DEMO_FAILS := 0       # steps that could not be done, over the scenes of one playthrough
 static var DEMO_HOUSE := false   # the unattended playthrough came from 第1章: it goes on in the house
 
 func _demo_fail(what: String):
@@ -1124,15 +1067,9 @@ const NEEDLE_X0 := -0.076
 const NEEDLE_X1 := 0.076
 const STATIONS := [[594.0, 0.62, "music"], [747.0, 0.5, "talk"], [1017.0, 0.94, "news"], [1350.0, 0.4, "foreign"]]
 # the bulletin, read at about eight characters a second. # is the place: whatever the signal, it never comes through
-const NEWS := [
-	"……臨時ニュースを、お伝えします。",
-	"今日午後七時すぎ、#の化学工場で爆発があり、有毒なガスが広がっているとの情報が入っています。",
-	"#と、その周辺にお住まいの方は、屋内にとどまり、窓を閉めてください。",
-	"屋外にいた方は、衣服を脱いで袋に入れ、ほかの人との接触を避けてください。",
-	"体調に異変のある方は、むやみに外へ出ず、その場で救助を待ってください。",
-	"繰り返します。",
-]
-const TALKSHOW := ["……それでね、このお便りの方がね、今夜は映画の『ゴースト』を観て寝ますって。", "（笑い声）", "いやいや、それは無理でしょう。", "（笑い声）", "さあ、次のお便り、いきましょうか。"]
+# (story/ch2_20.txt 【放送.臨時ニュース】【放送.深夜番組】)
+var NEWS: Array = D.lines("放送.臨時ニュース")
+var TALKSHOW: Array = D.lines("放送.深夜番組")
 var radio: Node3D
 var radio_needle: Node3D
 var radio_knob: Node3D
@@ -1205,11 +1142,7 @@ func _ch2_start():
 	main.power_eyes_open()
 	items.radio.kind = "take"
 	talk_with = "taiga"
-	_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
-		{"who": "大河", "text": "停電したら、まずラジオだ。管理の人が言ってた。"},
-		{"who": "桐生", "text": "澪、つけて。……停電、ラジオ、山の中。『ミスト』の始まり方だな。"},
-		{"who": "夏希", "text": "桐生、今それ言う？"},
-		{"note": "［ラジオ｜Ｅ］"}])
+	_start(B("旧.ラジオへ"))
 	if demo_on: _demo2()
 
 func _take_radio():
@@ -1217,8 +1150,7 @@ func _take_radio():
 	items.erase("radio")
 	_radio_power(true)
 	talk_with = ""
-	_start([{"who": "澪", "text": "スイッチを入れると、目盛りに明かりが点きました。", "testimony": true},
-		{"note": "［右クリック（押したまま）で顔の前へ　マウスで目盛りを合わせる］"}])
+	_start(B("ラジオ.取る"))
 
 func _radio_tick(dt):
 	bc_t += dt
@@ -1234,34 +1166,22 @@ func _radio_tick(dt):
 	# Taiga remembers the manager's number when it will not come
 	if radio_stage == 0 and mode == FREE and hint_said == 0 and t_now - radio_since > 40.0:
 		hint_said = 1; talk_with = "taiga"; radio_up = false
-		_start([{"who": "大河", "text": "管理の人、千十七って言ってた。テープにも書いてあるだろ。"},
-			{"who": "大河", "text": "目盛りの、百のちょい右。"}])
+		_start(B("ラジオ.ヒント1"))
 	elif radio_stage == 0 and mode == FREE and hint_said == 1 and t_now - radio_since > 85.0:
 		hint_said = 2; talk_with = "taiga"; radio_up = false
 		var f := _khz()
-		_start([{"who": "大河", "text": "もうちょい%s。……ゆっくり。" % ("右" if f < 1017.0 else "左")}])
+		_start(B("ラジオ.ヒント2", "右" if f < 1017.0 else "左"))
 	# what they make of it
 	var where: int = heard.get(1, 0) + heard.get(2, 0)
 	if mode == FREE and radio_stage == 0 and where >= 1:
 		radio_stage = 1; radio_up = false
-		_start([{"who": "大河", "text": "どこだって？　今、どこって言った？"},
-			{"choose": ["聞き取れなかった", "……もう一回"],
-			 "then": [[{"who": "桐生", "text": "地名だけ、飛んだな。"}], [{"who": "桐生", "text": "待って。繰り返すはず。"}]]},
-			{"note": "［右クリック（押したまま）で顔の前へ］"}])
+		_start(B("ラジオ.どこだって"))
 	elif mode == FREE and radio_stage == 1 and where >= 2 and heard.get(3, 0) >= 1:
 		radio_stage = 2; radio_up = false
 		_start(_rule1_lines())
 
 func _rule1_lines() -> Array:
-	return [{"who": "桐生", "text": "……接触を避けて、って言った？"},
-			{"who": "真琴", "text": "人と、ってことですか？　ガスなのに。"},
-			{"who": "夏希", "text": "車のラジオなら、ちゃんと入るかも。地名も。"},
-			{"who": "桐生", "text": "やめとけ。……夜は、外に出るな。"},
-			{"note": "（間）"},
-			{"who": "桐生", "text": "ルール１な。『スクリーム』のランディなら、まずそう言う。"},
-			{"who": "大河", "text": "窓、塞いどこう。板なら、地下にあった。"},
-			{"who": "夏希", "text": "……みんな、映画の観すぎ。"},
-			{"do": "boards_start" if house else "ch2_cut"}]
+	return B("ラジオ.ルール1") + [{"do": "boards_start" if house else "ch2_cut"}]
 
 func _khz() -> float:
 	return AM_LO + tune * (AM_HI - AM_LO)
@@ -1451,11 +1371,7 @@ func _house_tick(dt):
 	if hs == 0:
 		hs = 1; main.power_eyes_open()
 		talk_with = ""
-		_start([{"who": "夏希", "text": "……え、停電？"},
-			{"who": "桐生", "text": "カット、カット。……ブレーカー？"},
-			{"who": "大河", "text": "いや、家じゅうだ。……発電機。地下だ。"},
-			{"who": "大河", "text": "澪、来て。手が足りない。"},
-			{"note": "［大河について、地下へ］"}])
+		_start(B("停電.直後"))
 		taiga_after = ""
 		return
 	# Taiga goes ahead (or back up) while she is not looking at him: there is no walking for the people yet
@@ -1466,30 +1382,24 @@ func _house_tick(dt):
 	if hs == 1 and mode == FREE:
 		if taiga_at == "door" and items.taiga.pos.distance_to(cam.global_position) < 2.4 and not talked.has("t_stair"):
 			talked["t_stair"] = 1; talk_with = "taiga"
-			_start([{"who": "大河", "text": "先、下りる。足もと、気をつけて。急だから。"}])
+			_start(B("大河.先に下りる"))
 			_walk_taiga("gen")
 		elif pz < -0.4 and taiga_at == "door" and not taiga_moving: taiga_after = "gen"
 		if taiga_at == "gen" and pz < ZB + 0.5 and player.global_position.distance_to(gp(GEN_P, GEN_Y, ZB)) < 3.6:
 			hs = 2; _gen_items(); talk_with = "taiga"
-			_start([{"who": "大河", "text": "これ。管理の人に、一回だけ教わった。"},
-				{"who": "大河", "text": "燃料のつまみ開けて、スイッチ入れて、そこの綱を引く。……たしか、もう一個あった。"},
-				{"note": "［発電機を調べる］"}])
+			_start(B("発電機.着いた"))
 	# a running engine with the choke still out floods and dies
 	if gen.run and gen.choke:
 		gen.run_t += dt
 		if gen.run_t > 14.0 and mode == FREE:
 			gen.run = false; gen.run_t = 0.0; talk_with = "taiga"
-			_start([{"who": "澪", "text": "エンジンが咳きこんで、止まりました。", "testimony": true},
-				{"who": "大河", "text": "かぶった。……チョーク、かかったらすぐ戻すんだ。"}])
+			_start(B("発電機.かぶる"))
 	if hs == 3 and pz > -0.3 and mode == FREE:
 		hs = 4; ch2 = true; mode = FREE
 		for k in items.keys(): if k.begins_with("g_"): items.erase(k)
 		items["radio"] = {"pos": g([RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07]), "r": 0.16, "kind": "take", "name": "ラジオ"}
 		talk_with = "taiga"
-		_start([{"who": "大河", "text": "ラジオ。りんご箱の上の。"},
-			{"who": "桐生", "text": "澪、つけて。……停電、ラジオ、山の中。『ミスト』の始まり方だな。"},
-			{"who": "夏希", "text": "桐生、今それ言う？"},
-			{"note": "［ラジオ｜Ｅ］"}])
+		_start(B("ラジオ.一階に戻った"))
 
 func _gen_items():
 	var add = func(key: String, p: Vector3, r: float, name: String): items[key] = {"pos": p, "r": r, "kind": "look", "name": name}
@@ -1504,62 +1414,50 @@ func _gen_items():
 
 func _gen_use(key: String):
 	talk_with = ""
-	var say := func(text: String) -> Dictionary: return {"who": "澪", "text": text, "testimony": true}
 	match key:
 		"g_fuel":
 			gen.fuel = not gen.fuel
-			if not gen.fuel and gen.run: gen.run = false; _start([say.call("燃料のつまみを戻すと、しばらくしてエンジンが止まりました。")]); return
-			_start([say.call("燃料のつまみを、横から縦に回しました。" if gen.fuel else "燃料のつまみを、横に戻しました。")])
+			if not gen.fuel and gen.run: gen.run = false; _start(B("発電機.燃料.閉めて止まる")); return
+			_start(B("発電機.燃料.開ける" if gen.fuel else "発電機.燃料.閉める"))
 		"g_choke":
 			if gen.run and gen.choke:
 				gen.choke = false; gen.run_t = 0.0; talk_with = "taiga"
-				_start([say.call("チョークを戻すと、音が落ち着きました。"),
-					{"who": "大河", "text": "よし。……あとは切り替え。階段の下の、灰色の箱。"}])
+				_start(B("発電機.チョーク.戻して落ち着く"))
 				return
-			if gen.run: _start([say.call("チョークは、もう戻してありました。")]); return
+			if gen.run: _start(B("発電機.チョーク.もう戻した")); return
 			gen.choke = not gen.choke
-			_start([say.call("チョークを、いっぱいに引きました。" if gen.choke else "チョークを、戻しました。")])
+			_start(B("発電機.チョーク.引く" if gen.choke else "発電機.チョーク.戻す"))
 		"g_sw":
 			gen.sw = not gen.sw
-			if not gen.sw and gen.run: gen.run = false; _start([say.call("スイッチを切ると、エンジンが止まりました。")]); return
-			_start([say.call("エンジンのスイッチを、入れました。" if gen.sw else "スイッチを、切りました。")])
+			if not gen.sw and gen.run: gen.run = false; _start(B("発電機.スイッチ.切って止まる")); return
+			_start(B("発電機.スイッチ.入れる" if gen.sw else "発電機.スイッチ.切る"))
 		"g_tape":
-			_start([say.call("操作盤に古いマスキングテープが貼ってあって、持ち主の字で『チョーク　引いてから』とだけ。")])
+			_start(B("発電機.テープ"))
 		"g_gauge":
-			var k := [say.call("燃料の目盛りは、四分の一くらいでした。")]
+			var k := B("発電機.目盛り")
 			if not talked.has("gauge"):
 				talked["gauge"] = 1; talk_with = "taiga"
-				k.append({"who": "大河", "text": "朝までは、もたないな。……夜中に一回、足しに来ないと。"})
+				k += B("発電機.目盛り.大河")
 			_start(k)
 		"g_pull":
-			if gen.run: _start([say.call("エンジンは、もう回っていました。")]); return
+			if gen.run: _start(B("発電機.綱.もう回っている")); return
 			if not gen.fuel or not gen.sw:
 				gen.fails += 1
-				var k := [say.call("引き綱を引きました。……空回りするだけでした。")]
-				if gen.fails >= 2:
-					talk_with = "taiga"; k.append({"who": "大河", "text": "スイッチ、入ってる？　燃料のつまみも。"})
+				var k := B("発電機.綱.空回り")
+				if gen.fails >= 2: talk_with = "taiga"; k += B("発電機.綱.空回り.大河")
 				_start(k); return
 			if not gen.choke:
 				gen.fails_c += 1
-				var k := [say.call("引き綱を引くと、一度だけ咳きこんで、止まりました。")]
-				if gen.fails_c >= 2:
-					talk_with = "taiga"; k.append({"who": "大河", "text": "……テープ。なんか貼ってあったろ。"})
+				var k := B("発電機.綱.咳")
+				if gen.fails_c >= 2: talk_with = "taiga"; k += B("発電機.綱.咳.大河")
 				_start(k); return
 			gen.run = true; gen.run_t = 0.0; talk_with = "taiga"
-			_start([say.call("三回引いて、かかりました。ひどい音でした。"),
-				{"who": "大河", "text": "かかった！　……チョーク。戻さないと、かぶる。"}])
+			_start(B("発電機.綱.かかる"))
 		"g_change":
-			if not gen.run or gen.choke:
-				_start([say.call("切り替えのレバーを動かしても、何も点きませんでした。")]); return
-			if hs >= 3: _start([say.call("レバーは、もう下りていました。")]); return
+			if not gen.run or gen.choke: _start(B("切り替え.点かない")); return
+			if hs >= 3: _start(B("切り替え.もう下りている")); return
 			hs = 3; talk_with = "taiga"
-			_start([say.call("切り替えのレバーを下ろすと、頭の上で電球が点きました。"),
-				{"do": "house_lights"},
-				{"who": "大河", "text": "点いた。……でも、ここと前室だけか。"},
-				{"who": "大河", "text": "発電機につながってるの、一部の回路だけなんだって。管理の人が言ってた。"},
-				{"who": "大河", "text": "停電したら、まずラジオだ。これも管理の人。……上、戻ろう。"},
-				{"do": "taiga_up"},
-				{"note": "［一階へ］"}])
+			_start(B("切り替え.点く"))
 
 func _gen_flicker():
 	# the bulbs come up unsteady on the engine (main.gd _house_flicker 'gen' keeps them breathing after)
@@ -1575,22 +1473,21 @@ func _gen_flicker():
 func _house_conv(key: String, n: int) -> Array:
 	match key:
 		"kiryu":
-			if hs == 5: return [{"who": "桐生", "text": "板の隙間から外が見える。……『ドーン・オブ・ザ・デッド』は、こっから先が長いんだよ。"}]
-			if hs <= 2: return [{"who": "桐生", "text": "電波、一本も立たない。……山だな。"}] if n == 0 else [{"who": "桐生", "text": "定点、回ってるな。……暗いけど、まあ、撮れてる。"}]
-			return [{"who": "桐生", "text": "点いた。……廊下は真っ暗のままだけどな。"}]
+			if hs == 5: return B("20時.桐生.板")
+			if hs <= 2: return B("20時.桐生.暗い.一回目" if n == 0 else "20時.桐生.暗い.二回目から")
+			return B("20時.桐生.点いた")
 		"natsuki":
-			if hs == 5: return [{"who": "夏希", "text": "……ほんとに打つんだ。あとで管理の人に、なんて言うの。"}]
-			if hs <= 2: return [{"who": "夏希", "text": "真っ暗。……澪、大河についてってあげて。"}]
-			return [{"who": "夏希", "text": "前室だけ明るいの、逆に怖くない？"}]
+			if hs == 5: return B("20時.夏希.板")
+			return B("20時.夏希.暗い" if hs <= 2 else "20時.夏希.点いた")
 		"makoto":
-			return [{"who": "真琴", "text": "レフ、どこ置いたっけ……。あ、ランタン、ここ置いときますね。"}] if n == 0 else [{"who": "真琴", "text": "電池、予備あります。ロケ用の。"}]
+			return B("20時.真琴.一回目" if n == 0 else "20時.真琴.二回目から")
 		"taiga":
-			if hs == 5 and wins_done < 3: return [{"who": "大河", "text": "一階の窓。隙間、あけないで。……釘は斜めに。"}]
-			if hs == 5 and taiga_at == "out": return [{"who": "大河", "text": "照らしてる。……その下。手すりの下の、小さい窓。"}]
-			if hs == 5: return [{"who": "大河", "text": "地下の窓。勝手口から出て、家の裏。"}]
-			if hs == 1: return [{"who": "大河", "text": "地下。発電機、動かす。来て。"}]
-			if hs == 2: return [{"who": "大河", "text": "燃料のつまみ、スイッチ、綱。……もう一個、なんだっけ。"}]
-			return [{"who": "大河", "text": "上、戻ろう。ラジオ。"}]
+			if hs == 5 and wins_done < 3: return B("20時.大河.板.一階")
+			if hs == 5 and taiga_at == "out": return B("20時.大河.板.照らす")
+			if hs == 5: return B("20時.大河.板.地下へ")
+			if hs == 1: return B("20時.大河.地下へ")
+			if hs == 2: return B("20時.大河.発電機")
+			return B("20時.大河.戻ろう")
 	return []
 
 # ================================================================ 第2章: the boards (試作92)
@@ -1632,36 +1529,26 @@ func _boards_start():
 		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	talk_with = "taiga"
-	script_q.push_back({"who": "澪", "text": "大河が、地下から板を抱えて上がってきました。古い、物置の棚板です。", "testimony": true})
-	script_q.push_back({"who": "大河", "text": "一階の窓、全部。手分けして。……澪、金づちと釘。"})
-	script_q.push_back({"note": "［窓に板を打つ｜Ｅ］"})
+	script_q.append_array(B("板.始まり"))
 
 func _board_use(key: String):
 	talk_with = ""
 	if key == "w_cellar":
 		# only from outside: from the cellar the window is up by the ceiling, behind the old shelves
 		if player.global_position.x < gp(CELLAR_WIN[0] + 0.15, 0.0, 0.0).x:
-			_start([{"who": "澪", "text": "地下の窓は、内側からは手が届きませんでした。", "testimony": true}]); return
+			_start(B("板.地下の窓.届かない")); return
 		cellar_done = true; items.erase("w_cellar")
 		for b in cellar_boards: (b as Node3D).visible = true
-		_start([{"who": "澪", "text": "地下の小さな窓に、外から板を四枚、打ちつけました。", "testimony": true},
-			{"who": "澪", "text": "……あのとき、窓から細いホースが出ていたのを、覚えています。", "testimony": true},
-			{"note": "（間）"},
-			{"do": "ch2_cut"}])
+		_start(B("板.地下の窓"))
 		return
 	var w: Dictionary = wins[int(key.substr(2))]
 	items.erase(key)
 	for b in w.boards: (b as Node3D).visible = true
 	wins_done += 1
-	var k := [{"who": "澪", "text": ["窓に、板を打ちつけました。釘が、なかなか入らなくて。", "二枚目の窓。板と板のあいだに、少し隙間が残りました。", "三つ目。手のひらが、じんじんしました。"][min(wins_done - 1, 2)], "testimony": true}]
+	var k := B(["板.一つ目", "板.二つ目", "板.三つ目"][min(wins_done - 1, 2)])
 	if wins_done == 3:
 		talk_with = "taiga"
-		k.append({"do": "boards_rest"})
-		k.append({"who": "澪", "text": "気がつくと、ほかの窓は、みんなが塞いでいました。", "testimony": true})
-		k.append({"who": "大河", "text": "あと、地下の窓。あそこは外からしか打てない。……勝手口から回って。"})
-		k.append({"who": "桐生", "text": "外、出るなって言ったばっかだけどな。"})
-		k.append({"who": "大河", "text": "すぐそこだ。家の裏。……先に出て、照らしとく。"})
-		k.append({"note": "［地下の窓を外から塞ぐ］"})
+		k += B("板.残りはみんなが")
 	_start(k)
 
 func _boards_show_rest():

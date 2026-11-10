@@ -1,5 +1,5 @@
 #!/bin/bash
-# 遊びの流れの自動の通し：第1章の頭から、停電、発電機、ラジオ、窓の板、23時への切り替えまで（story.gd の --demo）。
+# 遊びの流れの自動の通し：第1章の頭から、停電、発電機、ラジオ、窓の板、23時の扉の終わりのカードまで（story.gd・door.gd の --demo）。
 #   bash godot/check/playthrough.sh <pck>          画面なしで通す（1分ほど）。最後の行が「通し ○」か「通し ×」
 #   bash godot/check/playthrough.sh <pck> movie    同じ通しを動画にする（640x360、12コマ／秒。GPU なしで1時間前後）
 #   OV=1 を付けると、pck の上にいまのリポジトリのスクリプトを重ねて通す（書き出し直す前の確認。overlay.sh）
