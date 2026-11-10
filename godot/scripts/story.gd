@@ -1605,15 +1605,17 @@ func _boards_show_rest():
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_kitchen"); dn.open_key("door_back")
 	var from: Array = [4.75, 6.05, 0.0] if taiga_at == "door" else [8.5, 6.35, ZB]
-	var path := [from, [5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], TAIGA_OUT]
-	if taiga_at == "gen": path = TAIGA_PATH.slice(0, -1); path.reverse(); path += [[5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], TAIGA_OUT]
+	var out := [[5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], [10.88, 5.8, 0.0], [10.88, 8.5, -1.85],
+		[10.88, 8.95, -1.92], [10.25, 8.7, -1.88], TAIGA_OUT]
+	var path := [from] + out
+	if taiga_at == "gen": path = TAIGA_PATH.slice(0, -1); path.reverse(); path += out
 	var w := gp(CELLAR_WIN[0], CELLAR_WIN[1], 0.0) - gp(TAIGA_OUT[0], TAIGA_OUT[1], 0.0)
 	main.walk_to("taiga", path, func():
 		taiga_moving = false; taiga_at = "out"
 		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
 		_aim_taiga_light(true), atan2(w.x, w.z))
 
-const TAIGA_OUT := [10.55, 5.65, 0.0]   # on the back porch, at the top of its stair, the cellar window below him to the north-west
+const TAIGA_OUT := [10.22, 7.75, -1.85]   # down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)
 var taiga_aim: SpotLight3D
 func _aim_taiga_light(on: bool):
 	# his torch points ahead along the floor; here he holds it down over the rail onto the window: a light of the same
@@ -1624,7 +1626,7 @@ func _aim_taiga_light(on: bool):
 	if not on:
 		if taiga_aim: taiga_aim.queue_free(); taiga_aim = null
 		return
-	var hand: Vector3 = torch.global_position if torch else gp(TAIGA_OUT[0], TAIGA_OUT[1], 1.2)
+	var hand: Vector3 = torch.global_position if torch else gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.2)
 	taiga_aim = SpotLight3D.new()
 	taiga_aim.light_color = Color(0.86, 0.92, 1.0); taiga_aim.light_energy = 2.4; taiga_aim.spot_range = 5.0; taiga_aim.spot_angle = 26.0
 	taiga_aim.spot_attenuation = 1.0; taiga_aim.spot_angle_attenuation = 1.6; taiga_aim.shadow_enabled = true; taiga_aim.light_volumetric_fog_energy = 0.25
