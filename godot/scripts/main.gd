@@ -96,6 +96,9 @@ func _ready():
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
 		if a == "--nostory": ARGS["nostory"] = true
 		if a == "--frameclock": ARGS["frameclock"] = true
+		if a.begins_with("--lite="): ARGS["lite"] = a.substr(7)
+		if a == "--old3": ONE = false                          # 試作97: the three scenes as they were (to compare)
+		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # check stills of the whole house as a chapter has it: ch1 | door
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
@@ -104,6 +107,14 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
+	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
+	# with the people and the few things only that chapter has brought in from the old scenes' files (_ch1_set, _door_set).
+	# The check stills of the old scenes (--record, --shots, --poses) still get the old scenes, and --old3 plays them.
+	var checking0: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
+	var one: bool = ONE and FileAccess.file_exists("res://assets/house/scene.json")
+	if SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = "dusk" if play == "ch1" else "t23"
+	elif one and not checking0 and SCENE == "dusk": SCENE = "house"; TIME = "dusk"; play = "ch1"
+	elif one and not checking0 and SCENE == "night" and (FROM_STORY or ARGS.has("door")): SCENE = "house"; TIME = "t23"; play = "door"
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else ("res://assets/house/" if SCENE == "house" else "res://assets/")
 	S = JSON.parse_string(FileAccess.get_file_as_string(BASE + "scene.json"))
 	if SCENE == "house":
@@ -117,6 +128,8 @@ func _ready():
 		if ResourceLoader.exists(BASE + "%s.glb" % n): _load_scene(BASE + "%s.glb" % n, n)
 	ch2_house = (CH2 or ARGS.has("ch2")) and SCENE == "house"; CH2 = false
 	if ch2_house: _t20_people()
+	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
+	if play == "door" and not ARGS.has("nochars"): _door_set()
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
 		place_person("taiga", T20.taiga_gen.pos, T20.taiga_gen.yaw)
 	if ARGS.has("nochars"):   # the people's things go too (the reflector Makoto holds, the box and the tape)
@@ -130,11 +143,15 @@ func _ready():
 		# the whole house is single-sided walls: a low sun from outside sees their backs, which a one-sided shadow pass
 		# culls, and the dawn came through every wall (段階2, 4:30 の廊下が真っ白)
 		if SCENE == "house" and mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON: mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-	if SCENE == "dusk": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
+	if SCENE == "dusk" or play == "ch1": TALK = {"natsuki": [[2.0, 4.6], [9.0, 10.4], [14.5, 16.8]], "kiryu": [[11.2, 12.4]]}
 	_faces()
 	_camcorder_lcd()
 	if ARGS.has("minicam"): _minicam_dbg()
-	if SCENE == "house": _house_state(); _lights_house(); _window_glass(); _wear(); _house_cheaper()
+	if SCENE == "house":
+		_house_state(); _lights_house()
+		if play == "ch1": _lights_dusk(["reflector_bounce", "taiga_fill", "taiga_rim"])
+		if play == "door": _phone_lights(); lights["blue"] = lights.get("blue_door"); if lights.blue == null: lights.erase("blue")
+		_window_glass(); _wear(); _house_cheaper()
 	elif SCENE == "dusk": _lights_dusk()
 	else: _lights()
 	_gi()
@@ -144,11 +161,11 @@ func _ready():
 	if SCENE == "house":   # 試作90: E opens and shuts the doors (ユーザー「扉、開くと嬉しい」)
 		var dn = preload("res://scripts/doors.gd").new(); dn.name = "Doors"; add_child(dn); dn.setup(self)
 	_print_layer()
-	if SCENE == "dusk" and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
+	if (SCENE == "dusk" or play == "ch1") and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 5.0
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
-	if SCENE == "night" and (FROM_STORY or ARGS.has("door")) and not checking:
+	if (play == "door" or (SCENE == "night" and (FROM_STORY or ARGS.has("door")))) and not checking:
 		if CARD_TIME > 0.0: CARD_TIME = 3.0   # only the time card: the chapter's door was at 二十時
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
@@ -269,7 +286,7 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house) and k == "natsuki") else k   # her indoor head has its own UV layout
+			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1") and k == "natsuki") else k   # her indoor head has its own UV layout
 			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
@@ -426,10 +443,11 @@ func _set_gi(m: int):
 
 # 第1章 夕方: low sun through the open front door, the sky in the doorway, the fresnel being aimed at her mark,
 # and a white board throwing the floor's sunlight back up into Natsuki's face
-func _lights_dusk():
-	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + "lights.json"))
+func _lights_dusk(only: Array = []):
+	var arr = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/lights.json"))
 	var k: float = float(ARGS.get("dk", "1.0"))
 	for L in arr:
+		if not only.is_empty() and not (L.name in only): continue   # the whole house has its own sun, sky and lamps (試作97)
 		match L.name:
 			"sun":
 				var d := DirectionalLight3D.new()
@@ -492,7 +510,11 @@ func _lights():
 				lights.lamp = _lamp(L)
 			"kiryu_phone_light":
 				pass
-	# lights that travel with the held phones
+	_phone_lights()
+
+# lights that travel with the held phones (23:00)
+func _phone_lights():
+	if not S.has("kiryu_node") or not S.has("natsuki_node"): return
 	var kp := S.kiryu_node.find_child("kphone", true, false) as Node3D
 	if kp:
 		var l := SpotLight3D.new()
@@ -831,13 +853,13 @@ func _card():
 	var u: float = get_viewport().get_visible_rect().size.y / 1080.0
 	var rows := [["二十三時", 52, 0]]
 	if SCENE == "house": rows = [[String(TIME_LABEL.get(TIME, TIME)), 52, 0]]
-	if SCENE == "dusk": rows = [["第 一 章", 46, 40], ["「ルール」", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
+	if SCENE == "dusk" or play == "ch1": rows = [["第 一 章", 46, 40], ["「ルール」", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
 	card = make_card(self, rows, font)
 	# the keys: not on the card (the card is the interviewer's), but along the top once the scene has begun
 	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
 	foot = Label.new()
 	foot.text = "ＷＡＳＤ 移動　マウス 視点　Ｎ 場面（夕方／夜）　Ｃ カメラのコマ　Ｇ 照り返し　１／２ 網点　Ｑ 画質　Ｐ 刷り　Ｖ 刷りの版　－／＝ 刷りの明るさ　Ｈ 設定表示の固定　Ｅｓｃ マウス解放"
-	if SCENE == "house": foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｔ 時刻　Ｎ 場面　Ｇ 照り返し　Ｐ 刷り　－／＝ 刷りの明るさ　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
+	if SCENE == "house" and play == "": foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｔ 時刻　Ｎ 場面　Ｇ 照り返し　Ｐ 刷り　－／＝ 刷りの明るさ　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif door_scene: foot.text = "ＷＡＳＤ 歩く　マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
@@ -1124,6 +1146,9 @@ func _unhandled_input(e):
 func power_cut(dark := true):
 	for k in ["fres_d", "lamp", "refl"]:
 		if lights.has(k): lights[k].visible = false
+	if SCENE == "house":   # 試作97: 第1章 in the whole house: the key light and every lamp of the house
+		for k in lights:
+			if lights[k] is Light3D and (k == "fresnel_key" or String(k).begins_with("lamp_")): lights[k].visible = false
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
 	# 試作89 (ユーザー「そこで、電気が消えたんです。のところ、真っ暗になるのがよくない？」): the eye goes black with the lights,
 	# through her testimony line and the chapter card; it opens again, slowly, as chapter 2 begins (power_eyes_open)
@@ -1299,6 +1324,54 @@ func generator(on: bool):
 	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
 	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.3) if gi_mode == 0 else 0.0)
 
+# ------------------------------------------------------------------ 試作97: one stage (ステップ C)
+static var ONE := true
+var play := ""                 # what the whole house carries besides its time: "ch1" (17:30) | "door" (23:00)
+
+# what a chapter adds to the whole house comes out of the old scene's files: the people, where they stand (the
+# columns), and the few things only that scene's env.glb has
+func _bring(dir: String, things: Array):
+	var J: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(dir + "scene.json"))
+	for n in CHARS:
+		if ResourceLoader.exists(dir + "%s.glb" % n): _load_scene(dir + "%s.glb" % n, n)
+	# the columns: this scene's (people, tripod, lamp stand, box) instead of the house's own that stand near them
+	var keep: Array = []
+	for o in S.props:
+		var near := false
+		for q in J.props:
+			if Vector2(o[0] - q[0], o[1] - q[1]).length() < 0.3: near = true
+		if not near: keep.append(o)
+	S.props = J.props + keep
+	if J.has("knocks"): S["knocks"] = J.knocks
+	if J.has("mark"): S["mark"] = J.mark
+	if things.is_empty(): return
+	var old: Node3D = (load(dir + "env.glb") as PackedScene).instantiate()
+	add_child(old)
+	for pre in things:
+		for mi in old.find_children(pre + "*", "MeshInstance3D", true, false):
+			var gt: Transform3D = (mi as Node3D).global_transform
+			mi.get_parent().remove_child(mi); mi.owner = null
+			S.env_node.add_child(mi); (mi as Node3D).global_transform = gt
+	old.queue_free()
+
+func _ch1_set():
+	_bring("res://assets/dusk/", ["reflector"])
+	# the camcorder on its tripod stands 23 cm nearer the stair at dusk (stage.TRIPOD_D / TRIPOD_N): Kiryu is behind it
+	var moved: Array = []
+	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if nm.begins_with("tpd_") or nm.begins_with("vcam_") or nm.begins_with("lcd") or nm.begins_with("recled"): moved.append(mi)
+	for mi in moved:
+		var under := false
+		var pa: Node = mi.get_parent()
+		while pa != null and pa != S.env_node:
+			if pa in moved: under = true
+			pa = pa.get_parent()
+		if not under: (mi as Node3D).global_position += b2g([0.0, 4.47 - 4.70, 0.0])
+
+func _door_set():
+	_bring("res://assets/", ["rain", "cable"])
+
 func to_night(from_story := false):
 	_save_settings()
 	SCENE = "night"
@@ -1310,6 +1383,15 @@ func to_night(from_story := false):
 # culling: one box per wall piece of scene.json, its window and door holes left open, so the woods still show through a
 # window); far cedars cast no shadow. NOOCC=1 / --noocc for the old way.
 func _house_cheaper():
+	# --lite=…: the check movie on a machine without a GPU (a software renderer draws the 14 million triangles of the
+	# cedars every frame). Letters: t no trees, f no volumetric fog, s only the sun and the nearest lamps throw shadows
+	var lite := String(ARGS.get("lite", ""))
+	if lite.contains("t"):
+		for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): mi.visible = false
+	if lite.contains("f") and env: env.volumetric_fog_enabled = false
+	if lite.contains("s"):
+		for k in lights:
+			if lights[k] is OmniLight3D: lights[k].shadow_enabled = false
 	if ARGS.has("noocc"): return
 	get_viewport().use_occlusion_culling = true
 	var n := 0
