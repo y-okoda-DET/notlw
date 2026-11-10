@@ -25,7 +25,7 @@ uniform float scan_strength = 0.0; // 0 = fixed exposure per scene (the printer'
 uniform float look = 0.0;          // 試作94: 0 = the print as it was (夕方), 1 = the night print (coverage_night, dodge)
 uniform float dodge = 0.45;        // night print: how far each part of the sheet is exposed for what is in it (0 = one exposure)
 uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
-uniform float dodge_max = 2.2;
+uniform float dodge_max = 1.8;
 uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -87,8 +87,8 @@ vec2 coverage_night(vec3 c, vec3 cw) {
 	float a = smoothstep(0.30, 0.90, d);
 	a += cold * 0.35 * (1.0 - a);
 	a *= 1.0 - wk * (1.0 - smoothstep(0.60, 0.92, d));          // in warm light the blue comes in only as its shadow
-	float b = wk * 0.85 * smoothstep(0.15, 0.85, d) * (1.0 - 0.5 * smoothstep(0.60, 1.0, d));
-	float deep = smoothstep(0.87, 0.97, d);
+	float b = wk * 0.8 * smoothstep(0.30, 0.90, d) * (1.0 - 0.5 * smoothstep(0.60, 1.0, d));   // a well-lit warm surface opens to paper
+	float deep = smoothstep(0.85, 0.96, d);
 	b = b + deep * 0.9 * (1.0 - b);
 	return vec2(clamp(a, 0.0, 1.0), clamp(b, 0.0, 1.0));
 }
@@ -100,7 +100,7 @@ float dodge_gain(vec2 uv, float g) {
 	m += luma(textureLod(screen_tex, uv + vec2(o.x, 0.0), 6.0).rgb) + luma(textureLod(screen_tex, uv - vec2(o.x, 0.0), 6.0).rgb);
 	m += luma(textureLod(screen_tex, uv + vec2(0.0, o.y), 6.0).rgb) + luma(textureLod(screen_tex, uv - vec2(0.0, o.y), 6.0).rgb);
 	m = max(m / 6.0 * g, 0.004);
-	return g * clamp(pow(dodge_target / m, dodge), 0.8, dodge_max);
+	return g * clamp(pow(dodge_target / m, dodge), 1.0, dodge_max);   // it only lifts: what is lit keeps its paper
 }
 vec2 cover(vec2 uv, float g) {
 	float gl = dodge_gain(uv, g);
