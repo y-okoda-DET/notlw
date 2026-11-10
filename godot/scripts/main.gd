@@ -72,6 +72,7 @@ func _ready():
 		if a.begins_with("--riso="): PRINT_V = int(a.substr(7))
 		if a.begins_with("--pexp="): PRINT_EXP[SCENE if SCENE != "" else "night"] = float(a.substr(7)); ARGS["pexp"] = float(a.substr(7))
 		if a.begins_with("--time=") and TIME == "": TIME = a.substr(7)
+		if a.begins_with("--look="): ARGS["look"] = float(a.substr(7))
 		if a == "--status": ARGS["status"] = true; SET["pin"] = true
 		if a == "--bright": ARGS["bright"] = true
 		if a.begins_with("--dusk="):   # check stills: the dusk light scales sun,sky,key (as the 7-0 [ ] keys set them)
@@ -682,11 +683,17 @@ func _player():
 			[CARD_TIME + 11.0, 0.25, -3.5, 4.0, -3.0], [CARD_TIME + 14.0, 0.35, -3.9, 0.0, 2.0]]
 
 # ------------------------------------------------------------------ print + card
+const NIGHT_PRINT := {"t20": [0.2, 1.35], "t23": [0.45, 1.8], "t02": [0.45, 1.8], "t0330": [0.45, 1.8], "t0430": [0.45, 1.8]}
 func _print_layer():
 	var layer := CanvasLayer.new(); layer.layer = 10; add_child(layer)
 	var r := ColorRect.new(); r.set_anchors_preset(Control.PRESET_FULL_RECT); r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	riso = ShaderMaterial.new(); riso.shader = load("res://shaders/riso2.gdshader" if PRINT_V == 2 else "res://shaders/riso.gdshader")
 	riso.set_shader_parameter("exposure", PRINT_EXP[SCENE] if PRINT_V == 2 else 1.0)
+	# 試作94 the night print (riso2 look=1): the whole house after dark. 夕方 and the two old scenes keep the print they had
+	# (ユーザー OK 2026-11-10). [dodge, dodge_max]: 20時 is the blackout, so its darks are lifted less. --look=0 shoots the old print.
+	if PRINT_V == 2 and SCENE == "house" and NIGHT_PRINT.has(TIME) and float(ARGS.get("look", 1.0)) > 0.5:
+		riso.set_shader_parameter("look", 1.0)
+		riso.set_shader_parameter("dodge", NIGHT_PRINT[TIME][0]); riso.set_shader_parameter("dodge_max", NIGHT_PRINT[TIME][1])
 	if ARGS.has("print"): print_on = ARGS["print"] > 0.5; riso.set_shader_parameter("enabled", ARGS["print"])
 	r.material = riso
 	layer.add_child(r)
