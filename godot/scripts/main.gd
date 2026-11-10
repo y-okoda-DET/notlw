@@ -103,6 +103,7 @@ func _ready():
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
 		if a == "--noocc": ARGS["noocc"] = true   # 試作92: without the occluders and the far cedars' shadows cut (to compare)
+		if a == "--sugishadow": ARGS["sugishadow"] = true   # 試作97: 第1章 with the cedars' shadows left on (to compare)
 		if a == "--ch2": ARGS["ch2"] = true   # 試作91: the house at 20:00 as 第2章 has it (the people; the story too unless checking)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
@@ -1359,6 +1360,10 @@ func _bring(dir: String, things: Array):
 
 func _ch1_set():
 	_bring("res://assets/dusk/", ["reflector"])
+	# the low sun comes in through the front door onto Makoto and her reflector, as in the old scene, which had no woods:
+	# the cedars throw no shadow in this chapter
+	if not ARGS.has("sugishadow"):
+		for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): (mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the camcorder on its tripod stands 23 cm nearer the stair at dusk (stage.TRIPOD_D / TRIPOD_N): Kiryu is behind it
 	var moved: Array = []
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
