@@ -306,3 +306,4 @@
 - 書き出しなしで試す方法：godot/check/trial/README.md（pck にシェーダーと main.gd だけをかぶせる）。
 - 資料の整理（同日）：docs/要約.md の「いまの段階」「次の作業」は追記せず上書きする。企画書のロードマップはステップ A〜I に引き直した。
 
+- 試作94（FAST SCENES=dusk）は家まるごとが読めなかった（env.glb の instantiate が null）。試作87と同じ：家の場面を含めない FAST の pck には家が入らない。家を触っていなくても、家を撮るなら SCENES="dusk house" で書き出す。
