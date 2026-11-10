@@ -24,8 +24,8 @@ os.makedirs(OUT, exist_ok=True)
 # plan metres (x east, y north from the front wall) and what each one faces
 PLACE = {
     'kiryu':   dict(at=(4.95, 0.75), face=(4.95, -1.0), z=-0.18),    # down in the genkan at the front door, his phone up for a signal (試作91: on the step he stood 60 cm from Mio, a black wall in her view)
-    'natsuki': dict(at=(3.75, 3.35), face=(5.0, 2.6), z=0.0),        # in the living-room doorway, toward the hall
-    'makoto':  dict(at=(3.35, 3.75), face=(4.6, 2.6), z=0.0),        # just behind her, by the lantern
+    'natsuki': dict(at=(3.2, 3.0), face=(4.5, 3.5), z=0.0),          # just inside the living room, toward its door (試作96: at 3.75, 3.35 she and Makoto left 2 cm beside the open leaf, nobody could get in)
+    'makoto':  dict(at=(2.75, 3.55), face=(4.2, 3.4), z=0.0),        # behind her, past the tip of the open leaf (3.15, 3.95)
     'taiga':   dict(at=(4.75, 6.05), face=(4.75, 3.0), z=0.0),       # at the back of the hall by the cellar door, toward Mio
 }
 TAIGA_GEN = dict(at=(8.5, 6.35), face=(9.2, 6.2), z=H4.ZB)            # in the cellar, at the generator's north-west, his light on its panel (8.55, 5.25 and 8.8, 5.65 stood between the stair and the panel; 9.75, 5.35 was inside the old cupboard)
