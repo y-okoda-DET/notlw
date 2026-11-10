@@ -87,7 +87,9 @@ vec2 coverage_night(vec3 c, vec3 cw) {
 	float a = smoothstep(0.30, 0.90, d);
 	a += cold * 0.35 * (1.0 - a);
 	a *= 1.0 - wk * (1.0 - smoothstep(0.60, 0.92, d));          // in warm light the blue comes in only as its shadow
-	float b = wk * 0.8 * smoothstep(0.30, 0.90, d) * (1.0 - 0.5 * smoothstep(0.60, 1.0, d));   // a well-lit warm surface opens to paper
+	// a well-lit warm surface opens to paper, but keeps a light tint of dots until it is really bright
+	// (試作94: with none, a candle-lit counter burned out to bare paper - ユーザー「白く飛びすぎ」)
+	float b = wk * (0.15 * (1.0 - smoothstep(0.78, 0.95, L)) + 0.60 * smoothstep(0.25, 0.88, d)) * (1.0 - 0.5 * smoothstep(0.60, 1.0, d));
 	float deep = smoothstep(0.85, 0.96, d);
 	b = b + deep * 0.9 * (1.0 - b);
 	return vec2(clamp(a, 0.0, 1.0), clamp(b, 0.0, 1.0));
