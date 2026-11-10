@@ -36,7 +36,7 @@ PT=$(bash $K/godot/check/playthrough.sh $AFTER 2>&1 | tail -4); echo "$PT" >> $L
 {
 echo "## 0. 遊びの流れ（自動の通し）：$(echo "$PT" | tail -1)"
 echo "$PT" | grep "DEMO FAIL\|SCRIPT ERROR" | sed 's/^/- [ ] ×：/'
-echo "- [ ] 通し_台詞.txt を読んだ（台詞の順、抜け、言い回し）。流れを変えた回は、動画（playthrough.sh <pck> movie）も見た"
+echo "- [ ] 通し_台詞.txt を読んだ（台詞の順、抜け、言い回し）"
 echo
 } >> $M
 
