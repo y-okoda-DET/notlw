@@ -1215,8 +1215,8 @@ func _t20_people():
 			ba.add_child(sp)
 			torches.append([sp, sk])
 			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
-			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.12   # 試作97: 0.5 / 1.0 m lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
-			gl.omni_range = 0.6; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
+			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.025   # 試作97: 0.5 / 1.0 m (and still 0.12 / 0.6 m) lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
+			gl.omni_range = 0.45; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
 			gl.position = c - n * 0.06
 			ba.add_child(gl)
 		mv.free()
