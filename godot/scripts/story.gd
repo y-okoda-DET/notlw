@@ -47,6 +47,10 @@ var items := {}     # key -> {pos (Godot), r, kind, name}
 enum {FREE, TALK, END}
 var mode := FREE
 var has_board := false
+var mission_box: HBoxContainer
+var mission_lb: Label
+var mission := ""
+var board_note: Label
 var holding_cam := false
 var cam_placed := false
 var cam_ok := false
@@ -239,6 +243,17 @@ func _page():
 	tes_box.offset_top = 92 * u
 	tes_box.add_theme_constant_override("separation", int(8 * u))
 	page.add_child(tes_box)
+	# 試作97: what she set out to do, in the same transcript hand as her answers (top left, under a short rule), so it is
+	# not taken for the bracketed key under it (ユーザー「ミッション表記とアクション表記、混同してしまう」). It stays
+	# until the next one; while she answers something else it steps aside.
+	mission_box = HBoxContainer.new(); mission_box.add_theme_constant_override("separation", int(14 * u))
+	mission_box.anchor_left = 0.075; mission_box.anchor_right = 0.62; mission_box.offset_top = 92 * u
+	var mrule := ColorRect.new(); mrule.color = Color(paper.r, paper.g, paper.b, 0.85)
+	mrule.custom_minimum_size = Vector2(26 * u, 2 * u); mrule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	mission_box.add_child(mrule)
+	mission_lb = _label(24); mission_box.add_child(mission_lb)
+	mission_box.visible = false
+	page.add_child(mission_box)
 	note_lb = _label(26)
 	note_lb.anchor_left = 0.075; note_lb.anchor_top = 1.0; note_lb.anchor_bottom = 1.0
 	note_lb.offset_top = -66 * u; note_lb.offset_bottom = -30 * u
@@ -308,6 +323,11 @@ func _board():
 	board_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 	board_layer.add_child(board_rect)
 	board_layer.visible = false
+	# 試作97: what she is to do now, written in the board's margin in its blue ink
+	board_note = _label(22); board_note.add_theme_color_override("font_color", Color(0.0, 0.33, 0.6))
+	board_note.add_theme_constant_override("shadow_offset_x", 0); board_note.add_theme_constant_override("shadow_offset_y", 0)
+	board_note.anchor_left = 0.05; board_note.anchor_right = 0.95; board_note.anchor_top = 0.9; board_note.anchor_bottom = 0.98
+	board_rect.add_child(board_note)
 
 func _place_board():
 	var vs := get_viewport().get_visible_rect().size
@@ -379,20 +399,23 @@ func _fixed_cam():
 		var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
 		mk.call(body, dark, Vector3(0, 0.0, 0.0))
 	var led := OmniLight3D.new(); led.name = "rec"; led.light_color = Color(1.0, 0.2, 0.08); led.light_energy = 0.0
-	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.0, 0.068, -0.05)
+	led.omni_range = 0.35; led.shadow_enabled = false; led.position = Vector3(0.012, 0.05, 0.08)
 	fixed_cam.add_child(led)
-	var dot := SphereMesh.new(); dot.radius = 0.004; dot.height = 0.008
+	var dot := SphereMesh.new(); dot.radius = 0.0055; dot.height = 0.011   # 試作97: 8 mm was lost in the print (ユーザー「赤いランプ、つくようにしたい」)
 	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.25, 0.05, 0.03); dm.emission_enabled = true; dm.emission = Color(1, 0.2, 0.05); dm.emission_energy_multiplier = 0.0
-	var d := mk.call(dot, dm, Vector3(0.012, 0.071, -0.048)) as MeshInstance3D; d.name = "recdot"
+	# 試作97: the tally on the front over the lens, and a second one on the back by the start button, the one she sees
+	# when it sits on the rail facing the hall (in 96 one dot floated 14 mm over the top, from the boxed stand-in)
+	var d := mk.call(dot, dm, Vector3(0.02, 0.053, -0.055)) as MeshInstance3D; d.name = "recdot"
+	var d2 := mk.call(dot, dm, Vector3(0.012, 0.046, 0.067)) as MeshInstance3D; d2.name = "recdot2"
 	main.add_child(fixed_cam)
 	fixed_cam.global_position = g([-0.60, 3.85, 0.20 + 0.072])   # the middle of the apple box (at -.72, 3.81 it hung past the edge, 試作61)
 	fixed_cam.rotation.y = 0.6
 
 func _set_rec(on: bool):
 	recording = on
-	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 0.6 if on else 0.0
+	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 1.2 if on else 0.0
 	var dm := (fixed_cam.get_node("recdot") as MeshInstance3D).material_override as StandardMaterial3D
-	dm.emission_energy_multiplier = 6.0 if on else 0.0
+	dm.emission_energy_multiplier = 16.0 if on else 0.0
 	(finder_ui as FinderFrame).rec = on
 
 # ================================================================ the one she talks to turns to her
@@ -548,6 +571,7 @@ func _process(dt):
 	else:
 		note_lb.text = ""
 	if mode == TALK: _talk_tick(dt)
+	mission_box.visible = mission != "" and tes_box.get_child_count() == 0
 	_update_looks()
 	player.move_enabled = (mode == FREE)
 	# who is talking moves their mouth (main.gd _update_faces)
@@ -716,13 +740,15 @@ func _next():
 			fade_tw.chain().tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
-	if demo_on: print("SAY %s%s" % [(String(cur.who) + "：") if cur.has("who") else "", str(cur.get("text", cur.get("note", cur.get("choose", cur.get("do", "")))))])   # the unattended playthrough leaves what was said in the log
+	if demo_on: print("SAY %s%s" % [(String(cur.who) + "：") if cur.has("who") else "", str(cur.get("text", cur.get("note", cur.get("choose", cur.get("do", ("◇" + String(cur.mission)) if cur.has("mission") else "")))))])   # the unattended playthrough leaves what was said in the log
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
-	typed = 0.0; wait_after = 0.0
+	typed = 0.0; wait_after = 0.0; read_t = 0.0
 	if cur.has("do"):
 		_do(cur.do)
 		if mode != END: _next()
 		return
+	if cur.has("mission"):
+		_set_mission(String(cur.mission)); _next(); return
 	if cur.has("note"):
 		var r = _line_row("", cur.note, 22, "note"); cur_lb = r[1]; typed = 999.0; return
 	if cur.has("choose"):
@@ -730,6 +756,9 @@ func _next():
 		for i in range(cur.choose.size()):
 			var r = _line_row("", cur.choose[i], SAY_SIZE, "choose")
 			choice_lbs.append(r[1])
+		# 試作97: _line_row fades every row but the last one; the choices are all "now" (in 96 the first two were
+		# faded by their rows, so the one chosen did not read white: ユーザー「選択しているものが白くならない」)
+		for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
 		_show_choice()
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
@@ -740,7 +769,7 @@ func _next():
 func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
-		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.45))
+		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.38))
 		lb.add_theme_color_override("font_shadow_color", Color(0.0, 0.33, 0.6, 0.9 if i == choice_idx else 0.3))
 
 func _move_choice(d: int):
@@ -771,7 +800,16 @@ func _choose():
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
 
+func _set_mission(words: String):
+	mission = words
+	mission_lb.text = _wrap_row(Tw(words), 24.0) if words != "" else ""
+	if board_note: board_note.text = ("— " + Tw(words)) if words != "" else ""
+
 func _talk_tick(dt):
+	if cur.has("note"):   # 試作97: the bracketed note does not hold her either
+		read_t += dt
+		if read_t > AUTO_READ + 1.0: read_t = 0.0; _next()
+		return
 	if cur.has("choose"):
 		if cur.get("chosen", false):
 			wait_after -= dt
@@ -782,6 +820,16 @@ func _talk_tick(dt):
 		if typed < n:
 			typed = min(float(n), typed + dt * (20.0 if cur.get("testimony", false) else 24.0))
 			_type(cur_lb, String(cur.text), int(typed))
+			read_t = 0.0
+		else:
+			# 試作97: a line goes on by itself once there has been time to read it (ユーザー「台詞終わりEを押し忘れて、
+			# 動けない」). E still hurries it; only the choices wait for her.
+			read_t += dt
+			if read_t > AUTO_READ + n * AUTO_PER_CHAR: read_t = 0.0; _next()
+
+const AUTO_READ := 1.3        # s after the line is all there
+const AUTO_PER_CHAR := 0.075  # s more per character (reading Japanese at about 13 a second)
+var read_t := 0.0
 
 func _advance():
 	if cur.has("choose"):
@@ -819,7 +867,7 @@ func _do(what: String):
 			_clear_page()
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
-			mode = END; script_q.clear(); end_t = 100.0
+			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")
 			if demo_on: print("DEMO ch2_cut t=%.1f fails=%d" % [t_now, demo_fails]); DEMO_FAILS += demo_fails   # the playthrough goes on at the door (door.gd)
 			main.to_night(true)
 
@@ -1322,6 +1370,13 @@ func gp(x: float, y: float, z: float) -> Vector3:   # plan metres -> Godot
 
 func _house_ready():
 	_page(); _board(); _finder(); _fixed_cam(); _lookers(); _radio()
+	has_board = true   # 試作97: she still has Kiryu's board from 第1章 (Tab: what she is to do is in its margin)
+	# 試作97: her own phone, out like everyone's: its screen lights her hands and what is just before her (not a beam:
+	# the torch is the others'). With the power out it is, with theirs, all the light there is (ユーザー: 停電のあいだの光はスマホだけ)
+	var glow := OmniLight3D.new(); glow.name = "mio_phone"; glow.light_color = Color(0.8, 0.88, 1.0)
+	glow.light_energy = 0.1; glow.omni_range = 1.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = false
+	glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.05; glow.position = Vector3(0.12, -0.38, -0.32)
+	player.get_node("Head/Camera").add_child(glow)
 	if PLACED.is_empty(): fixed_cam.visible = false
 	else:
 		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
@@ -1529,6 +1584,7 @@ func _boards_start():
 		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	talk_with = "taiga"
+	main.carry_boards("taiga", true)
 	script_q.append_array(B("板.始まり"))
 
 func _board_use(key: String):
@@ -1560,6 +1616,7 @@ func _boards_show_rest():
 	# 試作93: outside at night it was black (Mio has no light): Taiga goes out first, by the kitchen and the back door,
 	# and stands on the back porch with his phone on the little window
 	taiga_moving = true
+	main.carry_boards("taiga", false)   # he sets them down by the stair and takes his phone out again
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_kitchen"); dn.open_key("door_back")
 	var from: Array = [4.75, 6.05, 0.0] if taiga_at == "door" else [8.5, 6.35, ZB]

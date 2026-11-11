@@ -34,7 +34,7 @@ for p in sorted(glob.glob(G + '/story/*.txt')):
         m = re.match(r'^\d+(\.\d+)?\s+(.*)$', s)
         if m: s = m.group(2)
         if s.startswith('＞'): continue
-        if s.startswith('？'): s = s[1:].strip()
+        if s.startswith('？') or s.startswith('◇'): s = s[1:].strip()
         elif not (s.startswith('［') or s.startswith('（')) and '：' in s:
             who, s = s.split('：', 1)
             who = who.rstrip('＊').split('→')[0]

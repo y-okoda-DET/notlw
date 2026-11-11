@@ -258,7 +258,7 @@ if __name__ == '__main__':
     import outside as OS, house4_ext as HX
     y1 = H4.Y(-1.5); zd = H4.ZG - .03
     boxes.append(dict(c=[St.DOOR_C, y1 + .32, (zd + HX.GZ) / 2 - .02], s=[1.5, math.hypot(.64, zd - HX.GZ), .04], ramp=1, rx=-math.atan2(zd - HX.GZ, .64)))
-    boxes += OS.walk_boxes() + OS.car_boxes()
+    boxes += OS.walk_boxes() + OS.car_boxes() + HX.back_porch_boxes()
     props = [[*St.TRIPOD_N, .18], [*St.FRESNEL, .25], [*St.APPLEBOX, .18]] + OS.tree_trunks()
     import wear as WR   # 段階2 使い込みの跡: Decals placed from the plan (Godot main.gd _wear)
     json.dump(dict(YF=St.YF, ZG=Hm.ZG, boxes=boxes, props=props, wear=WR.decals(), spawn=list(St.PLAYER), look=list(St.PLAYER_LOOK),

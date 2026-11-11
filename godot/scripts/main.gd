@@ -894,6 +894,7 @@ func _process(dt):
 		if t < 0.0: return
 	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
 	if not walkers.is_empty(): _walk_tick(dt)
+	if not torches.is_empty(): _aim_torches()
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -1207,14 +1208,15 @@ func _t20_people():
 			if scr and (scr.get_aabb().get_center() - c)[ax] > 0.0: n = -n   # n: out of the back
 			var up := Vector3.UP if abs(n.y) < 0.9 else Vector3.RIGHT
 			var sp := SpotLight3D.new(); sp.name = "torch"
-			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 2.0; sp.spot_range = 7.0; sp.spot_angle = 32.0
+			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 3.0; sp.spot_range = 8.0; sp.spot_angle = 34.0   # 試作97: 2.0; with the bulbs dark until the generator, the torches are the light (ユーザー「地下への階段真っ暗すぎる」)
 			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
 			sp.light_specular = 0.2
 			sp.transform = Transform3D(Basis.looking_at(n, up), c + n * 0.01)
 			ba.add_child(sp)
+			torches.append([sp, sk])
 			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
-			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.5
-			gl.omni_range = 1.0; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
+			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.025   # 試作97: 0.5 / 1.0 m (and still 0.12 / 0.6 m) lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
+			gl.omni_range = 0.45; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
 			gl.position = c - n * 0.06
 			ba.add_child(gl)
 		mv.free()
@@ -1223,6 +1225,19 @@ func _t20_people():
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)
 		S[k + "_col"] = col
 		place_person(k, T20[k].pos, T20[k].yaw)
+
+# 試作97: in the dark they hold the phone's torch down on the floor ahead of their feet, not out at the others: straight
+# out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
+var torches := []              # [SpotLight3D, Skeleton3D]
+const TORCH_DOWN := 32.0
+func _aim_torches():
+	for e in torches:
+		var sp = e[0]
+		if not is_instance_valid(sp) or not (sp as SpotLight3D).is_visible_in_tree(): continue
+		var f: Vector3 = (e[1] as Skeleton3D).global_basis * Vector3(0, 0, 1); f.y = 0.0
+		if f.length() < 0.01: continue
+		var a := deg_to_rad(TORCH_DOWN)
+		(sp as SpotLight3D).global_basis = Basis.looking_at(f.normalized() * cos(a) + Vector3.DOWN * sin(a), Vector3.UP)
 
 # 試作92: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
 # the ground speed (m/s, along the floor) the feet were made for
@@ -1248,6 +1263,38 @@ func _rig_of(k: String) -> Node3D:
 	return S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0].get_parent() as Node3D
 
 # walk k through plan points [x, y, z] (plan metres; z the floor's height); done() when there
+# 試作97 (ユーザー「大河、立ち姿が変。木材を持ってない」): the boards up from the cellar, carried as he carried the box at
+# dusk (his 第1章 movement: both hands under it), the box made a bundle of old shelf boards; the phone in his pocket
+var carried := {}
+func carry_boards(k: String, on: bool):
+	if not S.has(k + "_node"): return
+	var inst: Node3D = S[k + "_node"]
+	var ap: AnimationPlayer = inst.find_children("*", "AnimationPlayer", true, false)[0]
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	if not carried.has(k):
+		# where 第1章's box sat (export_dusk.py: 0.3 m before him, its middle 1.01 m up, 0.2 m tall): the planks lie on his palms
+		var b := Node3D.new(); b.name = "boards_carried"
+		sk.add_child(b)
+		b.position = Vector3(0.0, 0.91, 0.3)
+		var mat: Material = null
+		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+			mat = (mi as MeshInstance3D).get_active_material(0); if mat: break
+		for i in 4:
+			var pm := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.95 - i * 0.04, 0.022, 0.15)
+			pm.mesh = bm; pm.material_override = mat
+			pm.position = Vector3((i % 2) * 0.03 - 0.015, 0.011 + i * 0.023, (i % 2) * 0.01)
+			pm.rotation.y = (i - 1.5) * 0.025
+			b.add_child(pm)
+		carried[k] = b
+	(carried[k] as Node3D).visible = on
+	for ba in sk.find_children("*", "BoneAttachment3D", true, false):
+		if ba.find_child("torch", true, false): (ba as Node3D).visible = not on
+	var dusk := ""
+	for a in ap.get_animation_list():
+		if not (a.begins_with("t20/") or a.begins_with("walk/")): dusk = a; break
+	if on and dusk != "": ap.play(dusk, 0.5)
+	elif not on: ap.play("t20/loop", 0.5)
+
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return
 	var ap: AnimationPlayer = S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
@@ -1321,9 +1368,14 @@ func generator(on: bool):
 		if not (nm.contains("lamp_lobby") or nm.contains("lamp_cellar")): continue
 		for i in range(mi.get_surface_override_material_count()):
 			var m := mi.get_surface_override_material(i) as StandardMaterial3D
-			if m: m.emission_enabled = on
+			if m:
+				m.emission_enabled = on
+				# 試作97: unlit, the white glass in a phone's light still read as a bulb that was on (ユーザー「地下の電気、発電機が掛かる前からついてた？」)
+				if not m.has_meta("alb"): m.set_meta("alb", m.albedo_color)
+				m.albedo_color = m.get_meta("alb") if on else (m.get_meta("alb") as Color) * Color(0.3, 0.3, 0.3, 1.0)
 	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
-	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.3) if gi_mode == 0 else 0.0)
+	# 試作97: the 20:00 lightmap holds only the generator's bulbs and the storm's sky: off, almost nothing is left of it
+	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.04) if gi_mode == 0 else 0.0)
 
 # ------------------------------------------------------------------ 試作97: one stage (ステップ C)
 static var ONE := true

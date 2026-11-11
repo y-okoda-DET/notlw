@@ -60,6 +60,7 @@ static func _entry(ln: String, arg: String) -> Dictionary:
 	if sp > 0 and ln.substr(0, sp).is_valid_float(): e["t"] = float(ln.substr(0, sp)); ln = ln.substr(sp + 1).strip_edges()
 	if ln.begins_with("＞"): e["do"] = ln.substr(1).strip_edges(); return e
 	if ln.begins_with("［") or ln.begins_with("（"): e["note"] = ln; return e
+	if ln.begins_with("◇"): e["mission"] = ln.substr(1).strip_edges(); return e   # 試作97: what she set out to do (top left, stays)
 	var c := ln.find("：")
 	if c < 0: e["text"] = ln; return e
 	var who := ln.substr(0, c)
