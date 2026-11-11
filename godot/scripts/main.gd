@@ -1270,26 +1270,24 @@ func carry_boards(k: String, on: bool):
 	if not S.has(k + "_node"): return
 	var inst: Node3D = S[k + "_node"]
 	var ap: AnimationPlayer = inst.find_children("*", "AnimationPlayer", true, false)[0]
-	var box := inst.find_child("carrybox*", true, false) as MeshInstance3D
-	if box == null: return
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
 	if not carried.has(k):
+		# where 第1章's box sat (export_dusk.py: 0.3 m before him, its middle 1.01 m up, 0.2 m tall): the planks lie on his palms
 		var b := Node3D.new(); b.name = "boards_carried"
-		box.get_parent().add_child(b)
-		b.transform = Transform3D(box.transform.basis.orthonormalized(), box.transform.origin)
+		sk.add_child(b)
+		b.position = Vector3(0.0, 0.91, 0.3)
 		var mat: Material = null
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false):
 			mat = (mi as MeshInstance3D).get_active_material(0); if mat: break
-		var hb: float = box.transform.basis.get_scale().y   # the box's half height: the bundle sits where its floor was
 		for i in 4:
 			var pm := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.95 - i * 0.04, 0.022, 0.15)
 			pm.mesh = bm; pm.material_override = mat
-			pm.position = Vector3((i % 2) * 0.03 - 0.015, -hb + 0.011 + i * 0.023, (i % 2) * 0.01)
+			pm.position = Vector3((i % 2) * 0.03 - 0.015, 0.011 + i * 0.023, (i % 2) * 0.01)
 			pm.rotation.y = (i - 1.5) * 0.025
 			b.add_child(pm)
 		carried[k] = b
 	(carried[k] as Node3D).visible = on
-	box.visible = false
-	for ba in inst.find_children("*", "BoneAttachment3D", true, false):
+	for ba in sk.find_children("*", "BoneAttachment3D", true, false):
 		if ba.find_child("torch", true, false): (ba as Node3D).visible = not on
 	var dusk := ""
 	for a in ap.get_animation_list():
