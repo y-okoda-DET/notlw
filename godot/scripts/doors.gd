@@ -50,7 +50,12 @@ func setup(m):
 		# and the story's open_key left it so. An open door here is open all the way (the front door keeps its dusk angle)
 		if doors[mi].is_open and piv != main.door_pivot and key != "door_barred":
 			doors[mi].open = rest + signf(cur - rest) * deg_to_rad(92.0)
-			piv.rotation.y = doors[mi].open
+			# the cellar door: opened all the way the plans' way, its leaf lay over the stairwell (ユーザー「上るとき、ここに
+			# 板があるのは変」) and turned its 発電機 notice to the wall. It opens into the hall, and at dusk it is shut
+			if key == "door_cellar":
+				doors[mi].open = rest - signf(cur - rest) * deg_to_rad(92.0)
+				if main.TIME == "dusk": doors[mi].is_open = false
+			piv.rotation.y = doors[mi].open if doors[mi].is_open else rest
 	# a shut door opens to the side where the swept leaf meets the least (walls, furniture): the plans give no side
 	await get_tree().physics_frame
 	for mi in doors:

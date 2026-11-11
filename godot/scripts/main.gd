@@ -379,6 +379,10 @@ func _gi():
 		voxel_gi.global_position = b2g([(g0[0] + g1[0]) / 2.0, (g0[1] + g1[1]) / 2.0, (g0[2] + g1[2]) / 2.0])
 	if ARGS.has("bake"):
 		var t := Time.get_ticks_msec()
+		# 試作97: the voxels keep what glows when they are baked. 20:00 is the blackout: baked with the generator's bulbs
+		# lit, the cellar and the hall were lit before Mio started it (ユーザー「発電機を回すまで地下の電球が点いていた」).
+		# Its bulbs are dynamic lights, so once on they still bounce.
+		if SCENE == "house" and TIME == "t20": generator(false)
 		voxel_gi.bake(S.env_node, false)
 		var data := voxel_gi.data
 		data.energy = 1.0; data.propagation = 0.75; data.bias = 1.5; data.normal_bias = 0.0; data.interior = true; data.use_two_bounces = true
@@ -1197,8 +1201,20 @@ func _t20_people():
 			ap.stop(); sk.reset_bone_poses()
 			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); ap.add_animation_library("t20", lib); ap.play("t20/loop")
 		for ba in mv.find_children("*", "BoneAttachment3D", true, false):
+			# 試作97: the phone and its screen come in as bones of their own (k_t20phone, _scr: glTF made the hand's mesh
+			# children into bones). Moved onto the body's skeleton their index pointed at lowerarm_twist_r and neck_01: the
+			# screen stood out of the back of the neck (ユーザー「首の後ろに変な出っ張り」「スマホを持ってない」).
+			# Hang it from the nearest bone the body has, by the rest offsets up to it.
+			var msk := ba.get_parent() as Skeleton3D
+			var off := Transform3D.IDENTITY; var bi: int = ba.bone_idx
+			while msk and bi >= 0 and sk.find_bone(msk.get_bone_name(bi)) < 0:
+				off = msk.get_bone_rest(bi) * off; bi = msk.get_bone_parent(bi)
 			ba.get_parent().remove_child(ba); ba.owner = null
 			for c in ba.find_children("*", "", true, false): c.owner = null
+			if msk and bi >= 0:
+				ba.bone_name = msk.get_bone_name(bi)
+				for c in ba.get_children():
+					if c is Node3D: (c as Node3D).transform = off * (c as Node3D).transform
 			sk.add_child(ba)
 			# the torch on the phone's back, the screen's glow toward the face: which side the screen is on comes from where
 			# its plane sits on the body's thin axis (export_t20 bakes the phone into the hand bone's frame)
@@ -1218,13 +1234,13 @@ func _t20_people():
 			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 3.0; sp.spot_range = 8.0; sp.spot_angle = 34.0   # 試作97: 2.0; with the bulbs dark until the generator, the torches are the light (ユーザー「地下への階段真っ暗すぎる」)
 			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
 			sp.light_specular = 0.2
-			sp.transform = Transform3D(Basis.looking_at(n, up), c + n * 0.01)
+			sp.transform = body.transform * Transform3D(Basis.looking_at(n, up), c + n * 0.01)
 			ba.add_child(sp)
 			torches.append([sp, sk])
 			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
 			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.025   # 試作97: 0.5 / 1.0 m (and still 0.12 / 0.6 m) lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
 			gl.omni_range = 0.45; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
-			gl.position = c - n * 0.06
+			gl.position = body.transform * (c - n * 0.06)
 			ba.add_child(gl)
 		mv.free()
 		_walk_anims(k, inst)
