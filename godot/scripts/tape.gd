@@ -227,6 +227,9 @@ func _room_tick(dt: float):
 			var G: Array = B("テープ.案内")
 			note_lb.text = T(String(G[1].note if on_knob else G[0].note)) if (e > 0.2 or on_knob) else ""
 			osd.visible = tape_t < 4.0
+			if tape_t < 1.6:                     # the key pressed, her eyes go back up to the picture
+				var ku := 1.0 - exp(-dt * 4.0)
+				player.yaw = lerp_angle(player.yaw, 0.0, ku); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), ku)
 			osd_trk.text = ("トラッキング " + "-".repeat(int(trk * 16.0)) + "|" + "-".repeat(16 - int(trk * 16.0))) if on_knob else ""
 			var s := 54 + int(tape_t)
 			stamp.text = "AM 3:%02d:%02d" % [29 + s / 60, s % 60]
