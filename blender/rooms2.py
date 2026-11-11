@@ -455,10 +455,11 @@ def generator(M):
         # the owner's old tape on the panel: how to start it
         tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
         # 試作97: and a word on tape by each control (the same places as story.gd _gen_items)
-        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .17), ZB + .625), (-1, 0, 0), .075)
-        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .1), ZB + .625), (-1, 0, 0), .09)
-        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .385), (-1, 0, 0), .09)
-        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .52), (0, -1, 0), .075)
+        # 試作98: half as long again and more (ユーザー「テープの字は見えない」: 7-9 cm read as specks from where she stands)
+        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .64), (-1, 0, 0), .13)
+        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .64), (-1, 0, 0), .15)
+        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .37), (-1, 0, 0), .15)
+        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .52), (0, -1, 0), .13)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST
@@ -467,7 +468,7 @@ def generator(M):
                           # 試作97: on out between the boards and down to the ground (ユーザー「窓からホースが出てない」: in 96 it
                           # stopped inside the wall, behind the boards; Mio's testimony remembers it coming out)
                           (X(10.45), Y(6.45), ZB + .98), (X(10.75), Y(6.5), ZB + .82), (X(11.0), Y(6.58), ZB + .6),
-                          (X(11.35), Y(6.68), ZB + .5)], [.045] * 9, M['hose'], seg=12, sub=4)
+                          (X(11.35), Y(6.68), ZB + .5)], [.026] * 9, M['hose'], seg=12, sub=4)   # 試作98: .045 (9 cm) was too thick (ユーザー「太すぎる」)
 
 def cellar(M):
     z0 = ZB
@@ -530,7 +531,7 @@ def cellar(M):
     co = box('changeover', 6.06, 3.62, 6.17, 3.86, z0 + 1.18, z0 + 1.5, M['greypaint']); apply_bevel(co, .008, 2)
     box('changeover_lid', 6.17, 3.64, 6.178, 3.84, z0 + 1.2, z0 + 1.48, M['greypaint'])
     box('changeover_pivot', 6.12, 3.86, 6.15, 3.885, z0 + 1.36, z0 + 1.4, M['steel'])
-    lib.tube('changeover_lever', [(X(6.135), Y(3.885), z0 + 1.38), (X(6.135), Y(3.93), z0 + 1.3), (X(6.135), Y(3.94), z0 + 1.22)], [.007] * 3, M['plastic'], seg=8, sub=2)
+    # 試作98: the lever itself is Godot's (story.gd _changeover_lever): up until Mio throws it (ユーザー「上下に動くレバー付けますか」)
     cyl('changeover_conduit', 6.115, 3.74, z0 + 1.5, -.05, .012, M['greypaint'], 8)
     cyl('breaker_conduit', 6.09, 3.1, z0 + 1.7, -.05, .014, M['greypaint'], 8)
     # the bare bulb on its cord over the middle of the room (the generator's circuit)

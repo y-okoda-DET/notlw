@@ -403,6 +403,23 @@ func _fixed_cam():
 	# when it sits on the rail facing the hall (in 96 one dot floated 14 mm over the top, from the boxed stand-in)
 	var d := mk.call(dot, dm, Vector3(0.02, 0.053, -0.055)) as MeshInstance3D; d.name = "recdot"
 	var d2 := mk.call(dot, dm, Vector3(0.012, 0.046, 0.067)) as MeshInstance3D; d2.name = "recdot2"
+	# 試作98 (ユーザー「見えなかった。カメラの後ろ側にいると見えない？」): the two dots sat in the model's skin. They go
+	# where the model's box ends, 3 mm proud of it: the front over the lens, the back, and one on top that every side sees
+	var bb := AABB(); var first := true
+	for mi in fixed_cam.find_children("*", "MeshInstance3D", true, false):
+		if mi == d or mi == d2: continue
+		var tr := Transform3D.IDENTITY; var nd: Node = mi
+		while nd and nd != fixed_cam:
+			if nd is Node3D: tr = (nd as Node3D).transform * tr
+			nd = nd.get_parent()
+		var a: AABB = tr * (mi as MeshInstance3D).get_aabb()
+		bb = a if first else bb.merge(a); first = false
+	if not first:
+		var top := bb.end.y + 0.003; var cx := bb.get_center().x
+		d.position = Vector3(cx + bb.size.x * 0.3, top - 0.012, bb.position.z - 0.003)
+		d2.position = Vector3(cx + bb.size.x * 0.3, top - 0.012, bb.end.z + 0.003)
+		var d3 := mk.call(dot, dm, Vector3(cx + bb.size.x * 0.3, top, bb.end.z - 0.02)) as MeshInstance3D; d3.name = "recdot3"
+		(fixed_cam.get_node("rec") as OmniLight3D).position = Vector3(cx, top + 0.01, bb.get_center().z)
 	main.add_child(fixed_cam)
 	fixed_cam.global_position = g([-0.60, 3.85, 0.20 + 0.072])   # the middle of the apple box (at -.72, 3.81 it hung past the edge, 試作61)
 	fixed_cam.rotation.y = 0.6
@@ -1375,6 +1392,7 @@ func _house_ready():
 	if PLACED.is_empty(): fixed_cam.visible = false
 	else:
 		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
+	_changeover_lever()
 	items = {}
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
 	main.TALK = {}
@@ -1444,6 +1462,11 @@ func _house_tick(dt):
 		if gen.run_t > 14.0 and mode == FREE:
 			gen.run = false; gen.run_t = 0.0; talk_with = "taiga"
 			_start(B("発電機.かぶる"))
+	# 試作98: what she is to do with the radio comes up once she is by it (ユーザー「ラジオを触れる画面、触ってから表示させる」)
+	if hs == 4 and mode == FREE and not talked.has("radio_near") and items.has("radio") \
+			and (items.radio.pos as Vector3).distance_to(cam.global_position) < 2.2:
+		talked["radio_near"] = 1; talk_with = ""
+		_start(B("ラジオ.近く"))
 	if hs == 3 and pz > -0.3 and mode == FREE:
 		hs = 4; ch2 = true; mode = FREE
 		for k in items.keys(): if k.begins_with("g_"): items.erase(k)
@@ -1507,7 +1530,22 @@ func _gen_use(key: String):
 			if not gen.run or gen.choke: _start(B("切り替え.点かない")); return
 			if hs >= 3: _start(B("切り替え.もう下りている")); return
 			hs = 3; talk_with = "taiga"
+			if co_lever: create_tween().tween_property(co_lever, "rotation:x", 0.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 			_start(B("切り替え.点く"))
+
+# 試作98: the change-over switch's lever (ユーザー「上下に動くレバー付けますか。シナリオに合わせて下がる」): it hangs
+# from its pivot on the case's side (rooms2.py changeover_pivot), up before, down once she throws it
+var co_lever: Node3D
+func _changeover_lever():
+	co_lever = Node3D.new(); co_lever.name = "changeover_lever"
+	main.add_child(co_lever)
+	co_lever.global_position = gp(6.135, 3.9, ZB + 1.38)
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.08, 0.08, 0.08); m.roughness = 0.5
+	var arm := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.008; cm.bottom_radius = 0.008; cm.height = 0.16
+	arm.mesh = cm; arm.material_override = m; arm.position = Vector3(0, -0.08, 0); co_lever.add_child(arm)
+	var grip := MeshInstance3D.new(); var gm := CylinderMesh.new(); gm.top_radius = 0.013; gm.bottom_radius = 0.013; gm.height = 0.05
+	grip.mesh = gm; grip.material_override = m; grip.position = Vector3(0, -0.165, 0); co_lever.add_child(grip)
+	co_lever.rotation.x = PI if hs < 3 else 0.0
 
 func _gen_flicker():
 	# the bulbs come up unsteady on the engine (main.gd _house_flicker 'gen' keeps them breathing after)
@@ -1530,6 +1568,7 @@ func _house_conv(key: String, n: int) -> Array:
 			if hs == 5: return B("20時.夏希.板")
 			return B("20時.夏希.暗い" if hs <= 2 else "20時.夏希.点いた")
 		"makoto":
+			if hs == 5: return B("20時.真琴.板")
 			return B("20時.真琴.一回目" if n == 0 else "20時.真琴.二回目から")
 		"taiga":
 			if hs == 5 and wins_done < 3: return B("20時.大河.板.一階")

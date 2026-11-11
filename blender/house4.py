@@ -247,9 +247,7 @@ def cellar_shaft(M):
     yb = Y(2.5) + .06
     for xx in (5.05, 6.0):
         prim('cube', 'bar_bracket', loc=(X(xx), yb + .02, ZB + 1.05), scale=(.03, .03, .05), mat=M['black'] if 'black' in M else M['chrome'])
-    # 試作97: the bar is off, stood on end in the corner by the door (Taiga had been down to see the cellar that afternoon:
-    # 「玄関、裏、地下。全部見といた」). Across the opening it hung in the air once the door was open (ユーザー「地下の入口、謎の角材」)
-    bar = prim('cube', 'bar', loc=(X(5.0) + .07, yb + .08, ZB + .49), rot=(math.radians(12), 0, 0), scale=(.045, .03, .5), mat=M['agari']); lib.uv_box(bar, 1.25)
+    # 試作98: no bar at all (ユーザー「地下の入口、謎の角材。必要ないものならトル」; stood in the corner it was not seen either)
     return piv
 
 def build_house4(M, floors=('1F', '2F', 'B1')):

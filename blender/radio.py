@@ -53,17 +53,17 @@ def front_tex():
     d.text((X(DX0) + 4 * K, Z(zf) - 4 * K), 'FM', fill=ink, font=f_m, anchor='lb')
     d.text((X(DX1) - 3 * K, Z(zf) - 4 * K), 'MHz', fill=ink, font=f_m, anchor='rb')
     # AM row (lower): ticks standing up from the line, numbers under it (x10 kHz)
-    za = DZ0 + .0165   # 試作97: room under the line for the bigger numbers
+    za = DZ0 + .019   # 試作97/98: room under the line for the bigger numbers
     d.line([nx(0), Z(za), nx(1), Z(za)], fill=ink, width=max(1, int(3 * K)))
     # 試作97 (ユーザー「ラジオ、目盛りが少し見づらい」): the AM row is the one she tunes; its marks and numbers
     # were 3 px and 21 pt at this size, finer than the print's dots. Heavier ticks, bigger numbers, every 100 kHz.
-    f_a = ImageFont.truetype(FONT_SANS, int(29 * K))
+    f_a = ImageFont.truetype(FONT_SANS, int(35 * K))   # 試作98: 29 (ユーザー「見えるけど、まだ見づらい」)
     for khz in [531, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1602]:
         u = am_u(khz)
-        d.line([nx(u), Z(za), nx(u), Z(za) + 15 * K], fill=ink, width=max(1, int(5 * K)))
+        d.line([nx(u), Z(za), nx(u), Z(za) + 15 * K], fill=ink, width=max(1, int(7 * K)))
         lab = {531: '53', 1602: '160'}.get(khz, str(khz // 10))
         if khz not in (600, 800, 1000, 1200, 1400, 1602): continue   # the others: a tick only, room for the numbers
-        d.text((nx(u), Z(za) + 17 * K), lab, fill=ink, font=f_a, anchor='mt')
+        d.text((nx(u), Z(za) + 17 * K), lab, fill=ink, font=f_a, anchor='mt', stroke_width=int(1.5 * K), stroke_fill=ink)
     for khz in range(560, 1600, 20):
         d.line([nx(am_u(khz)), Z(za), nx(am_u(khz)), Z(za) + 8 * K], fill=ink, width=max(1, int(3 * K)))
     d.text((X(DX0) + 4 * K, Z(za) + 4 * K), 'AM', fill=ink, font=f_m, anchor='lt')

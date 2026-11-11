@@ -906,6 +906,7 @@ func _process(dt):
 	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
 	if not walkers.is_empty(): _walk_tick(dt)
 	if not torches.is_empty(): _aim_torches()
+	if not carried.is_empty(): _carry_tick()
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -1318,6 +1319,24 @@ func carry_boards(k: String, on: bool):
 		if not (a.begins_with("t20/") or a.begins_with("walk/")): dusk = a; break
 	if on and dusk != "": ap.play(dusk, 0.5)
 	elif not on: ap.play("t20/loop", 0.5)
+
+# 試作98 (ユーザー「板、手との接合があってない」): the bundle rides on his palms, between the two hands, every frame
+func _carry_tick():
+	for k in carried:
+		var b := carried[k] as Node3D
+		if not b.visible: continue
+		var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+		var il := sk.find_bone("hand_l"); var ir := sk.find_bone("hand_r")
+		if il < 0 or ir < 0: continue
+		var hl: Vector3 = sk.global_transform * sk.get_bone_global_pose(il).origin
+		var hr: Vector3 = sk.global_transform * sk.get_bone_global_pose(ir).origin
+		var across := hr - hl; across.y = 0.0
+		if across.length() < 0.05: continue
+		var fwd := across.normalized().cross(Vector3.UP)
+		if fwd.dot(sk.global_basis * Vector3(0, 0, 1)) < 0.0: fwd = -fwd
+		var x := across.normalized()
+		b.global_basis = Basis(x, Vector3.UP, x.cross(Vector3.UP))
+		b.global_position = (hl + hr) * 0.5 + fwd * 0.02 + Vector3.UP * 0.035
 
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return
