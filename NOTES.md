@@ -36,7 +36,10 @@
 ## Godot
 - glb は書き出し時に（同じ骨の名前なので）全員分のアクションを抱える。Godot 側は `<人物>_rig` で始まる名前のアニメーションを選ぶ（main.gd `_load_scene`）。名前順の先頭を再生すると全員が桐生の動きになる（試作９までそうなっていた）。書き出しは `export_animation_mode='ACTIVE_ACTIONS'`。
 - 書き出した pck ではもとの .glb は入っておらず、`FileAccess.file_exists` は偽になる。リソースの有無は `ResourceLoader.exists` で見る。
-- フォントは `load("res://fonts/SerifJP-Bold.otf")`。`FontFile.load_dynamic_font` は書き出した版で失敗する。
+- フォントは scripts/type.gd からだけ読む（`Type.say()`＝BIZ UD明朝 Bold：画の上の文字、`Type.card()`・`Type.title(fs)`＝しっぽり明朝 B1：カードの上、`Type.cam()`＝ドットゴシック16：カメラの表示。決まりは docs/フォント設計.md、2026-11-11）。読み込みは `load("res://fonts/…ttf")`（取り込んだリソース）。`FontFile.load_dynamic_font` は書き出した版で失敗する。
+- 画の上の文字の影（type.gd の Soft）：Label の影はぼかせないので、Label の子（show_behind_parent）が同じ行を `draw_string_outline` で太さを変えて9回薄く重ね、ぼかした影に見せる。行の位置は Label と同じ計算（行の高さ＋line_spacing、揃え）を自前でしている。Label に autowrap を使うと行の切れ目が分からず影がずれる（いまは全部、改行を入れた文字を渡している）。濃さは RINGS の2つ目の数。
+- 章の名前の長体は、フォントでなく Label の scale.x（0.85、中心を軸）でかけている。字間は FontVariation.spacing_glyph（px）。
+- 内側のクラスから外のスクリプトの static var は見えない（Parse Error: not declared）。内側のクラスに置く。
 - 人物のテクスチャは .import で `size_limit=2048` にして zip を 400MiB 以下に収める（インポート後に新しい .import が size_limit=0 で生まれるので確認する）。
 - 確認は必ず書き出した pck で：`$G --main-pack RULES.pck --write-movie ... -- --record=walk --scene=...`。
 - `--record=still` は止まらず 18 秒録る。`--write-movie` のファイル名の末尾が数字だと番号が連結される（`r0_.png` のように末尾を記号にする）。

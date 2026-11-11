@@ -17,13 +17,14 @@
 ## "……" where the signal dropped, （雑音） between stations. Tuned dead on, one thing never comes through: the name of
 ## the place. The same hand on the same kind of dial gets the tape to speak in 第11章.
 extends Node
+const Type = preload("res://scripts/type.gd")
 
 var main            # main.gd
 var player
 var ink := Color(0.0, 0.2, 0.42)
 var paper := Color(0.945, 0.925, 0.875)
 var u := 1.0
-var font: FontFile
+var font: Font
 
 # ---------------------------------------------------------------- the set (Blender metres; main.b2g maps to Godot)
 const DOOR_C := 0.2
@@ -94,7 +95,7 @@ var t_now := 0.0
 
 func _ready():
 	player = main.player
-	font = load("res://fonts/SerifJP-Bold.otf")
+	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	if house:
 		_house_ready()
@@ -210,17 +211,13 @@ static func _kan(n: int) -> String:
 	return ("" if n / 100 == 1 else d[n / 100]) + "百" + (_kan(n % 100) if n % 100 > 0 else "")
 
 # ================================================================ the page
-func _label(size: float, col := Color(0, 0, 0, 0)) -> Label:
+func _label(size: float, col := Color(0, 0, 0, 0), shadow := true) -> Label:
 	var lb := Label.new()
 	lb.add_theme_font_override("font", font)
 	lb.add_theme_font_size_override("font_size", int(size * u))
 	lb.add_theme_color_override("font_color", paper if col.a == 0.0 else col)
-	# the blue plate a little off register behind the knocked-out type
-	lb.add_theme_color_override("font_shadow_color", Color(0.0, 0.33, 0.6, 0.9))
-	lb.add_theme_constant_override("shadow_offset_x", int(max(2.0, 2.5 * u)))
-	lb.add_theme_constant_override("shadow_offset_y", int(max(1.0, 1.5 * u)))
-	lb.add_theme_color_override("font_outline_color", Color(0.0, 0.26, 0.5, 0.75))   # a trap of blue round the type: it reads on the paper-white parts of the frame too
-	lb.add_theme_constant_override("outline_size", int(max(2.0, 5.0 * u)))
+	# no outline, no hard shadow: a wide thin pool of the print's darkest ink under the line (type.gd, docs/フォント設計.md)
+	if shadow: Type.soft(lb, u)
 	lb.autowrap_mode = TextServer.AUTOWRAP_OFF
 	lb.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # translated by T() before it is set (typed text is partial)
 	return lb
@@ -261,7 +258,7 @@ func _page():
 
 # one line: kind "say" (said in the hall: centred), "testimony" (her answer, months later: top left), "note" (the
 # bracketed stage note), "choose" (what she could say). Typed in by _type() so a centred line does not slide as it grows.
-const SAY_SIZE := 30.0
+const SAY_SIZE := 32.0   # ユーザー 2026-11-11: 32 is the default (46 and 42 were too loud for the picture)
 func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Array:
 	var tes := kind == "testimony"
 	var box: VBoxContainer = tes_box if tes else lines_box
@@ -274,7 +271,7 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		row.add_child(rule)
 	elif who != "" and kind == "say" and (who in offscreen or not named.has(who) or who != last_who):
 		named[who] = true
-		var w := _label(20); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
 	var sz := 26.0 if tes else size
 	var t := _label(sz); t.text = _wrap_row(Tw(text), sz)
@@ -324,8 +321,7 @@ func _board():
 	board_layer.add_child(board_rect)
 	board_layer.visible = false
 	# 試作97: what she is to do now, written in the board's margin in its blue ink
-	board_note = _label(22); board_note.add_theme_color_override("font_color", Color(0.0, 0.33, 0.6))
-	board_note.add_theme_constant_override("shadow_offset_x", 0); board_note.add_theme_constant_override("shadow_offset_y", 0)
+	board_note = _label(22, Color(0.0, 0.33, 0.6), false)   # ink on the board's paper: no shadow under it
 	board_note.anchor_left = 0.05; board_note.anchor_right = 0.95; board_note.anchor_top = 0.9; board_note.anchor_bottom = 0.98
 	board_rect.add_child(board_note)
 
@@ -356,10 +352,10 @@ class FinderFrame extends Control:
 		draw_rect(Rect2(0, 0, s.x, y0), bez); draw_rect(Rect2(0, y0 + h, s.x, s.y - y0 - h), bez)
 		draw_rect(Rect2(0, y0, x0, h), bez); draw_rect(Rect2(x0 + w, y0, s.x - x0 - w, h), bez)
 		var lc := Color(0.92, 0.92, 0.88)
-		var fs := int(30 * u)
+		var fs := int(32 * u)   # DotGothic16: the camera's own marks, at twice its 16 px grid
 		draw_string(fnt, Vector2(x0 + 26 * u, y0 + 46 * u), "● REC" if rec else "STBY", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.35, 0.15) if rec else lc)
 		draw_string(fnt, Vector2(x0 + w - 230 * u, y0 + 46 * u), tc, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, lc)
-		draw_string(fnt, Vector2(x0 + 26 * u, y0 + h - 24 * u), "WIDE", HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * u), lc)
+		draw_string(fnt, Vector2(x0 + 26 * u, y0 + h - 24 * u), "WIDE", HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * u), lc)
 		# the battery, three bars
 		var bx := x0 + w - 110 * u; var by := y0 + h - 48 * u
 		draw_rect(Rect2(bx, by, 70 * u, 28 * u), lc, false, 2.0 * u)
@@ -371,7 +367,7 @@ class FinderFrame extends Control:
 
 func _finder():
 	finder_layer = CanvasLayer.new(); finder_layer.layer = 8; add_child(finder_layer)
-	var f := FinderFrame.new(); f.fnt = font; f.u = u
+	var f := FinderFrame.new(); f.fnt = Type.cam(); f.u = u
 	f.set_anchors_preset(Control.PRESET_FULL_RECT); f.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	finder_layer.add_child(f); finder_ui = f
 	finder_layer.visible = false
@@ -770,7 +766,6 @@ func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
 		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.38))
-		lb.add_theme_color_override("font_shadow_color", Color(0.0, 0.33, 0.6, 0.9 if i == choice_idx else 0.3))
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
@@ -1176,7 +1171,7 @@ func _radio_power(on: bool):
 
 func _card2():
 	# the second chapter's door, set as the first (main.gd make_card)
-	card2 = main.make_card(self, [["第 二 章", 46, 40], ["「籠城」", 150, 90], ["最初に、おかしいと思ったのは、いつですか？", 36, 0]], font)
+	card2 = main.make_card(self, [["第 二 章", 46, 40], ["籠城", 150, 90], ["最初に、おかしいと思ったのは、いつですか？", 36, 0]], Type.card())
 	card2.visible = false
 
 func _begin_ch2():

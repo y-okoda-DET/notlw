@@ -48,7 +48,7 @@ VoxelGI の焼き込み（gi.res、約6MB）も、確認画（close.py）も、�
 確かめ方：Godot の起動ログに `Forward+` と出ること、build のあと assets/gi.res と assets/dusk/gi.res が数MBあること。
 
 ## 4. フォント
-Noto Serif CJK（`fonts-noto-cjk`）。`godot/fonts/SerifJP-Bold.otf` は使う文字だけ抜き出したもの。
+ゲームの画面の書体は3つ（しっぽり明朝 B1、BIZ UD明朝 Bold、ドットゴシック16。docs/フォント設計.md）。`godot/fonts/*.ttf` は使う文字だけ抜き出したもので、リポジトリに入っている。元のフォントは make_subset.py が Google Fonts から $WORK/fonts_src に落とす（fonttools が要る：`pip install fonttools`）。Noto（`fonts-noto-cjk`、`fonts-noto-cjk-extra`）は、Blender 側で物に刷る文字（ラジオ、カレンダー、貼り紙）に使う。
 文字を増やしたら `python3 godot/fonts/make_subset.py` で作り直す（godot/scripts/*.gd の中の " " で囲んだ文字をすべて入れる。2026-11-01 から。それまでは main.gd と player.gd だけだった）。
 
 ## 5. パス

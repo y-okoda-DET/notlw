@@ -37,7 +37,7 @@ func _ready():
 	while D.has("扉.見る%d" % n):
 		var l: Array = D.lines("扉.見る%d" % n); DOOR_LOOKS.append(l[0] if l.size() == 1 else l); n += 1
 	player = main.player
-	font = load("res://fonts/SerifJP-Bold.otf")
+	font = Type.say()
 	offscreen = ["ラジオ", "夏希"]   # behind the door
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	_page()
@@ -75,7 +75,7 @@ func _end_card():
 # It cuts in over the hall, as the chapter cards do.
 func _show_end():
 	end_card = main.make_card(self, [["「扉を開けなかったのは、なぜですか？」", 64, 60, ""],
-		[T("（沈黙・%s秒）") % num(int(round(silent_total))), 52, 0, "澪"]], font, false)
+		[T("（沈黙・%s秒）") % num(int(round(silent_total))), 52, 0, "澪"]], Type.card(), false)
 	page.visible = false
 
 func _process(dt):

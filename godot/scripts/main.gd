@@ -3,6 +3,7 @@
 ## C camera 12 / 18 / 12+slide / smooth, G GI, Q quality, P print on/off, Esc release mouse, F11 fullscreen.
 ## Unattended recording: godot --path . --write-movie out.png --fixed-fps 24 -- --record=walk
 extends Node3D
+const Type = preload("res://scripts/type.gd")
 
 var CARD_TIME := 3.2
 const LOOP := 20.0
@@ -765,7 +766,7 @@ func _status(changed: String):
 		note.add_theme_stylebox_override("panel", sb)
 		note_label = RichTextLabel.new(); note_label.bbcode_enabled = true; note_label.fit_content = true
 		note_label.autowrap_mode = TextServer.AUTOWRAP_OFF; note_label.scroll_active = false
-		var font: FontFile = load("res://fonts/SerifJP-Bold.otf")   # the imported resource (load_dynamic_font fell back to a system sans on Windows)
+		var font: Font = Type.say()   # the imported resource (load_dynamic_font fell back to a system sans on Windows)
 		var u: float = get_viewport().get_visible_rect().size.y / 1080.0
 		note_label.add_theme_font_override("normal_font", font); note_label.add_theme_font_size_override("normal_font_size", int(24 * u))
 		note_label.add_theme_color_override("default_color", Color(0.0, 0.2, 0.42))
@@ -817,11 +818,14 @@ static func make_card(parent: Node, rows: Array, font: Font, centred := true) ->
 	c.set_anchors_preset(Control.PRESET_FULL_RECT); c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(c)
 	var total := 0.0
+	var small := font
 	for r in rows: total += font.get_height(int(r[1] * u)) + r[2] * u
 	var y: float = (vs.y - total) / 2.0
 	for r in rows:
 		var fs := int(r[1] * u)
-		var h: float = font.get_height(fs)
+		var name: bool = centred and r[1] >= Type.TITLE_FROM   # a chapter's name: lighter, no brackets, 長体 (docs/フォント設計.md)
+		font = Type.title(fs) if name else small
+		var h: float = small.get_height(fs)
 		var x := 0.0
 		if not centred:
 			x = 420.0 / 1920.0 * vs.x
@@ -834,6 +838,9 @@ static func make_card(parent: Node, rows: Array, font: Font, centred := true) ->
 			var lb := _card_label(String(TranslationServer.translate(String(r[0]))).replace("\u200b", ""), fs, font, CARD_GHOST if k == 0 else CARD_INK)
 			if centred: lb.size.x = vs.x; lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lb.position = Vector2(x, y) + (Vector2(-3, 4) * u if k == 0 else Vector2.ZERO)
+			if name:
+				lb.position.x += Type.TITLE_TRACK * fs * 0.5          # the tracking after the last letter is not part of the word
+				lb.pivot_offset = Vector2(vs.x / 2.0, 0); lb.scale.x = Type.TITLE_SQUEEZE
 			c.add_child(lb)
 		y += h + r[2] * u
 	var grain := ColorRect.new(); grain.set_anchors_preset(Control.PRESET_FULL_RECT); grain.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -850,12 +857,12 @@ static func _card_label(text: String, fs: int, font: Font, col: Color) -> Label:
 
 var foot: Label
 func _card():
-	var font: FontFile = load("res://fonts/SerifJP-Bold.otf")   # the imported resource (load_dynamic_font fell back to a system sans on Windows)
+	var font: Font = Type.say()
 	var u: float = get_viewport().get_visible_rect().size.y / 1080.0
 	var rows := [["二十三時", 52, 0]]
 	if SCENE == "house": rows = [[String(TIME_LABEL.get(TIME, TIME)), 52, 0]]
-	if SCENE == "dusk" or play == "ch1": rows = [["第 一 章", 46, 40], ["「ルール」", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
-	card = make_card(self, rows, font)
+	if SCENE == "dusk" or play == "ch1": rows = [["第 一 章", 46, 40], ["ルール", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
+	card = make_card(self, rows, Type.card())
 	# the keys: not on the card (the card is the interviewer's), but along the top once the scene has begun
 	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
 	foot = Label.new()
@@ -863,10 +870,10 @@ func _card():
 	if SCENE == "house" and play == "": foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｔ 時刻　Ｎ 場面　Ｇ 照り返し　Ｐ 刷り　－／＝ 刷りの明るさ　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif door_scene: foot.text = "ＷＡＳＤ 歩く　マウス 見る　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
 	elif story: foot.text = "ＷＡＳＤ 歩く　マウス 見る　Ｅ（左クリック） 調べる・話す・次へ　Ｗ／Ｓ 言葉を選ぶ　Tab 絵コンテ　右クリック（押したまま） カメラをのぞく　　Ｎ 場面　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放"
-	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(19 * u))
+	foot.add_theme_font_override("font", font); foot.add_theme_font_size_override("font_size", int(18 * u))
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	foot.add_theme_color_override("font_color", CARD_INK)
-	foot.add_theme_color_override("font_outline_color", CARD_BG); foot.add_theme_constant_override("outline_size", int(6 * u))
+	Type.soft(foot, u)
 	foot.anchor_left = 0.05; foot.anchor_top = 0.025; foot.anchor_right = 0.95; foot.anchor_bottom = 0.1
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	foot.text = String(TranslationServer.translate(foot.text)).replace("\u200b", "")
@@ -875,7 +882,7 @@ func _card():
 	var fl := ""; var fout := ""
 	for item in foot.text.split("　", false):
 		var cand: String = item if fl == "" else fl + "　" + item
-		if fl != "" and font.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * u)).x > fw:
+		if fl != "" and font.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * u)).x > fw:
 			fout += fl + "\n"; fl = item
 		else: fl = cand
 	foot.text = fout + fl
@@ -984,7 +991,7 @@ func _camcorder_lcd():
 	if nrm.size() > 0 and n.dot(gt.basis * nrm[0]) < 0: n = -n
 	var up := Vector3.UP - n * n.dot(Vector3.UP); up = up.normalized()
 	var lab := Label3D.new()
-	lab.pixel_size = 0.00015; lab.font_size = 40; lab.outline_size = 0
+	lab.font = Type.cam(); lab.pixel_size = 0.000125; lab.font_size = 48; lab.outline_size = 0   # the camera's own type (DotGothic16 at three times its grid)
 	lab.modulate = Color(0.92, 0.92, 0.88); lab.shaded = false; lab.double_sided = false
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_child(lab)

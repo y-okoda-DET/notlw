@@ -3,6 +3,7 @@
 ## collision that turns with it; E on a door within reach swings it shut or open. Doors that will not open say so, in
 ## the same small serif line at the bottom left that names what you look at in the story scenes.
 extends Node
+const Type = preload("res://scripts/type.gd")
 
 const REACH := 1.9
 const SWING := 0.7          # seconds
@@ -15,14 +16,13 @@ var t := 0.0
 
 func setup(m):
 	main = m
-	var font: FontFile = load("res://fonts/SerifJP-Bold.otf")
+	var font: Font = Type.say()
 	var layer := CanvasLayer.new(); layer.layer = 13; add_child(layer)
 	label = Label.new(); label.add_theme_font_override("font", font)
 	var u: float = main.get_viewport().get_visible_rect().size.y / 1080.0
 	label.add_theme_font_size_override("font_size", int(26 * u))
 	label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.86))
-	label.add_theme_color_override("font_outline_color", Color(0.0, 0.2, 0.42, 0.85))
-	label.add_theme_constant_override("outline_size", int(6 * u))
+	Type.soft(label, u)
 	label.position = Vector2(60 * u, main.get_viewport().get_visible_rect().size.y - 150 * u)
 	layer.add_child(label)
 	var ST: Dictionary = main.ST

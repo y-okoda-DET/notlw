@@ -2,18 +2,18 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://dxl1xmspwx1xm"
-path="res://.godot/imported/SerifJP-Bold.otf-d21d87cfaf55a257c3afbaddb313b1c1.fontdata"
+uid="uid://c7s20c8c2p126"
+path="res://.godot/imported/DotGothic16-Regular.ttf-c75b265808b272d688d3f458275835cc.fontdata"
 
 [deps]
 
-source_file="res://fonts/SerifJP-Bold.otf"
-dest_files=["res://.godot/imported/SerifJP-Bold.otf-d21d87cfaf55a257c3afbaddb313b1c1.fontdata"]
+source_file="res://fonts/DotGothic16-Regular.ttf"
+dest_files=["res://.godot/imported/DotGothic16-Regular.ttf-c75b265808b272d688d3f458275835cc.fontdata"]
 
 [params]
 
 Rendering=null
-antialiasing=1
+antialiasing=0
 generate_mipmaps=false
 disable_embedded_bitmaps=true
 multichannel_signed_distance_field=false

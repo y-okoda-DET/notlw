@@ -28,6 +28,9 @@ func _ready():
 	m.set_script(load("res://ov_main.gd"))
 	add_child(m)   # under this scene, so that the game's reload_current_scene comes back through here
 GD
+# フォント（pck に無い新しい書体も試せるように。.import は Godot に作らせる）
+mkdir -p $O/fonts; cp $S/fonts/*.ttf $S/fonts/*.ttf.import $O/fonts/ 2>/dev/null || true
 N=$(cd $S/scripts && ls *.gd | sed 's/\.gd$//' | tr '\n' '|' | sed 's/|$//')
 for f in $S/scripts/*.gd; do sed -E "s#res://scripts/($N)\.gd#res://ov_\1.gd#g" $f > $O/ov_$(basename $f); done
+$GODOT --headless --path $O --import >/dev/null 2>&1 || true
 echo $O
