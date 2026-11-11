@@ -1216,6 +1216,7 @@ func _t20_people():
 				for c in ba.get_children():
 					if c is Node3D: (c as Node3D).transform = off * (c as Node3D).transform
 			sk.add_child(ba)
+			if msk and bi >= 0: ba.bone_idx = sk.find_bone(ba.bone_name)   # the index wins over the name when it binds
 			# the torch on the phone's back, the screen's glow toward the face: which side the screen is on comes from where
 			# its plane sits on the body's thin axis (export_t20 bakes the phone into the hand bone's frame)
 			var body: MeshInstance3D = null; var scr: MeshInstance3D = null
