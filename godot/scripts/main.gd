@@ -1270,7 +1270,7 @@ func carry_boards(k: String, on: bool):
 	if not S.has(k + "_node"): return
 	var inst: Node3D = S[k + "_node"]
 	var ap: AnimationPlayer = inst.find_children("*", "AnimationPlayer", true, false)[0]
-	var box := inst.find_child("carrybox", true, false) as MeshInstance3D
+	var box := inst.find_child("carrybox*", true, false) as MeshInstance3D
 	if box == null: return
 	if not carried.has(k):
 		var b := Node3D.new(); b.name = "boards_carried"
@@ -1370,7 +1370,11 @@ func generator(on: bool):
 		if not (nm.contains("lamp_lobby") or nm.contains("lamp_cellar")): continue
 		for i in range(mi.get_surface_override_material_count()):
 			var m := mi.get_surface_override_material(i) as StandardMaterial3D
-			if m: m.emission_enabled = on
+			if m:
+				m.emission_enabled = on
+				# 試作97: unlit, the white glass in a phone's light still read as a bulb that was on (ユーザー「地下の電気、発電機が掛かる前からついてた？」)
+				if not m.has_meta("alb"): m.set_meta("alb", m.albedo_color)
+				m.albedo_color = m.get_meta("alb") if on else (m.get_meta("alb") as Color) * Color(0.3, 0.3, 0.3, 1.0)
 	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
 	# 試作97: the 20:00 lightmap holds only the generator's bulbs and the storm's sky: off, almost nothing is left of it
 	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.04) if gi_mode == 0 else 0.0)
