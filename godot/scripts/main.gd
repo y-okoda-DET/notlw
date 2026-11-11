@@ -1465,9 +1465,9 @@ func _ch1_set():
 	# 試作98 (ユーザー「木、一気に黒くなりすぎ？」, behind the house): the cedars in the house's long shadow had only the
 	# ambient and went black at its edge. The dusk sky still lights them from above: a fill that only they get (layer 4)
 	var sky_fill := DirectionalLight3D.new(); sky_fill.name = "sugi_sky"
-	sky_fill.light_color = Color(0.78, 0.82, 0.95); sky_fill.light_energy = 0.35; sky_fill.shadow_enabled = false
+	sky_fill.light_color = Color(0.78, 0.82, 0.95); sky_fill.light_energy = 0.45; sky_fill.shadow_enabled = false
 	sky_fill.light_specular = 0.0; sky_fill.light_volumetric_fog_energy = 0.0; sky_fill.light_cull_mask = 4
-	sky_fill.rotation = Vector3(deg_to_rad(-65), deg_to_rad(40), 0)
+	sky_fill.rotation = Vector3(deg_to_rad(-25), deg_to_rad(200), 0)
 	add_child(sky_fill)
 	for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 4
 	# the camcorder on its tripod stands 23 cm nearer the stair at dusk (stage.TRIPOD_D / TRIPOD_N): Kiryu is behind it
