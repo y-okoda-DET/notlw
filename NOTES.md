@@ -367,3 +367,12 @@
 - 倒れる動きは歩きのクリップに無いので、当たった瞬間の姿勢から骨を回す（fps.gd _capture、_pose。角度は彼女の軸で、親の骨に運ばせる）。傷を押さえる手は SkeletonModifier3D の二骨 IK（fps.gd Hold）。
 - 骨で体を寝かせるときは MeshInstance3D.extra_cull_margin を足す（立った箱の外に出ると描かれなくなる）。
 - 通しの動画は1本ずつ撮る（2本並べると1本が50分の上限を超えて止められた）。背景のコマンドで終わりを待つときは、ログではなく Godot の log.txt を見る。
+
+## 試作97の感想を直して分かったこと（試作98、2026-11-12）
+- BoneAttachment3D は bone_name より bone_idx を先に使う。別の glTF の骨（スマホの骨）を人の骨格へ付け替えたとき、元の番号（44・45）が人の骨格では lowerarm_twist_r と neck_01 を指し、スマホと画面が首の後ろに出た。付け替えたら add_child のあとで `ba.bone_idx = sk.find_bone(ba.bone_name)` を入れ直す（main.gd _t20_people）。
+- VoxelGI は焼いたときに光っている物（電球の emission）を覚える。20時の停電の家を電球が点いたまま焼くと、発電機を回す前から地下と廊下が明るい。焼く前に generator(false)（main.gd _gi）。.gd を変えると build は8つの GI を全部焼き直す（1つ約30分）。
+- この作業環境でも VoxelGI は映る（Vulkan llvmpipe）。確認画は `GARGS="--gi=voxel" python3 godot/check/usershots.py …`（usershots は既定が --gi=baked）。
+- 刷りなしの画：at2.gd を `--print=0` で回すと形が読める（probe8/run2.sh、PRINTV=0）。刷りの網点では穴や抜けが影と見分けられない。
+- 家の下の地面の穴（outside.py _ground_points、cut_house）：輪郭の点が「15 cm より近い点を落とす」で 50 cm の格子に負けて消え、穴が格子の三角形に沿って壁の外まで開いていた（東の、地面が下がる側で最大約50 cm。裏のポーチの下から空が透けた）。輪郭を 25 cm ごとに必ず残し、輪郭の内と 20 cm 以内の点を消してから三角形を張る。確かめ方：Delaunay の三角形で、残す物が輪郭の内に入らず、消す物が輪郭の外に出ないこと（どちらも 0。前は 24 と 16）。
+- 皮を張った人の部品は、休みの姿勢の箱で描くかどうかを決める。カメラで見下ろすと頭の箱が画面から外れ、頭が消えた。人の MeshInstance に extra_cull_margin = 1.0（main.gd、fps.gd も同じ手）。
+- 第1章の夕方、家の長い影に入った杉は ambient だけで黒く沈んだ。杉だけ（layers 4）に影なしの空の明かり sugi_sky（0.35）を足す（main.gd _ch1_set）。

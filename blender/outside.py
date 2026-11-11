@@ -150,12 +150,20 @@ def _ground_points(cut_house):
     for road, offs in ((G.ROAD, (-G.ROAD.hw - .5, -G.ROAD.hw, G.ROAD.hw, G.ROAD.hw + .5)), (G.DRIVE, (-G.DRIVE.hw, G.DRIVE.hw))):
         idx = np.arange(0, len(road.s), 2)
         for o in offs: pts.append(road.P[idx] + road.N[idx] * o)
-    if cut_house:
-        for a in np.arange(0, 1.0001, .05):
-            pts += [np.array([[G.HX0 + a * (G.HX1 - G.HX0), G.HYN], [G.HX0 + a * (G.HX1 - G.HX0), G.HYS],
-                              [G.HX0, G.HYN + a * (G.HYS - G.HYN)], [G.HX1, G.HYN + a * (G.HYS - G.HYN)]])]
     P2 = np.concatenate(pts)
     P2 = P2[np.hypot(P2[:, 0] - C[0], P2[:, 1] - C[1]) < SKY_R + 2]
+    edge = None
+    if cut_house:
+        # 試作98 (ユーザー「外、このへん描画が崩れる」, under the back porch): the outline's points were thinned away by the
+        # 15 cm rule below in favour of the 50 cm grid, so the hole under the house followed the grid's triangles, not the
+        # walls, and gaped up to half a metre past the foundation on the east, where the ground falls: the sky showed
+        # through it. Now the outline is kept, every 25 cm, and nothing else lies inside it or within 20 cm of it
+        ex = np.linspace(G.HX0, G.HX1, max(2, int(np.ceil((G.HX1 - G.HX0) / .25)) + 1))
+        ey = np.linspace(G.HYN, G.HYS, max(2, int(np.ceil((G.HYS - G.HYN) / .25)) + 1))
+        edge = np.unique(np.round(np.concatenate([np.c_[ex, np.full_like(ex, G.HYN)], np.c_[ex, np.full_like(ex, G.HYS)],
+                                                  np.c_[np.full_like(ey, G.HX0), ey], np.c_[np.full_like(ey, G.HX1), ey]]), 3), axis=0)
+        dx = np.maximum(np.maximum(G.HX0 - P2[:, 0], P2[:, 0] - G.HX1), 0); dy = np.maximum(np.maximum(G.HYN - P2[:, 1], P2[:, 1] - G.HYS), 0)
+        P2 = P2[np.hypot(dx, dy) > .2]
     P2 = np.unique(np.round(P2, 2), axis=0)
     # no point a hair from another (the triangulation makes slivers): drop the later of any pair closer than 15 cm
     from scipy.spatial import cKDTree
@@ -163,7 +171,8 @@ def _ground_points(cut_house):
     for i, j in kd.query_pairs(.15):
         if i not in drop: drop.add(j)
     keep = np.ones(len(P2), bool); keep[list(drop)] = False
-    return P2[keep]
+    P2 = P2[keep]
+    return P2 if edge is None else np.concatenate([P2, edge])
 
 def ground(M, cut_house):
     from scipy.spatial import Delaunay

@@ -258,6 +258,9 @@ func _load_scene(path: String, key: String):
 		# the generated clothes are single shells: seen through a collar or a cuff, culled back faces read as black holes
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			var m3 := mi as MeshInstance3D
+			# 試作98 (ユーザー「カメラで覗いて見下ろすと、キャラの首がなくなる」): a skinned part is culled by its rest-pose
+			# box, not where the pose has put it; looking down, the head's box left the view while the head was in it
+			m3.extra_cull_margin = 1.0
 			for i in range(m3.mesh.get_surface_count()):
 				var mat := m3.get_active_material(i) as BaseMaterial3D
 				if mat != null:
@@ -1459,6 +1462,14 @@ func _ch1_set():
 	# the cedars throw no shadow in this chapter
 	if not ARGS.has("sugishadow"):
 		for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): (mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 試作98 (ユーザー「木、一気に黒くなりすぎ？」, behind the house): the cedars in the house's long shadow had only the
+	# ambient and went black at its edge. The dusk sky still lights them from above: a fill that only they get (layer 4)
+	var sky_fill := DirectionalLight3D.new(); sky_fill.name = "sugi_sky"
+	sky_fill.light_color = Color(0.78, 0.82, 0.95); sky_fill.light_energy = 0.35; sky_fill.shadow_enabled = false
+	sky_fill.light_specular = 0.0; sky_fill.light_volumetric_fog_energy = 0.0; sky_fill.light_cull_mask = 4
+	sky_fill.rotation = Vector3(deg_to_rad(-65), deg_to_rad(40), 0)
+	add_child(sky_fill)
+	for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 4
 	# the camcorder on its tripod stands 23 cm nearer the stair at dusk (stage.TRIPOD_D / TRIPOD_N): Kiryu is behind it
 	var moved: Array = []
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
