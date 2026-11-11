@@ -40,7 +40,7 @@ class Soft extends Control:
 		show_behind_parent = true; mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _process(_dt):
 		var p := get_parent() as Label
-		var now := p.text + str(p.size) + str(p.horizontal_alignment)
+		var now := p.text + str(p.size) + str(p.horizontal_alignment) + str(p.visible_characters)
 		if now != seen: seen = now; queue_redraw()
 	func _draw():
 		var p := get_parent() as Label
@@ -53,7 +53,12 @@ class Soft extends Control:
 		var y := 0.0
 		if p.vertical_alignment == VERTICAL_ALIGNMENT_CENTER: y = (p.size.y - total) / 2.0
 		elif p.vertical_alignment == VERTICAL_ALIGNMENT_BOTTOM: y = p.size.y - total
-		for line in lines:
+		# a line typed in a letter at a time (story.gd _type: the whole text is set, visible_characters grows) has shadow
+		# only under the letters that are out; the Label centres what is out so far (it trims before it shapes), so does this
+		var left: int = p.visible_characters if p.visible_characters >= 0 else 1 << 30
+		for whole in lines:
+			var line: String = whole.substr(0, clampi(left, 0, whole.length()))
+			left -= whole.length() + 1   # the line break counts as one
 			if line != "":
 				var w := f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 				var x := 0.0
