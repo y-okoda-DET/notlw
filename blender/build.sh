@@ -117,6 +117,7 @@ fi
 if [ -n "$FAST" ]; then
   echo "FAST（確認用。配布しない。zip なし）" >> $L
 else
+  [ -d $RULES/fonts/LICENSES ] && cp -r $RULES/fonts/LICENSES $D/フォントのライセンス   # OFL の本文（フォントのスレッド、2026-11-11）
   if [ -f $BUILD/hajimeni$N.txt ]; then cp $BUILD/hajimeni$N.txt $D/はじめに.txt; else echo "NO_HAJIMENI (zip にはじめにが入っていない)" >> $L; fi
   # zip も2つ：本体（RULES.exe・RULES.pck・はじめに）と家（RULES_house.pck）。同じフォルダに展開してもらう
   cd $BUILD && rm -f RULES_proto$N.zip RULES_proto${N}_house.zip
