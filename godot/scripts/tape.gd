@@ -294,9 +294,10 @@ func _tape_swing(dt: float):
 func _blow(head: bool):
 	head_hits += 1
 	nap.pause(); nwalk = false
-	nbase = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)
-	if head_hits == 1: nstate = "reel"; reel_t = 0.0
-	else: nstate = "down"; fall_t = 0.0
+	if head_hits == 1: hit_base = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)
+	nbase = hit_base
+	if head_hits == 1: _capture(); nstate = "reel"; reel_t = 0.0
+	else: reel_pose = last_pose.duplicate(true); nstate = "down"; fall_t = 0.0
 	print("STORY ch11 blow %d tape_t=%.1f" % [head_hits, tape_t])
 
 # ================================================================ the words, as far as the tracking lets them through
@@ -365,6 +366,7 @@ func _tape_jump(t: float):
 		var at := gp(NPATH[j][0], NPATH[j][1], NPATH[j][2])
 		var m := _mio_eye() - at
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, atan2(m.x, m.z) if j >= 2 else 0.0), at)
+		_drops_upto(j)
 		nap.play("walk/walk"); nap.seek(0.3, true); nap.pause(); nstate = "stand"
 	while li < LINES.size() and float(LINES[li][0]) <= t + NIGHT_AT:
 		clock = float(LINES[li][0]); tape_t = clock - NIGHT_AT

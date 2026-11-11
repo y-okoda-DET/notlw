@@ -30,7 +30,9 @@ var LINES := []                # [t, kind, ...] from 【四.流れ】 / 【テ�
 var li := 0
 var clock := 0.0               # the night's clock (seconds after the card)
 var card4: Control
+var hit_base := Transform3D()
 var aim_n := 0
+var still_n := 0
 var card_t := 5.0
 var nat: Node3D
 var nrig: Node3D
@@ -104,6 +106,7 @@ func _ready():
 	if main.foot: main.foot.text = T("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo": demo4 = true
+		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0)   # check stills: where she stands
 		if a.begins_with("--d4at="): call_deferred("_jump", float(a.substr(7)))   # stills: start the night at this second
 		if a == "--d4hold": holding = true; call_deferred("_take")                  # stills: the tripod already in her hands
 		if a == "--nocard4": card_t = 0.0
@@ -121,9 +124,14 @@ func _stage():
 	nap = nat.find_children("*", "AnimationPlayer", true, false)[0]
 	nhead = nsk.find_bone("head")
 	nap.stop(); nsk.reset_bone_poses()
+	if "--d4bones" in OS.get_cmdline_user_args():
+		for i in nsk.get_bone_count(): print("BONE %d %s parent=%d rest=%s" % [i, nsk.get_bone_name(i), nsk.get_bone_parent(i), nsk.get_bone_global_rest(i).origin])
+		for mi in nat.find_children("*", "MeshInstance3D", true, false): print("MESH %s xf=%s surf=%d aabb=%s" % [mi.name, (mi as MeshInstance3D).global_transform, (mi as MeshInstance3D).mesh.get_surface_count(), (mi as MeshInstance3D).get_aabb()])
+		print("SK ", nsk.global_transform, " rig ", nrig.name)
 	for ba in nsk.find_children("nphone*", "BoneAttachment3D", true, false): (ba as Node3D).visible = false   # no phone: its battery went hours ago
 	if not "--d4noblood" in OS.get_cmdline_user_args(): _blood()
 	_lookers()
+	hold = Hold.new(); nsk.add_child(hold)
 	nrig.global_transform = Transform3D(Basis(Vector3.UP, 0.0), gp(NPATH[0][0], NPATH[0][1], NPATH[0][2]))
 	nat.visible = false
 	# the tripod and the camcorder on it: lifted out of the house (their vertices are in the house's own frame) onto a
@@ -179,7 +187,7 @@ func _lantern():
 		c.global_transform = (mi as MeshInstance3D).global_transform.translated(to - from)
 		c.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.4
+	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.30
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--d4lantern="): lantern.light_energy = float(a.substr(12))
 		if a == "--d4lnoshadow": set_meta("lnosh", true)
@@ -220,34 +228,101 @@ func _rail_cam() -> Transform3D:
 	var ta := _target_angles()
 	return Transform3D(Basis.from_euler(Vector3(ta[1], ta[0], 0.0), EULER_ORDER_YXZ), g([TARGET_POS[0], TARGET_POS[1], _rail_z(TARGET_POS[1]) + 0.065]))
 
-# blood from the hairline down the left of her face and onto the shoulder. In the print a dark red is the orange plate
-# under the blue: it is the darkest warm thing in the hall.
+# Blood, from a wound at the left of her hairline: down the temple and the cheek, into the collar, soaked through the
+# sweater's left shoulder and run down its front. It left her an hour ago on the road; it is dark and half dry, and what
+# the lantern finds of it is its wet shine. (A Decal does not draw on her here; this is an overlay on her own meshes,
+# painted in her rest pose's coordinates, carried by the head bone and the chest bone.)
+const BLOOD_SHADER := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back;
+uniform mat4 inv;            // world -> her rest pose (x her left, y up, z forward; metres), by this part's bone
+uniform int part = 0;        // 0 the head, 1 the body
+uniform float dbg = 0.0;
+varying vec3 rp;
+float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vn(vec3 x) {
+	vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+		mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float cap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a; vec3 ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return 1.0 - length(pa - ba * h) / r; }
+float ell(vec3 p, vec3 c, vec3 r) { return 1.0 - length((p - c) / r); }
+void vertex() { rp = (inv * MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float n = vn(rp * 55.0) * 0.6 + vn(rp * 140.0) * 0.4;
+	float m = -1.0;
+	if (part == 0) {
+		m = max(m, ell(rp, vec3(0.062, 1.435, 0.075), vec3(0.055, 0.045, 0.06)));                       // the wound, in the hair
+		m = max(m, cap(rp + vec3(0.006 * sin(rp.y * 60.0), 0.0, 0.0), vec3(0.068, 1.42, 0.09), vec3(0.058, 1.27, 0.07), 0.024));   // the run down the temple and the cheek
+		m = max(m, cap(rp, vec3(0.04, 1.40, 0.10), vec3(0.032, 1.33, 0.11), 0.012));                       // a second, by the eye
+		m = max(m, ell(rp, vec3(0.05, 1.24, 0.05), vec3(0.05, 0.05, 0.06)));                              // under the jaw
+	} else {
+		m = max(m, ell(rp, vec3(0.085, 1.14, 0.04), vec3(0.12, 0.085, 0.13)));                            // the collar and the shoulder, soaked
+		m = max(m, cap(rp + vec3(0.008 * sin(rp.y * 45.0), 0.0, 0.0), vec3(0.075, 1.12, 0.09), vec3(0.06, 0.90, 0.10), 0.034));   // down the front
+		m = max(m, cap(rp, vec3(0.13, 1.10, 0.05), vec3(0.17, 0.95, 0.04), 0.03));                         // down the sleeve
+	}
+	float a = smoothstep(0.0, 0.22, m + (n - 0.5) * 0.5);
+	if (dbg > 0.5) { ALBEDO = vec3(0.0, 1.0, 0.0); EMISSION = vec3(0.0, 1.0, 0.0); ALPHA = a; }
+	else {
+		float wet = smoothstep(0.25, 0.6, m + (n - 0.5) * 0.3);
+		ALBEDO = mix(vec3(0.10, 0.012, 0.008), vec3(0.17, 0.008, 0.008), wet);
+		ROUGHNESS = mix(0.6, 0.16, wet); SPECULAR = 0.75; METALLIC = 0.0;
+		ALPHA = a * 0.94;
+	}
+}
+"""
+var blood_mats: Array = []      # [material, bone]
 func _blood():
-	var img := Image.create(128, 128, false, Image.FORMAT_RGBA8)
-	var rng := RandomNumberGenerator.new(); rng.seed = 330
-	var blots := []
-	for i in 9: blots.append([rng.randf_range(34, 94), rng.randf_range(20, 108), rng.randf_range(9, 24)])
-	for y in 128:
-		for x in 128:
-			var a := 0.0
-			for b in blots: a = maxf(a, 1.0 - Vector2(x - b[0], y - b[1]).length() / b[2])
-			a = maxf(a, 1.0 - absf(x - 60.0 - 5.0 * sin(y * 0.11)) / 7.0 if y > 30 else 0.0)   # the run down the cheek
-			img.set_pixel(x, y, Color(0.30, 0.012, 0.012, clampf(a * 2.6, 0.0, 0.94)))
-	var tex := ImageTexture.create_from_image(img)
-	# [bone, where on her (rig frame: x her left, y up, z forward; from the bone), the box: across, deep, tall]
-	var fwd := nsk.global_basis * Vector3(0, 0, 1); var up := Vector3.UP; var left := up.cross(fwd).normalized()
-	for spec in [["head", Vector3(0.045, 0.10, 0.06), Vector3(0.15, 0.22, 0.24)], ["spine_03", Vector3(0.12, 0.12, 0.06), Vector3(0.22, 0.30, 0.30)]]:
-		var bi := nsk.find_bone(spec[0])
-		if bi < 0: continue
-		var ba := BoneAttachment3D.new(); ba.bone_idx = bi; nsk.add_child(ba)
-		var bw: Transform3D = nsk.global_transform * nsk.get_bone_global_pose(bi)
-		var d := Decal.new(); d.texture_albedo = tex; d.size = spec[2]
-		d.upper_fade = 0.3; d.lower_fade = 0.3; d.albedo_mix = 1.0
-		ba.add_child(d)
-		# it projects along its own -y: y out of her face, the texture's up her up
-		var off: Vector3 = spec[1]
-		var wb := Basis(left, fwd, left.cross(fwd).normalized())
-		d.global_transform = Transform3D(wb, bw.origin + left * off.x + up * off.y + fwd * off.z)
+	var sh := Shader.new(); sh.code = BLOOD_SHADER
+	for mi in nat.find_children("natsuki_*", "MeshInstance3D", true, false):
+		var m := ShaderMaterial.new(); m.shader = sh
+		var is_head := String(mi.name).contains("head")
+		m.set_shader_parameter("part", 0 if is_head else 1)
+		m.set_shader_parameter("dbg", 1.0 if "--d4bloodgreen" in OS.get_cmdline_user_args() else 0.0)
+		(mi as MeshInstance3D).material_overlay = m
+		(mi as MeshInstance3D).extra_cull_margin = 3.0      # she is still drawn when she lies where her standing box is not
+		blood_mats.append([m, nsk.find_bone("head" if is_head else "spine_03")])
+	_blood_tick()
+
+# What she leaves on the floor: it is still coming, slowly. In the dark of the hall this is what says so.
+var drop_mat: StandardMaterial3D
+var drop_rng := RandomNumberGenerator.new()
+var drop_d := 0.0
+var drop_last := Vector3.INF
+func _drop(at: Vector3, yaw: float):
+	if drop_mat == null:
+		drop_mat = StandardMaterial3D.new(); drop_mat.albedo_color = Color(0.20, 0.008, 0.008); drop_mat.roughness = 0.12; drop_mat.metallic_specular = 0.8
+		drop_rng.seed = 331
+	var left := Basis(Vector3.UP, yaw) * Vector3(1, 0, 0)
+	for i in (1 if drop_rng.randf() < 0.6 else 3):
+		var mi := MeshInstance3D.new(); var cm := CylinderMesh.new()
+		var r := drop_rng.randf_range(0.009, 0.026) * (1.0 if i == 0 else 0.45)
+		cm.top_radius = r; cm.bottom_radius = r; cm.height = 0.003; cm.radial_segments = 10; cm.rings = 1
+		mi.mesh = cm; mi.material_override = drop_mat; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		main.add_child(mi)
+		mi.global_position = at + left * (0.07 + drop_rng.randf_range(-0.05, 0.07)) + Basis(Vector3.UP, yaw) * Vector3(0, 0.003, drop_rng.randf_range(-0.07, 0.07))
+		mi.scale = Vector3(1.0, 1.0, drop_rng.randf_range(1.0, 1.5)); mi.rotation.y = yaw
+
+func _drops_walk(p: Vector3, yaw: float):
+	if drop_last == Vector3.INF: drop_last = p; return
+	drop_d += Vector2(p.x - drop_last.x, p.z - drop_last.z).length(); drop_last = p
+	if drop_d > 0.30: drop_d = -drop_rng.randf_range(0.0, 0.22); _drop(p, yaw)
+
+# check stills: the trail she would have left by the path's point j
+func _drops_upto(j: int):
+	for i in range(j):
+		var a := gp(NPATH[i][0], NPATH[i][1], NPATH[i][2]); var b := gp(NPATH[i + 1][0], NPATH[i + 1][1], NPATH[i + 1][2])
+		var n := int(a.distance_to(b) / 0.06)
+		for k in n:
+			var p := a.lerp(b, float(k) / float(n)); if k > n / 2: p.y = b.y
+			_drops_walk(p, atan2(b.x - a.x, b.z - a.z))
+
+func _blood_tick():
+	for bm in blood_mats:
+		var bi: int = bm[1]
+		var carry: Transform3D = nsk.global_transform * nsk.get_bone_global_pose(bi) * nsk.get_bone_global_rest(bi).affine_inverse()
+		(bm[0] as ShaderMaterial).set_shader_parameter("inv", Projection(carry.affine_inverse()))
 
 # ================================================================ the HUD (not printed: over the print layer)
 class Hud extends Control:
@@ -325,6 +400,13 @@ func _process(dt):
 	_hud_tick(dt)
 	_after(dt)
 	if demo4: _demo4(dt)
+	if still_n > 0:
+		still_n -= 1
+		if still_n == 0:
+			_blow(true)
+			if has_meta("reel_at"): reel_t = float(get_meta("reel_at"))
+			else: reel_t = 1.2; _night(0.0); _blow(true); fall_t = float(get_meta("fall_at"))
+			set_meta("freeze", true); _night(0.0)
 	if aim_n > 0 and nstate != "out":            # check stills: the middle of the view on her head
 		aim_n -= 1
 		var d: Vector3 = _nhead() - _mio_eye()
@@ -366,6 +448,8 @@ func _night(dt: float):
 		main.door_pivot.rotation.y = float(main.S.get("door_rot", 0.0)) + deg_to_rad(DOOR_OPEN) * k
 		door_light.light_energy = 2.2 * k
 	if nstate == "out": return
+	if has_meta("freeze"): dt = 0.0
+	_blood_tick()
 	if looks.has("natsuki"):
 		var lm: Look = looks.natsuki
 		lm.target = _mio_eye(); lm.want = 1.0 if nstate in ["walk", "stand"] else 0.0
@@ -389,17 +473,112 @@ func _night(dt: float):
 			var yaw := nrig.global_rotation.y
 			if hz > 0.05: yaw = lerp_angle(yaw, atan2(seg.x, seg.z), minf(1.0, dt * 3.0))
 			nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw), p)
+			_drops_walk(p, yaw)
 		"reel":
-			# the first blow: she goes back half a step, bent, and stays on her feet
+			# the first blow, on the left of her head: the head goes over and down, her knees give a little, she goes
+			# back and to her right a step and a half, her left hand comes up to where it landed; she stays on her feet
 			reel_t += dt
-			var k2 := clampf(reel_t / 0.35, 0.0, 1.0); k2 = 1.0 - pow(1.0 - k2, 3.0)
-			var back := nbase.basis * Vector3(0, 0, -1)
-			nrig.global_transform = Transform3D(nbase.basis * Basis(Vector3.RIGHT, -0.20 * k2) * Basis(Vector3.FORWARD, 0.10 * k2), nbase.origin + back * 0.32 * k2)
+			var snap := 1.0 - pow(1.0 - clampf(reel_t / 0.14, 0.0, 1.0), 2.0)          # the head, at once
+			var k2 := clampf(reel_t / 0.55, 0.0, 1.0); k2 = 1.0 - pow(1.0 - k2, 3.0)   # the body after it
+			var rec := 1.0 - 0.45 * smoothstep(0.5, 1.3, reel_t)                      # and she half straightens
+			var kn := 0.38 * k2 * rec
+			_pose({"head": [0.30 * snap * rec, 0.0, 0.42 * snap * rec], "neck_01": [0.20 * snap * rec, 0.0, 0.26 * snap * rec],
+				"spine_03": [0.20 * k2 * rec, 0.0, 0.12 * k2], "spine_02": [0.14 * k2 * rec, 0.0, 0.08 * k2], "spine_01": [0.08 * k2, 0.0, 0.0],
+				"thigh_l": [-kn, 0.0, 0.0], "calf_l": [2.0 * kn, 0.0, 0.0], "foot_l": [-kn, 0.0, 0.0],
+				"thigh_r": [-kn * 0.8, 0.0, 0.0], "calf_r": [1.6 * kn, 0.0, 0.0], "foot_r": [-kn * 0.8, 0.0, 0.0],
+				"upperarm_l": [0.0, 0.0, 0.0], "lowerarm_l": [0.0, 0.0, 0.0],        # the hand stays on the wound
+				"upperarm_r": [0.0, 0.0, -0.22 * k2]})
+			var back := nbase.basis * Vector3(0, 0, -1); var right := nbase.basis * Vector3(-1, 0, 0)
+			var drop := 0.33 * (1.0 - cos(kn)) + 0.33 * (1.0 - cos(kn))
+			nrig.global_transform = Transform3D(nbase.basis * Basis(Vector3.BACK, 0.05 * k2 + 0.02 * sin(reel_t * 2.3)), nbase.origin + back * 0.24 * k2 + right * 0.10 * k2 - Vector3(0, drop, 0))
 		"down":
+			# the second: her legs go out from under her. She comes down onto her knees and then forward, onto the
+			# floor at Mio's feet, a little onto her right side; nothing of her tries to break the fall
 			fall_t += dt
-			var k3 := clampf(fall_t / 0.62, 0.0, 1.0); k3 = k3 * k3
+			var snap2 := 1.0 - pow(1.0 - clampf(fall_t / 0.12, 0.0, 1.0), 2.0)
+			var kneel := clampf(fall_t / 0.42, 0.0, 1.0); kneel = kneel * kneel                         # falling, not lowering herself
+			var over := clampf((fall_t - 0.36) / 0.62, 0.0, 1.0); over = over * over                      # from her knees, forward
+			var settle := smoothstep(0.98, 1.5, fall_t)
+			var limp := smoothstep(0.0, 0.4, fall_t)
+			var th := 0.45 * kneel - 0.40 * over; var cf := 1.95 * kneel - 1.30 * over
+			var curl := kneel * (1.0 - over)
+			for nm in arm_held: pose0[nm][0] = (arm_held[nm] as Quaternion).slerp(arm_anim[nm], 0.8 * limp)     # the hand comes off the wound
+			_pose({"head": [0.40 * snap2 * (1.0 - over) - 0.25 * over, -0.75 * over, 0.30 * snap2 * (1.0 - over)], "neck_01": [0.22 * snap2 * (1.0 - over), -0.3 * over, 0.0],
+				"spine_03": [0.32 * curl - 0.06 * over, 0.0, 0.10 * kneel], "spine_02": [0.26 * curl, 0.0, 0.06 * kneel], "spine_01": [0.18 * curl, 0.0, 0.0],
+				"thigh_l": [-th, 0.0, 0.0], "calf_l": [cf, 0.0, 0.0], "foot_l": [0.7 * kneel, 0.0, 0.0],
+				"thigh_r": [-th + 0.12 * over, 0.0, 0.0], "calf_r": [cf + 0.25 * over, 0.0, 0.0], "foot_r": [0.7 * kneel, 0.0, 0.0],
+				"upperarm_l": [-0.75 * over, 0.0, 0.25 * limp], "lowerarm_l": [-0.3 * limp, 0.0, 0.0],
+				"upperarm_r": [-0.30 * limp + 0.5 * over, 0.0, -0.30 * limp], "lowerarm_r": [-0.35 * limp, 0.0, 0.0]}, reel_pose, 1.0 - 0.6 * over)
 			var b0 := nbase.basis
-			nrig.global_transform = Transform3D(b0 * Basis(Vector3.RIGHT, -1.50 * k3) * Basis(Vector3.FORWARD, 0.25 * k3), nbase.origin + Vector3(0, 0.10 * k3, 0) + (b0 * Vector3(0, 0, -1)) * 0.25 * k3)
+			var thk: float = th + float(reel_pose.get("thigh_l", [0.0])[0]) * -1.0 * (1.0 - 0.6 * over)   # her thigh's whole angle, the first blow's bend with it
+			var cfk: float = cf + float(reel_pose.get("calf_l", [0.0])[0]) * (1.0 - 0.6 * over)
+			var hip := 0.33 * (1.0 - cos(thk)) + 0.33 * (1.0 - cos(cfk - thk))                           # how far the knees' giving lets her hips down
+			var right2 := b0 * Vector3(-1, 0, 0); var back2 := b0 * Vector3(0, 0, -1)
+			var feet := nbase.origin + back2 * 0.24 + right2 * 0.10
+			var rb := b0 * Basis(Vector3.BACK, 0.04 + 0.22 * over) * Basis(Vector3.RIGHT, 1.40 * over + 0.03 * settle)
+			var knee_l := Vector3(0.0, 0.74 - 0.33 * cos(thk), 0.33 * sin(thk))                           # her knees, in her own frame
+			var knee_w := feet + b0 * Vector3(0.0, 0.0, 0.33 * sin(0.45)) + Vector3(0, 0.045, 0)          # and where they came down
+			var org_a := feet - Vector3(0, hip, 0)                                                         # on her feet
+			var org_b := knee_w - rb * knee_l                                                             # on her knees
+			nrig.global_transform = Transform3D(rb, org_a.lerp(org_b, smoothstep(0.30, 0.42, fall_t)))
+
+# Her left hand, held to the wound all the way in: in the dark of the hall it is the first thing that says she is hurt.
+# Over the walk's clip, as a modifier (the clip's own arm comes back when w is 0).
+class Hold extends SkeletonModifier3D:
+	var w := 1.0
+	var last := {}           # bone -> the rotation it was given this frame
+	const WRIST := Vector3(0.112, 1.385, 0.075)     # where her wrist is when the palm is on the wound (rest pose: x her left, y up, z forward)
+	const POLE := Vector3(0.75, -0.45, 0.50)        # where the elbow hangs
+	func _process_modification():
+		var sk := get_skeleton()
+		if sk == null or w <= 0.001: return
+		var ua := sk.find_bone("upperarm_l"); var la := sk.find_bone("lowerarm_l"); var ha := sk.find_bone("hand_l"); var hd := sk.find_bone("head")
+		if ua < 0 or la < 0 or ha < 0 or hd < 0: return
+		var t: Vector3 = (sk.get_bone_global_pose(hd) * sk.get_bone_global_rest(hd).affine_inverse()) * WRIST
+		var sp := sk.get_bone_global_pose(ua).origin
+		var l1 := sp.distance_to(sk.get_bone_global_pose(la).origin); var l2 := sk.get_bone_global_pose(la).origin.distance_to(sk.get_bone_global_pose(ha).origin)
+		var n := t - sp; var d := minf(n.length(), l1 + l2 - 0.005); n = n.normalized()
+		var a := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+		var pole := (POLE - n * POLE.dot(n)).normalized()
+		var elbow := sp + n * a + pole * sqrt(maxf(l1 * l1 - a * a, 0.0))
+		var g1 := sk.get_bone_global_pose(ua)
+		var q1 := Quaternion((sk.get_bone_global_pose(la).origin - sp).normalized(), (elbow - sp).normalized())
+		sk.set_bone_global_pose(ua, Transform3D(Basis(Quaternion().slerp(q1, w)) * g1.basis, g1.origin))
+		var g2 := sk.get_bone_global_pose(la)
+		var q2 := Quaternion((sk.get_bone_global_pose(ha).origin - g2.origin).normalized(), (sp + n * d - g2.origin).normalized())
+		sk.set_bone_global_pose(la, Transform3D(Basis(Quaternion().slerp(q2, w)) * g2.basis, g2.origin))
+		last = {"upperarm_l": sk.get_bone_pose_rotation(ua), "lowerarm_l": sk.get_bone_pose_rotation(la)}
+var hold: Hold
+
+# The blows are not in her walk's clips. From the pose she had when the blow landed, each bone is turned about her own
+# axes (x her left: + bows forward; y up: + turns to her left; z forward: + leans to her right), carried by its parent.
+var arm_anim := {}; var arm_held := {}
+var pose0 := {}          # bone -> [its rotation, its parent's rotation in the skeleton's frame], as the blow found her
+var reel_pose := {}      # what the first blow had made of her when the second landed
+var last_pose := {}
+func _capture():
+	pose0 = {}
+	for i in nsk.get_bone_count():
+		var par := nsk.get_bone_parent(i)
+		pose0[nsk.get_bone_name(i)] = [nsk.get_bone_pose_rotation(i), nsk.get_bone_global_pose(par).basis.orthonormalized() if par >= 0 else Basis()]
+	if looks.has("natsuki"): (looks.natsuki as Look).w = 0.0; (looks.natsuki as Look).want = 0.0
+	arm_anim = {}
+	for nm in hold.last:   # her hand stays where it was, on the wound: from here the arm is carried by the blow's pose
+		arm_anim[nm] = pose0[nm][0]; pose0[nm][0] = hold.last[nm]
+	arm_held = hold.last.duplicate()
+	hold.w = 0.0
+
+func _pose(d: Dictionary, under := {}, uw := 1.0):
+	last_pose = d
+	for nm in pose0:
+		var e: Array = [0.0, 0.0, 0.0]
+		if d.has(nm): e = d[nm]
+		if under.has(nm): e = [e[0] + under[nm][0] * uw, e[1] + under[nm][1] * uw, e[2] + under[nm][2] * uw]
+		elif not d.has(nm): continue
+		var bi := nsk.find_bone(nm)
+		var pg: Basis = pose0[nm][1]
+		var r := Basis(Vector3.UP, e[1]) * Basis(Vector3.BACK, e[2]) * Basis(Vector3.RIGHT, e[0])
+		nsk.set_bone_pose_rotation(bi, (pg.inverse() * r * pg).get_rotation_quaternion() * (pose0[nm][0] as Quaternion))
 
 var sway_t := 0.0
 func _sway(dt: float):
@@ -507,10 +686,14 @@ func _blow(head: bool):
 		return
 	head_hits += 1
 	nap.pause(); nwalk = false
-	nbase = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)
+	if head_hits == 1: hit_base = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)
+	nbase = hit_base
 	if head_hits == 1:
+		_capture()
 		nstate = "reel"; reel_t = 0.0
 	else:
+		reel_pose = last_pose.duplicate(true)
+		nbase = hit_base
 		nstate = "down"; fall_t = 0.0; after_t = 0.0
 		_clear_page(); cur = {}
 
@@ -532,10 +715,12 @@ func _after(dt: float):
 	var A: Array = B("四.あと")
 	if after_said == 0 and after_t > 4.0:
 		after_said = 1; _say(A[0].who, A[0].text, true)
-	elif after_said == 1 and after_t > 12.5:
+	elif after_said == 1 and after_t > 10.5:
 		after_said = 2; _say(A[1].who, A[1].text, true)
-	elif after_said == 2 and after_t > 16.0:
-		after_said = 3; note_lb.text = T(String(A[2].note))
+	elif after_said == 2 and after_t > 18.5:
+		after_said = 3; _say(A[2].who, A[2].text, true)
+	elif after_said == 3 and after_t > 22.0:
+		after_said = 4; note_lb.text = T(String(A[3].note))
 	if rec_t >= 0.0:
 		rec_t += dt
 		(finder_ui as FinderFrame).tc = "0:00:%02d" % int(rec_t)
@@ -565,7 +750,7 @@ func _unhandled_input(e):
 		if (key_e or click) and note_lb.text != "": _take()
 		return
 	if after_t >= 0.0:
-		if (key_e or click) and after_said == 3 and rec_t < 0.0: _record()
+		if (key_e or click) and after_said == 4 and rec_t < 0.0: _record()
 		return
 	if click and swing_t < 0.0:
 		swing_t = 0.0; swing_hit = false
@@ -587,11 +772,15 @@ func _jump(t: float):
 		var at := gp(NPATH[j][0], NPATH[j][1], NPATH[j][2])
 		var m := _mio_eye() - at
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, atan2(m.x, m.z) if j >= 2 else 0.0), at)
+		_drops_upto(j)
 		nap.play("walk/walk"); nap.seek(0.3, true); nap.pause()
 		nstate = "stand"
 		print("JUMP j=%d at=%s rig=%s player=%s" % [j, at, nrig.global_position, player.global_position])
 	clock = t
 	if "--d4aim" in OS.get_cmdline_user_args(): aim_n = 4
+	for a in OS.get_cmdline_user_args():       # check stills: her, this long after the first blow / the second (two frames on, when her hand is up)
+		if a.begins_with("--d4reel="): set_meta("reel_at", float(a.substr(9))); still_n = 3
+		if a.begins_with("--d4fall="): set_meta("fall_at", float(a.substr(9))); still_n = 3
 
 # the unattended run: take the tripod up when she is in, wait as the canonical night does, two blows to the head
 func _demo4(dt: float):
@@ -619,4 +808,5 @@ func _demo4(dt: float):
 				turn.call(_nhead(), 6.0)
 				if clock > STRIKES[1] + 6.0: print("DEMO FAIL ch4: she is not down t=%.1f" % clock); demo_step = 9
 				elif (-cam.global_basis.z).angle_to(_nhead() - cam.global_position) < 0.03: swing_t = 0.0; swing_hit = false
-			if after_said == 3 and rec_t < 0.0: _record(); demo_step = 5
+			if nstate == "down": turn.call(_nhead().lerp(nrig.global_position, 0.4), 1.6)      # and she looks at what is at her feet
+			if after_said == 4 and rec_t < 0.0: _record(); demo_step = 5
