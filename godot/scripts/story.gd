@@ -1374,7 +1374,7 @@ func _house_ready():
 	# 試作97: her own phone, out like everyone's: its screen lights her hands and what is just before her (not a beam:
 	# the torch is the others'). With the power out it is, with theirs, all the light there is (ユーザー: 停電のあいだの光はスマホだけ)
 	var glow := OmniLight3D.new(); glow.name = "mio_phone"; glow.light_color = Color(0.8, 0.88, 1.0)
-	glow.light_energy = 0.45; glow.omni_range = 2.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = false
+	glow.light_energy = 0.1; glow.omni_range = 1.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = false
 	glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.05; glow.position = Vector3(0.12, -0.38, -0.32)
 	player.get_node("Head/Camera").add_child(glow)
 	if PLACED.is_empty(): fixed_cam.visible = false

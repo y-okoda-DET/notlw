@@ -894,6 +894,7 @@ func _process(dt):
 		if t < 0.0: return
 	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
 	if not walkers.is_empty(): _walk_tick(dt)
+	if not torches.is_empty(): _aim_torches()
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -1212,9 +1213,10 @@ func _t20_people():
 			sp.light_specular = 0.2
 			sp.transform = Transform3D(Basis.looking_at(n, up), c + n * 0.01)
 			ba.add_child(sp)
+			torches.append([sp, sk])
 			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
-			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.5
-			gl.omni_range = 1.0; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
+			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.12   # 試作97: 0.5 / 1.0 m lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
+			gl.omni_range = 0.6; gl.omni_attenuation = 1.4; gl.shadow_enabled = false; gl.light_volumetric_fog_energy = 0.0; gl.light_specular = 0.05
 			gl.position = c - n * 0.06
 			ba.add_child(gl)
 		mv.free()
@@ -1223,6 +1225,19 @@ func _t20_people():
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)
 		S[k + "_col"] = col
 		place_person(k, T20[k].pos, T20[k].yaw)
+
+# 試作97: in the dark they hold the phone's torch down on the floor ahead of their feet, not out at the others: straight
+# out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
+var torches := []              # [SpotLight3D, Skeleton3D]
+const TORCH_DOWN := 32.0
+func _aim_torches():
+	for e in torches:
+		var sp = e[0]
+		if not is_instance_valid(sp) or not (sp as SpotLight3D).is_visible_in_tree(): continue
+		var f: Vector3 = (e[1] as Skeleton3D).global_basis * Vector3(0, 0, 1); f.y = 0.0
+		if f.length() < 0.01: continue
+		var a := deg_to_rad(TORCH_DOWN)
+		(sp as SpotLight3D).global_basis = Basis.looking_at(f.normalized() * cos(a) + Vector3.DOWN * sin(a), Vector3.UP)
 
 # 試作92: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
 # the ground speed (m/s, along the floor) the feet were made for
