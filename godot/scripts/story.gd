@@ -329,7 +329,7 @@ func _place_board():
 	var vs := get_viewport().get_visible_rect().size
 	if finder:   # small, held beside the finder to compare
 		board_rect.size = Vector2(vs.y * 0.42 * 1.414, vs.y * 0.42)
-		board_rect.position = Vector2(vs.x * 0.015, vs.y * 0.55)
+		board_rect.position = Vector2(vs.x * 0.015, vs.y * 0.49)   # clear of the bracketed note under it (paper type on the board's paper does not read)
 		board_rect.rotation = deg_to_rad(-2.5)
 	else:        # held up in the left hand
 		board_rect.size = Vector2(vs.y * 0.62 * 1.414, vs.y * 0.62)
