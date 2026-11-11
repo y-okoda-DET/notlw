@@ -55,7 +55,8 @@ for d in ('assets', 'assets/dusk', 'assets/house'):
     g = d + '/env.glb'
     if not os.path.exists(g): continue
     b = open(g, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]
-    used = {i.get('name') for i in json.loads(b[20:20 + n]).get('images', [])}
+    ims = json.loads(b[20:20 + n]).get('images', [])
+    used = {i.get('name') for i in ims} | {f"{i.get('name')}_{k}" for k, i in enumerate(ims)}   # 同じ名前の画像が2つあると、Godot は2つ目を <名前>_<番号> で取り出す（試作97：消してしまい、家が読めなかった）
     for f in glob.glob(d + '/env_*.png'):
         if os.path.basename(f)[4:-4] not in used:
             for x in (f, f + '.import'):
