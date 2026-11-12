@@ -11,7 +11,7 @@ extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
 
 # where they are (plan metres: x east, y north from the front door) and whom they face
-const AT21 := {"kiryu": [1.05, 2.35], "makoto": [1.15, 0.95], "taiga": [2.85, 0.95], "natsuki": [2.75, 2.45]}
+const AT21 := {"kiryu": [1.05, 2.35], "makoto": [1.15, 0.95], "taiga": [2.85, 0.95], "natsuki": [2.35, 2.35]}
 const FACE21 := [1.85, 1.6]                    # the lantern on the low table
 const MIO21 := [3.45, 3.25]                    # by the living room's door, looking in
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
@@ -56,8 +56,9 @@ static func fps_load(file: String):
 		if ln.begins_with("【") and ln.ends_with("】"): key = ln.substr(1, ln.length() - 2); D.blocks[key] = []
 		elif key != "": D.blocks[key].append(String(raw).rstrip(" \t\r"))
 
+# the 20:00 bodies look along their rig's -z (the first try had them all turn their backs: 試作111 の確認)
 func _face(from: Array, to: Array) -> float:
-	return atan2(to[0] - from[0], to[1] - from[1])
+	return atan2(to[0] - from[0], to[1] - from[1]) + PI
 
 func _put(k: String, at: Array, yaw: float):
 	if main.S.has(k + "_node"): main.place_person(k, [at[0] - 4.8, 6.3 - at[1], 0.0], yaw)
