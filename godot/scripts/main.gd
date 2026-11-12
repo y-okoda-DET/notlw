@@ -1504,6 +1504,9 @@ func _ch1_set():
 	var sky_fill := DirectionalLight3D.new(); sky_fill.name = "sugi_sky"
 	sky_fill.light_color = Color(0.78, 0.82, 0.95); sky_fill.light_energy = 0.45; sky_fill.shadow_enabled = false
 	sky_fill.light_specular = 0.0; sky_fill.light_volumetric_fog_energy = 0.0; sky_fill.light_cull_mask = 4
+	# 試作98 の感想（「色がぜんぜん違う」）: the cull mask does not reach the bounce. As a dynamic light it lit the whole
+	# VoxelGI (x4) from the side and washed the house white. It lights the cedars directly and nothing else
+	sky_fill.light_bake_mode = Light3D.BAKE_DISABLED; sky_fill.light_indirect_energy = 0.0
 	sky_fill.rotation = Vector3(deg_to_rad(-25), deg_to_rad(200), 0)
 	add_child(sky_fill)
 	for mi in S.env_node.find_children("ext_sugi*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 4
