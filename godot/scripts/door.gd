@@ -85,9 +85,12 @@ func _process(dt):
 	main.story_talking = true
 	if ended >= 0.0:
 		ended += dt
-		if ended > 8.0 and OS.get_cmdline_user_args().has("--demo"):
-			if not demo_on: print("DEMO DONE t=%.1f fails=%d" % [t_now, DEMO_FAILS]); demo_on = true
-			if "--demoquit" in OS.get_cmdline_user_args() or ended > 14.0: get_tree().quit()
+		# ステップ D: the question stays up, and then the night goes on at 3:30 (第4章). 第3章 is not made yet.
+		if ended > (8.0 if OS.get_cmdline_user_args().has("--demo") else 14.0) and not demo_on:
+			demo_on = true
+			if OS.get_cmdline_user_args().has("--demo"): print("DEMO door t=%.1f fails=%d" % [t_now, DEMO_FAILS])
+			if ResourceLoader.exists("res://scripts/fps.gd"): main.to_chapter("ch4")
+			elif OS.get_cmdline_user_args().has("--demo"): print("DEMO DONE t=%.1f fails=%d" % [t_now, DEMO_FAILS]); get_tree().quit()
 		return
 	if OS.get_cmdline_user_args().has("--demo"): _demo_door(dt)
 	while li < LINES.size() and t_now >= float(LINES[li][0]):

@@ -30,6 +30,7 @@ var LINES := []                # [t, kind, ...] from 【四.流れ】 / 【テ�
 var li := 0
 var clock := 0.0               # the night's clock (seconds after the card)
 var card4: Control
+var left := false
 var hit_base := Transform3D()
 var aim_n := 0
 var still_n := 0
@@ -65,7 +66,7 @@ var demo_step := 0
 
 static func load_story(file: String):
 	D.load_all()
-	if D.blocks.has("@" + file): return
+	if file in D.FILES or D.blocks.has("@" + file): return
 	D.blocks["@" + file] = []
 	var p := "res://story/%s.txt" % file
 	if not FileAccess.file_exists(p): print("SCRIPT ERROR 台本: no file ", p); return
@@ -76,6 +77,10 @@ static func load_story(file: String):
 		if ln.begins_with("【") and ln.ends_with("】"):
 			key = ln.substr(1, ln.length() - 2); D.blocks[key] = []
 		elif key != "": D.blocks[key].append(String(raw).rstrip(" \t\r"))
+
+# the keys along the top (main.gd makes the line after the chapter's script is in)
+func _foot(text: String):
+	if main.foot: main.foot.text = T(text)
 
 func _flow(key: String) -> Array:
 	var out := []
@@ -103,7 +108,7 @@ func _ready():
 	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black)
 	player.global_position = gp(MIO_AT[0], MIO_AT[1], 0.0)
 	player.yaw = 0.0; player.pitch = deg_to_rad(-4.0)     # south (Godot -z), down the hall to the front door
-	if main.foot: main.foot.text = T("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
+	_foot.call_deferred("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　左クリック 振る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo": demo4 = true
 		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0)   # check stills: where she stands
@@ -726,9 +731,11 @@ func _after(dt: float):
 		(finder_ui as FinderFrame).tc = "0:00:%02d" % int(rec_t)
 		finder_ui.queue_redraw()
 		if rec_t > 7.0: black.color.a = clampf((rec_t - 7.0) / 2.5, 0.0, 1.0)
-		if rec_t > 11.0 and demo4:
-			print("DEMO DONE ch4 t=%.1f" % clock); demo4 = false
-			if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit()
+		if rec_t > 11.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
+			left = true
+			if demo4: print("DEMO ch4 t=%.1f fails=%d" % [clock, DEMO_FAILS])
+			if main.play == "ch4": main.to_chapter("ch11")
+			elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
 func _record():
 	# the camcorder comes off the tripod and to her eye: the hall through its screen, recording
@@ -796,7 +803,7 @@ func _demo4(dt: float):
 		1:
 			turn.call(weapon.global_position + Vector3(0, 1.0, 0), 3.0)
 			if note_lb.text != "": _take(); demo_step = 2
-			elif clock > 22.0: print("DEMO FAIL ch4: cannot take the tripod t=%.1f" % clock); demo_step = 9
+			elif clock > 22.0: print("DEMO FAIL ch4: cannot take the tripod t=%.1f" % clock); DEMO_FAILS += 1; demo_step = 9
 		2:
 			if nstate != "out": turn.call(_nhead(), 2.5)
 			if clock >= STRIKES[0] and swing_t < 0.0: swing_t = 0.0; swing_hit = false; demo_step = 3
@@ -806,7 +813,7 @@ func _demo4(dt: float):
 		4:
 			if nstate != "down" and swing_t < 0.0:
 				turn.call(_nhead(), 6.0)
-				if clock > STRIKES[1] + 6.0: print("DEMO FAIL ch4: she is not down t=%.1f" % clock); demo_step = 9
+				if clock > STRIKES[1] + 6.0: print("DEMO FAIL ch4: she is not down t=%.1f" % clock); DEMO_FAILS += 1; demo_step = 9
 				elif (-cam.global_basis.z).angle_to(_nhead() - cam.global_position) < 0.03: swing_t = 0.0; swing_hit = false
 			if nstate == "down": turn.call(_nhead().lerp(nrig.global_position, 0.4), 1.6)      # and she looks at what is at her feet
 			if after_said == 4 and rec_t < 0.0: _record(); demo_step = 5

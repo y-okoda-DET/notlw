@@ -378,5 +378,8 @@
 - 家の下の地面の穴（outside.py _ground_points、cut_house）：輪郭の点が「15 cm より近い点を落とす」で 50 cm の格子に負けて消え、穴が格子の三角形に沿って壁の外まで開いていた（東の、地面が下がる側で最大約50 cm。裏のポーチの下から空が透けた）。輪郭を 25 cm ごとに必ず残し、輪郭の内と 20 cm 以内の点を消してから三角形を張る。確かめ方：Delaunay の三角形で、残す物が輪郭の内に入らず、消す物が輪郭の外に出ないこと（どちらも 0。前は 24 と 16）。
 - 皮を張った人の部品は、休みの姿勢の箱で描くかどうかを決める。カメラで見下ろすと頭の箱が画面から外れ、頭が消えた。人の MeshInstance に extra_cull_margin = 1.0（main.gd、fps.gd も同じ手）。
 - 第1章の夕方、家の長い影に入った杉は ambient だけで黒く沈んだ。杉だけ（layers 4）に影なしの空の明かり sugi_sky（0.45、ほぼ横から）を足す。真上からだと幹に当たらず効かない（main.gd _ch1_set）。
+- （ステップ D の入口、2026-11-12）main.gd の play に "ch4"・"ch11" を足した（家まるごとの3時半）。章から章へは main.to_chapter("ch4"|"ch11")（static NEXT_PLAY を立てて reload）。扉の終わり（door.gd）→ ch4、録画の暗転（fps.gd）→ ch11。overlay.sh はスクリプトの名前を文字列で置き換えるので、load("res://scripts/%s.gd" % …) のように組み立てた名前は pck の中の古い物を読みに行く（そのまま書く）。
+- 通しの最後の行は tape.gd が出す「DEMO DONE t=… fails=…」。扉と第4章は「DEMO door」「DEMO ch4」と出して先へ進む。第4章の手順の失敗は DEMO_FAILS に足す。
+- daihon_check.py：_flow("…") で呼ぶかたまりと、match の1行に並べた動き（"strike", "strike2":）も数えるようにした。
 - スマホのライトの空中の筋（試作98）：light_volumetric_fog_energy を上げても、もやの格子が粗くて 5 mm のレンズからの筋は出ない（低では消える）。ライトの子に、足し算で光る薄い円すい（main.gd _torch_beam、長さ 2.6 m、先へ薄くなる、面に近づくと消える）を付けた。
 - 切り替えのレバー（story.gd _changeover_lever）：黒い細い棒は暗い地下で割れ目に見えた。明るい腕と赤い玉、小さな台。上（切り替え前）と下（後）を撮って確かめた。

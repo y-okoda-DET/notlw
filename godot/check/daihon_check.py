@@ -20,7 +20,7 @@ for p in sorted(glob.glob(G + '/story/*.txt')):
         blocks[key].append((os.path.basename(p), n, raw.rstrip('\n')))
 src = ''.join(open(p, encoding='utf-8').read() for p in glob.glob(G + '/scripts/*.gd') if not os.path.basename(p).startswith('dbg'))
 called = set()
-for m in re.finditer(r'\b(?:B|D\.lines|D\.has|D\.entries)\(([^\n]*)', src):
+for m in re.finditer(r'\b(?:B|D\.lines|D\.has|D\.entries|_flow)\(([^\n]*)', src):
     called |= set(re.findall(r'"([^"]+)"', m.group(1).split(')')[0] if '[' not in m.group(1) else m.group(1)))
 called = {c for c in called if re.search(r'[　-ヿ一-鿿]', c) and '.' in c}
 names = set(blocks)
@@ -30,7 +30,7 @@ for c in sorted(called):
     elif c not in names: bad.append(f'スクリプトが呼ぶ【{c}】が台本にない')
 for k in sorted(names):
     if k not in called and not any('%d' in c and re.fullmatch(c.replace('.', r'\.').replace('%d', r'\d+'), k) for c in called): bad.append(f'台本の【{k}】はどこからも呼ばれていない')
-dos = set(re.findall(r'^\t\t"(\w+)"(?:, "\w+")*:', src, re.M)) | {'silence', 'leave', 'end'}
+dos = {w for ln in re.findall(r'^\t\t("\w+"(?:, "\w+")*):', src, re.M) for w in re.findall(r'\w+', ln)} | {'silence', 'leave', 'end'}
 for k, ls in blocks.items():
     for i, (f, n, raw) in enumerate(ls):
         s = raw.strip(); s = re.sub(r'^\d+(\.\d+)?\s+', '', s)
