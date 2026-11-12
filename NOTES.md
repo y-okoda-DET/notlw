@@ -383,3 +383,11 @@
 - daihon_check.py：_flow("…") で呼ぶかたまりと、match の1行に並べた動き（"strike", "strike2":）も数えるようにした。
 - スマホのライトの空中の筋（試作98）：light_volumetric_fog_energy を上げても、もやの格子が粗くて 5 mm のレンズからの筋は出ない（低では消える）。ライトの子に、足し算で光る薄い円すい（main.gd _torch_beam、長さ 2.6 m、先へ薄くなる、面に近づくと消える）を付けた。
 - 切り替えのレバー（story.gd _changeover_lever）：黒い細い棒は暗い地下で割れ目に見えた。明るい腕と赤い玉、小さな台。上（切り替え前）と下（後）を撮って確かめた。
+
+## ステップ E：序章（第0章）と仮の音（2026-11-12、scripts/ch0.gd・sound.gd、godot/sound/）
+- 序章は fps.gd を継いだ scripts/ch0.gd（tape.gd と同じ形）。fps.gd の舞台（夏希、血、跡、手すりのカメラ、ランタン）をそのまま使い、夏希は fps.gd の倒れる動き（_blow を2回、_night を回し切って freeze）で第4章と同じ所に寝かせる。台本は story/ch0.txt（序.流れ に秒）。
+- 光は家まるごとの 4:30（5:00 は焼いていない）。main.generator(false) は焼き込みの照り返しを 4% に落とすので、4:30 では夜明けの光まで消えて真っ暗になる。序章は電球と笠だけを消す（ch0.gd _gen_off）。
+- 玄関の扉は doors.gd が「開かない。」と言うので、序章では doors.gd の一覧から外して自分で開ける（_front_door_mine）。家の座標：玄関の扉は plan y 0（Godot z −6.3）、蝶番は Godot x −0.35、扉の左の細い窓（ガラス）は Godot x −0.77〜−0.56。gp(x,y,z) = (x−4.8, z, y−6.3)。
+- 夏希は暗い廊下では刷りの青緑に沈む。ランタン（fps.gd _lantern）を 0.2 にすると、澪の足もとの「何か」に読める。澪の影（mio_shadow）は座っている高さに縮める（立った影が足もとを黒く覆った）。
+- 確認は `bash godot/check/e_run.sh ch0 <名前> [コマ数] [--nocard0 --c0at=秒 --c0yp=yaw,pitch --c0mio=x,y --c0open --demo --demoquit]`（試作97 の pck に重ねる。e_overlay.sh が音も重ねる）。1280x720 で1コマ約2秒。
+- 仮の音は数式で作る（godot/sound/make_sounds.py、外の素材なし）。sound.gd はほかのスクリプトに手を入れず、状態を見て鳴らす（雨は家の 20時〜3時半、発電機は main.gen_on、ノックは玄関の扉が数ミリ揺れたら、ラジオは story.gd の _reception、テープは tape.gd の st）。耳では確かめられないので、波形と、動画（png の書き出しは同じ名前の wav も書く）で鳴った時刻だけを確かめる。

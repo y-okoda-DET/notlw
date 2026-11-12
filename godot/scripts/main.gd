@@ -99,7 +99,8 @@ func _ready():
 		if a == "--frameclock": ARGS["frameclock"] = true
 		if a.begins_with("--lite="): ARGS["lite"] = a.substr(7)
 		if a == "--old3": ONE = false                          # 試作97: the three scenes as they were (to compare)
-		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # the whole house as a chapter has it: ch1 | door | ch4 | ch11
+		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # the whole house as a chapter has it: ch0 | ch1 | h21 | door | ch4 | ch11
+		if a == "--noch0": ARGS["noch0"] = true   # ステップ E: the game begins at 第1章, not at 序章 (the dawn)
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
@@ -108,14 +109,16 @@ func _ready():
 		if a == "--ch2": ARGS["ch2"] = true   # 試作91: the house at 20:00 as 第2章 has it (the people; the story too unless checking)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
+	var start: bool = SCENE == "" and SCENES_RUN == 1   # ステップ E: the game itself begins (not N, not a reload)
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
 	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
 	# with the people and the few things only that chapter has brought in from the old scenes' files (_ch1_set, _door_set).
 	# The check stills of the old scenes (--record, --shots, --poses) still get the old scenes, and --old3 plays them.
 	var checking0: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	var one: bool = ONE and FileAccess.file_exists("res://assets/house/scene.json")
-	if NEXT_PLAY != "": SCENE = "house"; play = NEXT_PLAY; NEXT_PLAY = ""; TIME = "t0330"   # ステップ D: 第4章・第11章, reached by playing (to_chapter)
-	elif SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = String({"ch1": "dusk", "ch4": "t0330", "ch11": "t0330"}.get(play, "t23"))
+	if NEXT_PLAY != "": SCENE = "house"; play = NEXT_PLAY; NEXT_PLAY = ""; TIME = String(PLAY_TIME.get(play, "t0330"))   # ステップ D・E: a chapter reached by playing (to_chapter)
+	elif SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = String(PLAY_TIME.get(play, "t23"))
+	elif start and one and not checking0 and not ARGS.has("noch0") and not ARGS.has("door"): SCENE = "house"; TIME = "t0430"; play = "ch0"   # ステップ E: 序章 at 5:00 first; it goes on to 第1章 (ch0.gd)
 	elif one and not checking0 and SCENE == "dusk": SCENE = "house"; TIME = "dusk"; play = "ch1"
 	elif one and not checking0 and SCENE == "night" and (FROM_STORY or ARGS.has("door")): SCENE = "house"; TIME = "t23"; play = "door"
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else ("res://assets/house/" if SCENE == "house" else "res://assets/")
@@ -133,6 +136,9 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
+	if play == "h21" and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them)
+	if play == "h21":   # every board is up by then
+		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
 		place_person("taiga", T20.taiga_gen.pos, T20.taiga_gen.yaw)
 	if ARGS.has("nochars"):   # the people's things go too (the reflector Makoto holds, the box and the tape)
@@ -175,12 +181,17 @@ func _ready():
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
+	if play in ["ch0", "h21"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card
+		CARD_TIME = 0.0
+		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
 	if ARGS.has("genoff"): generator(false)   # 試作91: the stills of 第2章 before the generator
 	if "--boards" in OS.get_cmdline_user_args() and SCENE == "house":   # 試作92: stills of the boards as 第2章 leaves them at 20:00
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and not checking:   # 試作91: 第2章 at 20:00 in the whole house, reached by playing 第1章
 		story = preload("res://scripts/story.gd").new(); story.main = self; story.house = true; add_child(story)
 	FROM_STORY = false
+	if not checking0 and not has_node("Sound"):   # ステップ E: the stand-in sounds (rain, generator, knock, radio, tape; scripts/sound.gd)
+		var snd: Node = load("res://scripts/sound.gd").new(); snd.name = "Sound"; add_child(snd); snd.setup(self)
 	_card()
 	_restore_settings()
 	if record == "": Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -295,7 +306,7 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1") and k == "natsuki") else k   # her indoor head has its own UV layout
+			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1" or play == "h21") and k == "natsuki") else k   # her indoor head has its own UV layout
 			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
@@ -1514,6 +1525,7 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
+const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch4": "t0330", "ch11": "t0330"}
 func to_chapter(p: String):
 	_save_settings()
 	SCENE = "house"; NEXT_PLAY = p
