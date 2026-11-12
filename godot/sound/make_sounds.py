@@ -1,6 +1,7 @@
 # 仮の音（ステップ E、ユーザー決定 2026-11-10「仮の音はEでやります」）を、録音や素材を使わずに数式で作る。
 # 外の素材を使わないのでライセンスの心配がない（docs/素材とアドオン.md）。本番の音は段階4（サウンドクリエイター）。
 #   python3 godot/sound/make_sounds.py   → godot/sound/*.wav（44.1kHz、16bit）
+# 雨・発電機は 2026-11-13 からユーザーが選んだ素材（cut_materials.py）、ノック・ラジオの雑音はユーザーの収録（cut_recordings.py）。
 # 鳴らし方は scripts/sound.gd。良し悪しはユーザーが聞いて決める（Claude には耳がない）。
 import numpy as np, wave, os
 from scipy.signal import butter, sosfilt
@@ -162,13 +163,10 @@ def door_open(sec=3.5):
     return lock * 0.6 + lp_fast(creak, 1500) * 0.35
 
 if __name__ == '__main__':
-    save('rain', rain(), True)
     # knock / knock1 / knock_weak / knock_weak1 / radio_static: the user's recordings (2026-11-12), cut by sound/cut_recordings.py
     save('radio_voice', radio_voice())
     save('tape_hiss', tape_hiss())
     save('tape_clunk', tape_clunk())
-    save('generator', generator())
-    save('generator_stop', generator_stop())
     save('car_arrive', car_arrive())
     save('car_door', car_door())
     save('door_open', door_open())
