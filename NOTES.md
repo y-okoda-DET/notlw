@@ -381,3 +381,5 @@
 - （ステップ D の入口、2026-11-12）main.gd の play に "ch4"・"ch11" を足した（家まるごとの3時半）。章から章へは main.to_chapter("ch4"|"ch11")（static NEXT_PLAY を立てて reload）。扉の終わり（door.gd）→ ch4、録画の暗転（fps.gd）→ ch11。overlay.sh はスクリプトの名前を文字列で置き換えるので、load("res://scripts/%s.gd" % …) のように組み立てた名前は pck の中の古い物を読みに行く（そのまま書く）。
 - 通しの最後の行は tape.gd が出す「DEMO DONE t=… fails=…」。扉と第4章は「DEMO door」「DEMO ch4」と出して先へ進む。第4章の手順の失敗は DEMO_FAILS に足す。
 - daihon_check.py：_flow("…") で呼ぶかたまりと、match の1行に並べた動き（"strike", "strike2":）も数えるようにした。
+- スマホのライトの空中の筋（試作98）：light_volumetric_fog_energy を上げても、もやの格子が粗くて 5 mm のレンズからの筋は出ない（低では消える）。ライトの子に、足し算で光る薄い円すい（main.gd _torch_beam、長さ 2.6 m、先へ薄くなる、面に近づくと消える）を付けた。
+- 切り替えのレバー（story.gd _changeover_lever）：黒い細い棒は暗い地下で割れ目に見えた。明るい腕と赤い玉、小さな台。上（切り替え前）と下（後）を撮って確かめた。
