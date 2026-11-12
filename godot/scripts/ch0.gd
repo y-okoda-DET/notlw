@@ -64,7 +64,7 @@ func _ready():
 	var c: Array = D.lines("序.カード")
 	card4 = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
 	black = ColorRect.new(); black.color = Color(0, 0, 0, 0); black.set_anchors_preset(Control.PRESET_FULL_RECT); black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black)
+	var bl := CanvasLayer.new(); bl.layer = 12; add_child(bl); bl.add_child(black)   # under the transcript (13)
 	player.global_position = gp(SIT_AT[0], SIT_AT[1], 0.0)
 	player.eye_height = SIT_EYE; player.get_node("Head").position.y = SIT_EYE
 	player.yaw = deg_to_rad(-6.0); player.pitch = deg_to_rad(-20.0)   # down the hall to the front door, and what is on the floor before it
@@ -276,7 +276,10 @@ func _do0(what: String):
 	match what:
 		"genoff": _gen_off()
 		"car": car_t = 0.0; Sound.one(self, "car_arrive", -6.0)
-		"knock": for i in 3: knocks0.append(clock + 0.42 * i + (0.1 if i == 2 else 0.0))
+		"knock":
+			for i in 3: knocks0.append(clock + 0.42 * i + (0.06 if i == 2 else 0.0))
+			Sound.one(self, "knock", -2.0, gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2]))   # sound.gd's own knock follows the door's jump, which a slow movie misses
+			main.set_meta("knock_by_scene", true)
 		"silence":
 			_close_silence0()
 			var r = _line_row("澪", "（沈黙）")
@@ -377,13 +380,14 @@ func _open_tick(dt: float):
 		door_light.light_energy = 3.0 * k
 		for l in car: l.light_energy = 9.0 + 6.0 * k
 	var A: Array = B("序.あと")
-	if after0 == 0 and opened_t > 3.0:
+	# the light comes in white; then black, and on the black only her answer (it could not be read over the dawn)
+	if opened_t > 5.0: black.color.a = clampf((opened_t - 5.0) / 0.8, 0.0, 1.0)
+	if after0 == 0 and opened_t > 1.8:
 		after0 = 1; _say(A[0].who, A[0].text, false)
-	elif after0 == 1 and opened_t > 6.5:
-		after0 = 2; _say(A[1].who, A[1].text, true)
-	elif after0 == 2 and opened_t > 14.0:
-		black.color.a = clampf((opened_t - 14.0) / 2.0, 0.0, 1.0)
-		if opened_t > 16.5:
+	elif after0 == 1 and opened_t > 6.6:
+		after0 = 2; _clear_page(); _say(A[1].who, A[1].text, true)
+	elif after0 == 2 and opened_t > 14.5:
+		if opened_t > 15.5:
 			after0 = 3
 			if demo0: print("DEMO ch0 t=%.1f fails=%d" % [clock, DEMO_FAILS])
 			if demo0 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch0 t=%.1f" % clock); get_tree().quit(); return

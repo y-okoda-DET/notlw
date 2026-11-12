@@ -79,7 +79,7 @@ func _process(dt):
 		gen_was = main.gen_on
 	# a knock: the front door jumps in its frame
 	knock_cool = maxf(0.0, knock_cool - dt)
-	if main.door_pivot and main.S.has("door_rest"):
+	if main.door_pivot and main.S.has("door_rest") and not main.has_meta("knock_by_scene"):
 		var d: float = (main.door_pivot.position - main.S.door_rest).length()
 		if d > 0.003 and door_was <= 0.003 and knock_cool <= 0.0:
 			one(self, "knock1", -2.0, main.door_pivot.global_position); knock_cool = 0.25
