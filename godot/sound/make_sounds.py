@@ -163,9 +163,7 @@ def door_open(sec=3.5):
 
 if __name__ == '__main__':
     save('rain', rain(), True)
-    save('knock', knock())
-    save('knock1', knock(1))
-    save('radio_static', radio_static())
+    # knock / knock1 / knock_weak / knock_weak1 / radio_static: the user's recordings (2026-11-12), cut by sound/cut_recordings.py
     save('radio_voice', radio_voice())
     save('tape_hiss', tape_hiss())
     save('tape_clunk', tape_clunk())
