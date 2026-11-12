@@ -1537,14 +1537,24 @@ func _gen_use(key: String):
 # from its pivot on the case's side (rooms2.py changeover_pivot), up before, down once she throws it
 var co_lever: Node3D
 func _changeover_lever():
+	# 試作98 (ユーザー「地下、レバーついてない」): a thin black rod of 16 cm read as a crack in the dark. Now a lever one
+	# knows at a glance: a small grey base on the box's side, a pale arm and a red ball, 30 cm long
 	co_lever = Node3D.new(); co_lever.name = "changeover_lever"
 	main.add_child(co_lever)
 	co_lever.global_position = gp(6.135, 3.9, ZB + 1.38)
-	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.08, 0.08, 0.08); m.roughness = 0.5
-	var arm := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.008; cm.bottom_radius = 0.008; cm.height = 0.16
-	arm.mesh = cm; arm.material_override = m; arm.position = Vector3(0, -0.08, 0); co_lever.add_child(arm)
-	var grip := MeshInstance3D.new(); var gm := CylinderMesh.new(); gm.top_radius = 0.013; gm.bottom_radius = 0.013; gm.height = 0.05
-	grip.mesh = gm; grip.material_override = m; grip.position = Vector3(0, -0.165, 0); co_lever.add_child(grip)
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.78, 0.78, 0.76); steel.metallic = 0.3; steel.roughness = 0.4
+	var red := StandardMaterial3D.new(); red.albedo_color = Color(0.9, 0.12, 0.06); red.roughness = 0.4
+	var grey := StandardMaterial3D.new(); grey.albedo_color = Color(0.32, 0.33, 0.33); grey.roughness = 0.6
+	# the plate stays put (a sibling of the pivot): it faces out of the wall the lever stands on
+	var plate := MeshInstance3D.new(); var pb := BoxMesh.new(); pb.size = Vector3(0.07, 0.12, 0.012)
+	plate.mesh = pb; plate.material_override = grey; main.add_child(plate)
+	plate.global_position = co_lever.global_position + Vector3(0, 0, 0.022)   # on the box's side (plan y 3.86), behind the swing
+	var arm := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.011; cm.bottom_radius = 0.011; cm.height = 0.26
+	arm.mesh = cm; arm.material_override = steel; arm.position = Vector3(0, -0.13, 0); co_lever.add_child(arm)
+	var hub := MeshInstance3D.new(); var hm := CylinderMesh.new(); hm.top_radius = 0.022; hm.bottom_radius = 0.022; hm.height = 0.05
+	hub.mesh = hm; hub.material_override = steel; hub.rotation.z = PI / 2   # its axle along the swing's; co_lever.add_child(hub)
+	var ball := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 0.028; sm.height = 0.056
+	ball.mesh = sm; ball.material_override = red; ball.position = Vector3(0, -0.28, 0); co_lever.add_child(ball)
 	co_lever.rotation.x = PI if hs < 3 else 0.0
 
 func _gen_flicker():

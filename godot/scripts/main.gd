@@ -1237,10 +1237,11 @@ func _t20_people():
 			var up := Vector3.UP if abs(n.y) < 0.9 else Vector3.RIGHT
 			var sp := SpotLight3D.new(); sp.name = "torch"
 			sp.light_color = Color(0.86, 0.92, 1.0); sp.light_energy = 3.0; sp.spot_range = 8.0; sp.spot_angle = 34.0   # 試作97: 2.0; with the bulbs dark until the generator, the torches are the light (ユーザー「地下への階段真っ暗すぎる」)
-			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 0.25
+			sp.spot_attenuation = 1.0; sp.spot_angle_attenuation = 1.6; sp.shadow_enabled = true; sp.light_volumetric_fog_energy = 2.0   # 試作98 (ユーザー「スマホから発電機の間に光がない」): 0.25 left no beam in the haze
 			sp.light_specular = 0.2
 			sp.transform = body.transform * Transform3D(Basis.looking_at(n, up), c + n * 0.01)
 			ba.add_child(sp)
+			sp.add_child(_torch_beam(sp))
 			torches.append([sp, sk])
 			# the screen's own glow on the face that reads it (the night scene's phones: shot.py nphone_light)
 			var gl := OmniLight3D.new(); gl.name = "screen"; gl.light_color = Color(0.8, 0.88, 1.0); gl.light_energy = 0.025   # 試作97: 0.5 / 1.0 m (and still 0.12 / 0.6 m) lit the whole of Natsuki and Makoto white (ユーザー「白く飛びすぎ」)
@@ -1258,6 +1259,27 @@ func _t20_people():
 # out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
 var torches := []              # [SpotLight3D, Skeleton3D]
 const TORCH_DOWN := 32.0
+# 試作98 (ユーザー「スマホのライトで発電機を照らしているのに、スマホから発電機の間に光がない」): the beam in the air.
+# The haze's own beam (light_volumetric_fog_energy) is too coarse for a phone's 5 mm lens, and gone at 低: a faint cone
+# that adds light, fades along its length and where it meets a surface
+func _torch_beam(sp: SpotLight3D) -> MeshInstance3D:
+	var L := 2.6
+	var cm := CylinderMesh.new(); cm.top_radius = 0.008; cm.bottom_radius = L * tan(deg_to_rad(sp.spot_angle * 0.55))
+	cm.height = L; cm.radial_segments = 20; cm.rings = 1; cm.cap_top = false; cm.cap_bottom = false
+	var mi := MeshInstance3D.new(); mi.name = "beam"; mi.mesh = cm
+	mi.rotation.x = PI / 2; mi.position = Vector3(0, 0, -L / 2)   # its narrow end at the lens, along the spot's -Z
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	var gt := GradientTexture2D.new(); var gr := Gradient.new()
+	gr.set_color(0, Color(1, 1, 1)); gr.set_color(1, Color(0, 0, 0)); gr.add_point(0.35, Color(0.45, 0.45, 0.45))
+	gt.gradient = gr; gt.fill_from = Vector2(0, 0); gt.fill_to = Vector2(0, 1); gt.width = 4; gt.height = 64
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED; m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	m.albedo_texture = gt; m.albedo_color = Color(0.07, 0.075, 0.085)
+	m.proximity_fade_enabled = true; m.proximity_fade_distance = 0.25
+	mi.material_override = m
+	return mi
+
 func _aim_torches():
 	for e in torches:
 		var sp = e[0]
