@@ -1509,8 +1509,13 @@ func _house_cheaper():
 	if ARGS.has("noocc"): return
 	get_viewport().use_occlusion_culling = true
 	var n := 0
+	# 試作98 (ユーザー「外、このへん描画が崩れる」, by the back porch): the outside's unseen walls (the back stair's open
+	# sides, the porch rail, the walls round where one may go) became occluders too, and hid the house and the woods
+	# behind them: the sky showed where the foundation was. Only the house's own walls and floors hide things
+	var g0: Array = S.gi_box[0] if S.has("gi_box") else [-1e9, -1e9]; var g1: Array = S.gi_box[1] if S.has("gi_box") else [1e9, 1e9]
 	for b in S.boxes:
 		if b.has("door") or b.has("ramp") or b.has("times"): continue
+		if b.c[0] < g0[0] or b.c[0] > g1[0] or b.c[1] < g0[1] or b.c[1] > g1[1]: continue
 		var sz: Array = b.s
 		var thin: float = minf(minf(sz[0], sz[1]), sz[2])
 		var area: float = sz[0] * sz[1] * sz[2] / maxf(thin, 0.001)
