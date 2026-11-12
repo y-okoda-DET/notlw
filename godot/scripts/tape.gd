@@ -62,7 +62,7 @@ func _ready():
 	player.global_position = ROOM + Vector3(EYE.x, 0.0, EYE.z)
 	player.yaw = 0.0; player.pitch = deg_to_rad(-7.0)
 	(player.get_node("Head/Camera") as Camera3D).fov = 34.0
-	if main.foot: main.foot.text = T("マウス 見る　Ｅ 再生　右クリック（押したまま） つまみに手を置く　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
+	_foot.call_deferred("マウス 見る　Ｅ 再生　右クリック（押したまま） つまみに手を置く　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	# the hall waits as it was at the tape's first frame
 	clock = NIGHT_AT
 	for a in OS.get_cmdline_user_args():
@@ -249,7 +249,7 @@ func _room_tick(dt: float):
 		BLACK:
 			end_t2 += dt
 			if demo11 and end_t2 > 12.0:
-				print("DEMO DONE ch11 t=%.1f" % room_t); demo11 = false
+				print("DEMO DONE t=%.1f fails=%d (ch11, heard %d/%d)" % [room_t, DEMO_FAILS, heard_clear, heard_all]); demo11 = false
 				if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit()
 
 func _play():

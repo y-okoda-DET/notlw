@@ -99,7 +99,7 @@ func _ready():
 		if a == "--frameclock": ARGS["frameclock"] = true
 		if a.begins_with("--lite="): ARGS["lite"] = a.substr(7)
 		if a == "--old3": ONE = false                          # 試作97: the three scenes as they were (to compare)
-		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # check stills of the whole house as a chapter has it: ch1 | door
+		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # the whole house as a chapter has it: ch1 | door | ch4 | ch11
 		if a == "--door": ARGS["door"] = true   # 第2章 23:00 the door scene without playing up to it
 		if a.begins_with("--mfps="): ARGS["mfps"] = float(a.substr(7))   # a movie written at another rate than 24 (the check movie: 12, like the print)
 		if a == "--genoff": ARGS["genoff"] = true
@@ -114,7 +114,8 @@ func _ready():
 	# The check stills of the old scenes (--record, --shots, --poses) still get the old scenes, and --old3 plays them.
 	var checking0: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	var one: bool = ONE and FileAccess.file_exists("res://assets/house/scene.json")
-	if SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = "dusk" if play == "ch1" else "t23"
+	if NEXT_PLAY != "": SCENE = "house"; play = NEXT_PLAY; NEXT_PLAY = ""; TIME = "t0330"   # ステップ D: 第4章・第11章, reached by playing (to_chapter)
+	elif SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = String({"ch1": "dusk", "ch4": "t0330", "ch11": "t0330"}.get(play, "t23"))
 	elif one and not checking0 and SCENE == "dusk": SCENE = "house"; TIME = "dusk"; play = "ch1"
 	elif one and not checking0 and SCENE == "night" and (FROM_STORY or ARGS.has("door")): SCENE = "house"; TIME = "t23"; play = "door"
 	BASE = "res://assets/dusk/" if SCENE == "dusk" else ("res://assets/house/" if SCENE == "house" else "res://assets/")
@@ -171,6 +172,9 @@ func _ready():
 		if CARD_TIME > 0.0: CARD_TIME = 3.0   # only the time card: the chapter's door was at 二十時
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
+	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
+		CARD_TIME = 0.0
+		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
 	if ARGS.has("genoff"): generator(false)   # 試作91: the stills of 第2章 before the generator
 	if "--boards" in OS.get_cmdline_user_args() and SCENE == "house":   # 試作92: stills of the boards as 第2章 leaves them at 20:00
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
@@ -1485,6 +1489,13 @@ func _ch1_set():
 
 func _door_set():
 	_bring("res://assets/", ["rain", "cable"])
+
+# ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
+static var NEXT_PLAY := ""
+func to_chapter(p: String):
+	_save_settings()
+	SCENE = "house"; NEXT_PLAY = p
+	get_tree().reload_current_scene()
 
 func to_night(from_story := false):
 	_save_settings()
