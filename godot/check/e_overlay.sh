@@ -5,7 +5,7 @@ set -eu
 . "$(dirname "$0")/../../blender/paths.sh"
 bash "$(dirname "$0")/d_overlay.sh" >/dev/null
 O=$WORK/overlay
-rm -rf $O/sound; mkdir -p $O/sound; cp $REPO/godot/sound/*.wav $O/sound/
+rm -rf $O/sound; mkdir -p $O/sound; cp $REPO/godot/sound/*.wav $REPO/godot/sound/*.ogg $O/sound/
 python3 - "$O/boot.gd" <<'PY'
 import sys; p=sys.argv[1]; s=open(p).read()
 if "ov_sound" not in s:

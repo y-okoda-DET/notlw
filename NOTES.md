@@ -391,3 +391,8 @@
 - 夏希は暗い廊下では刷りの青緑に沈む。ランタン（fps.gd _lantern）を 0.2 にすると、澪の足もとの「何か」に読める。澪の影（mio_shadow）は座っている高さに縮める（立った影が足もとを黒く覆った）。
 - 確認は `bash godot/check/e_run.sh ch0 <名前> [コマ数] [--nocard0 --c0at=秒 --c0yp=yaw,pitch --c0mio=x,y --c0open --demo --demoquit]`（試作97 の pck に重ねる。e_overlay.sh が音も重ねる）。1280x720 で1コマ約2秒。
 - 仮の音は数式で作る（godot/sound/make_sounds.py、外の素材なし）。sound.gd はほかのスクリプトに手を入れず、状態を見て鳴らす（雨は家の 20時〜3時半、発電機は main.gen_on、ノックは玄関の扉が数ミリ揺れたら、ラジオは story.gd の _reception、テープは tape.gd の st）。耳では確かめられないので、波形と、動画（png の書き出しは同じ名前の wav も書く）で鳴った時刻だけを確かめる。
+
+### 仮の音を選んだ素材に替えた（ステップ E、2026-11-13）
+- godot/sound/cut_materials.py が /mnt/project-files/音/素材_2026-11-12/ の MP3 を ffmpeg で 48kHz に直して切る。長い繰り返し（rain、generator、generator_far）は ogg（Godot は AudioStreamOggVorbis の loop を立てる。sound.gd の stream() は .wav が無ければ .ogg を探す）。雨は切り出しのときに窓越しにしてある（2.5kHz の低域通過と、1.2kHz より上を -6dB）。
+- sound.gd はほかのスクリプトに手を入れず、状態を見て鳴らす：発電機の綱・咳・かかるは story.gd の gen（fails、fails_c、run）の変化、停電は fresnel_key／lamp／fres_d の明かりが消えた瞬間、足音は player.gd の step_phase の整数が変わるたび（一歩の間に高さが 8cm 以上変われば階段のきしみ、家では7歩に1回きしむ板）。発電機は地下（y < -1）では近い音、上の階では遠い唸り（generator_far、1階 -18dB・2階 -28dB、仮）。
+- 雷は嵐の時刻（20時〜3時半）に 35〜80 秒おきに3本のどれか（-12〜-5dB）。
