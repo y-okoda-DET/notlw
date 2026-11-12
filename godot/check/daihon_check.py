@@ -4,7 +4,7 @@
 - 書式：話者の名前が知らない名前でないか、＞ の動きが story.gd の _do か door.gd にあるか、選択肢に返事があるか"""
 import glob, os, re, sys
 G = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WHO = {'澪', '桐生', '夏希', '真琴', '大河', 'ラジオ'}
+WHO = {'澪', '桐生', '夏希', '真琴', '大河', 'ラジオ', '警察官'}
 blocks, bad = {}, []
 for p in sorted(glob.glob(G + '/story/*.txt')):
     key = None
@@ -38,7 +38,9 @@ for k, ls in blocks.items():
             if s[1:].strip() not in dos: bad.append(f'{f}:{n} ＞{s[1:].strip()} という動きは story.gd にない')
         elif s.startswith('？'):
             nxt = ls[i + 1][2] if i + 1 < len(ls) else ''
-            if not nxt[:1] in (' ', '\t', '　'): bad.append(f'{f}:{n} 選択肢「{s[1:]}」に返事（字下げした行）がない')
+            prv = ls[i - 1][2] if i > 0 else ''
+            # a choice with nothing of its own is allowed after one that has an answer (it goes straight on: ch2_21.txt)
+            if not nxt[:1] in (' ', '\t', '　') and not prv[:1] in (' ', '\t', '　'): bad.append(f'{f}:{n} 選択肢「{s[1:]}」に返事（字下げした行）がない')
         elif not s.startswith(('［', '（')) and '：' in s:
             who = s.split('：', 1)[0].rstrip('＊').split('→')[0]
             if who not in WHO: bad.append(f'{f}:{n} 知らない名前「{who}」')

@@ -16,8 +16,8 @@ const FACE21 := [1.85, 1.6]                    # the lantern on the low table
 const MIO21 := [3.45, 3.25]                    # by the living room's door, looking in
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
 const MIO22 := [4.55, 2.75]
-const NAT_DOOR := [4.95, 0.55]                 # inside the front door, where she stops and turns to Mio
-const NAT_OUT := [[5.0, 0.0], [5.0, -1.3]]
+const NAT_DOOR := [4.95, 0.55, 0.0]                 # inside the front door, where she stops and turns to Mio
+const NAT_OUT := [[5.0, 0.0, 0.0], [5.0, -1.3, 0.0]]
 
 var part := 21
 var card: Control
@@ -141,7 +141,7 @@ func _do(what: String):
 			get_tree().create_timer(2.5).timeout.connect(func(): _set_part(22))
 		"natsuki_door":
 			stage = "see_off"; see_t = 0.0
-			main.walk_to("natsuki", [[4.85, 1.2], NAT_DOOR], Callable(), _face(NAT_DOOR, MIO22))
+			main.walk_to("natsuki", [[4.85, 1.2, 0.0], NAT_DOOR], Callable(), _face(NAT_DOOR, MIO22))
 		"natsuki_out":
 			out_t = 0.0
 			door_rest = main.door_pivot.rotation.y if main.door_pivot else 0.0

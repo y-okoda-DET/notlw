@@ -2,7 +2,7 @@
 ## The words and what sets them off live in the chapter files; story.gd and door.gd ask for a block by its name.
 extends RefCounted
 
-const FILES := ["ch1", "ch2_20", "ch2_23", "ch4", "ch11"]
+const FILES := ["ch0", "ch1", "ch2_20", "ch2_21", "ch2_23", "ch4", "ch11"]
 static var blocks := {}        # name -> the block's lines as written (indent kept: a choice's answers are indented)
 
 static func load_all():

@@ -390,7 +390,7 @@ func _open_tick(dt: float):
 		if opened_t > 15.5:
 			after0 = 3
 			if demo0: print("DEMO ch0 t=%.1f fails=%d" % [clock, DEMO_FAILS])
-			if demo0 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch0 t=%.1f" % clock); get_tree().quit(); return
+			if demo0 and "--demoquit" in OS.get_cmdline_user_args() and "--ch0only" in OS.get_cmdline_user_args(): print("DEMO DONE ch0 t=%.1f" % clock); get_tree().quit(); return
 			# the evening (第一章): main.gd plays 第1章 when the scene asked for is the dusk
 			main._save_settings(); main.SCENE = "dusk"; get_tree().reload_current_scene()
 

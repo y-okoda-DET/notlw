@@ -880,8 +880,8 @@ func _do(what: String):
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")
-			if demo_on: print("DEMO ch2_cut t=%.1f fails=%d" % [t_now, demo_fails]); DEMO_FAILS += demo_fails   # the playthrough goes on at the door (door.gd)
-			main.to_night(true)
+			if demo_on: print("DEMO ch2_cut t=%.1f fails=%d" % [t_now, demo_fails]); DEMO_FAILS += demo_fails; DEMO_HOUSE = true   # the playthrough goes on at 21時 (ch2_21.gd), then the door (door.gd)
+			main.to_chapter("h21")
 
 func _end_tick(dt):
 	end_t += dt
