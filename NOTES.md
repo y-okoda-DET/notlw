@@ -397,3 +397,4 @@
 - godot/sound/cut_materials.py が /mnt/project-files/音/素材_2026-11-12/ の MP3 を ffmpeg で 48kHz に直して切る。長い繰り返し（rain、generator、generator_far）は ogg（Godot は AudioStreamOggVorbis の loop を立てる。sound.gd の stream() は .wav が無ければ .ogg を探す）。雨は切り出しのときに窓越しにしてある（2.5kHz の低域通過と、1.2kHz より上を -6dB）。
 - sound.gd はほかのスクリプトに手を入れず、状態を見て鳴らす：発電機の綱・咳・かかるは story.gd の gen（fails、fails_c、run）の変化、停電は fresnel_key／lamp／fres_d の明かりが消えた瞬間、足音は player.gd の step_phase の整数が変わるたび（一歩の間に高さが 8cm 以上変われば階段のきしみ、家では7歩に1回きしむ板）。発電機は地下（y < -1）では近い音、上の階では遠い唸り（generator_far、1階 -18dB・2階 -28dB、仮）。
 - 雷は嵐の時刻（20時〜3時半）に 35〜80 秒おきに3本のどれか（-12〜-5dB）。
+- 試作99 の書き出しで、ディスクの割り当てが尽きて RULES_house.pck が 192MB で途切れた（ログにエラーは出ず、zip もでき、通しで「scene.json が読めない」になって分かった）。古い版（$BUILD/RULES_proto67〜96 と配布済みの zip）を消して書き出しだけやり直した。書き出しの前に `df -h /` を見る。家の pck は 463MB 前後が正しい大きさ。
