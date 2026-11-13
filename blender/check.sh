@@ -40,6 +40,14 @@ echo "- [ ] 通し_台詞.txt を読んだ（台詞の順、抜け、言い回�
 echo
 } >> $M
 
+# 0b. シナリオの決定が台本に入っているか（docs/シナリオの点検表.md を godot/story に照らす。× は一つずつ一覧に出す）
+SC=$(python3 $K/docs/シナリオの点検.py $K/godot/story 2>&1); echo "$SC" | tail -1 >> $L
+{
+echo "## 0b. シナリオの決定（docs/シナリオの点検.py）：$(echo "$SC" | tail -1)"
+echo "$SC" | grep "^×" | sed 's/^× /- [ ] ×：/'
+echo
+} >> $M
+
 V4WHO="taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto"
 if [ -n "$FAST" ]; then V4WHO=; for p in taiga kiryu natsuki dtaiga dkiryu dnatsuki dmakoto; do case ",$WHO," in *",${p#d},"*) V4WHO="$V4WHO $p";; esac; done; fi
 export WORK
