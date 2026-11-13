@@ -403,6 +403,7 @@ func _fixed_cam():
 	# when it sits on the rail facing the hall (in 96 one dot floated 14 mm over the top, from the boxed stand-in)
 	var d := mk.call(dot, dm, Vector3(0.02, 0.053, -0.055)) as MeshInstance3D; d.name = "recdot"
 	var d2 := mk.call(dot, dm, Vector3(0.012, 0.046, 0.067)) as MeshInstance3D; d2.name = "recdot2"
+	d.visible = false; rec_dot = d2   # 2026-11-14: one dot (below)
 	# 試作98 (ユーザー「見えなかった。カメラの後ろ側にいると見えない？」): the two dots sat in the model's skin. They go
 	# where the model's box ends, 3 mm proud of it: the front over the lens, the back, and one on top that every side sees
 	var bb := AABB(); var first := true
@@ -418,14 +419,41 @@ func _fixed_cam():
 		var top := bb.end.y + 0.003; var cx := bb.get_center().x
 		d.position = Vector3(cx + bb.size.x * 0.3, top - 0.012, bb.position.z - 0.003)
 		d2.position = Vector3(cx + bb.size.x * 0.3, top - 0.012, bb.end.z + 0.003)
-		var d3 := mk.call(dot, dm, Vector3(cx + bb.size.x * 0.3, top, bb.end.z - 0.02)) as MeshInstance3D; d3.name = "recdot3"
-		(fixed_cam.get_node("rec") as OmniLight3D).position = Vector3(cx, top + 0.01, bb.get_center().z)
+		(fixed_cam.get_node("rec") as OmniLight3D).position = d2.position + Vector3(0, 0, 0.01)
+	# 2026-11-14（ユーザー「赤いランプが変な場所にでてる。カメラに重なるカタチで。光は1つでOK」）：前・後ろ・上の3つの点と、
+	# 0.35m 照らす光があった。残すのは、澪が見る後ろの1つだけ。光はその点のまわりだけ（壁に赤い染みを作らない）
+	var rl := fixed_cam.get_node("rec") as OmniLight3D; rl.omni_range = 0.1
 	main.add_child(fixed_cam)
 	fixed_cam.global_position = g([-0.60, 3.85, 0.20 + 0.072])   # the middle of the apple box (at -.72, 3.81 it hung past the edge, 試作61)
 	fixed_cam.rotation.y = 0.6
 
+# 停電で目が暗くなっても（main.power_cut の tonemap_exposure 0）、録画の赤い点だけは見えている（ユーザー 2026-11-14）。
+# 3D の光は露出で消えるので、点の見える所に、刷りの下（layer 9）で小さな赤を描く
+var rec_dot: MeshInstance3D
+class RecGlow extends Control:
+	var st
+	func _draw():
+		if st == null or not st.recording or st.rec_dot == null or not is_instance_valid(st.rec_dot) or not st.rec_dot.is_visible_in_tree(): return
+		var env: Environment = st.main.env
+		if env == null or env.tonemap_exposure > 0.6: return
+		var cam := get_viewport().get_camera_3d()
+		if cam == null or cam.is_position_behind(st.rec_dot.global_position): return
+		var p := cam.unproject_position(st.rec_dot.global_position)
+		var d := maxf(cam.global_position.distance_to(st.rec_dot.global_position), 0.3)
+		var a := clampf((0.6 - env.tonemap_exposure) / 0.4, 0.0, 1.0)
+		var r := clampf(5.0 / d, 2.0, 9.0) * get_viewport_rect().size.y / 1080.0
+		draw_circle(p, r * 2.2, Color(0.9, 0.12, 0.04, 0.25 * a))
+		draw_circle(p, r, Color(1.0, 0.25, 0.08, a))
+	func _process(_dt): queue_redraw()
+var rec_glow: RecGlow
+func _rec_glow():
+	var lay := CanvasLayer.new(); lay.layer = 9; add_child(lay)
+	rec_glow = RecGlow.new(); rec_glow.st = self; rec_glow.set_anchors_preset(Control.PRESET_FULL_RECT); rec_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lay.add_child(rec_glow)
+
 func _set_rec(on: bool):
 	recording = on
+	if rec_glow == null: _rec_glow()
 	(fixed_cam.get_node("rec") as OmniLight3D).light_energy = 1.2 if on else 0.0
 	var dm := (fixed_cam.get_node("recdot") as MeshInstance3D).material_override as StandardMaterial3D
 	dm.emission_energy_multiplier = 16.0 if on else 0.0
@@ -561,6 +589,10 @@ func _process(dt):
 	else:
 		cam.current = true
 	finder_layer.visible = finder and holding_cam
+	# 2026-11-14（ユーザー「カメラを覗くと家の外の杉の木が消える」）：のぞく位置は手すりや壁ぎわで、壁の遮蔽の箱（main._house_cheaper）の
+	# 中や裏に入り、窓の外の杉が隠れていた。のぞいている間は遮蔽を切る
+	var occ: bool = not (finder and holding_cam) and not main.ARGS.has("noocc")
+	if main.get_viewport().use_occlusion_culling != occ: main.get_viewport().use_occlusion_culling = occ
 	board_layer.visible = board_up and has_board
 	if board_layer.visible: _place_board()
 	# the camera in the hand: low on the right, as she carries it

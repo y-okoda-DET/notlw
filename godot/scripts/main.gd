@@ -1505,6 +1505,10 @@ func _bring(dir: String, things: Array):
 
 func _ch1_set():
 	_bring("res://assets/dusk/", ["reflector"])
+	# 2026-11-14（ユーザー「赤いランプ…光は1つでOK」）：桐生の大きいカメラの赤いランプ（recled と rec_light）は消す。
+	# 赤いランプは、澪が置く小さいカメラの1つだけ（story.gd）
+	if lights.has("rec") and lights.rec is Light3D: lights.rec.visible = false
+	for mi in S.env_node.find_children("recled*", "MeshInstance3D", true, false): mi.visible = false
 	# the low sun comes in through the front door onto Makoto and her reflector, as in the old scene, which had no woods:
 	# the cedars throw no shadow in this chapter
 	if not ARGS.has("sugishadow"):
