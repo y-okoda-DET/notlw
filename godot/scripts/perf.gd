@@ -9,7 +9,7 @@ const FILE := "重さの記録.txt"
 const SLOW_MS := 22.0
 var main: Node                      # the current main (it is made again at each scene change)
 var where := ""
-var segs := []                      # [{"where", "q", "n", "sum", "over33", "over50", "ms": PackedFloat32Array}]
+var segs := []                      # [{"where", "q", "n", "sum", "over33", "over50", "ms": [frame ms]}]
 var cur: Dictionary = {}
 var since_scene := 0.0
 var win_sum := 0.0; var win_n := 0
@@ -26,7 +26,7 @@ func _ready():
 func set_main(m: Node, w: String):
 	main = m
 	if w != where or cur.is_empty():
-		where = w; cur = {"where": w, "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": PackedFloat32Array()}
+		where = w; cur = {"where": w, "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": []}
 		segs.append(cur)
 	since_scene = 0.0; win_sum = 0.0; win_n = 0
 	if level < 2: _apply(level)
@@ -39,14 +39,18 @@ func _clock() -> String:
 	var t := Time.get_ticks_msec() / 1000.0
 	return "%d:%02d" % [int(t / 60.0), int(t) % 60]
 
-func _process(dt: float):
-	var ms := dt * 1000.0
+var last_us := 0
+func _process(_dt: float):
+	var now := Time.get_ticks_usec()
+	var ms := (now - last_us) / 1000.0 if last_us > 0 else 16.7   # the real time between frames (not the engine's delta)
+	last_us = now
+	var dt := ms / 1000.0
 	since_scene += dt
 	if not cur.is_empty() and since_scene > 1.5:   # the first frames of a scene are its loading, not its weight
 		cur.n += 1; cur.sum += ms
 		if ms > 33.4: cur.over33 += 1
 		if ms > 50.0: cur.over50 += 1
-		if (cur.ms as PackedFloat32Array).size() < 60000: (cur.ms as PackedFloat32Array).append(ms)
+		if (cur.ms as Array).size() < 60000: (cur.ms as Array).append(ms)
 	if auto and level > 0 and since_scene > 4.0 and main and is_instance_valid(main):
 		win_sum += ms; win_n += 1
 		if win_n >= 90 or win_sum > 3000.0:
@@ -54,7 +58,7 @@ func _process(dt: float):
 			if avg > SLOW_MS:
 				level -= 1; _apply(level)
 				notes.append("%s  %s：平均 %.1f ms で重いので、画質を自動で%s に" % [_clock(), where, avg, ["最低", "低", "高"][level]])
-				cur = {"where": where, "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": PackedFloat32Array()}; segs.append(cur)
+				cur = {"where": where, "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": []}; segs.append(cur)
 				since_scene = 2.0
 			win_sum = 0.0; win_n = 0
 	write_t += dt
@@ -68,9 +72,10 @@ func _apply(l: int):
 		if main.env: main.env.volumetric_fog_enabled = false
 
 func _notification(what):
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE: write()
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE: write()
 
 func write():
+	if not is_inside_tree(): return
 	var dir := OS.get_executable_path().get_base_dir() if OS.has_feature("template") else ProjectSettings.globalize_path("user://")
 	var f := FileAccess.open(dir.path_join(FILE), FileAccess.WRITE)
 	if f == null: return
@@ -83,7 +88,7 @@ func write():
 	f.store_line("場面\t画質\t秒\t平均fps\t平均ms\t遅い1%のms\t最も遅いms\t33msを超えたコマ\t50msを超えたコマ")
 	for s in segs:
 		if s.n < 10: continue
-		var a: PackedFloat32Array = (s.ms as PackedFloat32Array).duplicate(); a.sort()
+		var a: Array = (s.ms as Array).duplicate(); a.sort()
 		var p99: float = a[int(a.size() * 0.99)] if a.size() > 0 else 0.0
 		var mx: float = a[a.size() - 1] if a.size() > 0 else 0.0
 		f.store_line("%s\t%s\t%.0f\t%.1f\t%.1f\t%.1f\t%.0f\t%d\t%d" % [s.where, ["最低", "低", "高"][s.q], s.sum / 1000.0, 1000.0 * s.n / maxf(s.sum, 1.0), s.sum / s.n, p99, mx, s.over33, s.over50])

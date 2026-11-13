@@ -1159,9 +1159,9 @@ func _radio():
 	# 2026-11-13 (ユーザー「ラジオ、目盛りが見えない」): the needle was 1.2 mm, thinner than the print's dots. Three times as wide, and
 	# unlit dark red so the dial lamp does not wash it out
 	if radio_needle:
-		radio_needle.scale = Vector3(3.0, 1.0, 1.0)
+		radio_needle.scale = Vector3(6.0, 1.0, 1.0)   # 2026-11-13: 3 still read thin on the print
 		for mi in ([radio_needle] if radio_needle is MeshInstance3D else []) + radio_needle.find_children("*", "MeshInstance3D", true, false):
-			var nm := StandardMaterial3D.new(); nm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; nm.albedo_color = Color(0.55, 0.04, 0.02)
+			var nm := StandardMaterial3D.new(); nm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; nm.albedo_color = Color(0.3, 0.02, 0.01)
 			(mi as MeshInstance3D).material_override = nm
 	radio_knob = radio.find_child("knob", true, false) as Node3D
 	var dial := radio.find_child("dial", true, false) as MeshInstance3D
