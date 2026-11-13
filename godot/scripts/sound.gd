@@ -9,7 +9,7 @@
 ##   停電　：第1章の明かりが落ちるとき、ブレーカーの「パチッ」
 ##   足音　：澪の一歩ごと（player.gd の step_phase）。靴下の小さい音、ときどききしむ。階段はきしむ音
 ##   ノック：玄関の扉が揺れたら（main.gd の knocks、ch0.gd の knock は扉を数ミリ動かす）1回ずつ
-##   ラジオ：手に持って点いているとき。局に合うほど声、外れるほど雑音（story.gd _reception）
+##   ラジオ：手に持って点いているとき。3局（音楽594・ニュース1017・外国語1350）、近いとこもって唸り、合うと雑音が引く。ダイヤルは回す速さで擦れて刻む（cut_radio.py）
 ##   テープ：第11章のデッキ（tape.gd st）
 ## 場面だけの音（第0章の車、扉）は、その場面のスクリプトが Sound.one() で鳴らす。
 extends Node
@@ -28,6 +28,14 @@ var step_was := 0
 var y_was := 0.0
 var steps_n := 0
 var g_was := {}
+# the three stations (2026-11-13): kHz and strength, as the recipe has them; the dB are where the mix sits in the game (仮)
+const RADIO := {"music": [594.0, 0.75], "news": [1017.0, 0.85], "foreign": [1350.0, 0.6]}
+const RADIO_DB := -4.0
+const STATIC_DB := -8.0
+var best_s := 0.0
+var khz_was := -1.0
+var dial_v := 0.0
+var dial_trav := 0.0
 
 static func stream(name: String, loop := false) -> AudioStream:
 	var p := DIR % name
@@ -151,16 +159,35 @@ func _process(dt):
 		if d > 0.003 and door_was <= 0.003 and knock_cool <= 0.0:
 			one(self, "knock1", -2.0, main.door_pivot.global_position); knock_cool = 0.25
 		door_was = d
-	# the radio in her hand
+	# the radio in her hand: as the recipe for the dial (/mnt/project-files/音/ラジオ加工_2026-11-13/選局の通し_トークなし_ダイヤル音つき_作り方.py):
+	# near a station it hums, muffled; on it, it comes clear and the static draws back. The dial rustles and ticks as it turns.
 	var st = main.story
 	if st != null and is_instance_valid(st) and "holding_radio" in st:
 		if st.holding_radio and st.radio_on:
-			var q: float = st._reception()[1]
-			_loop("radio_static", -60.0); _loop("radio_voice", -60.0)
-			loops.radio_static.volume_db = lerpf(-9.0, -32.0, clampf(q * 1.3, 0.0, 1.0))
-			loops.radio_voice.volume_db = lerpf(-45.0, -7.0, clampf(q, 0.0, 1.0))
+			var f: float = st._khz()
+			var best := 0.0
+			for k in RADIO:
+				var off: float = f - float(RADIO[k][0])
+				var g := exp(-pow(off / 4.5, 2.0))
+				var amp: float = exp(-pow(off / 9.0, 2.0)) * float(RADIO[k][1]) * (1.0 + 0.25 * sin(TAU * 0.13 * Time.get_ticks_msec() / 1000.0 + float(RADIO[k][0])))
+				var c := _loop("radio_" + k, -80.0); var m := _loop("radio_" + k + "_muf", -80.0)
+				if c: c.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * g, 1e-4)) + RADIO_DB))
+				if m: m.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * (1.0 - g), 1e-4)) + RADIO_DB))
+				best = maxf(best, g * float(RADIO[k][1]))
+			best_s = lerpf(best_s, best, minf(1.0, dt * 20.0))
+			var nz := _loop("radio_static", -80.0)
+			if nz: nz.set("volume_db", linear_to_db(maxf(0.9 - 0.8 * best_s, 1e-4)) + STATIC_DB)
+			# the dial, in the room
+			var v: float = absf(f - khz_was) / maxf(dt, 1e-3) if khz_was > 0.0 else 0.0
+			dial_v = lerpf(dial_v, v, minf(1.0, dt * 30.0))
+			var ru := _loop("dial_rustle", -80.0)
+			if ru: ru.set("volume_db", maxf(-80.0, linear_to_db(maxf(clampf(dial_v / 40.0, 0.0, 1.5), 1e-4)) - 22.0))
+			dial_trav += absf(f - khz_was) if khz_was > 0.0 else 0.0
+			if dial_trav >= 3.0: dial_trav = fmod(dial_trav, 3.0); one(self, "dial_tick", randf_range(-22.0, -16.0))
+			khz_was = f
 		else:
-			_stop("radio_static"); _loop_stop_voice()
+			for k in RADIO: _stop("radio_" + k); _stop("radio_" + k + "_muf")
+			_stop("radio_static"); _stop("dial_rustle"); khz_was = -1.0
 	# the deck (第11章)
 	if st != null and is_instance_valid(st) and "st" in st and "tape_t" in st:
 		var s: int = st.st
@@ -169,5 +196,3 @@ func _process(dt):
 			elif tape_was == 1: _stop("tape_hiss"); one(self, "tape_clunk", -8.0)     # ENDED
 			tape_was = s
 
-func _loop_stop_voice():
-	_stop("radio_voice")

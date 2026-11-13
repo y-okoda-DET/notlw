@@ -1125,11 +1125,10 @@ const AM_LO := 531.0                      # the dial (blender/radio.py DIAL): AM
 const AM_HI := 1602.0
 const NEEDLE_X0 := -0.076
 const NEEDLE_X1 := 0.076
-const STATIONS := [[594.0, 0.62, "music"], [747.0, 0.5, "talk"], [1017.0, 0.94, "news"], [1350.0, 0.4, "foreign"]]
+const STATIONS := [[594.0, 0.62, "music"], [1017.0, 0.94, "news"], [1350.0, 0.4, "foreign"]]   # 2026-11-13: three (ユーザー「この三種で」; the late-night talk show is gone)
 # the bulletin, read at about eight characters a second. # is the place: whatever the signal, it never comes through
-# (story/ch2_20.txt 【放送.臨時ニュース】【放送.深夜番組】)
+# (story/ch2_20.txt 【放送.臨時ニュース】)
 var NEWS: Array = D.lines("放送.臨時ニュース")
-var TALKSHOW: Array = D.lines("放送.深夜番組")
 var radio: Node3D
 var radio_needle: Node3D
 var radio_knob: Node3D
@@ -1290,7 +1289,7 @@ func _radio_write():
 	var kind: String = STATIONS[rq[0]][2]
 	if kind == "music": _radio_note("（音楽）"); return
 	if kind == "foreign": _radio_note("（外国語の放送）"); return
-	var sp := _spoken(Tl(NEWS) if kind == "news" else Tl(TALKSHOW))   # a translation keeps # where the place is
+	var sp := _spoken(Tl(NEWS))   # a translation keeps # where the place is
 	var text: String = sp[2]
 	if text.begins_with("（"): _radio_note(text); return
 	if rrow.get("station", "") != kind or rrow.get("sent", -1) != sp[0]:
