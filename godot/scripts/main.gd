@@ -115,7 +115,7 @@ func _ready():
 	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
 	# with the people and the few things only that chapter has brought in from the old scenes' files (_ch1_set, _door_set).
 	# The check stills of the old scenes (--record, --shots, --poses) still get the old scenes, and --old3 plays them.
-	var checking0: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
+	var checking0: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory") or ARGS.has("bake")   # 試作120: --bake-gi --scene=dusk が家の夕方へ回され、assets/dusk/gi.res ができなかった
 	var one: bool = ONE and FileAccess.file_exists("res://assets/house/scene.json")
 	if NEXT_PLAY != "": SCENE = "house"; play = NEXT_PLAY; NEXT_PLAY = ""; TIME = String(PLAY_TIME.get(play, "t0330"))   # ステップ D・E: a chapter reached by playing (to_chapter)
 	elif SCENE == "house" and ARGS.has("play"): play = ARGS.play; TIME = String(PLAY_TIME.get(play, "t23"))
