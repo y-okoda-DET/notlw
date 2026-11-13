@@ -169,7 +169,7 @@ func _do(what: String):
 		"later":
 			# what she chose goes too: the transcript has her say the other
 			var lb: Label = choice_lbs[choice_idx]
-			var s := Strike.new(); s.u = u
+			var s := Strike.new(); s.u = u; s.anim = 0.9
 			s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
 			s.size = lb.size; s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			lb.add_child(s)

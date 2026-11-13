@@ -793,11 +793,18 @@ class Strike extends Control:
 	var w := 0.0
 	var u := 1.0
 	var col := Color(0.945, 0.925, 0.875, 0.9)
+	var anim := 0.0   # 2026-11-14: >0 draws the lines by hand over this many seconds (21時「聞くよ」: seen being crossed out, not a glitch)
+	var at := 0.0
+	func _process(dt):
+		if anim > 0.0 and at < anim: at += dt; queue_redraw()
 	func _draw():
 		var c := col
 		var y := size.y * 0.52
-		draw_line(Vector2(-4 * u, y - 4 * u), Vector2(w + 4 * u, y - 5 * u), c, 2.0 * u)
-		draw_line(Vector2(-4 * u, y + 3 * u), Vector2(w + 4 * u, y + 2 * u), c, 2.0 * u)
+		var k := 1.0 if anim <= 0.0 else clampf(at / anim, 0.0, 1.0)
+		var k1 := clampf(k * 2.0, 0.0, 1.0); var k2 := clampf(k * 2.0 - 1.0, 0.0, 1.0)
+		var x0 := -4 * u; var x1 := w + 4 * u
+		if k1 > 0.0: draw_line(Vector2(x0, y - 4 * u), Vector2(lerpf(x0, x1, k1), y - 4 * u - u * k1), c, 2.0 * u)
+		if k2 > 0.0: draw_line(Vector2(x0, y + 3 * u), Vector2(lerpf(x0, x1, k2), y + 3 * u - u * k2), c, 2.0 * u)
 
 func _choose():
 	cur["chosen"] = true
@@ -1159,7 +1166,7 @@ func _radio():
 	# 2026-11-13 (ユーザー「ラジオ、目盛りが見えない」): the needle was 1.2 mm, thinner than the print's dots. Three times as wide, and
 	# unlit dark red so the dial lamp does not wash it out
 	if radio_needle:
-		radio_needle.scale = Vector3(6.0, 1.0, 1.0)   # 2026-11-13: 3 still read thin on the print
+		radio_needle.scale = Vector3(2.0, 1.0, 1.0)   # 2026-11-14（ユーザー「濃さとかはそのままで太さを1/3に」）: 120 の 6 から
 		for mi in ([radio_needle] if radio_needle is MeshInstance3D else []) + radio_needle.find_children("*", "MeshInstance3D", true, false):
 			var nm := StandardMaterial3D.new(); nm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; nm.albedo_color = Color(0.3, 0.02, 0.01)
 			(mi as MeshInstance3D).material_override = nm

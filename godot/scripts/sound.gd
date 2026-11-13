@@ -23,6 +23,7 @@ var gen_was := true
 var tape_was := -1
 var thunder_t := 20.0
 var storm := false
+var rain_in := -1.0
 var lit_was := false
 var step_was := 0
 var y_was := 0.0
@@ -32,7 +33,7 @@ var g_was := {}
 const RADIO := {"music": [594.0, 0.75], "news": [1017.0, 0.85], "foreign": [1350.0, 0.6]}
 const RADIO_DB := -4.0
 const STEPS := false
-const STATIC_DB := -8.0
+const STATIC_DB := -11.0   # 2026-11-14（ユーザー「ノイズ、もう少しだけ抑える」）: -8 から -3dB
 var best_s := 0.0
 var khz_was := -1.0
 var dial_v := 0.0
@@ -86,7 +87,10 @@ func setup(m):
 	main = m
 	if "--nosound" in OS.get_cmdline_user_args(): set_process(false); return
 	storm = main.SCENE == "night" or (main.SCENE == "house" and main.TIME in ["t20", "t23", "t02", "t0330"])
-	if storm: _loop("rain", -10.0)
+	if storm:
+		var r := _loop("rain", -10.0)
+		# 2026-11-14 第2章の20時は、停電の直後の「ひどい雨になっていました」と一緒に雨が大きくなる（ユーザー「雨の音が急に鳴る」）
+		if r and main.get("ch2_house"): r.set("volume_db", -40.0); rain_in = 0.0
 	gen_was = _gen_running()
 	lit_was = _lit()
 	if main.player: step_was = int(floor(main.player.step_phase)); y_was = main.player.global_position.y
@@ -122,6 +126,10 @@ func _gen_at() -> Vector3:
 
 func _process(dt):
 	if main == null: return
+	if rain_in >= 0.0 and loops.has("rain"):
+		rain_in += dt
+		loops["rain"].set("volume_db", lerpf(-40.0, -10.0, clampf((rain_in - 1.0) / 4.0, 0.0, 1.0)))
+		if rain_in > 5.0: rain_in = -1.0
 	var pl = main.player
 	# the generator, from the cellar; upstairs only its low hum comes through the floors
 	if main.SCENE == "house" and main.TIME != "dusk":
@@ -212,7 +220,7 @@ func _process(dt):
 	if st != null and is_instance_valid(st) and "st" in st and "tape_t" in st:
 		var s: int = st.st
 		if s != tape_was:
-			if s == 1: one(self, "tape_clunk", -6.0); _loop("tape_hiss", -16.0)        # PLAYING
+			if s == 1: one(self, "tape_clunk", -6.0); _loop("tape_hiss", -19.0)        # PLAYING（2026-11-14 ユーザー「ノイズの音、少し抑える」：-16 から）
 			elif tape_was == 1: _stop("tape_hiss"); one(self, "tape_clunk", -8.0)     # ENDED
 			tape_was = s
 

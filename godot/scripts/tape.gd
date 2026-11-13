@@ -103,7 +103,7 @@ func _room():
 	_box(Vector3(-0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.55, 0.5, 0.42))
 	_box(Vector3(0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.45, 0.5, 0.52))
 	var deck := _box(Vector3(0, 0.20, -0.06), Vector3(0.43, 0.10, 0.34), Color(0.10, 0.10, 0.11), 0.45)
-	_box(Vector3(-0.07, 0.215, 0.111), Vector3(0.20, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot
+	_box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
 	# its keys: 録画 and 取り出し at the right, each a key with its name printed over it
 	for k in [[0.085, "録画", Color(0.55, 0.12, 0.08)], [0.150, "取り出し", Color(0.30, 0.30, 0.31)]]:
 		_box(Vector3(k[0], 0.178, 0.112), Vector3(0.042, 0.016, 0.006), k[2], 0.5)
