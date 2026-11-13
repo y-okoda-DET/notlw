@@ -98,6 +98,7 @@ func _ready():
 		if a == "--nostory": ARGS["nostory"] = true
 		if a == "--frameclock": ARGS["frameclock"] = true
 		if a.begins_with("--lite="): ARGS["lite"] = a.substr(7)
+		if a == "--perf": ARGS["perf"] = true
 		if a == "--old3": ONE = false                          # 試作97: the three scenes as they were (to compare)
 		if a.begins_with("--play="): ARGS["play"] = a.substr(7)   # the whole house as a chapter has it: ch0 | ch1 | h21 | door | ch4 | ch11
 		if a == "--noch0": ARGS["noch0"] = true   # ステップ E: the game begins at 第1章, not at 序章 (the dawn)
@@ -194,6 +195,7 @@ func _ready():
 		var snd: Node = load("res://scripts/sound.gd").new(); snd.name = "Sound"; add_child(snd); snd.setup(self)
 	_card()
 	_restore_settings()
+	_perf(checking0)
 	if record == "": Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	t0 = Time.get_ticks_msec() / 1000.0
 
@@ -1129,6 +1131,7 @@ func _unhandled_input(e):
 				_set_print(not print_on); _status("print")
 			KEY_Q:
 				_quality(not quality_high); _status("q")
+				if perf and is_instance_valid(perf): perf.user_chose(quality_high)
 			KEY_G:
 				_set_gi((gi_mode + 1) % 4); _status("gi")
 			KEY_MINUS, KEY_EQUAL:
@@ -1591,6 +1594,19 @@ func _house_cheaper():
 			if (l is OmniLight3D and l.omni_range < 1.5): l.shadow_enabled = false; continue   # a glow of a metre throws no shadow worth six passes
 			l.distance_fade_enabled = true; l.distance_fade_begin = 40.0; l.distance_fade_length = 5.0; l.distance_fade_shadow = 9.0; fl += 1
 	print("house occluders %d, cedars without shadow %d, lamps with near shadows only %d" % [n, far, fl])
+
+# 2026-11-13 重さ（scripts/perf.gd）：書き出した版で遊ぶときだけ（--perf で試せる）。確認の画・通しでは動かない
+var perf: Node
+func _perf(checking0: bool):
+	var on := (OS.has_feature("template") or ARGS.has("perf")) and not checking0 and not "--demo" in OS.get_cmdline_user_args()
+	if not on: return
+	perf = get_tree().root.get_node_or_null("Perf")
+	if perf == null:
+		perf = load("res://scripts/perf.gd").new(); perf.name = "Perf"; get_tree().root.add_child.call_deferred(perf)
+		await get_tree().process_frame
+	var w: String = {"ch0": "序章 5時", "ch1": "第1章 夕方", "h21": "第2章 21時・22時", "door": "第2章 23時の扉", "ch4": "第4章 3時半", "ch11": "第11章 テープ"}.get(play, "")
+	if w == "": w = ("第2章 20時" if ch2_house else "家 " + String(TIME_LABEL.get(TIME, TIME))) if SCENE == "house" else SCENE
+	perf.set_main(self, w)
 
 func _quality(high: bool):
 	quality_high = high
