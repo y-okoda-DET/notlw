@@ -129,7 +129,7 @@ func _room():
 	# the only light: the screen
 	glow = OmniLight3D.new(); glow.light_color = Color(0.72, 0.82, 1.0); glow.light_energy = 0.05
 	glow.omni_range = 3.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = true; glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.2; glow.light_cull_mask = 1
-	main.add_child(glow); glow.global_position = ROOM + tv + Vector3(0, 0.0, 0.50)
+	glow.set_meta("own_shadow", true); main.add_child(glow); glow.global_position = ROOM + tv + Vector3(0, 0.0, 0.50)
 
 const SCREEN_SHADER := """shader_type spatial;
 render_mode unshaded;
@@ -164,6 +164,7 @@ func _screen():
 	vp.msaa_3d = Viewport.MSAA_2X
 	add_child(vp)
 	tcam = Camera3D.new(); tcam.fov = FINDER_FOV; tcam.near = 0.03; tcam.far = 60.0
+	main.set_meta("shadow_eye", tcam)   # 2026-11-14 重さ：家の影は、テレビの中のカメラの近くの明かりだけ（main._shadow_budget）
 	var at := CameraAttributesPractical.new(); tcam.attributes = at
 	at.exposure_multiplier = 3.0       # the camcorder's gain is up in the dark: it has what her eyes did not
 	vp.add_child(tcam); tcam.global_transform = _rail_cam(); tcam.current = true

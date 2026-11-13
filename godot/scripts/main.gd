@@ -917,6 +917,7 @@ func _card():
 # ------------------------------------------------------------------ time
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
+	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
 	# counted from this scene's start (the playthrough goes from scene to scene)
 	if Engine.get_write_movie_path() != "" or ARGS.has("frameclock"): t = float(Engine.get_process_frames() - f0) / float(ARGS.get("mfps", 24.0))
@@ -1608,8 +1609,33 @@ func _perf(checking0: bool):
 	if w == "": w = ("第2章 20時" if ch2_house else "家 " + String(TIME_LABEL.get(TIME, TIME))) if SCENE == "house" else SCENE
 	perf.set_main(self, w)
 
+# 2026-11-14 重さ（試作120 の重さの記録：第4章 338ms・第11章 301ms）：家は 1.1M 三角形の一つの物で、影を落とす明かり1つごとに
+# 家じゅうを描き直す（点の光は6面）。第4章は影の明かりが20、描く量の8倍を影に使っていた。第11章はテレビの中の映像の
+# ために家じゅうの影を計算していた。影は、目（shadow_eye の印があればそのカメラ）に近い明かり shadow_n 個だけに落とす。
+# 太陽・月（DirectionalLight3D）は別。--allshadows で前のまま。
+var shadow_n := 4
+var _sb_t := 0.0
+func _shadow_budget(dt: float):
+	_sb_t -= dt
+	if _sb_t > 0.0 or ARGS.has("allshadows"): return
+	_sb_t = 0.25
+	var eye: Node3D = get_meta("shadow_eye") if has_meta("shadow_eye") and is_instance_valid(get_meta("shadow_eye")) else get_viewport().get_camera_3d()
+	if eye == null: return
+	var e := eye.global_position
+	var cand: Array = []
+	for l in find_children("*", "Light3D", true, false):
+		if l is DirectionalLight3D or l.has_meta("own_shadow"): continue
+		if not l.has_meta("want_shadow"): l.set_meta("want_shadow", l.shadow_enabled)
+		if not l.get_meta("want_shadow"): continue
+		if not l.is_visible_in_tree() or l.light_energy <= 0.0: l.shadow_enabled = false; continue
+		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
+		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
+	cand.sort_custom(func(a, b): return a[0] < b[0])
+	for i in cand.size(): cand[i][1].shadow_enabled = i < shadow_n
+
 func _quality(high: bool):
 	quality_high = high
+	shadow_n = 4 if high else 2
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR if high else Viewport.SCALING_3D_MODE_FSR
 	vp.scaling_3d_scale = 1.0 if high else 0.6
