@@ -58,6 +58,7 @@ func _ready():
 	_stage()
 	_hud(); hud.visible = false
 	weapon.visible = false        # the tripod went back into its bag at four (第6章)
+	if is_instance_valid(tripod_col): tripod_col.queue_free()
 	if lantern: lantern.light_energy = LANTERN_E   # its battery nearly gone
 	_lay_her_down()
 	L0 = _flow("序.流れ")
@@ -118,9 +119,39 @@ func _lay_her_down():
 	for i in 24: _night(0.05)
 	_blow(true)
 	for i in 44: _night(0.05)
+	if not "--c0fall" in OS.get_cmdline_user_args(): _settle()   # --c0fall: as 試作99 had her (to compare)
 	_clear_page(); cur = {}
 	set_meta("freeze", true)
 	_pool()
+
+# 2026-11-13 (ユーザー「倒れている夏希、自然な倒れ方にしたい」): ch4's fall ends on her knees and forward, the legs still folded
+# under her and the feet in the air. An hour and a half later her weight has taken her down flat: face down, a little onto
+# her right side, the legs out and loose, the head turned. Where her head was stays (the pool, the trail end there).
+func _settle():
+	if nsk.has_method("force_update_all_bone_transforms"): nsk.force_update_all_bone_transforms()
+	var h0 := _nhead()
+	# the legs from her rest pose, not from the walk's stride the blow caught her in (that stride is what left one leg up)
+	for nm in ["thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r"]:
+		var bi := nsk.find_bone(nm)
+		if bi >= 0 and pose0.has(nm): pose0[nm][0] = nsk.get_bone_rest(bi).basis.get_rotation_quaternion()
+	_pose({"head": [-0.15, -1.0, 0.0], "neck_01": [0.0, -0.35, 0.0],
+		"spine_03": [-0.04, 0.0, 0.0], "spine_02": [0.0, 0.0, 0.0], "spine_01": [0.0, 0.0, 0.0],
+		"thigh_l": [0.05, 0.0, 0.0], "calf_l": [0.20, 0.0, 0.0], "foot_l": [0.75, 0.0, 0.0],
+		"thigh_r": [-0.10, 0.0, 0.0], "calf_r": [0.15, 0.0, 0.0], "foot_r": [0.85, 0.0, 0.0],
+		"upperarm_l": [-0.75, 0.0, 0.35], "lowerarm_l": [-0.30, 0.0, 0.0],
+		"upperarm_r": [0.25, 0.0, -0.35], "lowerarm_r": [-0.35, 0.0, 0.0]})
+	var b0 := nbase.basis
+	var rb := b0 * Basis(Vector3.BACK, 0.30) * Basis(Vector3.RIGHT, PI / 2.0)
+	nrig.global_transform = Transform3D(rb, nrig.global_position)
+	if nsk.has_method("force_update_all_bone_transforms"): nsk.force_update_all_bone_transforms()
+	var h1 := _nhead()
+	var o := nrig.global_position + Vector3(h0.x - h1.x, 0.0, h0.z - h1.z); o.y = 0.16
+	nrig.global_transform = Transform3D(rb, o)
+	if "--c0dbg" in OS.get_cmdline_user_args():
+		if nsk.has_method("force_update_all_bone_transforms"): nsk.force_update_all_bone_transforms()
+		for nm in ["pelvis", "spine_03", "head", "thigh_l", "calf_l", "foot_l", "thigh_r", "calf_r", "foot_r", "hand_l", "hand_r"]:
+			var bi := nsk.find_bone(nm)
+			if bi >= 0: print("C0BONE %s %s" % [nm, nsk.global_transform * nsk.get_bone_global_pose(bi).origin])
 
 # what ran from her in an hour and a half: a dark, flat, wet pool under her head, its edge gone tacky
 func _pool():

@@ -1374,9 +1374,15 @@ func _carry_tick():
 		if across.length() < 0.05: continue
 		var fwd := across.normalized().cross(Vector3.UP)
 		if fwd.dot(sk.global_basis * Vector3(0, 0, 1)) < 0.0: fwd = -fwd
-		var x := across.normalized()
-		b.global_basis = Basis(x, Vector3.UP, x.cross(Vector3.UP))
-		b.global_position = (hl + hr) * 0.5 + fwd * 0.02 + Vector3.UP * 0.035
+		# 2026-11-13 (ユーザー「大河の木の持ち方、まだ変」): not a tray across both hands but the bundle under the right arm, its length
+		# along the way he walks (tilted a little, front end down), resting in the right hand
+		var f := (sk.global_basis * Vector3(0, 0, 1)); f.y = 0.0
+		if f.length() < 0.01: continue
+		f = f.normalized()
+		var x := (f * cos(deg_to_rad(-12.0)) + Vector3.UP * sin(deg_to_rad(-12.0))).normalized()
+		var side := x.cross(Vector3.UP).normalized()
+		b.global_basis = Basis(x, side, x.cross(side))   # the planks on edge, side by side against his flank
+		b.global_position = hr + Vector3.UP * 0.08 - f * 0.05
 
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return

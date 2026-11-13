@@ -37,6 +37,9 @@ func _ready():
 	_page()
 	_lookers()
 	main.generator(true)
+	# 2026-11-13 (ユーザー「この場面はスマホライトなしでOK」): the phones' torches off; the lantern and the bulbs light the room
+	for e in main.torches:
+		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	demo21 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo_on = demo21
 	for a in OS.get_cmdline_user_args():
@@ -78,6 +81,40 @@ func _set_part(p: int):
 	card_t = 3.0; stage = ""
 	print("STORY h%d" % p)
 
+# 2026-11-13 (ユーザー「会話しているように見せたい。せめて夏希は喋ってる相手を向く」): whoever is not speaking turns to the one who is;
+# the speaker turns to the one she or he speaks to (Natsuki's「……澪。」to Mio), else to the middle of the group
+var yaw_to := {}
+func _turn_to_speaker(dt: float):
+	if stage == "out" or out_t >= 0.0: return
+	var who: String = cur.get("who_key", "") if mode == TALK else ""
+	var at: Dictionary = AT21 if part == 21 else AT22
+	var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
+	for k in at:
+		if main.walkers.has(k): continue
+		var rig: Node3D = main._rig_of(k)
+		if rig == null or not rig.visible: continue
+		var me := [rig.global_position.x + 4.8, rig.global_position.z + 6.3]
+		var target: Array
+		if who == "" or who == "mio":
+			target = FACE21 if part == 21 else mio
+		elif who == k:
+			var txt := String(cur.get("text", ""))
+			if txt.contains("澪") or k == "natsuki" and part == 22: target = mio
+			else:
+				var c := [0.0, 0.0]; var n := 0
+				for o in at:
+					if o == k: continue
+					var r2: Node3D = main._rig_of(o)
+					if r2: c[0] += r2.global_position.x + 4.8; c[1] += r2.global_position.z + 6.3; n += 1
+				target = [c[0] / maxf(n, 1), c[1] / maxf(n, 1)] if n > 0 else FACE21
+		else:
+			var sr: Node3D = main._rig_of(who)
+			target = [sr.global_position.x + 4.8, sr.global_position.z + 6.3] if sr else FACE21
+		var y1 := _face(me, target)
+		var y0 := rig.global_rotation.y
+		var y := y0 + wrapf(y1 - y0, -PI, PI) * minf(1.0, dt * 2.5)
+		rig.global_transform = Transform3D(Basis(Vector3.UP, y), rig.global_position)
+
 # Mio's view from a to b (plan points)
 func _look_from(a: Array, b: Array):
 	var to := gp(b[0], b[1], 1.3) - gp(a[0], a[1], 1.52)
@@ -95,6 +132,7 @@ func _process(dt):
 		return
 	if mode == TALK: _talk_tick(dt)
 	_update_looks()
+	_turn_to_speaker(dt)
 	player.move_enabled = (mode == FREE) and stage == "see_off"
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
 	main.story_talking = (mode == TALK)
@@ -144,10 +182,13 @@ func _do(what: String):
 			stage = "see_off"; see_t = 0.0
 			main.walk_to("natsuki", [[4.85, 1.2, 0.0], NAT_DOOR], Callable(), _face(NAT_DOOR, MIO22))
 		"natsuki_out":
-			out_t = 0.0
+			# 2026-11-13 (ユーザー「扉開いて出るアニメーション、もう少しきれいに」): she opens it, waits for it, goes through, and it shuts
+			# behind her once she is out of sight (not while she is in the doorway)
+			out_t = 0.0; out_gone = -1.0
 			door_rest = main.door_pivot.rotation.y if main.door_pivot else 0.0
 			Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
-			main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false)
+			get_tree().create_timer(1.0).timeout.connect(func():
+				main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false; out_gone = out_t))
 		"lock":
 			Sound.one(self, "knock1", -14.0, gp(5.0, 0.0, 1.0))   # the latch (a placeholder: there is no lock sound yet)
 		"to23":
@@ -158,13 +199,15 @@ func _do(what: String):
 				main.to_night(true))
 		_: super._do(what)
 
-# the front door: open while she goes through, shut behind her
+# the front door: it opens (1.0 s), stays open while she goes through, and shuts 0.6 s after she is gone
+var out_gone := -1.0
 func _out_tick(dt: float):
 	out_t += dt
 	if main.door_pivot == null: return
-	var k := smoothstep(0.0, 1.2, out_t) * (1.0 - smoothstep(4.2, 5.2, out_t))
-	main.door_pivot.rotation.y = door_rest + deg_to_rad(70.0) * k
-	if out_t > 5.4: out_t = -1.0
+	var k := smoothstep(0.0, 1.0, out_t)
+	if out_gone >= 0.0: k *= 1.0 - smoothstep(out_gone + 0.6, out_gone + 1.6, out_t)
+	main.door_pivot.rotation.y = door_rest + deg_to_rad(80.0) * k
+	if out_gone >= 0.0 and out_t > out_gone + 1.7: out_t = -1.0
 
 # the unattended run: walk after her to the genkan
 func _demo_walk(dt: float):
