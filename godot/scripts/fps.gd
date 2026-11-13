@@ -162,10 +162,15 @@ func _stage():
 		var gt2 := rl.global_transform
 		rl.get_parent().remove_child(rl); weapon.add_child(rl); rl.global_transform = gt2
 	_weapon_rest()
+	# 2026-11-13 (ユーザー「三脚の通り抜け、直したい」): standing, it is a thing she bumps into, until she takes it
+	tripod_col = StaticBody3D.new(); tripod_col.name = "tripod_col"
+	var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new(); cy.radius = 0.3; cy.height = maxf(weapon_h, 1.2)
+	cs.shape = cy; cs.position = Vector3(0.0, cy.height * 0.5, 0.0); tripod_col.add_child(cs)
+	main.add_child(tripod_col); tripod_col.global_position = weapon.global_position
 	# the storm's light in the doorway when the door is open: she is a shape against it before she is anyone
 	door_light = SpotLight3D.new(); door_light.light_color = Color(0.62, 0.74, 1.0); door_light.light_energy = 0.0
 	door_light.spot_range = 9.0; door_light.spot_angle = 26.0; door_light.spot_angle_attenuation = 1.4; door_light.spot_attenuation = 0.7
-	door_light.shadow_enabled = true; door_light.light_volumetric_fog_energy = 0.6; door_light.light_specular = 0.15
+	door_light.shadow_enabled = false; door_light.light_volumetric_fog_energy = 0.6; door_light.light_specular = 0.15
 	main.add_child(door_light)
 	door_light.look_at_from_position(gp(5.0, -3.2, 1.9), gp(4.85, 2.2, 0.2), Vector3.UP)
 	_night_cam4()
@@ -197,7 +202,10 @@ func _lantern():
 		if a.begins_with("--d4lantern="): lantern.light_energy = float(a.substr(12))
 		if a == "--d4lnoshadow": set_meta("lnosh", true)
 	lantern.omni_range = 5.0; lantern.omni_attenuation = 1.3; lantern.shadow_enabled = true
-	lantern.light_volumetric_fog_energy = 0.2; lantern.light_specular = 0.2; lantern.light_size = 0.03
+	lantern.light_volumetric_fog_energy = 0.2; lantern.light_specular = 0.2
+	# 2026-11-13 (ユーザー「四章、すごいカクつく」): its shadow (Mio's, down the hall) was a soft cube shadow, six renders of the
+	# house each frame with a soft-shadow search. Two halves (dual paraboloid) and a plain blur instead.
+	lantern.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID; lantern.light_size = 0.0; lantern.shadow_blur = 2.0
 	main.add_child(lantern); lantern.global_position = to
 	if has_meta("lnosh"): lantern.shadow_enabled = false
 
@@ -452,6 +460,7 @@ func _night(dt: float):
 		var k := clampf(door_t / 4.5, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)
 		main.door_pivot.rotation.y = float(main.S.get("door_rot", 0.0)) + deg_to_rad(DOOR_OPEN) * k
 		door_light.light_energy = 2.2 * k
+		door_light.shadow_enabled = k > 0.01   # its shadow costs a render of the house: only once the door opens
 	if nstate == "out": return
 	if has_meta("freeze"): dt = 0.0
 	_blood_tick()
@@ -623,8 +632,10 @@ func _look_at_things():
 		told_tripod = true
 		var e: Dictionary = B("四.まだ")[0]; _say(e.who, e.text, true)
 
+var tripod_col: StaticBody3D
 func _take():
 	holding = true
+	if is_instance_valid(tripod_col): tripod_col.queue_free()
 	note_lb.text = ""
 	if weapon.get_parent() != player.get_node("Head/Camera"):
 		weapon.get_parent().remove_child(weapon); player.get_node("Head/Camera").add_child(weapon)

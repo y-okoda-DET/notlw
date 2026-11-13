@@ -31,6 +31,7 @@ var g_was := {}
 # the three stations (2026-11-13): kHz and strength, as the recipe has them; the dB are where the mix sits in the game (仮)
 const RADIO := {"music": [594.0, 0.75], "news": [1017.0, 0.85], "foreign": [1350.0, 0.6]}
 const RADIO_DB := -4.0
+const STEPS := false
 const STATIC_DB := -8.0
 var best_s := 0.0
 var khz_was := -1.0
@@ -86,7 +87,7 @@ func setup(m):
 	if "--nosound" in OS.get_cmdline_user_args(): set_process(false); return
 	storm = main.SCENE == "night" or (main.SCENE == "house" and main.TIME in ["t20", "t23", "t02", "t0330"])
 	if storm: _loop("rain", -10.0)
-	gen_was = main.gen_on
+	gen_was = _gen_running()
 	lit_was = _lit()
 	if main.player: step_was = int(floor(main.player.step_phase)); y_was = main.player.global_position.y
 
@@ -97,10 +98,24 @@ func _lit() -> bool:
 	return false
 
 # the engine runs: the house's circuit (main.gen_on) or, in 第2章 before the change-over, the engine itself
+# 2026-11-13 (ユーザー「発電機の音がするのは発電機がついてから」): in 第2章 at 20:00 only the engine itself counts, not the circuit
 func _gen_running() -> bool:
-	if main.gen_on: return true
 	var st = main.story
-	return st != null and is_instance_valid(st) and "gen" in st and bool(st.gen.get("run", false))
+	if st != null and is_instance_valid(st) and "gen" in st and "house" in st and st.house: return bool(st.gen.get("run", false))
+	return main.gen_on
+
+# 2026-11-13 (ユーザー「局を合わせたあとも嵐の雑音が波のように何度もかぶる」、選局の通し_3局_v3_嵐の雑音_作り方.py): swells of the storm's
+# static, 0.5-1.3 s long, 1-3.5 s apart, strength 0.5-1; the place names the bulletin loses are two of many of these
+var sw_t := 0.5; var sw_d := 0.0; var sw_a := 0.0; var sw_in := -1.0
+func _swell(dt: float) -> float:
+	if sw_in >= 0.0:
+		sw_in += dt
+		if sw_in >= sw_d: sw_in = -1.0; sw_t = randf_range(1.0, 3.5)
+		else: return sw_a * pow(sin(PI * sw_in / sw_d), 0.6)
+		return 0.0
+	sw_t -= dt
+	if sw_t <= 0.0: sw_in = 0.0; sw_d = randf_range(0.5, 1.3); sw_a = randf_range(0.5, 1.0)
+	return 0.0
 
 func _gen_at() -> Vector3:
 	return Vector3(9.45 - 4.8, -2.0, 6.3 - 6.3)   # story.gd GEN_P, GEN_Y (plan) on the cellar floor, in Godot
@@ -113,9 +128,10 @@ func _process(dt):
 		var st = main.story
 		if st != null and is_instance_valid(st) and "gen" in st:   # 第2章: the cord, the cough, the catch
 			var g: Dictionary = st.gen
-			if int(g.get("fails", 0)) > int(g_was.get("fails", 0)): one(self, "gen_pull", -6.0, _gen_at())
-			if int(g.get("fails_c", 0)) > int(g_was.get("fails_c", 0)): one(self, "gen_cough", -5.0, _gen_at())
-			if bool(g.get("run", false)) and not bool(g_was.get("run", false)): one(self, "gen_start", -4.0, _gen_at())
+			# the cord (ユーザー「小さい音2回、のあとに大きい音1回」): the pulls that do not catch are small, the one that catches is big
+			if int(g.get("fails", 0)) > int(g_was.get("fails", 0)): one(self, "gen_pull", -18.0, _gen_at())
+			if int(g.get("fails_c", 0)) > int(g_was.get("fails_c", 0)): one(self, "gen_cough", -15.0, _gen_at())
+			if bool(g.get("run", false)) and not bool(g_was.get("run", false)): one(self, "gen_start", 0.0, _gen_at())
 			g_was = g.duplicate()
 		var on := _gen_running()
 		if on:
@@ -139,8 +155,8 @@ func _process(dt):
 		if thunder_t <= 0.0:
 			thunder_t = randf_range(35.0, 80.0)
 			one(self, "thunder%d" % randi_range(1, 3), randf_range(-12.0, -5.0))
-	# her steps (in socks: small), now and then a board that gives; the stairs creak
-	if pl:
+	# her steps (in socks: small), now and then a board that gives; the stairs creak. Off (ユーザー 2026-11-13「足音、大げさすぎる。ナシにしようかな」)
+	if pl and STEPS:
 		var sp := int(floor(pl.step_phase))
 		if sp != step_was:
 			var y2: float = pl.global_position.y
@@ -166,17 +182,21 @@ func _process(dt):
 		if st.holding_radio and st.radio_on:
 			var f: float = st._khz()
 			var best := 0.0
+			var sw := _swell(dt)
 			for k in RADIO:
 				var off: float = f - float(RADIO[k][0])
 				var g := exp(-pow(off / 4.5, 2.0))
 				var amp: float = exp(-pow(off / 9.0, 2.0)) * float(RADIO[k][1]) * (1.0 + 0.25 * sin(TAU * 0.13 * Time.get_ticks_msec() / 1000.0 + float(RADIO[k][0])))
 				var c := _loop("radio_" + k, -80.0); var m := _loop("radio_" + k + "_muf", -80.0)
-				if c: c.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * g, 1e-4)) + RADIO_DB))
-				if m: m.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * (1.0 - g), 1e-4)) + RADIO_DB))
+				var duck := 1.0 - 0.55 * sw   # the storm's swell takes the station under for a moment
+				if c: c.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * g * duck, 1e-4)) + RADIO_DB))
+				if m: m.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * (1.0 - g) * duck, 1e-4)) + RADIO_DB))
 				best = maxf(best, g * float(RADIO[k][1]))
 			best_s = lerpf(best_s, best, minf(1.0, dt * 20.0))
 			var nz := _loop("radio_static", -80.0)
-			if nz: nz.set("volume_db", linear_to_db(maxf(0.9 - 0.8 * best_s, 1e-4)) + STATIC_DB)
+			if nz: nz.set("volume_db", linear_to_db(maxf((0.9 - 0.55 * best_s) + 0.9 * sw * best_s, 1e-4)) + STATIC_DB)
+			var cr := _loop("radio_crackle", -80.0)
+			if cr: cr.set("volume_db", linear_to_db(maxf(0.3 + sw, 1e-4)) + STATIC_DB - 4.0)
 			# the dial, in the room
 			var v: float = absf(f - khz_was) / maxf(dt, 1e-3) if khz_was > 0.0 else 0.0
 			dial_v = lerpf(dial_v, v, minf(1.0, dt * 30.0))
@@ -187,7 +207,7 @@ func _process(dt):
 			khz_was = f
 		else:
 			for k in RADIO: _stop("radio_" + k); _stop("radio_" + k + "_muf")
-			_stop("radio_static"); _stop("dial_rustle"); khz_was = -1.0
+			_stop("radio_static"); _stop("radio_crackle"); _stop("dial_rustle"); khz_was = -1.0
 	# the deck (第11章)
 	if st != null and is_instance_valid(st) and "st" in st and "tape_t" in st:
 		var s: int = st.st

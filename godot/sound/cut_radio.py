@@ -84,3 +84,9 @@ L = int(0.004 * SR)
 tk = np.exp(-np.arange(L) / (0.0008 * SR)) * rng.standard_normal(L)
 tk = sosfilt(butter(2, [2000, 8000], "bandpass", fs=SR, output="sos"), np.concatenate([tk, np.zeros(L)]))
 sf.write(OUT + "dial_tick.wav", tk / np.abs(tk).max() * 0.7, SR, subtype="PCM_16"); print("dial_tick")
+
+# the storm's crackle (選局の通し_3局_v3_嵐の雑音_作り方.py crack2): sparse clicks through the AM band, louder in a swell (sound.gd)
+rc = np.random.default_rng(3)
+c = (rc.random(4 * SR) < 0.002) * rc.standard_normal(4 * SR) * 0.5
+c = sosfilt(AM, c)
+sf.write(OUT + "radio_crackle.wav", c / (np.abs(c).max() + 1e-9) * 0.6, SR, subtype="PCM_16"); print("radio_crackle")

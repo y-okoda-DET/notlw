@@ -59,6 +59,9 @@ class Soft extends Control:
 		for whole in lines:
 			var line: String = whole.substr(0, clampi(left, 0, whole.length()))
 			left -= whole.length() + 1   # the line break counts as one
+			# 2026-11-13 (ユーザー「字幕、シャドウがややズレて表示される。長いセリフの時、特にそう」): the phrase marks (U+200B, for
+			# line breaking) take no room in the Label but did in the measuring and drawing here, more of them the longer the line
+			line = line.replace("\u200b", "")
 			if line != "":
 				var w := f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 				var x := 0.0

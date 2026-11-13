@@ -1156,6 +1156,13 @@ func _radio():
 	main.add_child(radio)
 	for mi in radio.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 	radio_needle = radio.find_child("needle", true, false) as Node3D
+	# 2026-11-13 (ユーザー「ラジオ、目盛りが見えない」): the needle was 1.2 mm, thinner than the print's dots. Three times as wide, and
+	# unlit dark red so the dial lamp does not wash it out
+	if radio_needle:
+		radio_needle.scale = Vector3(3.0, 1.0, 1.0)
+		for mi in ([radio_needle] if radio_needle is MeshInstance3D else []) + radio_needle.find_children("*", "MeshInstance3D", true, false):
+			var nm := StandardMaterial3D.new(); nm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; nm.albedo_color = Color(0.55, 0.04, 0.02)
+			(mi as MeshInstance3D).material_override = nm
 	radio_knob = radio.find_child("knob", true, false) as Node3D
 	var dial := radio.find_child("dial", true, false) as MeshInstance3D
 	if dial:
@@ -1182,7 +1189,7 @@ func _radio_power(on: bool):
 		radio_dial_mat.emission_enabled = on
 		radio_dial_mat.emission = Color(1.0, 0.78, 0.5)
 		radio_dial_mat.emission_texture = radio_dial_mat.albedo_texture
-		radio_dial_mat.emission_energy_multiplier = 0.09
+		radio_dial_mat.emission_energy_multiplier = 0.05   # 2026-11-13: lower, the ticks were washed out (0.09)
 	radio_lamp.light_energy = 0.3 if on else 0.0
 
 func _card2():
@@ -1463,7 +1470,8 @@ func _house_tick(dt):
 			_start(B("発電機.かぶる"))
 	# 試作98: what she is to do with the radio comes up once she is by it (ユーザー「ラジオを触れる画面、触ってから表示させる」)
 	if hs == 4 and mode == FREE and not talked.has("radio_near") and items.has("radio") \
-			and (items.radio.pos as Vector3).distance_to(cam.global_position) < 2.2:
+			and (items.radio.pos as Vector3).distance_to(cam.global_position) < 1.7 \
+			and (-cam.global_basis.z).dot(((items.radio.pos as Vector3) - cam.global_position).normalized()) > 0.6:   # 2026-11-13 (ユーザー「ラジオが選択できるように画面に出てきた。実際にはまだ選択できない」): only where E reaches it (1.9 m) and she faces it
 		talked["radio_near"] = 1; talk_with = ""
 		_start(B("ラジオ.近く"))
 	if hs == 3 and pz > -0.3 and mode == FREE:
@@ -1584,9 +1592,37 @@ func _house_conv(key: String, n: int) -> Array:
 			if hs == 5 and taiga_at == "out": return B("20時.大河.板.照らす")
 			if hs == 5: return B("20時.大河.板.地下へ")
 			if hs == 1: return B("20時.大河.地下へ")
+			if hs == 2 and gen.run: return B("20時.大河.発電機.かかった" if gen.choke else "20時.大河.発電機.回った")   # 2026-11-13 (ユーザー「発電機が点いたんだから別の台詞に」)
 			if hs == 2: return B("20時.大河.発電機")
 			return B("20時.大河.戻ろう")
 	return []
+
+# 2026-11-13 (ユーザー「真琴たち、窓がないところを照らしてる。配置変える」): while the boards go up, Kiryu, Natsuki and Makoto
+# each stand 0.9 m inside a window (the nearest one to where each was, not the same one twice) and face it, so the
+# phone in the hand lights a window, not a wall
+func _helpers_to_windows():
+	if wins.is_empty(): return
+	var mid := Vector3.ZERO
+	for w in wins: mid += w.c
+	mid /= wins.size()
+	var taken := {}
+	for k in ["makoto", "natsuki", "kiryu"]:
+		var rig: Node3D = main._rig_of(k)
+		if rig == null: continue
+		var best := -1; var bd := 1e9
+		for i in range(wins.size()):
+			if taken.has(i): continue
+			var d: float = (wins[i].c as Vector3).distance_to(rig.global_position)
+			if d < bd: bd = d; best = i
+		if best < 0: continue
+		taken[best] = true
+		var c: Vector3 = wins[best].c
+		var inward := mid - c; inward.y = 0.0
+		if inward.length() < 0.01: continue
+		var at := c + inward.normalized() * 0.9; at.y = 0.0
+		var to := c - at
+		main.place_person(k, [at.x, -at.z, 0.0], atan2(to.x, to.z) + PI)
+		if items.has(k): items[k].pos = at + Vector3.UP * 1.5
 
 # ================================================================ 第2章: the boards (試作92)
 # After rule 1 Taiga brings boards up from the cellar and they board the ground floor's windows from inside (rooms2.boards,
@@ -1626,6 +1662,7 @@ func _boards_start():
 	for i in range(wins.size()):
 		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
+	_helpers_to_windows()
 	talk_with = "taiga"
 	main.carry_boards("taiga", true)
 	script_q.append_array(B("板.始まり"))

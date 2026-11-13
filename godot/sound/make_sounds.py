@@ -169,4 +169,3 @@ if __name__ == '__main__':
     save('tape_clunk', tape_clunk())
     save('car_arrive', car_arrive())
     save('car_door', car_door())
-    save('door_open', door_open())
