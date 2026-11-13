@@ -144,7 +144,8 @@ func _stage():
 	var parts: Array = []
 	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
 		var nm := String(mi.name)
-		if nm.begins_with("tpd_") or nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): parts.append(mi)
+		if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false; continue   # 2026-11-13 夜: Kiryu took the big camera out at 2:00; the tripod stands bare
+		if nm.begins_with("tpd_"): parts.append(mi)
 	var bb := AABB(); var first := true
 	for mi in parts:
 		var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
@@ -157,10 +158,7 @@ func _stage():
 		mi.get_parent().remove_child(mi); weapon.add_child(mi); (mi as Node3D).global_transform = gt
 		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
-	if main.lights.has("rec_light"):
-		var rl: Light3D = main.lights.rec_light
-		var gt2 := rl.global_transform
-		rl.get_parent().remove_child(rl); weapon.add_child(rl); rl.global_transform = gt2
+	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false   # the camcorder is not here (2026-11-13 夜)
 	_weapon_rest()
 	# 2026-11-13 (ユーザー「三脚の通り抜け、直したい」): standing, it is a thing she bumps into, until she takes it
 	tripod_col = StaticBody3D.new(); tripod_col.name = "tripod_col"
@@ -728,37 +726,16 @@ func _hud_tick(dt: float):
 func _after(dt: float):
 	if after_t < 0.0: return
 	after_t += dt
-	var A: Array = B("四.あと")
-	if after_said == 0 and after_t > 4.0:
-		after_said = 1; _say(A[0].who, A[0].text, true)
-	elif after_said == 1 and after_t > 10.5:
-		after_said = 2; _say(A[1].who, A[1].text, true)
-	elif after_said == 2 and after_t > 18.5:
-		after_said = 3; _say(A[2].who, A[2].text, true)
-	elif after_said == 3 and after_t > 22.0:
-		after_said = 4; note_lb.text = T(String(A[3].note))
+	# 2026-11-13 夜（カメラは2台）: she says nothing and films nothing. The HUD is gone; silence, then black, then the tape (第11章)
+	if after_t > 6.0 and rec_t < 0.0: rec_t = 0.0
 	if rec_t >= 0.0:
 		rec_t += dt
-		(finder_ui as FinderFrame).tc = "0:00:%02d" % int(rec_t)
-		finder_ui.queue_redraw()
-		if rec_t > 7.0: black.color.a = clampf((rec_t - 7.0) / 2.5, 0.0, 1.0)
-		if rec_t > 11.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
+		black.color.a = clampf(rec_t / 2.5, 0.0, 1.0)
+		if rec_t > 4.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
 			left = true
 			if demo4: print("DEMO ch4 t=%.1f fails=%d" % [clock, DEMO_FAILS])
 			if main.play == "ch4": main.to_chapter("ch11")
 			elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
-
-func _record():
-	# the camcorder comes off the tripod and to her eye: the hall through its screen, recording
-	rec_t = 0.0
-	note_lb.text = ""
-	weapon.visible = false
-	finder_layer.visible = true
-	(finder_ui as FinderFrame).rec = true
-	(player.get_node("Head/Camera") as Camera3D).fov = FINDER_FOV
-	var e: Dictionary = B("四.録画")[0]
-	get_tree().create_timer(2.5).timeout.connect(func(): _say(e.who, e.text, true))
-	print("STORY ch4 record t=%.1f" % clock)
 
 func _unhandled_input(e):
 	if tape or (card4 and card4.visible): return
@@ -768,7 +745,6 @@ func _unhandled_input(e):
 		if (key_e or click) and note_lb.text != "": _take()
 		return
 	if after_t >= 0.0:
-		if (key_e or click) and after_said == 4 and rec_t < 0.0: _record()
 		return
 	if click and swing_t < 0.0:
 		swing_t = 0.0; swing_hit = false
@@ -827,4 +803,4 @@ func _demo4(dt: float):
 				if clock > STRIKES[1] + 6.0: print("DEMO FAIL ch4: she is not down t=%.1f" % clock); DEMO_FAILS += 1; demo_step = 9
 				elif (-cam.global_basis.z).angle_to(_nhead() - cam.global_position) < 0.03: swing_t = 0.0; swing_hit = false
 			if nstate == "down": turn.call(_nhead().lerp(nrig.global_position, 0.4), 1.6)      # and she looks at what is at her feet
-			if after_said == 4 and rec_t < 0.0: _record(); demo_step = 5
+			if rec_t >= 0.0: demo_step = 5
