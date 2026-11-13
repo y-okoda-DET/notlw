@@ -87,10 +87,13 @@ func _process(dt: float):
 			var c := _coords(w)
 			for k in w:   # look=<person>: from 1.8 m before them (and a little to their right), at their chest
 				if String(k).begins_with("look="):
-					var mm := _main(); var r: Node3D = mm._rig_of(String(k).substr(5)) if mm else null
+					# look=<person>[@<度>]：その人のまわりを度だけ回った所から（0 は前、90 は左手側、180 は後ろ）
+					var lw := String(k).substr(5).split("@"); var ang := deg_to_rad(float(lw[1])) if lw.size() > 1 else 0.0
+					var mm := _main(); var r: Node3D = mm._rig_of(lw[0]) if mm else null
 					if r:
-						var f := r.global_basis.z; f.y = 0.0; f = f.normalized()
-						var eye := r.global_position + f * 1.8 + r.global_basis.x.normalized() * 0.5 + Vector3.UP * 1.5
+						var f := r.global_basis.z; f.y = 0.0; f = f.normalized().rotated(Vector3.UP, ang)
+						var sx := f.cross(Vector3.DOWN).normalized()
+						var eye := r.global_position + f * 1.8 + sx * 0.5 + Vector3.UP * 1.5
 						var at := r.global_position + Vector3.UP * 1.1
 						cam = Camera3D.new(); get_tree().root.add_child(cam)
 						if prev: cam.fov = prev.fov; cam.environment = prev.environment; cam.attributes = prev.attributes

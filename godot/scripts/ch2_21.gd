@@ -11,7 +11,7 @@ extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
 
 # where they are (plan metres: x east, y north from the front door) and whom they face
-const AT21 := {"kiryu": [1.05, 2.35], "makoto": [1.15, 0.95], "taiga": [2.85, 0.95], "natsuki": [2.35, 2.35]}
+const AT21 := {"kiryu": [1.05, 2.35], "makoto": [1.15, 0.95], "taiga": [2.85, 0.95], "natsuki": [2.45, 1.85]}   # 2026-11-14（ユーザー「夏希、上映の準備を進めているように」）：低い机の映写機のそば
 const FACE21 := [1.85, 1.6]                    # the lantern on the low table
 const MIO21 := [3.45, 3.25]                    # by the living room's door, looking in
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}

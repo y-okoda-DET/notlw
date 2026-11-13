@@ -13,6 +13,7 @@
 extends "res://scripts/story.gd"
 
 # ---------------------------------------------------------------- the night (plan metres: x east, y north from the front door; z up)
+const Sound = preload("res://scripts/sound.gd")
 const MIO_AT := [4.55, 3.0]                       # her feet: the middle of the hall, left of the handrail camera's frame
 const TAPE_MIO := [4.35, 3.15]                    # on the tape she stands a step further left: all of her, and the tripod at her shoulder, outside the small camera's frame
 const WEAPON_AT := [4.16, 2.62]                   # the tripod, moved from the genkan to the stair's foot for this night
@@ -23,6 +24,8 @@ const NSPEED := 0.36                              # m/s: she drags herself in
 # where she comes: [plan x, y, z, the second she goes on from there]. The last is where she stops in the canonical
 # night (the tape); played, the last is a metre short of wherever Mio stands when she sets off for it.
 const NPATH := [[5.0, -0.75, -0.21, 10.0], [5.0, 0.15, -0.18, 17.5], [4.95, 0.75, -0.18, 25.0], [4.85, 1.5, 0.0, 33.0], [4.75, 2.0, 0.0, 1e9]]
+const TAPE_TAKE := 45.6                          # on the tape, the tripod leaves its place (Mio takes it up) after the grab
+const GRAB_AT := 44.0                             # she falls against Mio and catches her sleeve (ch4.txt ＞grab; the tape: 40.0, 「ひとりじゃ、……むりだった」)
 const STRIKES := [50.0, 51.2]                     # the canonical blows (the tape: 46.0 and 47.2)
 
 var tape := false              # 第11章: the same night, nobody at the controls (tape.gd)
@@ -407,6 +410,7 @@ func _process(dt):
 	mio_shadow.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z)
 	mio_shadow.rotation.y = player.yaw
 	_look_at_things()
+	_grab_mio(dt)
 	_swing(dt)
 	_hud_tick(dt)
 	_after(dt)
@@ -450,6 +454,8 @@ func _do4(what: String):
 		"enter":
 			nat.visible = true; nstate = "stand"; ni = 1
 			print("STORY ch4 enter t=%.1f" % clock)
+		"grab":
+			if nstate in ["stand", "walk"]: _grab_start()
 
 # the night itself: the door, the one who comes in
 func _night(dt: float):
@@ -464,8 +470,10 @@ func _night(dt: float):
 	_blood_tick()
 	if looks.has("natsuki"):
 		var lm: Look = looks.natsuki
-		lm.target = _mio_eye(); lm.want = 1.0 if nstate in ["walk", "stand"] else 0.0
+		lm.target = _mio_eye(); lm.want = 1.0 if nstate in ["walk", "stand", "grab"] else 0.0
+	_wobble(dt)
 	match nstate:
+		"grab": _grab_nat(dt)
 		"stand":
 			if nwalk: nwalk = false; nap.pause()
 			if ni < NPATH.size() and clock >= float(NPATH[ni - 1][3]): nstate = "walk"
@@ -786,11 +794,11 @@ func _demo4(dt: float):
 		player.pitch = lerp(player.pitch, asin(clampf(d.normalized().y, -1.0, 1.0)), k)
 	match demo_step:
 		0:
-			if clock > 13.0: demo_step = 1
+			if clock > GRAB_AT + 1.4: demo_step = 1   # after she has caught Mio's sleeve and Mio's hand has hit the tripod
 		1:
 			turn.call(weapon.global_position + Vector3(0, 1.0, 0), 3.0)
 			if note_lb.text != "": _take(); demo_step = 2
-			elif clock > 22.0: print("DEMO FAIL ch4: cannot take the tripod t=%.1f" % clock); DEMO_FAILS += 1; demo_step = 9
+			elif clock > GRAB_AT + 5.0: print("DEMO FAIL ch4: cannot take the tripod t=%.1f" % clock); DEMO_FAILS += 1; demo_step = 9
 		2:
 			if nstate != "out": turn.call(_nhead(), 2.5)
 			if clock >= STRIKES[0] and swing_t < 0.0: swing_t = 0.0; swing_hit = false; demo_step = 3
@@ -804,3 +812,138 @@ func _demo4(dt: float):
 				elif (-cam.global_basis.z).angle_to(_nhead() - cam.global_position) < 0.03: swing_t = 0.0; swing_hit = false
 			if nstate == "down": turn.call(_nhead().lerp(nrig.global_position, 0.4), 1.6)      # and she looks at what is at her feet
 			if rec_t >= 0.0: demo_step = 5
+
+# ================================================================ the motive (決定事項 2026-11-14 朝、ユーザー「自然に殴る動機を与えたい」)
+# Her foot gives; she falls against Mio and her right hand catches Mio's left sleeve. Mio is pulled, staggers, and her
+# free hand, thrown out to stop herself, comes down on the tripod by the newel: it rocks. That is where the tripod comes
+# into her head. The same seconds in 第4章 and on the tape (第11章); taking it and swinging it stay the player's.
+var grab_t := -1.0
+var grab_p0 := Vector3.ZERO
+var grab_to := Vector3.ZERO
+var grab_yaw := 0.0
+var reach: Reach
+var mio_g := {}                 # 第4章: Mio's side of it {t, pull, to, hit, yaw0, pitch0}
+var wob_t := -1.0
+
+func _mio_feet() -> Vector3:
+	return gp(TAPE_MIO[0], TAPE_MIO[1], 0.0) if tape else player.global_position
+
+func _grab_start():
+	grab_t = 0.0; nstate = "grab"
+	if nwalk: nwalk = false
+	nap.pause()
+	var p := nrig.global_position; var m := _mio_feet()
+	var d := m - p; d.y = 0.0
+	var L := maxf(d.length(), 0.01); d /= L
+	# a lurch, not a walk: a third of a metre at most (on the tape she stays in the frame; only her arm goes out of it, to Mio)
+	grab_p0 = p; grab_to = p + d * clampf(L - 0.62, 0.0, 0.22 if tape else 0.35); grab_to.y = p.y
+	grab_yaw = atan2(d.x, d.z)
+	if reach == null: reach = Reach.new(); nsk.add_child(reach)
+	reach.w = 0.0
+	print("STORY ch4 grab t=%.1f dist=%.2f" % [clock, L])
+	if tape: return
+	# Mio: where the stumble takes her. Toward the tripod if it is near enough to be what her hand finds, else a step back
+	var tp: Vector3 = weapon.global_position; tp.y = player.global_position.y
+	var mp: Vector3 = player.global_position
+	mio_g = {"t": 0.0, "pull": d * -1.0, "hit": false, "yaw0": player.yaw, "pitch0": player.pitch}
+	if not holding and weapon.get_parent() == main and (tp - mp).length() < 1.7:
+		var v: Vector3 = tp - mp; var vl: float = v.length()
+		mio_g["to"] = v / maxf(vl, 0.01) * maxf(vl - 0.55, 0.0)   # her shoulder half a metre short: her hand on it
+		mio_g["tripod"] = true
+	else:
+		mio_g["to"] = d * 0.22; mio_g["tripod"] = false
+
+func _sleeve() -> Vector3:
+	# Mio's left forearm: below her eye, to her left, a little toward Natsuki
+	var e := _mio_eye()
+	var f: Vector3
+	if tape: f = (nrig.global_position - gp(TAPE_MIO[0], TAPE_MIO[1], 0.0)); f.y = 0.0; f = f.normalized()
+	else: f = Basis(Vector3.UP, player.yaw) * Vector3(0, 0, -1)
+	var left := Vector3.UP.cross(f).normalized()
+	return e + Vector3.DOWN * 0.55 + left * 0.22 + f * 0.18
+
+func _grab_nat(dt: float):
+	grab_t += dt
+	var g := grab_t
+	var go := smoothstep(0.0, 0.45, g)                    # the fall forward, all at once
+	var lean := 0.34 * go - 0.22 * smoothstep(1.4, 2.2, g)
+	var sink := 0.07 * smoothstep(0.3, 0.8, g) * (1.0 - smoothstep(1.4, 2.2, g))
+	var p := grab_p0.lerp(grab_to, go * go) - Vector3(0, sink, 0)
+	var yaw := lerp_angle(nrig.global_rotation.y, grab_yaw, minf(1.0, dt * 8.0))
+	nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, lean), p)
+	reach.target = _sleeve()
+	reach.w = smoothstep(0.1, 0.4, g) * (1.0 - smoothstep(1.4, 2.0, g))
+	if g >= 2.3:
+		reach.w = 0.0; nstate = "stand"; ni = NPATH.size(); grab_t = -1.0
+		nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, 0.12), p)
+
+func _grab_mio(dt: float):
+	if mio_g.is_empty(): return
+	mio_g.t += dt
+	var g: float = mio_g.t
+	if g < 0.4: return                                     # she has not reached her yet
+	player.move_enabled = false; player.look_enabled = false
+	var prev: float = mio_g.get("k", 0.0)
+	# pulled toward her (0.4-0.6), then the stumble (0.6-1.25)
+	var pull: Vector3 = -mio_g.pull * 0.16 * smoothstep(0.4, 0.6, g)
+	var st: Vector3 = mio_g.to * smoothstep(0.6, 1.25, g)
+	var now := pull + st
+	var was: Vector3 = mio_g.get("at", Vector3.ZERO)
+	player.move_and_collide(now - was)
+	mio_g["at"] = now
+	# the view: down to her hand on the sleeve (and her face over it), then, as she staggers, to what her hand hit
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var ang = func(at: Vector3) -> Vector2:
+		var d: Vector3 = at - cam.global_position
+		return Vector2(atan2(-d.x, -d.z), asin(clampf(d.normalized().y, -1.0, 1.0)))
+	var s1: Vector2 = ang.call(_sleeve().lerp(_nhead(), 0.45))
+	var wa := smoothstep(0.4, 0.62, g) * (1.0 - (smoothstep(0.85, 1.3, g) if mio_g.tripod else smoothstep(1.2, 1.8, g)))
+	var yaw: float = lerp_angle(float(mio_g.yaw0), s1.x, wa)
+	var pit: float = lerpf(float(mio_g.pitch0), s1.y, wa)
+	if mio_g.tripod:
+		var s2: Vector2 = ang.call(weapon.global_position + Vector3(0, 0.75, 0))
+		var wb := 0.85 * smoothstep(0.85, 1.3, g)
+		yaw = lerp_angle(yaw, s2.x, wb); pit = lerpf(pit, s2.y, wb)
+		if not mio_g.hit and g >= 1.2:
+			mio_g.hit = true; wob_t = 0.0
+			Sound.one(self, "knock_weak", -6.0, weapon.global_position + Vector3(0, 0.9, 0))
+			print("STORY ch4 tripod hit t=%.1f" % clock)
+	if g > 0.5 and not mio_g.has("step"): mio_g["step"] = 1; Sound.one(self, "step3", -4.0)
+	player.yaw = yaw; player.pitch = pit
+	if g >= 1.9:
+		player.move_enabled = true; player.look_enabled = true
+		mio_g = {}
+
+# the tripod, hit and rocking on its feet (only while it stands)
+func _wobble(dt: float):
+	if tape and clock >= GRAB_AT + 1.0 and clock < GRAB_AT + 1.1 and wob_t < 0.0: wob_t = 0.0   # on the tape: her hand, out of the frame
+	if wob_t < 0.0 or weapon.get_parent() != main or (tape and clock >= TAPE_TAKE): return
+	wob_t += dt
+	var a := 0.09 * exp(-wob_t * 3.2) * sin(wob_t * 17.0)
+	_weapon_rest()
+	weapon.global_transform = weapon.global_transform * Transform3D(Basis(Vector3(1, 0, 0.4).normalized(), a), Vector3.ZERO)
+	if wob_t > 2.0: wob_t = -1.0; _weapon_rest()
+
+# Natsuki's right hand to Mio's sleeve (two-bone reach, as Hold; w 0 leaves the clip's arm)
+class Reach extends SkeletonModifier3D:
+	var w := 0.0
+	var target := Vector3.ZERO      # world
+	const POLE := Vector3(-0.6, -0.5, -0.3)   # the elbow out and down (rest frame: x her left)
+	func _process_modification():
+		var sk := get_skeleton()
+		if sk == null or w <= 0.001: return
+		var ua := sk.find_bone("upperarm_r"); var la := sk.find_bone("lowerarm_r"); var ha := sk.find_bone("hand_r")
+		if ua < 0 or la < 0 or ha < 0: return
+		var t: Vector3 = sk.global_transform.affine_inverse() * target
+		var sp := sk.get_bone_global_pose(ua).origin
+		var l1 := sp.distance_to(sk.get_bone_global_pose(la).origin); var l2 := sk.get_bone_global_pose(la).origin.distance_to(sk.get_bone_global_pose(ha).origin)
+		var n := t - sp; var d := minf(n.length(), l1 + l2 - 0.005); n = n.normalized()
+		var a := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+		var pole := (POLE - n * POLE.dot(n)).normalized()
+		var elbow := sp + n * a + pole * sqrt(maxf(l1 * l1 - a * a, 0.0))
+		var g1 := sk.get_bone_global_pose(ua)
+		var q1 := Quaternion((sk.get_bone_global_pose(la).origin - sp).normalized(), (elbow - sp).normalized())
+		sk.set_bone_global_pose(ua, Transform3D(Basis(Quaternion().slerp(q1, w)) * g1.basis, g1.origin))
+		var g2 := sk.get_bone_global_pose(la)
+		var q2 := Quaternion((sk.get_bone_global_pose(ha).origin - g2.origin).normalized(), (sp + n * d - g2.origin).normalized())
+		sk.set_bone_global_pose(la, Transform3D(Basis(Quaternion().slerp(q2, w)) * g2.basis, g2.origin))

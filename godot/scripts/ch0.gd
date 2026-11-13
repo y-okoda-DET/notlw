@@ -14,7 +14,6 @@
 ##
 ## It rides on fps.gd's stage (her, the trail, the blood, the small camera on the handrail, the lantern), as tape.gd does.
 extends "res://scripts/fps.gd"
-const Sound = preload("res://scripts/sound.gd")
 
 const SIT_AT := [4.42, 3.42]          # plan x, y: on the floor against the stair's boarding, a step behind where she stood at 3:30
 const SIT_EYE := 0.86

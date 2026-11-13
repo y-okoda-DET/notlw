@@ -274,7 +274,7 @@ func _do4(what: String):
 # Mio is under the camera, out of its frame. The tripod is in her hands from the second she took it up in 第4章;
 # what the tape has of her is the tripod coming into the frame, twice.
 func _tape_swing(dt: float):
-	if clock < 13.5: return
+	if clock < TAPE_TAKE: return   # 2026-11-14: she takes it up only after Natsuki has caught her sleeve and her hand has hit it
 	if weapon.get_parent() != main:
 		weapon.get_parent().remove_child(weapon); main.add_child(weapon)
 	var hands := gp(TAPE_MIO[0] + 0.12, TAPE_MIO[1] - 0.25, 1.18)

@@ -81,10 +81,12 @@ def living(M):
     box('furn_screen', .42, scr_y0, .435, scr_y1, .88, 1.82, M['screen'])
     box('furn_scrbar', .41, scr_y0 - .02, .445, scr_y1 + .02, 1.82, 1.85, M['plastic'])
     box('furn_scrcase', .39, scr_y0 - .04, .47, scr_y1 + .04, .82, .88, M['plastic'])
-    cyl('furn_scrpole', .48, (scr_y0 + scr_y1) / 2, .05, 1.85, .014, M['steel'], 8)
+    # 2026-11-14（ユーザー「スクリーンが裏を向いてしまっている（スクリーン三脚が手前に見えている）」）：柱と三脚は幕の裏（窓の側）。
+    # 前に出るのは脚の1本だけ（幕の下）
+    cyl('furn_scrpole', .37, (scr_y0 + scr_y1) / 2, .05, 1.85, .014, M['steel'], 8)
     for a in (0, 2.1, 4.2):
-        lx, ly = .48 + .32 * math.cos(a), (scr_y0 + scr_y1) / 2 + .32 * math.sin(a)
-        lib.tube('furn_scrleg', [(X(.48), Y((scr_y0 + scr_y1) / 2), .55), (X(lx), Y(ly), .01)], [.01, .01], M['steel'], seg=6, sub=1)
+        lx, ly = .37 + .26 * math.cos(a), (scr_y0 + scr_y1) / 2 + .30 * math.sin(a)
+        lib.tube('furn_scrleg', [(X(.37), Y((scr_y0 + scr_y1) / 2), .55), (X(lx), Y(ly), .01)], [.01, .01], M['steel'], seg=6, sub=1)
     collide(.15, scr_y0, .8, scr_y1, 0, 1.9)
     box('furn_rug', 1.25, .7, 3.75, 3.0, 0, .012, M['rug'], 1.0)
     # low table

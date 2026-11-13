@@ -456,10 +456,12 @@ def generator(M):
         tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
         # 試作97: and a word on tape by each control (the same places as story.gd _gen_items)
         # 試作98: half as long again and more (ユーザー「テープの字は見えない」: 7-9 cm read as specks from where she stands)
-        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .64), (-1, 0, 0), .13)
-        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .64), (-1, 0, 0), .15)
-        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .37), (-1, 0, 0), .15)
-        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .52), (0, -1, 0), .13)
+        # 2026-11-14: half as long again (18-20 cm), black marker, an arrow to each (lived2_tex.py)
+        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .65), (-1, 0, 0), .17)
+        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .65), (-1, 0, 0), .2)
+        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .36), (-1, 0, 0), .2)
+        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .53), (0, -1, 0), .17)
+        tape(M, 'gen_gauge', (X(gx - .05), Y(gy + .1), ZB + .71), (-1, 0, .6), .17)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST
