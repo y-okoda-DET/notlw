@@ -1307,6 +1307,24 @@ func _aim_torches():
 		if f.length() < 0.01: continue
 		var a := deg_to_rad(TORCH_DOWN)
 		(sp as SpotLight3D).global_basis = Basis.looking_at(f.normalized() * cos(a) + Vector3.DOWN * sin(a), Vector3.UP)
+		_clip_beam(sp)
+
+# 2026-11-14（ユーザー「地下に向かう際の謎の板（ずっと指摘してるやつ）」）：光の筒（_torch_beam、2.6m）は床や壁を突き抜け、
+# 階段の吹き抜けから下・上に、刷りで硬い板のように見えていた。筒は、光が最初に当たる所で終わる
+var _beam_ex: Array = []
+func _clip_beam(sp: SpotLight3D):
+	var bm := sp.get_node_or_null("beam") as MeshInstance3D
+	if bm == null: return
+	if _beam_ex.is_empty():
+		for k in ["kiryu", "natsuki", "makoto", "taiga"]:
+			if S.has(k + "_col") and is_instance_valid(S[k + "_col"]): _beam_ex.append((S[k + "_col"] as CollisionObject3D).get_rid())
+		if player: _beam_ex.append(player.get_rid())
+	var o := sp.global_position; var d := -sp.global_basis.z
+	var q := PhysicsRayQueryParameters3D.create(o + d * 0.05, o + d * 2.6); q.exclude = _beam_ex
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var L: float = 2.6 if hit.is_empty() else clampf(o.distance_to(hit.position), 0.1, 2.6)
+	var k := L / 2.6
+	bm.scale = Vector3(k, k, k); bm.position = Vector3(0, 0, -L / 2.0)
 
 # 試作92: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
 # the ground speed (m/s, along the floor) the feet were made for
