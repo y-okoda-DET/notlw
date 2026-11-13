@@ -52,8 +52,21 @@ loop[:len(tail)] += tail                 # the last bar's ring carries over into
 station("music", loop)
 f = load(SRC + "外国語_元.mp3")
 station("foreign", np.concatenate([f, np.zeros(int(1.5 * SR))]))
+# the bulletin (ユーザーの声、2026-11-13): read from 1.6 s, once to 23.4 s, again after「繰り返します」26.7〜48.1 s.
+# The place (西浦町) never comes through: its spans (seconds in ニュース_元.wav) are buried in static. NAME is filled in
+# when the times are known (the sound thread asks the user).
+NAME = []
 news = SRC + "ニュース_元.wav"
-station("news", load(news) if os.path.exists(news) else load(OUT + "radio_voice.wav"))
+if os.path.exists(news):
+    x = load(news)[int(1.2 * SR):int(48.6 * SR)]
+    nz = sosfilt(butter(2, [400, 4000], "bandpass", fs=SR, output="sos"), np.random.default_rng(5).standard_normal(len(x)))
+    for a, b in NAME:
+        i, j = int((a - 1.2) * SR), int((b - 1.2) * SR); k = int(0.02 * SR)
+        w = np.ones(j - i); w[:k] = np.linspace(0, 1, k); w[-k:] = np.linspace(1, 0, k)
+        x[i:j] = x[i:j] * (1 - w) + nz[i:j] / np.std(nz) * np.std(x) * 1.2 * w
+    station("news", np.concatenate([x, np.zeros(int(2.0 * SR))]))
+else:
+    station("news", load(OUT + "radio_voice.wav"))
 
 rng = np.random.default_rng(7)
 fr = sosfilt(butter(2, [1500, 7000], "bandpass", fs=SR, output="sos"), rng.standard_normal(2 * SR))
