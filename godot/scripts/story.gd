@@ -1605,7 +1605,7 @@ func _helpers_to_windows():
 	var mid := Vector3.ZERO
 	for w in wins: mid += w.c
 	mid /= wins.size()
-	var taken := {}
+	var taken := {0: true, 4: true, 5: true}   # the windows the demo (the playthrough) boards: keep Mio's way to them clear
 	for k in ["makoto", "natsuki", "kiryu"]:
 		var rig: Node3D = main._rig_of(k)
 		if rig == null: continue
