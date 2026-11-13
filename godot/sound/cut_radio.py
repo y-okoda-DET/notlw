@@ -53,17 +53,24 @@ station("music", loop)
 f = load(SRC + "外国語_元.mp3")
 station("foreign", np.concatenate([f, np.zeros(int(1.5 * SR))]))
 # the bulletin (ユーザーの声、2026-11-13): read from 1.6 s, once to 23.4 s, again after「繰り返します」26.7〜48.1 s.
-# The place (西浦町) never comes through: its spans (seconds in ニュース_元.wav) are buried in static. NAME is filled in
-# when the times are known (the sound thread asks the user).
-NAME = []
+# The place (西浦町) never comes through: its spans (seconds in ニュース_元.wav) are buried in static (NAME,
+# 0.8 s each, 40 ms fades).
+NAME = [(4.81, 5.61), (10.39, 11.19), (29.99, 30.79), (35.31, 36.11)]   # 音のスレッド 2026-11-13（10・30秒はユーザーが聞いて確かめた）
 news = SRC + "ニュース_元.wav"
 if os.path.exists(news):
     x = load(news)[int(1.2 * SR):int(48.6 * SR)]
-    nz = sosfilt(butter(2, [400, 4000], "bandpass", fs=SR, output="sos"), np.random.default_rng(5).standard_normal(len(x)))
+    # over the place: the voice down to -26 dB, the static (radio_static.wav, cut from the user's recording: no broadcast in it) and crackle on top
+    st, _ = sf.read(OUT + "radio_static.wav"); st = st.mean(1) if st.ndim == 2 else st
+    st = sosfilt(AM, np.resize(st, len(x)))
+    rng5 = np.random.default_rng(5)
+    crack = (rng5.random(len(x)) < 0.002) * rng5.standard_normal(len(x))
+    crack = sosfilt(butter(2, [800, 5000], "bandpass", fs=SR, output="sos"), crack)
+    lvl = np.std(x[np.abs(x) > np.abs(x).max() * 0.05])
     for a, b in NAME:
-        i, j = int((a - 1.2) * SR), int((b - 1.2) * SR); k = int(0.02 * SR)
+        i, j = int((a - 1.2) * SR), int((b - 1.2) * SR); k = int(0.04 * SR)
         w = np.ones(j - i); w[:k] = np.linspace(0, 1, k); w[-k:] = np.linspace(1, 0, k)
-        x[i:j] = x[i:j] * (1 - w) + nz[i:j] / np.std(nz) * np.std(x) * 1.2 * w
+        z = st[i:j] / (np.std(st[i:j]) + 1e-9) * lvl * 0.8 + crack[i:j] / (np.std(crack) + 1e-9) * lvl * 0.25
+        x[i:j] = x[i:j] * (1 - w * (1 - 10 ** (-26 / 20))) + z * w
     station("news", np.concatenate([x, np.zeros(int(2.0 * SR))]))
 else:
     station("news", load(OUT + "radio_voice.wav"))
