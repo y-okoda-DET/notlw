@@ -1621,7 +1621,7 @@ func _helpers_to_windows():
 		if inward.length() < 0.01: continue
 		var at := c + inward.normalized() * 0.9; at.y = 0.0
 		var to := c - at
-		main.place_person(k, [at.x, -at.z, 0.0], atan2(to.x, to.z) + PI)
+		main.place_person(k, [at.x, -at.z, 0.0], atan2(to.x, to.z))   # 2026-11-13: +PI had them face the room (the light away from the window)
 		if items.has(k): items[k].pos = at + Vector3.UP * 1.5
 
 # ================================================================ 第2章: the boards (試作92)
