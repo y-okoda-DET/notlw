@@ -1352,6 +1352,8 @@ func _radio_write():
 		# the signal, moment by moment: dropouts come in clumps
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
+		if ch == "~":   # the cause (化学工場, ガス): buried in static on the recording too (cut_radio.py), whatever the dial
+			_seg("noise", ""); continue
 		if ch == "#":
 			# the place: it never comes through, but as broken sound, not as a transcriber's label (合格の試し1「露骨。がぎぐで……の方が自然」)
 			_seg("name", _garble())

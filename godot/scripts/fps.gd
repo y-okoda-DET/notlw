@@ -27,6 +27,7 @@ const NPATH := [[5.0, -0.75, -0.21, 10.0], [5.0, 0.15, -0.18, 17.5], [4.95, 0.75
 const TAPE_TAKE := 45.6                          # on the tape, the tripod leaves its place (Mio takes it up) after the grab
 const GRAB_AT := 44.0                             # she falls against Mio and catches her sleeve (ch4.txt ＞grab; the tape: 40.0, 「ひとりじゃ、……むりだった」)
 const STRIKES := [50.0, 51.2]                     # the canonical blows (the tape: 46.0 and 47.2)
+const QUIET_AT := 70.0                            # nothing has struck her by now: a short black, and Mio says it anyway (ch4.txt 【四.殴らなかった】)
 
 var tape := false              # 第11章: the same night, nobody at the controls (tape.gd)
 var LINES := []                # [t, kind, ...] from 【四.流れ】 / 【テープ.流れ】
@@ -60,6 +61,8 @@ var hud_on := false
 var after_t := -1.0            # seconds since she went down
 var after_said := 0
 var rec_t := -1.0
+var quiet_t := -1.0            # seconds since the night went black without a blow
+var black_layer: CanvasLayer
 var black: ColorRect
 var door_t := -1.0
 var door_light: SpotLight3D
@@ -108,12 +111,13 @@ func _ready():
 	var c: Array = D.lines("四.カード")
 	card4 = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
 	black = ColorRect.new(); black.color = Color(0, 0, 0, 0); black.set_anchors_preset(Control.PRESET_FULL_RECT); black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black)
+	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black); black_layer = bl
 	player.global_position = gp(MIO_AT[0], MIO_AT[1], 0.0)
 	player.yaw = 0.0; player.pitch = deg_to_rad(-4.0)     # south (Godot -z), down the hall to the front door
 	_foot.call_deferred("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　左クリック 振る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo": demo4 = true
+		if a == "--d4quiet": set_meta("quiet", true)   # the unattended run never takes the tripod up (the no-blow ending)
 		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0)   # check stills: where she stands
 		if a.begins_with("--d4at="): call_deferred("_jump", float(a.substr(7)))   # stills: start the night at this second
 		if a == "--d4hold": holding = true; call_deferred("_take")                  # stills: the tripod already in her hands
@@ -414,6 +418,7 @@ func _process(dt):
 	_swing(dt)
 	_hud_tick(dt)
 	_after(dt)
+	_quiet(dt)
 	if demo4: _demo4(dt)
 	if still_n > 0:
 		still_n -= 1
@@ -628,7 +633,7 @@ func _nhead() -> Vector3:
 
 # ================================================================ the tripod in her hands
 func _look_at_things():
-	if holding or after_t >= 0.0: return
+	if holding or after_t >= 0.0 or quiet_t >= 0.0: return
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var at := weapon.global_position + Vector3(0, 1.0, 0)
 	var near: bool = (at - cam.global_position).length() < 1.9 and (-cam.global_basis.z).angle_to(at - cam.global_position) < deg_to_rad(22.0)
@@ -745,8 +750,32 @@ func _after(dt: float):
 			if main.play == "ch4": main.to_chapter("ch11")
 			elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
+# ブラッシュアップ案 2026-11-13: she was never struck. The night goes black for a moment, and the testimony goes on flat,
+# as if she had been: whatever the player did, Mio says this. Then the tape (第11章), which shows what happened.
+func _quiet(dt: float):
+	if after_t >= 0.0: return
+	if quiet_t < 0.0:
+		if clock < QUIET_AT or swing_t >= 0.0 or nstate in ["reel", "down"]: return
+		quiet_t = 0.0
+		player.move_enabled = false; player.look_enabled = false
+		note_lb.text = ""; hud.visible = false
+		_clear_page(); cur = {}
+		black_layer.layer = 12              # under her words (story.gd: layer 13)
+		print("STORY ch4 quiet t=%.1f" % clock)
+		return
+	quiet_t += dt
+	black.color.a = clampf(quiet_t / 0.5, 0.0, 1.0)
+	if quiet_t >= 1.5 and not cur.has("text"):
+		var e: Dictionary = B("四.殴らなかった")[0]; _say(e.who, e.text, true)
+	var said: float = 1.5 + float(String(cur.get("text", "")).length()) / 20.0
+	if quiet_t > said + 3.0 and not left:
+		left = true
+		if demo4: print("DEMO ch4 quiet t=%.1f fails=%d" % [clock, DEMO_FAILS])
+		if main.play == "ch4": main.to_chapter("ch11")
+		elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
+
 func _unhandled_input(e):
-	if tape or (card4 and card4.visible): return
+	if tape or (card4 and card4.visible) or quiet_t >= 0.0: return
 	var key_e: bool = e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E
 	var click: bool = e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if not holding and after_t < 0.0:
@@ -794,7 +823,7 @@ func _demo4(dt: float):
 		player.pitch = lerp(player.pitch, asin(clampf(d.normalized().y, -1.0, 1.0)), k)
 	match demo_step:
 		0:
-			if clock > GRAB_AT + 1.4: demo_step = 1   # after she has caught Mio's sleeve and Mio's hand has hit the tripod
+			if clock > GRAB_AT + 1.4 and not has_meta("quiet"): demo_step = 1   # after she has caught Mio's sleeve and Mio's hand has hit the tripod
 		1:
 			turn.call(weapon.global_position + Vector3(0, 1.0, 0), 3.0)
 			if note_lb.text != "": _take(); demo_step = 2
