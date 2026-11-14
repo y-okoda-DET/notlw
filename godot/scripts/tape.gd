@@ -33,7 +33,7 @@ var tape_t := 0.0
 var room_t := 0.0
 var end_t2 := -1.0
 var card11: Control
-var card11_t := 5.0
+var card11_t := 2.5   # 半分に（ユーザー 2026-11-14）
 var tline := {}                # the line being written: {lb, text, written, segs, n_all, n_clear}
 var heard_clear := 0
 var heard_all := 0
@@ -103,7 +103,14 @@ func _room():
 	_box(Vector3(-0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.55, 0.5, 0.42))
 	_box(Vector3(0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.45, 0.5, 0.52))
 	var deck := _box(Vector3(0, 0.20, -0.06), Vector3(0.43, 0.10, 0.34), Color(0.10, 0.10, 0.11), 0.45)
-	_box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
+	var slot := _box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
+	# 2026-11-14（ユーザー「VHSデッキはモデリングしたい」）: the user's Tripo deck (godot/props/vcr.glb, from tripo/prep_props.py),
+	# drawn to the old box's size (its front toward +z); its own slot and face, our two keys and the knob on it
+	if ResourceLoader.exists("res://props/vcr.glb"):
+		var v: Node3D = (load("res://props/vcr.glb") as PackedScene).instantiate()
+		main.add_child(v); v.scale = Vector3(0.44, 0.68, 0.44); v.global_position = ROOM + Vector3(0, 0.15, -0.06)
+		for g in v.find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		deck.visible = false; slot.visible = false
 	# its keys: 録画 and 取り出し at the right, each a key with its name printed over it
 	for k in [[0.085, "録画", Color(0.55, 0.12, 0.08)], [0.150, "取り出し", Color(0.30, 0.30, 0.31)]]:
 		_box(Vector3(k[0], 0.178, 0.112), Vector3(0.042, 0.016, 0.006), k[2], 0.5)

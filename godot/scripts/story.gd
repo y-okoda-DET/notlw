@@ -936,7 +936,7 @@ func _end_tick(dt):
 		_begin_ch2()
 	if card2_t >= 0.0:
 		card2_t += dt
-		if card2_t > 5.5:
+		if card2_t > 2.75:   # 章カードは半分に（ユーザー 2026-11-14）
 			# 試作91: 第2章 goes on in the whole house at 20:00 (dark outside, the people where the outage left them,
 			# the generator in the cellar). Without the house pack, the old way: the radio in this hall
 			if ResourceLoader.exists("res://assets/house/scene.json"): card2_t = -1.0; DEMO_HOUSE = demo_on; DEMO_FAILS += demo_fails; main.to_house_ch2()
@@ -1303,16 +1303,25 @@ func _reception() -> Array:
 	return [best, q]
 
 # where the station's speaker is now: [sentence index, characters spoken so far (float), the sentence]
+# 2026-11-14 (ユーザー「ラジオ、字幕と音声がずれてる」): the line follows the recording itself. radio_news.ogg is the user's
+# reading (ニュース_元.wav from 1.2 s, 49.4 s with its tail), read through twice with「繰り返します」between; each sentence's
+# span in it, found by its pauses (the second reading falls 24.9 s after the first). sound.gd starts the loop at
+# fmod(bc_t, NEWS_LOOP), so the voice and the transcript are on the same clock even when the radio was off
+const NEWS_LOOP := 49.4
+const NEWS_T := [[0, 0.35, 1.55], [1, 2.3, 8.6], [2, 9.2, 13.15], [3, 13.85, 16.45], [4, 17.3, 20.8], [5, 21.65, 22.2],
+	[0, 25.55, 26.7], [1, 27.5, 33.5], [2, 34.1, 38.05], [3, 38.7, 41.35], [4, 42.15, 45.7]]
 func _spoken(lines: Array) -> Array:
-	var total := 0.0
-	for l in lines: total += float(String(l).length()) / 8.0 + 1.1
-	var t := fmod(bc_t, total)
-	for i in range(lines.size()):
-		var d := float(String(lines[i]).length()) / 8.0
-		if t < d: return [i, t * 8.0, lines[i]]
-		t -= d + 1.1
-		if t < 0.0: return [i, float(String(lines[i]).length()), lines[i]]
-	return [0, 0.0, lines[0]]
+	var t := fmod(bc_t, NEWS_LOOP)
+	var last: Array = NEWS_T[-1]
+	for seg in NEWS_T:
+		var i: int = seg[0]
+		if i >= lines.size(): continue
+		var n := float(String(lines[i]).length())
+		if t < float(seg[1]): break
+		if t < float(seg[2]): return [i, n * (t - float(seg[1])) / (float(seg[2]) - float(seg[1])), lines[i]]
+		last = seg
+	var k: int = mini(int(last[0]), lines.size() - 1)
+	return [k, float(String(lines[k]).length()), lines[k]]
 
 func _radio_note(text: String):
 	if rrow.get("note", "") == text: return
@@ -1506,7 +1515,7 @@ func _house_tick(dt):
 	# a running engine with the choke still out floods and dies
 	if gen.run and gen.choke:
 		gen.run_t += dt
-		if gen.run_t > 14.0 and mode == FREE:
+		if gen.run_t > 28.0 and mode == FREE:   # was 14 (ユーザー 2026-11-14「引綱→チョークの猶予時間を今の倍に」)
 			gen.run = false; gen.run_t = 0.0; talk_with = "taiga"
 			_start(B("発電機.かぶる"))
 	# 試作98: what she is to do with the radio comes up once she is by it (ユーザー「ラジオを触れる画面、触ってから表示させる」)
@@ -1651,9 +1660,12 @@ func _helpers_to_windows():
 		var rig: Node3D = main._rig_of(k)
 		if rig == null: continue
 		var best := -1; var bd := 1e9
+		# 2026-11-14 (ユーザー「真琴、別の窓（隣の部屋）を照らしていてほしい」): the living room's west window is behind the screen;
+		# Makoto takes the dining room's west window, through the wide opening (plan x 0, y 5.4..7.0)
+		var near_to: Vector3 = Vector3(-4.8, 1.4, -0.1) if k == "makoto" else rig.global_position
 		for i in range(wins.size()):
 			if taken.has(i): continue
-			var d: float = (wins[i].c as Vector3).distance_to(rig.global_position)
+			var d: float = (wins[i].c as Vector3).distance_to(near_to)
 			if d < bd: bd = d; best = i
 		if best < 0: continue
 		taken[best] = true
@@ -1746,7 +1758,15 @@ func _boards_show_rest():
 	var path := [from] + out
 	if taiga_at == "gen": path = TAIGA_PATH.slice(0, -1); path.reverse(); path += out
 	var w := gp(CELLAR_WIN[0], CELLAR_WIN[1], 0.0) - gp(TAIGA_OUT[0], TAIGA_OUT[1], 0.0)
+	# 2026-11-14（ユーザー「大河が地面にめり込む。しゃがむなど」）: there he crouches to the low window (Mixamo's Crouching Idle),
+	# his feet on the ground as it is there (the slope stood above the plan's -1.85)
+	main.stand_anim["taiga"] = "talk/crouch"
 	main.walk_to("taiga", path, func():
+		var rg: Node3D = main._rig_of("taiga")
+		var q := PhysicsRayQueryParameters3D.create(rg.global_position + Vector3.UP * 1.2, rg.global_position + Vector3.DOWN * 1.5)
+		if main.S.has("taiga_col"): q.exclude = [(main.S.taiga_col as CollisionObject3D).get_rid()]
+		var hit := main.get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty(): rg.global_position.y = hit.position.y
 		taiga_moving = false; taiga_at = "out"
 		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
 		_aim_taiga_light(true), atan2(w.x, w.z))

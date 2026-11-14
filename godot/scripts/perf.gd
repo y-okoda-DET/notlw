@@ -70,6 +70,7 @@ func _apply(l: int):
 	if l == 0:
 		get_viewport().scaling_3d_scale = 0.5
 		main.shadow_n = 1
+		main.trees_far(40.0)
 		if main.env: main.env.volumetric_fog_enabled = false
 
 func _notification(what):

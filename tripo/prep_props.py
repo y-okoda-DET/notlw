@@ -9,10 +9,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import bpy
 from mathutils import Vector
 
-TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000, 'hoodie': 12000, 'futon': 12000, 'sleepbag': 14000, 'sleepsack': 8000}
-SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024, 'hoodie': 1024, 'futon': 1024, 'sleepbag': 1024, 'sleepsack': 1024}
+TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000, 'hoodie': 12000, 'futon': 12000, 'sleepbag': 14000, 'sleepsack': 8000, 'projector': 14000, 'switch': 8000, 'fridge': 12000, 'vcr': 10000}
+SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024, 'hoodie': 1024, 'futon': 1024, 'sleepbag': 1024, 'sleepsack': 1024, 'projector': 1024, 'switch': 512, 'fridge': 1024, 'vcr': 1024}
 SRC = f'{P.WORK}/tripo'
-CUT = {'fox': .066}
+CUT = {'fox': .066, 'projector': .12}   # projector: the cable's end hanging under the body (the table has its own cable)
+FRONT = {'switch': .025}   # the switch's own lever (in front of its face, model -Y) cut off: the game's lever moves (story.gd _changeover_lever)
 FLAT = {'hide': .13}   # Tripo made the hide a slab (.16 of its length): pressed down to a skin's thickness   # the height of Tripo's base (the front paws stand at .07 on nothing)
 
 def prep(n):
@@ -32,6 +33,11 @@ def prep(n):
         bm = bmesh.new(); bm.from_mesh(o.data)
         bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < CUT[n]], context='VERTS')
         for v in bm.verts: v.co.z -= CUT[n]
+        bm.to_mesh(o.data); bm.free()
+    if n in FRONT:
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.y < FRONT[n]], context='VERTS')
         bm.to_mesh(o.data); bm.free()
     if n in FLAT:   # its underside (pale leather) crossed the top once pressed flat and showed through in patches: dropped
         import bmesh

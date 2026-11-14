@@ -34,6 +34,7 @@ if [[ " $SCENES " == *" dusk "* ]]; then
   python3 denoise_lm.py -- $RULES/assets/dusk/lightmap.exr >> $W/export${N}d.log 2>&1
   python3 export_t20.py >> $W/export${N}d.log 2>&1 || { echo T20_FAIL >> $L; exit 1; }   # 試作91: the people of 第2章 at 20:00 (movement only)
   python3 export_walk.py >> $W/export${N}d.log 2>&1 || { echo WALK_FAIL >> $L; exit 1; }   # 試作92: the walk, the stairs and the turns (Mixamo, 段階2/mixamo/) on the four
+  python3 export_talk.py >> $W/export${N}d.log 2>&1 || { echo TALK_FAIL >> $L; exit 1; }   # 2026-11-14: standing, sitting, talking, crouching (Mixamo) on the four
 fi
 if [[ " $SCENES " == *" house "* ]]; then
   echo "== house $(date +%T)" >> $L
@@ -70,6 +71,8 @@ for f in $(grep -l "compress/mode=0" assets/env_*.png.import assets/dusk/env_*.p
 # zip が上限の 400MiB を超えた（試作45）。なめらかな明るさだけの画なので BC6H にした（前後の見比べは NOTES.md）
 for f in $(grep -l "compress/mode=0" assets/lightmap.exr.import assets/dusk/lightmap.exr.import assets/house/*/lightmap.exr.import 2>/dev/null); do sed -i 's/compress\/mode=0/compress\/mode=2/; s/compress\/high_quality=false/compress\/high_quality=true/' $f; done
 $G --headless --path . --import > /dev/null 2>&1
+# 2026-11-14: the talk clips as animation libraries (<k>_talk.res; main.gd _talk_anims)
+$G --headless --path . -s res://check/talk_lib.gd >> $W/export${N}d.log 2>&1
 # VoxelGI：焼くのは家（env）だけ。家・光・場面の設定・Godot のスクリプトとシェーダーが前回と同じなら前の gi.res を使う
 GIS="night dusk"; [ -f assets/house/scene.json ] && GIS="$GIS $(cd $KF && python3 -c "import times; print(' '.join('house:' + t for t in times.TIMES))")"
 for sc in $GIS; do

@@ -536,9 +536,14 @@ def cellar(M):
     # thrown down, a conduit up into the joists
     lived.phm('power_box_01', 6.06 + .047, 3.15, z0 + 1.45, rz=math.pi / 2, name='breaker')
     if 'greypaint' not in M: M['greypaint'] = mat_basic('greypaint', (.40, .41, .40), .55)
-    co = box('changeover', 6.06, 3.62, 6.17, 3.86, z0 + 1.18, z0 + 1.5, M['greypaint']); apply_bevel(co, .008, 2)
-    box('changeover_lid', 6.17, 3.64, 6.178, 3.84, z0 + 1.2, z0 + 1.48, M['greypaint'])
-    box('changeover_pivot', 6.12, 3.86, 6.15, 3.885, z0 + 1.36, z0 + 1.4, M['steel'])
+    # 2026-11-14: the user's Tripo switch (its own lever cut off: tripo/prep_props.py FRONT), its face east (plan +x), its
+    # side at plan y 3.86 where the game's lever hangs
+    if F.tripo_prop('switch', (X(6.06 + .21 * .65), Y(3.783), z0 + 1.12), math.pi / 2, .65, name='changeover'):
+        box('changeover_pivot', 6.12, 3.86, 6.15, 3.885, z0 + 1.36, z0 + 1.4, M['steel'])
+    else:
+        co = box('changeover', 6.06, 3.62, 6.17, 3.86, z0 + 1.18, z0 + 1.5, M['greypaint']); apply_bevel(co, .008, 2)
+        box('changeover_lid', 6.17, 3.64, 6.178, 3.84, z0 + 1.2, z0 + 1.48, M['greypaint'])
+        box('changeover_pivot', 6.12, 3.86, 6.15, 3.885, z0 + 1.36, z0 + 1.4, M['steel'])
     # 試作98: the lever itself is Godot's (story.gd _changeover_lever): up until Mio throws it (ユーザー「上下に動くレバー付けますか」)
     cyl('changeover_conduit', 6.115, 3.74, z0 + 1.5, -.05, .012, M['greypaint'], 8)
     cyl('breaker_conduit', 6.09, 3.1, z0 + 1.7, -.05, .014, M['greypaint'], 8)

@@ -94,8 +94,10 @@ def living(M):
     legs('furn_ltleg', 1.55, 1.25, 2.3, 2.45, .36, .05, M['walnut'])
     collide(1.55, 1.25, 2.3, 2.45, 0, .42)
     # projector, its lens toward the screen, a cable off the table's edge
-    box('furn_proj', 1.7, 1.7, 1.98, 1.95, .4, .5, M['fridge'])
-    o = prim('cylinder', 'furn_projlens', loc=(X(1.69), Y(1.77), .45), rot=(0, math.pi / 2, 0), scale=(.03, .03, .012), mat=M['plastic'], vertices=16)
+    # 2026-11-14: the user's Tripo projector (its lens toward the screen, plan -x); the box is the stand-in when the file is missing
+    if not tripo_prop('projector', (X(1.84), Y(1.825), .4), -math.pi / 2, .3, name='furn_proj'):
+        box('furn_proj', 1.7, 1.7, 1.98, 1.95, .4, .5, M['fridge'])
+        o = prim('cylinder', 'furn_projlens', loc=(X(1.69), Y(1.77), .45), rot=(0, math.pi / 2, 0), scale=(.03, .03, .012), mat=M['plastic'], vertices=16)
     lib.tube('cable_proj', [(X(1.98), Y(1.88), .43), (X(2.15), Y(2.0), .41), (X(2.3), Y(2.3), .3), (X(2.45), Y(2.6), .015), (X(3.0), Y(2.95), .015)],
              [.005] * 5, M['plastic'], seg=6, sub=4)
     box('furn_remote', 2.0, 1.4, 2.05, 1.56, .4, .418, M['plastic'])
@@ -135,7 +137,7 @@ def tripo_prop(n, loc, rot_z=0.0, scale=1.0, name=None):
         if e is not o: bpy.data.objects.remove(e)
     o.parent = None; o.name = name or f'prop_{n}'
     o.rotation_mode = 'XYZ'   # the glTF importer leaves it on quaternions, and rotation_euler did nothing
-    o.rotation_euler = (0, 0, rot_z); o.scale = (scale, scale, scale); o.location = loc
+    o.rotation_euler = (0, 0, rot_z); o.scale = tuple(scale) if isinstance(scale, (tuple, list)) else (scale, scale, scale); o.location = loc
     bpy.context.view_layer.update()
     return o
 
@@ -208,9 +210,15 @@ def kitchen(M):
     cyl('furn_pot', 7.7, 3.98, .985, 1.15, .13, M['steel'], 20)
     box('furn_upper', sx0, 3.67, sx1, 4.0, 1.5, 2.2, M['cabinet'])
     # fridge in the corner, short of the back door
-    box('furn_fridge', 9.32, 3.67, 9.93, 4.33, 0, 1.75, M['fridge'], col=True)
-    box('furn_fridgegap', 9.31, 3.75, 9.32, 4.25, 1.15, 1.16, M['plastic'])
-    box('furn_fridgehandle', 9.29, 4.2, 9.31, 4.23, .6, 1.05, M['steel'])
+    # its doors face into the kitchen, not into the end of the counter (ユーザー 2026-11-14「冷蔵庫、ドアがキッチン台に向かっている。
+    # 反時計回りに90度回転して設置」: in the game's top view, which is the plan's +y). The user's Tripo fridge (front -Y in
+    # Blender = plan +y), a little taller and slimmer than it came (1.57 m, the corner it stands in)
+    if tripo_prop('fridge', (X(9.625), Y(4.0), 0), 0.0, (1.27, 1.35, 1.6), name='furn_fridge'):
+        collide(9.32, 3.67, 9.93, 4.33, 0, 1.57)
+    else:
+        box('furn_fridge', 9.32, 3.67, 9.93, 4.33, 0, 1.75, M['fridge'], col=True)
+        box('furn_fridgegap', 9.36, 4.33, 9.89, 4.34, 1.15, 1.16, M['plastic'])
+        box('furn_fridgehandle', 9.37, 4.34, 9.40, 4.36, .6, 1.05, M['steel'])
     # the curry things on the north counter: a paper bag, onions, potatoes, carrots, the roux; the rice cooker
     box('furn_bag', 6.3, 7.5, 6.62, 7.72, .862, 1.2, M['paperbag'])
     for i, (x, y) in enumerate(((6.8, 7.5), (6.88, 7.62), (6.74, 7.66))):
