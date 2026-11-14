@@ -405,3 +405,8 @@
 - 2026-11-13 build.sh（FAST なし）は、焼き込みが全部 cache hit でなければ2時間を超える（試作120：夜9分、夕方18分、家85分のあと godot の段）。run_in_background の2時間で止められるので、`setsid nohup bash blender/build.sh N > /dev/null 2>&1 < /dev/null &` で走らせ、$WORK/buildN.log を見る。作業環境の再起動のあとは ~/.config/blender の MPFB2 の印と Godot の書き出しテンプレートが消えていることがある（SETUP.md 2・3 をやり直す）。
 - 2026-11-13 家まるごとの光の焼き込みは、同じ main でも書き出すたびに鍵（cache key）が変わって焼き直しになる（試作120 で3回とも t20・t23 の鍵が違った）。どの物が変わるかはまだ見ていない（KEYDEBUG=<file> で2回の差を見る。wear_tex.py が毎回作り直す画像が怪しい）。cache は種類ごとに8個までなので、家6＋夜＋夕方でいっぱいになる。
 - 2026-11-13 試作120：build.sh の VoxelGI で GI_FAIL dusk（gi.res 0 bytes）。Vulkan のせいではなかった。試作97 から `--scene=dusk` は家の夕方（house/dusk）へ回されるので、`--bake-gi --scene=dusk` は assets/house/dusk/gi.res に書き、assets/dusk/gi.res ができなかった。それまでは夕方の GI がキャッシュに当たっていて気づかなかった。main.gd の checking0 に --bake-gi（ARGS.bake）を入れて直した。止まった build は、焼き込み（家のライトマップ）が済んでいれば、build.sh の「== godot」から後だけを流し直せば早い（家のライトマップは鍵が毎回変わり、最初から流すと 1時間半焼き直しになる）。
+
+## 2026-11-14 宣伝用の静止画（スーパーゲ制デー、/mnt/project-files/スーパーゲ制デー/）
+- 配った版（試作120）から撮るときは、snap.sh を REV=<その版> で回す（重ねるスクリプトを pck と合わせる）。
+- snap.gd は撮らない間に窓を 192×108 に縮めるので、1920×1080 で撮ると台詞の Label が縮んだ幅で折り返され、縦書きのように崩れる。宣伝用は窓を縮めない（_small の size 変更を外す。3D を描かないだけでも通しは進む）。足元の操作説明は、撮るコマで main.foot.visible=false にして隠した。
+- `--play=door` だけでは効かない。`--scene=house --play=door` で23時の扉から直接始まる（main.gd 121 行目）。扉の「（沈黙・九秒）」は st 42 秒ごろ。
