@@ -411,3 +411,14 @@
 - 配った版（試作120）から撮るときは、snap.sh を REV=<その版> で回す（重ねるスクリプトを pck と合わせる）。
 - snap.gd は撮らない間に窓を 192×108 に縮めるので、1920×1080 で撮ると台詞の Label が縮んだ幅で折り返され、縦書きのように崩れる。宣伝用は窓を縮めない（_small の size 変更を外す。3D を描かないだけでも通しは進む）。足元の操作説明は、撮るコマで main.foot.visible=false にして隠した。
 - `--play=door` だけでは効かない。`--scene=house --play=door` で23時の扉から直接始まる（main.gd 121 行目）。扉の「（沈黙・九秒）」は st 42 秒ごろ。
+
+## 2026-11-14 Mixamo の全身の動き（居間・しゃがむ）
+- blender/export_talk.py：腕は Mixamo の休みの姿勢（T）とこちら（腕を下ろした形）が違うので、骨ごとに向きをそろえてから世界での回転の変化を載せる。脚・背骨・首は export_walk と同じ。
+- Mixamo の動きの体は、リグの +z を向く（歩きと同じ）。20時の電話の立ち姿（t20）は -z。ch2_21.gd の _face は +PI を外した（付けたままだと全員が背を向けた）。
+- 1つの AnimationPlayer に動きを14本（本体1・t20 1・歩き5・話す動き7以上）載せると、Godot 4.4.1 が家の組み立て中に毎回落ちた（signal 11）。5本までなら落ちない。並べ方・長さ・キーの数（半分に間引いても落ちた）・読み込み方（glb を開く／.res）には関係なかった。main.gd TALK_CLIPS で、人ごとに使う動きだけを載せる。
+- AnimationPlayer.play の直後に seek(…, true) しても落ちた（混ぜている途中）。始める位置はずらしていない。
+- 動きは godot/check/talk_lib.gd で AnimationLibrary（<k>_talk.res）にしてから読む（build.sh が書き出しのあとに作る）。重ねる試し（overlay）では、glb と .res を $WORK/overlay/assets/dusk/ に置いて取り込む。
+
+## 2026-11-14 杉と重さ
+- 外の杉は 1793 本、約 1500 万三角形。Godot は手前の木に隠れる奥の木も毎コマ描く（第1章の夕方で1コマ約1280万三角形）。LOD の閾値（mesh_lod_threshold）を変える試しは、計る前に場面が読み終わっておらず結果が出ていない。
+- main.gd trees_far：杉に visibility_range_end（高 70 m、低 50 m、最低 40 m）。--treefar=<m> で試せる（0 で切らない）。
