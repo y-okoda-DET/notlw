@@ -56,6 +56,10 @@ station("foreign", np.concatenate([f, np.zeros(int(1.5 * SR))]))
 # The place (西浦町) never comes through: its spans (seconds in ニュース_元.wav) are buried in static (NAME,
 # 0.8 s each, 40 ms fades).
 NAME = [(4.81, 5.61), (10.39, 11.19), (29.99, 30.79), (35.31, 36.11)]   # 音のスレッド 2026-11-13（10・30秒はユーザーが聞いて確かめた）
+# 2026-11-14（企画書「原因（化学工場、ガス）と地名は、雑音で聞こえない」、シナリオの点検 1・2）: the cause too, from the
+# place on through「の化学工場で爆発があり、有毒なガスが」(found by the loudness: the comma's pause at 7.2 / 32.1 s, then
+# 「有毒なガスが」is the first half of the next phrase). What comes through is「……広がっているとの情報が入っています」
+NAME = [(4.81, 8.75), (10.39, 11.19), (29.99, 33.6), (35.31, 36.11)]
 news = SRC + "ニュース_元.wav"
 if os.path.exists(news):
     x = load(news)[int(1.2 * SR):int(48.6 * SR)]

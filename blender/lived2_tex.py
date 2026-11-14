@@ -15,6 +15,7 @@ LT.R = R
 
 # name: (text, tape colour, ink, width px, height px, font size)
 GAFFER, MASK, OLDMASK = (54, 56, 58, 255), (226, 214, 176, 255), (196, 168, 112, 255)
+NEWMASK, MARKER = (232, 222, 186, 255), (14, 14, 16, 255)
 LABELS = {
     'cam':     ('カメラ 桐生', GAFFER, (235, 235, 230, 255), 420, 110, 64),
     'light':   ('照明', GAFFER, (235, 235, 230, 255), 240, 110, 70),
@@ -26,10 +27,14 @@ LABELS = {
     'gen':     ('チョーク 引いてから', OLDMASK, (40, 40, 70, 255), 520, 90, 46),
     'gas':     ('ガソリン', OLDMASK, (40, 40, 70, 255), 300, 90, 52),
     # 試作97 (ユーザー「どこが引綱でどこがチョークで、どこがスイッチなのかが分かりづらい」): the owner's tape by each control
-    'gen_fuel':  ('燃料', OLDMASK, (40, 40, 70, 255), 200, 90, 58),
-    'gen_choke': ('チョーク', OLDMASK, (40, 40, 70, 255), 280, 90, 54),
-    'gen_sw':    ('スイッチ', OLDMASK, (40, 40, 70, 255), 280, 90, 54),
-    'gen_pull':  ('引く', OLDMASK, (40, 40, 70, 255), 200, 90, 58),
+    # 2026-11-14 (ユーザー「どこがスイッチで、どこが目盛りか分かりにくい」, 試作120): the ballpoint on brown tape did not read in
+    # the cellar's light. He went over them again in thick black marker on newer tape, with an arrow to the control
+    # (sw: the marker's width); and one for the gauge, which had none
+    'gen_fuel':  ('燃料 ↓', NEWMASK, MARKER, 300, 100, 62),
+    'gen_choke': ('↑ チョーク', NEWMASK, MARKER, 400, 100, 58),
+    'gen_sw':    ('スイッチ ↓', NEWMASK, MARKER, 400, 100, 58),
+    'gen_pull':  ('引く ↓', NEWMASK, MARKER, 300, 100, 62),
+    'gen_gauge': ('燃料計 ↓', NEWMASK, MARKER, 400, 100, 58),
 }
 
 def tape(w, h, col):
@@ -50,7 +55,7 @@ def label(n):
     s, col, ink, w, h, fs = LABELS[n]
     im = tape(w, h, col)
     f = LT.hand(fs)
-    LT.hand_text(im, (26, (h - fs) * .45), s, f, ink, rot=R.uniform(-3, 2), jit=2, sw=1 if col == GAFFER else 0)
+    LT.hand_text(im, (26, (h - fs) * .45), s, f, ink, rot=R.uniform(-3, 2), jit=2, sw=1 if col == GAFFER else (1 if ink == MARKER else 0))
     bg = Image.new('RGBA', im.size, col[:3] + (0,))
     out = Image.alpha_composite(bg, im)
     out.save(f'{OUT}/crew_{n}.png')

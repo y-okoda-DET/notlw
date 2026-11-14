@@ -456,10 +456,12 @@ def generator(M):
         tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
         # 試作97: and a word on tape by each control (the same places as story.gd _gen_items)
         # 試作98: half as long again and more (ユーザー「テープの字は見えない」: 7-9 cm read as specks from where she stands)
-        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .64), (-1, 0, 0), .13)
-        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .64), (-1, 0, 0), .15)
-        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .37), (-1, 0, 0), .15)
-        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .52), (0, -1, 0), .13)
+        # 2026-11-14: half as long again (18-20 cm), black marker, an arrow to each (lived2_tex.py)
+        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .65), (-1, 0, 0), .17)
+        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .65), (-1, 0, 0), .2)
+        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .36), (-1, 0, 0), .2)
+        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .53), (0, -1, 0), .17)
+        tape(M, 'gen_gauge', (X(gx - .05), Y(gy + .1), ZB + .71), (-1, 0, .6), .17)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST
@@ -486,6 +488,12 @@ def cellar(M):
     box('cellar_ceiling', 4.0, 1.0, 10.0, 7.0, -.33, -.3, M['concrete'])
     for i in range(7):   # the joists of the floor above, bare
         x = 4.3 + i * .9
+        # 2026-11-14 (ユーザー「地下へ下りるとき・上がるときの謎の板」, ずっと指摘されていた物): the one at x 5.2 ran on
+        # through the stair shaft (x 5.06..6, y 2.5..5.64), a lit plank across the opening over the stairs. It stops at the shaft
+        if 5.06 - .04 < x < 6.0 + .04:
+            box('cellar_joist', x - .04, 1.0, x + .04, 2.5, -.52, -.33, M['agari'])
+            box('cellar_joist', x - .04, 5.64, x + .04, 7.0, -.52, -.33, M['agari'])
+            continue
         box('cellar_joist', x - .04, 1.0, x + .04, 7.0, -.52, -.33, M['agari'])
     generator(M)
     # fuel: the owner's steel jerrycans along the north wall, his tape on the green one; a funnel by the generator

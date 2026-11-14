@@ -23,5 +23,5 @@ open(p,'w').write(s)
 PY
 cd /tmp
 timeout 7000 xvfb-run -a -s "-screen 0 ${RES}x24" $GODOT --path $O --windowed --resolution $RES --fixed-fps 24 --quit-after 40000 -- \
-  --basepack=$PD/RULES.pck --housepack=$PD/RULES_house.pck --demo --demoquit --lite=${LITE:-t} --snaps=$SN --snapdir=$OUT > $OUT/log.txt 2>&1 || true
+  --basepack=$PD/RULES.pck --housepack=$PD/RULES_house.pck --demo --demoquit --lite=${LITE:-t} ${SARGS:-} --snaps=$SN --snapdir=$OUT > $OUT/log.txt 2>&1 || true
 grep -a "SNAP \|DEMO FAIL\|SCRIPT ERROR" $OUT/log.txt | head -40; tail -2 $OUT/log.txt

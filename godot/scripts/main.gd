@@ -917,6 +917,7 @@ func _card():
 # ------------------------------------------------------------------ time
 func _process(dt):
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
+	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
 	# counted from this scene's start (the playthrough goes from scene to scene)
 	if Engine.get_write_movie_path() != "" or ARGS.has("frameclock"): t = float(Engine.get_process_frames() - f0) / float(ARGS.get("mfps", 24.0))
@@ -926,7 +927,6 @@ func _process(dt):
 	if SCENE == "house" and S.has("walk"): _outside_fog(dt)
 	if not walkers.is_empty(): _walk_tick(dt)
 	if not torches.is_empty(): _aim_torches()
-	if not carried.is_empty(): _carry_tick()
 	if ARGS.has("at"): t += float(ARGS.at)   # check stills: start the clock at this loop time, so a moment can be shot in seconds
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
@@ -1306,6 +1306,24 @@ func _aim_torches():
 		if f.length() < 0.01: continue
 		var a := deg_to_rad(TORCH_DOWN)
 		(sp as SpotLight3D).global_basis = Basis.looking_at(f.normalized() * cos(a) + Vector3.DOWN * sin(a), Vector3.UP)
+		_clip_beam(sp)
+
+# 2026-11-14（ユーザー「地下に向かう際の謎の板（ずっと指摘してるやつ）」）：光の筒（_torch_beam、2.6m）は床や壁を突き抜け、
+# 階段の吹き抜けから下・上に、刷りで硬い板のように見えていた。筒は、光が最初に当たる所で終わる
+var _beam_ex: Array = []
+func _clip_beam(sp: SpotLight3D):
+	var bm := sp.get_node_or_null("beam") as MeshInstance3D
+	if bm == null: return
+	if _beam_ex.is_empty():
+		for k in ["kiryu", "natsuki", "makoto", "taiga"]:
+			if S.has(k + "_col") and is_instance_valid(S[k + "_col"]): _beam_ex.append((S[k + "_col"] as CollisionObject3D).get_rid())
+		if player: _beam_ex.append(player.get_rid())
+	var o := sp.global_position; var d := -sp.global_basis.z
+	var q := PhysicsRayQueryParameters3D.create(o + d * 0.05, o + d * 2.6); q.exclude = _beam_ex
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var L: float = 2.6 if hit.is_empty() else clampf(o.distance_to(hit.position), 0.1, 2.6)
+	var k := L / 2.6
+	bm.scale = Vector3(k, k, k); bm.position = Vector3(0, 0, -L / 2.0)
 
 # 試作92: people walk (export_walk.py: Mixamo's legs on our rigs, the phone arm ours). walk.json: per person and clip,
 # the ground speed (m/s, along the floor) the feet were made for
@@ -1357,35 +1375,16 @@ func carry_boards(k: String, on: bool):
 	(carried[k] as Node3D).visible = on
 	for ba in sk.find_children("*", "BoneAttachment3D", true, false):
 		if ba.find_child("torch", true, false): (ba as Node3D).visible = not on
-	var dusk := ""
-	for a in ap.get_animation_list():
-		if not (a.begins_with("t20/") or a.begins_with("walk/")): dusk = a; break
-	if on and dusk != "": ap.play(dusk, 0.5)
-	elif not on: ap.play("t20/loop", 0.5)
-
-# 試作98 (ユーザー「板、手との接合があってない」): the bundle rides on his palms, between the two hands, every frame
-func _carry_tick():
-	for k in carried:
-		var b := carried[k] as Node3D
-		if not b.visible: continue
-		var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
-		var il := sk.find_bone("hand_l"); var ir := sk.find_bone("hand_r")
-		if il < 0 or ir < 0: continue
-		var hl: Vector3 = sk.global_transform * sk.get_bone_global_pose(il).origin
-		var hr: Vector3 = sk.global_transform * sk.get_bone_global_pose(ir).origin
-		var across := hr - hl; across.y = 0.0
-		if across.length() < 0.05: continue
-		var fwd := across.normalized().cross(Vector3.UP)
-		if fwd.dot(sk.global_basis * Vector3(0, 0, 1)) < 0.0: fwd = -fwd
-		# 2026-11-13 (ユーザー「大河の木の持ち方、まだ変」): not a tray across both hands but the bundle under the right arm, its length
-		# along the way he walks (tilted a little, front end down), resting in the right hand
-		var f := (sk.global_basis * Vector3(0, 0, 1)); f.y = 0.0
-		if f.length() < 0.01: continue
-		f = f.normalized()
-		var x := (f * cos(deg_to_rad(-12.0)) + Vector3.UP * sin(deg_to_rad(-12.0))).normalized()
-		var side := x.cross(Vector3.UP).normalized()
-		b.global_basis = Basis(x, side, x.cross(side))   # the planks on edge, side by side against his flank
-		b.global_position = hr + Vector3.UP * 0.08 - f * 0.05
+	# 2026-11-14 (ユーザー「まだ持ち方が変」): the arms were 第1章's box hold (both hands out in front) while the bundle hung at the
+	# right hand, so the left hand held air and the planks ran back through his hip; and walking, the clip swung the bundle.
+	# Now one hold, the way a man carries a few planks: right arm hanging, hand gripping their top edge at his side, the
+	# length along the way he goes; the clip (stand or walk) keeps the rest of him, the left arm swings free.
+	var cm: CarryArm = null
+	for c in sk.get_children(): if c is CarryArm: cm = c
+	if cm == null: cm = CarryArm.new(); sk.add_child(cm)
+	cm.bundle = carried[k]
+	cm.active = on
+	if not on: ap.play("t20/loop", 0.5)
 
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return
@@ -1504,6 +1503,10 @@ func _bring(dir: String, things: Array):
 
 func _ch1_set():
 	_bring("res://assets/dusk/", ["reflector"])
+	# 2026-11-14（ユーザー「赤いランプ…光は1つでOK」）：桐生の大きいカメラの赤いランプ（recled と rec_light）は消す。
+	# 赤いランプは、澪が置く小さいカメラの1つだけ（story.gd）
+	if lights.has("rec") and lights.rec is Light3D: lights.rec.visible = false
+	for mi in S.env_node.find_children("recled*", "MeshInstance3D", true, false): mi.visible = false
 	# the low sun comes in through the front door onto Makoto and her reflector, as in the old scene, which had no woods:
 	# the cedars throw no shadow in this chapter
 	if not ARGS.has("sugishadow"):
@@ -1608,8 +1611,33 @@ func _perf(checking0: bool):
 	if w == "": w = ("第2章 20時" if ch2_house else "家 " + String(TIME_LABEL.get(TIME, TIME))) if SCENE == "house" else SCENE
 	perf.set_main(self, w)
 
+# 2026-11-14 重さ（試作120 の重さの記録：第4章 338ms・第11章 301ms）：家は 1.1M 三角形の一つの物で、影を落とす明かり1つごとに
+# 家じゅうを描き直す（点の光は6面）。第4章は影の明かりが20、描く量の8倍を影に使っていた。第11章はテレビの中の映像の
+# ために家じゅうの影を計算していた。影は、目（shadow_eye の印があればそのカメラ）に近い明かり shadow_n 個だけに落とす。
+# 太陽・月（DirectionalLight3D）は別。--allshadows で前のまま。
+var shadow_n := 4
+var _sb_t := 0.0
+func _shadow_budget(dt: float):
+	_sb_t -= dt
+	if _sb_t > 0.0 or ARGS.has("allshadows"): return
+	_sb_t = 0.25
+	var eye: Node3D = get_meta("shadow_eye") if has_meta("shadow_eye") and is_instance_valid(get_meta("shadow_eye")) else get_viewport().get_camera_3d()
+	if eye == null: return
+	var e := eye.global_position
+	var cand: Array = []
+	for l in find_children("*", "Light3D", true, false):
+		if l is DirectionalLight3D or l.has_meta("own_shadow"): continue
+		if not l.has_meta("want_shadow"): l.set_meta("want_shadow", l.shadow_enabled)
+		if not l.get_meta("want_shadow"): continue
+		if not l.is_visible_in_tree() or l.light_energy <= 0.0: l.shadow_enabled = false; continue
+		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
+		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
+	cand.sort_custom(func(a, b): return a[0] < b[0])
+	for i in cand.size(): cand[i][1].shadow_enabled = i < shadow_n
+
 func _quality(high: bool):
 	quality_high = high
+	shadow_n = 4 if high else 2
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR if high else Viewport.SCALING_3D_MODE_FSR
 	vp.scaling_3d_scale = 1.0 if high else 0.6
@@ -1620,3 +1648,55 @@ func _quality(high: bool):
 		var l = lights[k]
 		if l is OmniLight3D: l.omni_shadow_mode = OmniLight3D.SHADOW_CUBE if high else OmniLight3D.SHADOW_DUAL_PARABOLOID
 		elif l is DirectionalLight3D: l.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if high else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+
+# The right arm while he carries the planks: hanging at his side, elbow a little bent and back, the hand just before the
+# hip (two-bone reach, as fps.gd's Hold). Target in the pelvis's rest frame: x his left, y up, z forward.
+# It also lays the bundle in the hand: the skeleton gives the posed hand only here (after the modifiers it is set back).
+class CarryArm extends SkeletonModifier3D:
+	var bundle: Node3D
+	const WRIST := Vector3(-0.255, 0.80, 0.06)
+	const POLE := Vector3(-0.35, 0.0, -0.75)
+	func _process_modification():
+		var sk := get_skeleton()
+		if sk == null: return
+		var ua := sk.find_bone("upperarm_r"); var la := sk.find_bone("lowerarm_r"); var ha := sk.find_bone("hand_r"); var pv := sk.find_bone("pelvis")
+		if ua < 0 or la < 0 or ha < 0 or pv < 0: return
+		var t: Vector3 = (sk.get_bone_global_pose(pv) * sk.get_bone_global_rest(pv).affine_inverse()) * WRIST
+		var sp := sk.get_bone_global_pose(ua).origin
+		var l1 := sp.distance_to(sk.get_bone_global_pose(la).origin); var l2 := sk.get_bone_global_pose(la).origin.distance_to(sk.get_bone_global_pose(ha).origin)
+		var n := t - sp; var d := minf(n.length(), l1 + l2 - 0.005); n = n.normalized()
+		var a := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+		var pole := (POLE - n * POLE.dot(n)).normalized()
+		var elbow := sp + n * a + pole * sqrt(maxf(l1 * l1 - a * a, 0.0))
+		var g1 := sk.get_bone_global_pose(ua)
+		sk.set_bone_global_pose(ua, Transform3D(Basis(Quaternion((sk.get_bone_global_pose(la).origin - sp).normalized(), (elbow - sp).normalized())) * g1.basis, g1.origin))
+		var g2 := sk.get_bone_global_pose(la)
+		sk.set_bone_global_pose(la, Transform3D(Basis(Quaternion((sk.get_bone_global_pose(ha).origin - g2.origin).normalized(), (sp + n * d - g2.origin).normalized())) * g2.basis, g2.origin))
+		# the hand in line with the forearm, palm in toward his leg (as at rest)
+		var g3 := sk.get_bone_global_pose(ha); var r3 := sk.get_bone_global_rest(ha); var rl := sk.get_bone_global_rest(la)
+		var fore := sk.get_bone_global_pose(la).basis * rl.basis.inverse()
+		sk.set_bone_global_pose(ha, Transform3D(fore * r3.basis, g3.origin))
+		# the fingers closed round the planks' top edge (the clip has them open): each joint bent in toward the palm
+		var palm := (fore * Vector3(1, 0, 0)).normalized()
+		for fn in ["index", "middle", "ring", "pinky", "thumb"]:
+			for j in [1, 2, 3]:
+				var bi := sk.find_bone("%s_0%d_r" % [fn, j])
+				if bi < 0: continue
+				var ch := sk.find_bone("%s_0%d_r" % [fn, j + 1]) if j < 3 else -1
+				var g := sk.get_bone_global_pose(bi)
+				var tip: Vector3 = sk.get_bone_global_pose(ch).origin if ch >= 0 else g.origin + (g.origin - sk.get_bone_global_pose(sk.get_bone_parent(bi)).origin)
+				var fd := (tip - g.origin).normalized()
+				var ax := fd.cross(palm)
+				if ax.length() < 0.01: continue
+				var ang := deg_to_rad(-35.0 if fn == "thumb" else [0.0, 45.0, 55.0, 40.0][j])
+				sk.set_bone_global_pose(bi, Transform3D(Basis(ax.normalized(), ang) * g.basis, g.origin))
+		if bundle == null or not bundle.visible: return
+		var hr: Vector3 = sk.global_transform * sk.get_bone_global_pose(ha).origin
+		var f := sk.global_basis * Vector3(0, 0, 1); f.y = 0.0
+		if f.length() < 0.01: return
+		f = f.normalized()
+		var x := (f * cos(deg_to_rad(-4.0)) + Vector3.UP * sin(deg_to_rad(-4.0))).normalized()
+		var side := x.cross(Vector3.UP).normalized()
+		# the planks on edge side by side at his flank, gripped near their middle, the top edge in the palm
+		bundle.global_basis = Basis(x, side, x.cross(side))
+		bundle.global_position = hr + Vector3.DOWN * 0.095 - bundle.global_basis * Vector3(0.0, 0.045, 0.0)

@@ -1,6 +1,6 @@
 extends Node
-# 自動の通しの途中で、決めた所で画を撮る（snap.sh が重ねたプロジェクトの boot.gd に足す）。撮らない間は 3D を描かず、
-# 窓も小さくしておくので速い。撮り終えたら止まる。
+# 自動の通しの途中で、決めた所で画を撮る（snap.sh が重ねたプロジェクトの boot.gd に足す）。撮らない間は 3D を描かない（窓の大きさはそのまま。字の大きさが窓で決まるので）。
+# 撮り終えたら止まる。
 #   --snaps=<file>   1行に1枚：「名前 いつ [+待つ秒] [x y 目の高さ yaw pitch]」
 #     いつ：数字なら、ゲームを始めてからの秒（--fixed-fps の刻み）。@ で始めれば、その式が真になったとき（空白なしで書く）。
 #           式の中では m＝main、s＝main.story、st＝いまの場面が始まってからの秒。例 @m.play=="h21"&&st>20、@s.hs==5
@@ -25,7 +25,8 @@ func _ready():
 
 func _small(on: bool):
 	get_viewport().disable_3d = on
-	get_window().size = Vector2i(192, 108) if on else full
+	# the window keeps its size: story.gd sizes its type by the window when a scene starts (u), so a small window made the lines unreadable
+
 
 func _main() -> Node:
 	var c := get_tree().current_scene
@@ -87,10 +88,13 @@ func _process(dt: float):
 			var c := _coords(w)
 			for k in w:   # look=<person>: from 1.8 m before them (and a little to their right), at their chest
 				if String(k).begins_with("look="):
-					var mm := _main(); var r: Node3D = mm._rig_of(String(k).substr(5)) if mm else null
+					# look=<person>[@<度>]：その人のまわりを度だけ回った所から（0 は前、90 は左手側、180 は後ろ）
+					var lw := String(k).substr(5).split("@"); var ang := deg_to_rad(float(lw[1])) if lw.size() > 1 else 0.0
+					var mm := _main(); var r: Node3D = mm._rig_of(lw[0]) if mm else null
 					if r:
-						var f := r.global_basis.z; f.y = 0.0; f = f.normalized()
-						var eye := r.global_position + f * 1.8 + r.global_basis.x.normalized() * 0.5 + Vector3.UP * 1.5
+						var f := r.global_basis.z; f.y = 0.0; f = f.normalized().rotated(Vector3.UP, ang)
+						var sx := f.cross(Vector3.DOWN).normalized()
+						var eye := r.global_position + f * 1.8 + sx * 0.5 + Vector3.UP * 1.5
 						var at := r.global_position + Vector3.UP * 1.1
 						cam = Camera3D.new(); get_tree().root.add_child(cam)
 						if prev: cam.fov = prev.fov; cam.environment = prev.environment; cam.attributes = prev.attributes

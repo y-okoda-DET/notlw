@@ -16,6 +16,10 @@ var t := 0.0
 
 func setup(m):
 	main = m
+	# 2026-11-14（ユーザー「この光源はなに？」、地下の階段から見上げた地下の扉のノブ）：黒い丸いノブが、刷りで小さな灯りに見えた。
+	# ノブは真鍮の色に（どの扉も同じ）
+	var brass := StandardMaterial3D.new(); brass.albedo_color = Color(0.62, 0.50, 0.30); brass.metallic = 0.7; brass.roughness = 0.4
+	for k in main.S.env_node.find_children("door_*knob*", "MeshInstance3D", true, false): (k as MeshInstance3D).material_override = brass
 	var font: Font = Type.say()
 	var layer := CanvasLayer.new(); layer.layer = 13; add_child(layer)
 	label = Label.new(); label.add_theme_font_override("font", font)

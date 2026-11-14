@@ -103,7 +103,7 @@ func _room():
 	_box(Vector3(-0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.55, 0.5, 0.42))
 	_box(Vector3(0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.45, 0.5, 0.52))
 	var deck := _box(Vector3(0, 0.20, -0.06), Vector3(0.43, 0.10, 0.34), Color(0.10, 0.10, 0.11), 0.45)
-	_box(Vector3(-0.07, 0.215, 0.111), Vector3(0.20, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot
+	_box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
 	# its keys: 録画 and 取り出し at the right, each a key with its name printed over it
 	for k in [[0.085, "録画", Color(0.55, 0.12, 0.08)], [0.150, "取り出し", Color(0.30, 0.30, 0.31)]]:
 		_box(Vector3(k[0], 0.178, 0.112), Vector3(0.042, 0.016, 0.006), k[2], 0.5)
@@ -129,7 +129,7 @@ func _room():
 	# the only light: the screen
 	glow = OmniLight3D.new(); glow.light_color = Color(0.72, 0.82, 1.0); glow.light_energy = 0.05
 	glow.omni_range = 3.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = true; glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.2; glow.light_cull_mask = 1
-	main.add_child(glow); glow.global_position = ROOM + tv + Vector3(0, 0.0, 0.50)
+	glow.set_meta("own_shadow", true); main.add_child(glow); glow.global_position = ROOM + tv + Vector3(0, 0.0, 0.50)
 
 const SCREEN_SHADER := """shader_type spatial;
 render_mode unshaded;
@@ -164,6 +164,7 @@ func _screen():
 	vp.msaa_3d = Viewport.MSAA_2X
 	add_child(vp)
 	tcam = Camera3D.new(); tcam.fov = FINDER_FOV; tcam.near = 0.03; tcam.far = 60.0
+	main.set_meta("shadow_eye", tcam)   # 2026-11-14 重さ：家の影は、テレビの中のカメラの近くの明かりだけ（main._shadow_budget）
 	var at := CameraAttributesPractical.new(); tcam.attributes = at
 	at.exposure_multiplier = 3.0       # the camcorder's gain is up in the dark: it has what her eyes did not
 	vp.add_child(tcam); tcam.global_transform = _rail_cam(); tcam.current = true
@@ -273,7 +274,7 @@ func _do4(what: String):
 # Mio is under the camera, out of its frame. The tripod is in her hands from the second she took it up in 第4章;
 # what the tape has of her is the tripod coming into the frame, twice.
 func _tape_swing(dt: float):
-	if clock < 13.5: return
+	if clock < TAPE_TAKE: return   # 2026-11-14: she takes it up only after Natsuki has caught her sleeve and her hand has hit it
 	if weapon.get_parent() != main:
 		weapon.get_parent().remove_child(weapon); main.add_child(weapon)
 	var hands := gp(TAPE_MIO[0] + 0.12, TAPE_MIO[1] - 0.25, 1.18)
