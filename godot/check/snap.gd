@@ -1,6 +1,6 @@
 extends Node
-# 自動の通しの途中で、決めた所で画を撮る（snap.sh が重ねたプロジェクトの boot.gd に足す）。撮らない間は 3D を描かず、
-# 窓も小さくしておくので速い。撮り終えたら止まる。
+# 自動の通しの途中で、決めた所で画を撮る（snap.sh が重ねたプロジェクトの boot.gd に足す）。撮らない間は 3D を描かない（窓の大きさはそのまま。字の大きさが窓で決まるので）。
+# 撮り終えたら止まる。
 #   --snaps=<file>   1行に1枚：「名前 いつ [+待つ秒] [x y 目の高さ yaw pitch]」
 #     いつ：数字なら、ゲームを始めてからの秒（--fixed-fps の刻み）。@ で始めれば、その式が真になったとき（空白なしで書く）。
 #           式の中では m＝main、s＝main.story、st＝いまの場面が始まってからの秒。例 @m.play=="h21"&&st>20、@s.hs==5
@@ -25,7 +25,8 @@ func _ready():
 
 func _small(on: bool):
 	get_viewport().disable_3d = on
-	get_window().size = Vector2i(192, 108) if on else full
+	# the window keeps its size: story.gd sizes its type by the window when a scene starts (u), so a small window made the lines unreadable
+
 
 func _main() -> Node:
 	var c := get_tree().current_scene
