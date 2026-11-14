@@ -1448,6 +1448,17 @@ func _house_ready():
 	if PLACED.is_empty(): fixed_cam.visible = false
 	else:
 		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
+		# 2026-11-14（ユーザー「20時、カメラが浮いている」）: what it sat on at 17:30 may not be here at 20:00 (第1章's apple box
+		# is the dusk's): it comes down onto whatever is under it now (its clamp's foot .072 under its middle)
+		# On the handrail (which has no collision of its own) it stays, set exactly on the rail's line
+		var pp: Vector3 = PLACED.pos; var ry := clampf(-pp.z, 0.95, 3.65)
+		var on_rail: Vector3 = g([0.30, ry, _rail_z(ry) + 0.065])   # as RESTS[0] has it (第1章 puts it there)
+		if Vector2(pp.x - on_rail.x, pp.y - on_rail.y).length() < 0.15 and absf(-pp.z - ry) < 0.1:
+			fixed_cam.global_position = on_rail
+		else:
+			var q := PhysicsRayQueryParameters3D.create(pp + Vector3.UP * 0.02, pp + Vector3.DOWN * 1.6)
+			var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
+			if not hit.is_empty(): fixed_cam.global_position.y = hit.position.y + 0.072
 	_changeover_lever()
 	items = {}
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
@@ -1765,7 +1776,7 @@ func _boards_show_rest():
 		var rg: Node3D = main._rig_of("taiga")
 		var q := PhysicsRayQueryParameters3D.create(rg.global_position + Vector3.UP * 1.2, rg.global_position + Vector3.DOWN * 1.5)
 		if main.S.has("taiga_col"): q.exclude = [(main.S.taiga_col as CollisionObject3D).get_rid()]
-		var hit := main.get_world_3d().direct_space_state.intersect_ray(q)
+		var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
 		if not hit.is_empty(): rg.global_position.y = hit.position.y
 		taiga_moving = false; taiga_at = "out"
 		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
