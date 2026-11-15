@@ -485,7 +485,10 @@ def cellar(M):
             for i, m in enumerate(o.data.materials):
                 if m and m.name.split('.')[0] in ('plaster', 'beadboard', 'trim', 'wallcore'): o.data.materials[i] = M['concrete']
     for o in [o for o in bpy.data.objects if o.name.startswith('floorB')]: o.data.materials[0] = M['cfloor']
-    box('cellar_ceiling', 4.0, 1.0, 10.0, 7.0, -.33, -.3, M['concrete'])
+    # 2026-11-15 (ユーザー「板がまだある」、117): the ceiling ran on over the stair shaft too, a concrete lid a third of a metre
+    # under the 1F floor; from the hall only the top two treads showed. It stops at the shaft (x 5.06..6, y 2.5..5.64)
+    for (a, b, c, d) in ((4.0, 1.0, 5.06, 7.0), (6.0, 1.0, 10.0, 7.0), (5.06, 1.0, 6.0, 2.5), (5.06, 5.64, 6.0, 7.0)):
+        box('cellar_ceiling', a, b, c, d, -.33, -.3, M['concrete'])
     for i in range(7):   # the joists of the floor above, bare
         x = 4.3 + i * .9
         # 2026-11-14 (ユーザー「地下へ下りるとき・上がるときの謎の板」, ずっと指摘されていた物): the one at x 5.2 ran on

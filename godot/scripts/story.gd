@@ -1445,20 +1445,16 @@ func _house_ready():
 	glow.light_energy = 0.1; glow.omni_range = 1.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = false
 	glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.05; glow.position = Vector3(0.12, -0.38, -0.32)
 	player.get_node("Head/Camera").add_child(glow)
+	if PLACED.is_empty() and "--placedemo" in OS.get_cmdline_user_args(): PLACED = {"pos": fixed_cam.global_position, "basis": fixed_cam.global_basis}   # checking only: as if she had set it at 17:30
 	if PLACED.is_empty(): fixed_cam.visible = false
 	else:
 		fixed_cam.global_position = PLACED.pos; fixed_cam.global_basis = PLACED.basis; _set_rec(true)   # still recording
 		# 2026-11-14（ユーザー「20時、カメラが浮いている」）: what it sat on at 17:30 may not be here at 20:00 (第1章's apple box
-		# is the dusk's): it comes down onto whatever is under it now (its clamp's foot .072 under its middle)
-		# On the handrail (which has no collision of its own) it stays, set exactly on the rail's line
-		var pp: Vector3 = PLACED.pos; var ry := clampf(-pp.z, 0.95, 3.65)
-		var on_rail: Vector3 = g([0.30, ry, _rail_z(ry) + 0.065])   # as RESTS[0] has it (第1章 puts it there)
-		if Vector2(pp.x - on_rail.x, pp.y - on_rail.y).length() < 0.15 and absf(-pp.z - ry) < 0.1:
-			fixed_cam.global_position = on_rail
-		else:
-			var q := PhysicsRayQueryParameters3D.create(pp + Vector3.UP * 0.02, pp + Vector3.DOWN * 1.6)
-			var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
-			if not hit.is_empty(): fixed_cam.global_position.y = hit.position.y + 0.072
+		# is the dusk's).
+		# 2026-11-15（ユーザー「ここにおく」、117 の画に丸）: at 20:00 it is always on the handrail, a third of the way up
+		# the stair (story y 2.85 = plan y 3.45, where her finder's rest on the rail is), whatever it sat on at 17:30
+		var ry := 2.85
+		fixed_cam.global_position = g([0.30, ry, _rail_z(ry) + 0.065])
 	_changeover_lever()
 	items = {}
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
@@ -1774,7 +1770,7 @@ func _boards_show_rest():
 	main.stand_anim["taiga"] = "talk/crouch"
 	main.walk_to("taiga", path, func():
 		var rg: Node3D = main._rig_of("taiga")
-		var q := PhysicsRayQueryParameters3D.create(rg.global_position + Vector3.UP * 1.2, rg.global_position + Vector3.DOWN * 1.5)
+		var q := PhysicsRayQueryParameters3D.create(rg.global_position + Vector3.UP * 0.4, rg.global_position + Vector3.DOWN * 1.5)   # from 1.2 up it could land on the porch stair's treads over him
 		if main.S.has("taiga_col"): q.exclude = [(main.S.taiga_col as CollisionObject3D).get_rid()]
 		var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
 		if not hit.is_empty(): rg.global_position.y = hit.position.y
@@ -1782,7 +1778,7 @@ func _boards_show_rest():
 		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
 		_aim_taiga_light(true), atan2(w.x, w.z))
 
-const TAIGA_OUT := [10.22, 7.75, -1.85]   # down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)
+const TAIGA_OUT := [10.45, 7.75, -1.85]   # 2026-11-15（ユーザー「めりこまない」）: crouched at 10.22 his knees and head went into the foundation; down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)
 var taiga_aim: SpotLight3D
 func _aim_taiga_light(on: bool):
 	# his torch points ahead along the floor; here he holds it down over the rail onto the window: a light of the same
