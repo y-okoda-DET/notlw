@@ -426,3 +426,6 @@
 ## 2026-11-15 スマホをしまうと画面だけが手に残った（試作117）
 t20 のスマホは本体と画面（*_scr）が別々の BoneAttachment で入ってくる。ライト（torch）は本体の側にだけ付くので、「torch を持つ BoneAttachment を隠す」では画面が白い板として手に残った。main.gd phones() は *_scr と名前に phone を含むメッシュを持つ物も隠す。
 また snap.gd の「@st>…」は第11章（--scene=house --play=ch11）では SNAPCLK も出ず進まなかった（ソフトウェア描画で第11章の1コマが極端に重いらしい）。第11章の画は別の撮り方が要る。
+
+## 2026-11-15 手すりの高さの式（story.gd _rail_z）が 0.2 m 上だった
+house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() で符号が返るので「半段上」）。式は 3.985 にしていて、手すりの上に置いたカメラが 0.2 m 浮いた（121 の「カメラが浮いている」、122 で見て分かった）。分割した pck（RULES.pck と RULES_house.pck）を overlay で撮るときは boot.gd で両方読む。

@@ -101,7 +101,7 @@ func _ready():
 		_house_ready()
 		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
 		return
-	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 3.985) * .9167, plan y = 6.3 - Y
+	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
 	_items()
@@ -117,7 +117,9 @@ func _ready():
 		if a2.begins_with("--storystate="): call_deferred("_state", a2.substr(13))
 
 func _rail_z(Y: float) -> float:
-	return 2.295 + ((6.3 - Y) - 3.985) * 0.9167 + 0.025
+	# 2026-11-15 (ユーザー「ここにおく」、122 で見て): house4.stairs_up's rail has its middle (z 2.295) at plan y 4.215 (half
+	# a run toward the top, Y() turns the sign), not 3.985: the line ran .2 m over the rail and the camera set on it floated
+	return 2.295 + ((6.3 - Y) - 4.215) * 0.9167 + 0.025
 
 const D := preload("res://scripts/daihon.gd")   # the words: godot/story/*.txt (書式は godot/story/README.md)
 func B(key: String, arg := "") -> Array:
