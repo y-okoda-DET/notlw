@@ -430,3 +430,5 @@ t20 のスマホは本体と画面（*_scr）が別々の BoneAttachment で入�
 ## 2026-11-15 手すりの高さの式（story.gd _rail_z）が 0.2 m 上だった
 house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() で符号が返るので「半段上」）。式は 3.985 にしていて、手すりの上に置いたカメラが 0.2 m 浮いた（121 の「カメラが浮いている」、122 で見て分かった）。分割した pck（RULES.pck と RULES_house.pck）を overlay で撮るときは boot.gd で両方読む。
 - 2026-11-15 Tripo の GLB が `EXT_meshopt_compression`（必須）付きで届くと、bpy（pip の bpy 5.2.3）は「Meshopt decoder library not found」で読めない。ほどき方（2026-11-15 ユーザーが許可）：`npx -y @gltf-transform/cli@4.1.1 copy in.glb out.glb`（圧縮なしに書き直す。3倍ほど大きくなる）。または Tripo の書き出しで圧縮を外してもらう。見分け方：GLB の JSON の extensionsRequired に EXT_meshopt_compression があるか。
+
+- 基礎（house4_ext.foundation）は各辺を壁の中心線で止めていたので、外へ WOFF ずらした板どうしの角に縦の隙間が開いていた（試作123、ユーザー「建物に隙間」）。各辺を角の先まで WOFF+.04 伸ばした。座る人のすね・足がソファにめり込むのは座る位置（ch2_21 AT21）が奥すぎるため。Mixamo の sit は膝が腰から約 .45 前、座面の前の縁より前に膝が出る所に置く。
