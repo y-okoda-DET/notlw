@@ -25,7 +25,7 @@ const MIO21 := [3.45, 3.25]                    # by the living room's door, look
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
 const MIO22 := [4.55, 2.75]
 const NAT_DOOR := [4.95, 0.55, 0.0]                 # inside the front door, where she stops and turns to Mio
-const NAT_OUT := [[5.0, 0.0, 0.0], [5.0, -1.3, 0.0]]
+const NAT_OUT := [[5.0, 0.0, 0.0], [5.1, -0.9, 0.0], [6.7, -1.15, 0.0]]   # 試作125 (ユーザー「扉が閉まる前に夏希が消える」): out and to the right along the porch, behind the wall, before she is put away
 
 var part := 21
 var card: Control

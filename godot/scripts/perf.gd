@@ -69,7 +69,9 @@ func _apply(l: int):
 	main._quality(l >= 2)
 	if l == 0:
 		get_viewport().scaling_3d_scale = 0.5
-		main.shadow_n = 1
+		# 試作125 (ユーザー「明るすぎて夏希が白飛び」「明るすぎる」、123 を最低で): with one lamp's shadow, the others lit
+		# through the walls and every room came out about half again as bright (NOTES 2026-11-15 夜). Two, as at 低
+		main.shadow_n = 2
 		main.trees_far(40.0)
 		if main.env: main.env.volumetric_fog_enabled = false
 

@@ -455,7 +455,13 @@ func _event(e: Array):
 
 func _do4(what: String):
 	match what:
-		"door": door_t = 0.0
+		"door":
+			door_t = 0.0
+			# 試作125 (ユーザー「扉が開いてから急に夏希があらわれる」): she is already standing out on the porch as the door
+			# opens, still, in the first step of her walk; at ＞enter she comes in
+			if nstate == "out":
+				nat.visible = true
+				nap.play("walk/walk"); nap.seek(0.0, true); nap.pause()
 		"enter":
 			nat.visible = true; nstate = "stand"; ni = 1
 			print("STORY ch4 enter t=%.1f" % clock)
