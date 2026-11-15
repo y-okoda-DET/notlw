@@ -455,3 +455,4 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 21時の窓の板：h21 で板を出す行のあと、_house_state が t20 の状態（板なし）で消し直していた。
 - overlay で撮るときの決まった手順：/tmp の補助（mkov.sh、shot124.sh）は消えるので、作り方は「overlay.sh のあと boot.gd に RULES_house.pck を読む2行と snap.gd を足す」。
 - 章をまたいで glb を残す入れ物を static var にすると、終わるときに Godot が止まらなくなった（--bake-gi の 23時が終わらず、書き出しが2時間で切れた）。root に置いたノード（main.gd KEEP_NODE、PSKeep）の meta に持つ。
+- 聞き手の指の付け根（2026-11-16）：付け根の関節を 70° 以上曲げると、MakeHuman の手の甲が付け根で凹んで見える。握りは付け根 50°・中 95°・先 65° に配分し、手に Corrective Smooth（ORCO、0.6、8回、armature の直後）を足すと和らぐ。
