@@ -93,6 +93,7 @@ func _ready():
 		if a == "--weardbg": ARGS["weardbg"] = true    # the wear decals in red (where they land)
 		if a == "--minicam": ARGS["minicam"] = true    # check stills: 澪の小さなカメラ, the old boxes and the new model side by side
 		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
+		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
@@ -1755,7 +1756,22 @@ func _shadow_budget(dt: float):
 		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
 		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
 	cand.sort_custom(func(a, b): return a[0] < b[0])
-	for i in cand.size(): cand[i][1].shadow_enabled = i < shadow_n
+	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
+	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
+	# a lamp the eye cannot see (the house's walls between, by a ray) is put out (its cull mask) until it is near again;
+	# one in sight keeps its light, without the shadow
+	var space := get_world_3d().direct_space_state if not ARGS.has("leak") else null
+	for i in cand.size():
+		var l: Light3D = cand[i][1]
+		l.shadow_enabled = i < shadow_n
+		if not l.has_meta("mask"): l.set_meta("mask", l.light_cull_mask)
+		var on := true
+		if i >= shadow_n and space:
+			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
+			var q := PhysicsRayQueryParameters3D.create(e, to)
+			q.collide_with_areas = false
+			on = space.intersect_ray(q).is_empty()
+		l.light_cull_mask = int(l.get_meta("mask")) if on else 0
 
 # 2026-11-14（ユーザー「4章以降が重い」、重さの記録：第1章も最低で重い）: the cedar wood round the clearing is 1793 trees, about
 # 15 million triangles, every one drawn in every frame (Godot does not know the near ones hide the far). Beyond this many
