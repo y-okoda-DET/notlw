@@ -264,12 +264,20 @@ func _environment():
 # 試作125 (ユーザー「章カードの表示時間短くなってないのは、そこで読み込みとかしてるから？」, 重さの記録: 場面ごとに 18〜30 秒
 # 止まるコマ): every chapter is a reload of this scene, and the house and the people were read from the pck again each
 # time (the old scene's resources are freed with it). Kept here across reloads, the next chapter finds them in memory
-static var PS_KEEP := {}
+# (Not in a static var: held there, the scenes were let go so late at quitting that Godot hung on the way out; the
+# --bake-gi run of 23:00 never ended. A node on the root is freed with the tree.)
+static var KEEP_NODE: Node = null
+func _ps_keep() -> Dictionary:
+	if KEEP_NODE == null or not is_instance_valid(KEEP_NODE):
+		KEEP_NODE = Node.new(); KEEP_NODE.name = "PSKeep"; KEEP_NODE.set_meta("d", {})
+		get_tree().root.add_child.call_deferred(KEEP_NODE)
+	return KEEP_NODE.get_meta("d")
 func _load_scene(path: String, key: String):
-	var ps: PackedScene = PS_KEEP.get(path)
+	var keep := _ps_keep() if SCENE == "house" and not ARGS.has("bake") else {}
+	var ps: PackedScene = keep.get(path)
 	if ps == null:
 		ps = load(path)
-		if SCENE == "house": PS_KEEP[path] = ps
+		if SCENE == "house" and not ARGS.has("bake"): keep[path] = ps
 	var inst := ps.instantiate()
 	inst.name = key
 	add_child(inst)
