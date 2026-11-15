@@ -163,7 +163,10 @@ func _stage():
 	for mi in parts:
 		var gt: Transform3D = (mi as Node3D).global_transform
 		mi.get_parent().remove_child(mi); weapon.add_child(mi); (mi as Node3D).global_transform = gt
-		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		# 試作125 (重さの記録：第4章・第11章だけ毎秒3〜4コマ、--gi=none で 53コマ): a moving thing that lights the bounce
+		# (GI_MODE_DYNAMIC) is drawn into the VoxelGI again every frame over its whole box, and the 2 m cull margin made
+		# that box the hall. The tripod still takes the bounce; it no longer gives any
+		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
 	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false   # the camcorder is not here (2026-11-13 夜)
 	_weapon_rest()
@@ -200,7 +203,7 @@ func _lantern():
 		var c := mi.duplicate() as MeshInstance3D
 		c.name = "d_" + nm; mi.get_parent().add_child(c)
 		c.global_transform = (mi as MeshInstance3D).global_transform.translated(to - from)
-		c.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		c.gi_mode = GeometryInstance3D.GI_MODE_DISABLED   # 試作125: see the tripod above
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.30
 	for a in OS.get_cmdline_user_args():
