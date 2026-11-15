@@ -128,7 +128,7 @@ func _ready():
 		if TIME == "" or not S.state.has(TIME): TIME = "dusk"
 		ST = S.state[TIME]
 		PRINT_EXP["house"] = float(ARGS.get("pexp", ST.exp))
-		if CARD_TIME > 0.0: CARD_TIME = 2.0
+		if CARD_TIME > 0.0: CARD_TIME = 1.0
 	_environment()
 	_load_scene(BASE + "env.glb", "env")
 	for n in ([] if ARGS.has("nochars") else CHARS):
@@ -172,11 +172,11 @@ func _ready():
 		var dn = preload("res://scripts/doors.gd").new(); dn.name = "Doors"; add_child(dn); dn.setup(self)
 	_print_layer()
 	if (SCENE == "dusk" or play == "ch1") and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
-		if CARD_TIME > 0.0: CARD_TIME = 5.0
+		if CARD_TIME > 0.0: CARD_TIME = 2.5   # 章カードは半分に（ユーザー 2026-11-14）
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	if (play == "door" or (SCENE == "night" and (FROM_STORY or ARGS.has("door")))) and not checking:
-		if CARD_TIME > 0.0: CARD_TIME = 3.0   # only the time card: the chapter's door was at 二十時
+		if CARD_TIME > 0.0: CARD_TIME = 1.5   # only the time card: the chapter's door was at 二十時
 		story = preload("res://scripts/door.gd").new(); story.main = self; add_child(story)
 		door_scene = true
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
@@ -774,6 +774,7 @@ func _save_settings():
 	SET["q"] = quality_high
 
 func _restore_settings():
+	trees_far(TREE_FAR_HIGH)
 	if SET.has("cam"): player.cam_mode = SET.cam
 	if SET.has("gi"): _set_gi(SET.gi)
 	if SET.has("ht"): _set_ht(SET.ht)
@@ -1219,6 +1220,8 @@ func _t20_people():
 		var an: Animation = src.get_animation(src.get_animation_list()[0]).duplicate()
 		an.loop_mode = Animation.LOOP_LINEAR
 		var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+		for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.stop()
+		_talk_anims(k, inst)
 		for ap in inst.find_children("*", "AnimationPlayer", true, false):
 			ap.stop(); sk.reset_bone_poses()
 			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); ap.add_animation_library("t20", lib); ap.play("t20/loop")
@@ -1345,6 +1348,56 @@ func _walk_anims(k: String, inst: Node):
 	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("walk", lib)
 	mv.free()
 
+# 2026-11-14（ユーザー「居間、みんな内側を向いて会話している感じに」）: standing, sitting, talking, crouching (export_talk.py:
+# the user's Mixamo clips on the whole body), every one a loop. Added before anything plays (added later, next to the
+# house's loading, Godot 4.4.1 crashed now and then)
+# Only the clips each one uses go on their player: with all ten (14 animations on one player) Godot 4.4.1 crashed while
+# the house was set up, every time; with five or fewer, never (2026-11-14, tried one set at a time)
+const TALK_CLIPS := {"kiryu": ["sit_b", "idle", "talk_d"], "taiga": ["sit_a", "idle", "talk_b", "crouch"],
+	"natsuki": ["idle", "talk_a"], "makoto": ["think", "talk_c"]}
+func _talk_anims(k: String, inst: Node):
+	var tp := "res://assets/dusk/%s_talk.res" % k
+	if not ResourceLoader.exists(tp): return
+	var src: AnimationLibrary = load(tp)
+	var tlib := AnimationLibrary.new()
+	for c in TALK_CLIPS.get(k, []):
+		if src.has_animation(c): tlib.add_animation(c, src.get_animation(c))
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("talk", tlib)
+	# (made from export_talk.py's <k>_talk.glb by godot/check/talk_lib.gd: instancing the glb here, next to the house's
+	# loading, crashed Godot 4.4.1 now and then)
+
+# what each person goes back to when they stop walking or put the boards down: 20:00's stand (the phone out), or a clip
+# of export_talk.py ("talk/idle" ...) once ch2_21.gd has put the phones away
+var stand_anim := {}
+func stand_of(k: String) -> String:
+	return stand_anim.get(k, "t20/loop")
+
+func set_stand(k: String, anim: String, blend := 0.5):
+	if not S.has(k + "_node"): return
+	var ap: AnimationPlayer = S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
+	if not ap.has_animation(anim): return
+	stand_anim[k] = anim
+	if walkers.has(k) or (carried.has(k) and (carried[k] as Node3D).visible): return
+	if ap.current_animation != anim:
+		ap.play(anim, blend)   # (a seek here, to start each at another point, crashed Godot 4.4.1 mid-blend)
+	if not anim.begins_with("talk/"):   # the 20:00 stand has no track for the hips' place
+		var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+		var bi := sk.find_bone("pelvis")
+		get_tree().create_timer(blend + 0.05).timeout.connect(func(): sk.set_bone_pose_position(bi, sk.get_bone_rest(bi).origin))
+
+# the phones in their hands (and the torch on each) shown or put away
+func phones(on: bool):
+	for k in CHARS:
+		if not S.has(k + "_node"): continue
+		for ba in S[k + "_node"].find_children("*", "BoneAttachment3D", true, false):
+			# 試作117: the screen came in as a bone of its own, apart from the phone's body (and its torch): it stayed in the
+			# hand, a white card (ユーザー「スマホは持たない」)
+			var ph: bool = ba.find_child("torch", true, false) != null
+			for mi in ba.find_children("*", "MeshInstance3D", true, false):
+				var nm := String(mi.name)
+				if nm.ends_with("_scr") or nm.contains("phone"): ph = true
+			if ph: (ba as Node3D).visible = on
+
 func _rig_of(k: String) -> Node3D:
 	return S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0].get_parent() as Node3D
 
@@ -1384,7 +1437,7 @@ func carry_boards(k: String, on: bool):
 	if cm == null: cm = CarryArm.new(); sk.add_child(cm)
 	cm.bundle = carried[k]
 	cm.active = on
-	if not on: ap.play("t20/loop", 0.5)
+	if not on: ap.play(stand_of(k), 0.5)
 
 func walk_to(k: String, plan_pts: Array, done := Callable(), end_yaw = null):
 	if not S.has(k + "_node"): return
@@ -1430,11 +1483,11 @@ func _walk_tick(dt: float):
 		(S[k + "_col"] as Node3D).global_position = p
 		if w.i >= w.pts.size():
 			var ap: AnimationPlayer = w.ap
-			ap.play("t20/loop", 0.4)
+			ap.play(stand_of(k), 0.4)
 			# the stand has no track for the hips' place: put them back where the stand has them
 			var sk: Skeleton3D = S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
 			var bi := sk.find_bone("pelvis")
-			get_tree().create_timer(0.45).timeout.connect(func(): if not walkers.has(k) or walkers[k].i >= walkers[k].pts.size(): sk.set_bone_pose_position(bi, sk.get_bone_rest(bi).origin))
+			if not stand_of(k).begins_with("talk/"): get_tree().create_timer(0.45).timeout.connect(func(): if not walkers.has(k) or walkers[k].i >= walkers[k].pts.size(): sk.set_bone_pose_position(bi, sk.get_bone_rest(bi).origin))
 			if w.yaw == null:
 				walkers.erase(k)
 				if w.done.is_valid(): w.done.call()
@@ -1635,8 +1688,24 @@ func _shadow_budget(dt: float):
 	cand.sort_custom(func(a, b): return a[0] < b[0])
 	for i in cand.size(): cand[i][1].shadow_enabled = i < shadow_n
 
+# 2026-11-14（ユーザー「4章以降が重い」、重さの記録：第1章も最低で重い）: the cedar wood round the clearing is 1793 trees, about
+# 15 million triangles, every one drawn in every frame (Godot does not know the near ones hide the far). Beyond this many
+# metres a tree is not drawn: from the clearing the trunks and the haze close the wood up well before it
+# (outside.py sugi_stand r1 130 m). 低 and 最低 draw less of it
+const TREE_FAR_HIGH := 70.0
+const TREE_FAR_LOW := 50.0
+var tree_far := -1.0
+func trees_far(d: float):
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--treefar="): d = float(a.substr(10))
+	if d == tree_far: return
+	tree_far = d
+	for g in get_tree().root.find_children("ext_sugi*", "GeometryInstance3D", true, false):
+		(g as GeometryInstance3D).visibility_range_end = d
+
 func _quality(high: bool):
 	quality_high = high
+	trees_far(TREE_FAR_HIGH if high else TREE_FAR_LOW)
 	shadow_n = 4 if high else 2
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR if high else Viewport.SCALING_3D_MODE_FSR

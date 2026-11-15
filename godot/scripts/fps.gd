@@ -38,7 +38,7 @@ var left := false
 var hit_base := Transform3D()
 var aim_n := 0
 var still_n := 0
-var card_t := 5.0
+var card_t := 2.5   # ユーザー 2026-11-14「章カードの表示時間、いまの半分くらいに」
 var nat: Node3D
 var nrig: Node3D
 var nap: AnimationPlayer

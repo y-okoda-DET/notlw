@@ -148,10 +148,11 @@ def kitchen(M):
         cyl('lived_yunomi', x, y, .862, .95, .035, M['yunomi'] if i == 0 else M['yunomi2'], 14)
     cyl('lived_yunomi', 7.2, 3.92, .95, 1.038, .035, M['yunomi2'], 14)   # stacked, as they were put away
     # the fridge door: his notes under magnets (the crew have not touched them)
-    for (y, z, w, h, mat) in ((3.85, 1.4, .1, .14, 'screen'), (4.02, 1.32, .08, .08, 'note_y'), (3.9, 1.1, .12, .09, 'screen')):
-        box('lived_note', 9.317, y - w / 2, 9.32, y + w / 2, z - h / 2, z + h / 2, M[mat])
-        box('lived_magnet', 9.312, y - .012, 9.317, y + .012, z + h / 2 - .02, z + h / 2 + .005, M['magnet'])
-    phm('pot_enamel_01', 9.62, 4.0, 1.75, rz=.3, name='lived_enamelpot')          # stored on the fridge
+    # 2026-11-14: on the door's face (plan +y, the Tripo fridge's front at 4.325), the pot on its top (1.57)
+    for (x, z, w, h, mat) in ((9.5, 1.25, .1, .14, 'screen'), (9.7, 1.18, .08, .08, 'note_y'), (9.55, .95, .12, .09, 'screen')):
+        box('lived_note', x - w / 2, 4.326, x + w / 2, 4.329, z - h / 2, z + h / 2, M[mat])
+        box('lived_magnet', x - .012, 4.329, x + .012, 4.334, z + h / 2 - .02, z + h / 2 + .005, M['magnet'])
+    phm('pot_enamel_01', 9.62, 4.0, 1.57, rz=.3, name='lived_enamelpot')          # stored on the fridge
     phm('wooden_cutting_board', 8.62, 3.95, .862, rz=.1, name='lived_board')
     phm('plastic_thermos', 9.18, 3.86, .862, rz=2.0, name='lived_thermos')
     phm('wicker_basket_01', 6.32, 4.55, 0, rz=1.4, name='lived_basket')

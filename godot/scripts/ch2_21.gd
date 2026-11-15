@@ -11,8 +11,16 @@ extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
 
 # where they are (plan metres: x east, y north from the front door) and whom they face
-const AT21 := {"kiryu": [1.05, 2.35], "makoto": [1.15, 0.95], "taiga": [2.85, 0.95], "natsuki": [2.45, 1.85]}   # 2026-11-14（ユーザー「夏希、上映の準備を進めているように」）：低い机の映写機のそば
-const FACE21 := [1.85, 1.6]                    # the lantern on the low table
+# 2026-11-14（ユーザー「居間、みんな内側を向いて会話している感じに。スマホなし」）：低い机を囲む。桐生と大河はソファ（西向き、
+# 机の方）に座り、真琴は机の南西、夏希は北（映写機のそば。ユーザー「夏希、上映の準備を進めているように」）に立つ。
+# 大河の [2.85, 0.95] はソファの肘掛けの中だった
+const AT21 := {"kiryu": [3.28, 2.25], "makoto": [1.2, 1.05], "taiga": [3.28, 1.3], "natsuki": [1.95, 2.8]}
+const FACE21 := [1.9, 1.85]                    # the middle of the low table (the lantern, the projector)
+const SIT21 := {"kiryu": "talk/sit_b", "taiga": "talk/sit_a"}   # facing the table (west), they do not turn
+const SIT_Z := 0.0                              # how far the sitters' root is lifted (the seat's height against Mixamo's chair)
+# standing: what each does while another speaks, and while speaking
+const LISTEN := {"makoto": "talk/think", "natsuki": "talk/idle", "kiryu": "talk/idle", "taiga": "talk/idle"}
+const SPEAK := {"makoto": "talk/talk_c", "natsuki": "talk/talk_a", "kiryu": "talk/talk_d", "taiga": "talk/talk_b"}
 const MIO21 := [3.45, 3.25]                    # by the living room's door, looking in
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
 const MIO22 := [4.55, 2.75]
@@ -21,7 +29,7 @@ const NAT_OUT := [[5.0, 0.0, 0.0], [5.0, -1.3, 0.0]]
 
 var part := 21
 var card: Control
-var card_t := 3.0
+var card_t := 1.5   # 半分に（ユーザー 2026-11-14）
 var stage := ""                                # "" | talk | see_off | out | to23
 var see_t := 0.0
 var out_t := -1.0
@@ -40,6 +48,7 @@ func _ready():
 	# 2026-11-13 (ユーザー「この場面はスマホライトなしでOK」): the phones' torches off; the lantern and the bulbs light the room
 	for e in main.torches:
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
+	main.phones(false)   # 2026-11-14（ユーザー「スマホは持たない」）
 	demo21 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo_on = demo21
 	for a in OS.get_cmdline_user_args():
@@ -59,9 +68,10 @@ static func fps_load(file: String):
 		if ln.begins_with("【") and ln.ends_with("】"): key = ln.substr(1, ln.length() - 2); D.blocks[key] = []
 		elif key != "": D.blocks[key].append(String(raw).rstrip(" \t\r"))
 
-# the 20:00 bodies look along their rig's -z (the first try had them all turn their backs: 試作111 の確認)
+# the 20:00 bodies looked along their rig's -z (試作111 の確認); the Mixamo clips they play here now (export_talk.py,
+# 2026-11-14) look along +z, like the walk
 func _face(from: Array, to: Array) -> float:
-	return atan2(to[0] - from[0], to[1] - from[1]) + PI
+	return atan2(to[0] - from[0], to[1] - from[1])
 
 func _put(k: String, at: Array, yaw: float):
 	if main.S.has(k + "_node"): main.place_person(k, [at[0] - 4.8, 6.3 - at[1], 0.0], yaw)
@@ -70,15 +80,18 @@ func _set_part(p: int):
 	part = p
 	_clear_page(); _set_mission("")
 	if p == 21:
-		for k in AT21: _put(k, AT21[k], _face(AT21[k], FACE21))
+		for k in AT21:
+			_put(k, AT21[k], _face(AT21[k], [1.0, AT21[k][1]] if SIT21.has(k) else FACE21))
+			if SIT21.has(k): main._rig_of(k).global_position.y += SIT_Z
+			main.set_stand(k, SIT21.get(k, LISTEN[k]), 0.0)
 		player.global_position = gp(MIO21[0], MIO21[1], 0.0)
 	else:
-		for k in AT22: _put(k, AT22[k], _face(AT22[k], MIO22))
+		for k in AT22: _put(k, AT22[k], _face(AT22[k], MIO22)); main.set_stand(k, LISTEN[k], 0.0)
 		player.global_position = gp(MIO22[0], MIO22[1], 0.0)
 	_look_from(MIO21 if p == 21 else MIO22, FACE21 if p == 21 else AT22.natsuki)
 	if card: card.queue_free()
 	card = main.make_card(self, [[D.lines("二十一.カード" if p == 21 else "二十二.カード")[0], 52, 0]], Type.card())
-	card_t = 3.0; stage = ""
+	card_t = 1.5; stage = ""
 	print("STORY h%d" % p)
 
 # 2026-11-13 (ユーザー「会話しているように見せたい。せめて夏希は喋ってる相手を向く」): whoever is not speaking turns to the one who is;
@@ -91,8 +104,10 @@ func _turn_to_speaker(dt: float):
 	var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
 	for k in at:
 		if main.walkers.has(k): continue
+		if part == 21 and SIT21.has(k): continue
 		var rig: Node3D = main._rig_of(k)
 		if rig == null or not rig.visible: continue
+		main.set_stand(k, SPEAK[k] if who == k else LISTEN[k])
 		var me := [rig.global_position.x + 4.8, rig.global_position.z + 6.3]
 		var target: Array
 		if who == "" or who == "mio":

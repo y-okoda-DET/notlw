@@ -57,7 +57,7 @@ func setup(m):
 			# the cellar door: opened all the way the plans' way, its leaf lay over the stairwell (ユーザー「上るとき、ここに
 			# 板があるのは変」) and turned its 発電機 notice to the wall. It opens into the hall, and at dusk it is shut
 			if key == "door_cellar":
-				doors[mi].open = rest - signf(cur - rest) * deg_to_rad(92.0)
+				doors[mi].open = _hall_side(mi, doors[mi])   # (rest - the plans' way still left it over the stair: 試作121)
 				if main.TIME == "dusk": doors[mi].is_open = false
 			piv.rotation.y = doors[mi].open if doors[mi].is_open else rest
 	# a shut door opens to the side where the swept leaf meets the least (walls, furniture): the plans give no side
@@ -66,6 +66,10 @@ func setup(m):
 		var d: Dictionary = doors[mi]
 		if d.is_open: continue
 		if d.pivot == main.door_pivot: d.open = d.rest + deg_to_rad(105.0); continue   # as it stands at dusk
+		# 2026-11-14（ユーザー「1階から地下を見下ろすと、下りの階段が見えない。謎の板」）: shut at 20:00, the cellar door chose the
+		# stairwell's side (nothing there for the leaf to meet) and hung over the stair when Taiga opened it. It opens into the hall
+		# (plan +y of its wall at 5.6, Godot +z)
+		if d.key == "door_cellar": d.open = _hall_side(mi, d); continue
 		var best := 0.0; var fewest := 1 << 30
 		for a in [deg_to_rad(92.0), deg_to_rad(-92.0)]:
 			var hits := 0
@@ -73,6 +77,17 @@ func setup(m):
 				hits += _hits_at(mi, d, d.rest + a * f)
 			if hits < fewest: fewest = hits; best = a
 		d.open = d.rest + best
+
+# the cellar door's open angle on the hall's side of its wall (plan +y of 5.6, Godot +z): its leaf's middle there
+func _hall_side(mi: MeshInstance3D, d: Dictionary) -> float:
+	var piv: Node3D = d.pivot; var keep := piv.rotation.y; var pick: float = d.rest + deg_to_rad(92.0)
+	var wall_z: float = piv.global_position.z
+	for a2 in [deg_to_rad(92.0), deg_to_rad(-92.0)]:
+		piv.rotation.y = d.rest + a2
+		var c: Vector3 = mi.global_transform * mi.get_aabb().get_center()
+		if c.z > wall_z + 0.2: pick = d.rest + a2
+	piv.rotation.y = keep
+	return pick
 
 func _hits_at(mi: MeshInstance3D, d: Dictionary, ang: float) -> int:
 	var piv: Node3D = d.pivot

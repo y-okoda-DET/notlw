@@ -57,7 +57,7 @@ def front_tex():
     d.line([nx(0), Z(za), nx(1), Z(za)], fill=ink, width=max(1, int(3 * K)))
     # 試作97 (ユーザー「ラジオ、目盛りが少し見づらい」): the AM row is the one she tunes; its marks and numbers
     # were 3 px and 21 pt at this size, finer than the print's dots. Heavier ticks, bigger numbers, every 100 kHz.
-    f_a = ImageFont.truetype(FONT_SANS, int(35 * K))   # 試作98: 29 (ユーザー「見えるけど、まだ見づらい」)
+    f_a = ImageFont.truetype(FONT_SANS, int(24.5 * K))   # 試作98: 29→35 (ユーザー「見えるけど、まだ見づらい」); 2026-11-14: 70% (ユーザー「数字いまより70％のサイズに」)
     for khz in [531, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1602]:
         u = am_u(khz)
         d.line([nx(u), Z(za), nx(u), Z(za) + 15 * K], fill=ink, width=max(1, int(7 * K)))

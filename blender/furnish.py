@@ -19,6 +19,32 @@ def box(name, x0, y0, x1, y1, z0, z1, mat, uv=1.0, col=False):
     if col: collide(x0, y0, x1, y1, z0, z1)
     return o
 
+def soft(name, x0, y0, x1, y1, z0, z1, mat, r=.04, puff=0.0, tilt=0.0, uv=1.0):
+    """A block with rounded edges (upholstery): box() bevelled all round by r; puff raises the top's middle (a cushion
+    that is filled), tilt leans it back about its bottom (plan +x is back) in radians."""
+    import bmesh
+    from mathutils import Matrix, Vector
+    x0, x1 = min(x0, x1), max(x0, x1); y0, y1 = min(y0, y1), max(y0, y1)
+    hx, hy, hz = (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2
+    o = prim('cube', name, loc=((X(x0) + X(x1)) / 2, (Y(y0) + Y(y1)) / 2, (z0 + z1) / 2), mat=mat)
+    o.data.transform(Matrix.Diagonal((hx, hy, hz, 1.0)))
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    if puff:   # cut the top across both ways so it can rise in the middle
+        bmesh.ops.subdivide_edges(bm, edges=[e for e in bm.edges if all(v.co.z > hz - 1e-4 for v in e.verts)], cuts=3, use_grid_fill=True)
+    bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(r, hx * .9, hy * .9, hz * .9), segments=3, affect='EDGES', profile=.5)
+    if puff:
+        for v in bm.verts:
+            if v.co.z > hz - r * 1.01:
+                u = max(0.0, 1 - (v.co.x / hx) ** 2) * max(0.0, 1 - (v.co.y / hy) ** 2)
+                v.co.z += puff * u
+    bm.to_mesh(o.data); bm.free()
+    if tilt:   # lean back (the top toward plan +x = Blender +X) about the bottom's front edge
+        piv = Vector((-hx, 0, -hz))
+        o.data.transform(Matrix.Translation(piv) @ Matrix.Rotation(tilt, 4, 'Y') @ Matrix.Translation(-piv))
+    lib.smooth(o, 50)
+    lib.uv_box(o, uv)
+    return o
+
 def collide(x0, y0, x1, y1, z0, z1):
     COL.append(dict(c=[round((X(x0) + X(x1)) / 2, 3), round((Y(y0) + Y(y1)) / 2, 3), round((z0 + z1) / 2, 3)],
                     s=[round(abs(x1 - x0), 3), round(abs(y1 - y0), 3), round(z1 - z0, 3)]))
@@ -94,21 +120,29 @@ def living(M):
     legs('furn_ltleg', 1.55, 1.25, 2.3, 2.45, .36, .05, M['walnut'])
     collide(1.55, 1.25, 2.3, 2.45, 0, .42)
     # projector, its lens toward the screen, a cable off the table's edge
-    box('furn_proj', 1.7, 1.7, 1.98, 1.95, .4, .5, M['fridge'])
-    o = prim('cylinder', 'furn_projlens', loc=(X(1.69), Y(1.77), .45), rot=(0, math.pi / 2, 0), scale=(.03, .03, .012), mat=M['plastic'], vertices=16)
+    # 2026-11-14: the user's Tripo projector (its lens toward the screen, plan -x); the box is the stand-in when the file is missing
+    if not tripo_prop('projector', (X(1.84), Y(1.825), .4), -math.pi / 2, .3, name='furn_proj'):
+        box('furn_proj', 1.7, 1.7, 1.98, 1.95, .4, .5, M['fridge'])
+        o = prim('cylinder', 'furn_projlens', loc=(X(1.69), Y(1.77), .45), rot=(0, math.pi / 2, 0), scale=(.03, .03, .012), mat=M['plastic'], vertices=16)
     lib.tube('cable_proj', [(X(1.98), Y(1.88), .43), (X(2.15), Y(2.0), .41), (X(2.3), Y(2.3), .3), (X(2.45), Y(2.6), .015), (X(3.0), Y(2.95), .015)],
              [.005] * 5, M['plastic'], seg=6, sub=4)
     box('furn_remote', 2.0, 1.4, 2.05, 1.56, .4, .418, M['plastic'])
     # sofa: three-seater facing west (the screen)
-    fx0, fx1, fy0, fy1 = 2.7, 3.55, .75, 2.75
-    box('furn_sofabase', fx0, fy0, fx1, fy1, .08, .42, M['sofa'])
-    box('furn_sofaback', fx1 - .22, fy0, fx1, fy1, .42, .86, M['sofa'])
-    for (a, b) in ((fy0, fy0 + .2), (fy1 - .2, fy1)):
-        box('furn_sofaarm', fx0, a, fx1, b, .42, .64, M['sofa'])
-    for i in range(3):   # seat cushions
-        a = fy0 + .2 + i * (fy1 - fy0 - .4) / 3
-        box('furn_sofaseat', fx0 + .02, a + .01, fx1 - .22, a + (fy1 - fy0 - .4) / 3 - .01, .42, .52, M['sofa'])
-    legs('furn_sofaleg', fx0, fy0, fx1, fy1, .08, .04, M['walnut'])
+    # 2026-11-15（ユーザー「ソファがカクカクしすぎ。もう少しリアルにしたい」）: upholstered, not boxes: a rounded base on short
+    # tapered legs, three filled seat cushions, three back cushions leaning back, rolled arms. And 20 cm further back
+    # (east): the two who sit on it at 21:00 (Mixamo's sitting talk) had their feet in the low table (ユーザー「めりこまない」)
+    fx0, fx1, fy0, fy1 = 2.9, 3.75, .75, 2.75
+    soft('furn_sofabase', fx0 + .02, fy0 + .02, fx1, fy1 - .02, .11, .4, M['sofa'], r=.035)
+    soft('furn_sofaback', fx1 - .17, fy0 + .05, fx1, fy1 - .05, .38, .8, M['sofa'], r=.05)
+    for (a, b) in ((fy0, fy0 + .19), (fy1 - .19, fy1)):
+        soft('furn_sofaarm', fx0 + .01, a, fx1, b, .11, .62, M['sofa'], r=.075)
+    cw = (fy1 - fy0 - .38) / 3
+    for i in range(3):   # seat cushions, filled, a finger's gap between them
+        a = fy0 + .19 + i * cw
+        soft('furn_sofaseat', fx0 + .03, a + .006, fx1 - .17, a + cw - .006, .38, .51, M['sofa'], r=.045, puff=.025)
+        soft('furn_sofabackc', fx1 - .33, a + .01, fx1 - .15, a + cw - .01, .5, .9, M['sofa'], r=.07, puff=.0, tilt=.17)
+    for (x, y) in ((fx0 + .06, fy0 + .06), (fx1 - .06, fy0 + .06), (fx0 + .06, fy1 - .06), (fx1 - .06, fy1 - .06)):
+        o = prim('cone', 'furn_sofaleg', loc=(X(x), Y(y), .055), scale=(.022, .022, .055), mat=M['walnut'], vertices=10, radius1=.65, radius2=1.0, depth=2.0)
     collide(fx0, fy0, fx1, fy1, 0, .9)
     for (cx, cy) in ((1.45, .95), (2.45, 2.75)):   # floor cushions
         o = box('furn_cushion', cx - .22, cy - .22, cx + .22, cy + .22, .012, .1, M['cushion'])
@@ -135,7 +169,7 @@ def tripo_prop(n, loc, rot_z=0.0, scale=1.0, name=None):
         if e is not o: bpy.data.objects.remove(e)
     o.parent = None; o.name = name or f'prop_{n}'
     o.rotation_mode = 'XYZ'   # the glTF importer leaves it on quaternions, and rotation_euler did nothing
-    o.rotation_euler = (0, 0, rot_z); o.scale = (scale, scale, scale); o.location = loc
+    o.rotation_euler = (0, 0, rot_z); o.scale = tuple(scale) if isinstance(scale, (tuple, list)) else (scale, scale, scale); o.location = loc
     bpy.context.view_layer.update()
     return o
 
@@ -208,9 +242,15 @@ def kitchen(M):
     cyl('furn_pot', 7.7, 3.98, .985, 1.15, .13, M['steel'], 20)
     box('furn_upper', sx0, 3.67, sx1, 4.0, 1.5, 2.2, M['cabinet'])
     # fridge in the corner, short of the back door
-    box('furn_fridge', 9.32, 3.67, 9.93, 4.33, 0, 1.75, M['fridge'], col=True)
-    box('furn_fridgegap', 9.31, 3.75, 9.32, 4.25, 1.15, 1.16, M['plastic'])
-    box('furn_fridgehandle', 9.29, 4.2, 9.31, 4.23, .6, 1.05, M['steel'])
+    # its doors face into the kitchen, not into the end of the counter (ユーザー 2026-11-14「冷蔵庫、ドアがキッチン台に向かっている。
+    # 反時計回りに90度回転して設置」: in the game's top view, which is the plan's +y). The user's Tripo fridge (front -Y in
+    # Blender = plan +y), a little taller and slimmer than it came (1.57 m, the corner it stands in)
+    if tripo_prop('fridge', (X(9.625), Y(4.0), 0), 0.0, (1.27, 1.35, 1.6), name='furn_fridge'):
+        collide(9.32, 3.67, 9.93, 4.33, 0, 1.57)
+    else:
+        box('furn_fridge', 9.32, 3.67, 9.93, 4.33, 0, 1.75, M['fridge'], col=True)
+        box('furn_fridgegap', 9.36, 4.33, 9.89, 4.34, 1.15, 1.16, M['plastic'])
+        box('furn_fridgehandle', 9.37, 4.34, 9.40, 4.36, .6, 1.05, M['steel'])
     # the curry things on the north counter: a paper bag, onions, potatoes, carrots, the roux; the rice cooker
     box('furn_bag', 6.3, 7.5, 6.62, 7.72, .862, 1.2, M['paperbag'])
     for i, (x, y) in enumerate(((6.8, 7.5), (6.88, 7.62), (6.74, 7.66))):

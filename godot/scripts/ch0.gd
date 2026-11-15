@@ -34,6 +34,8 @@ var opened_t := -1.0
 var after0 := 0
 var car_t := -1.0
 var car: Array = []             # the two headlamps
+var police: Node3D               # who stands at the door when she opens it: a shape against the headlamps
+var dawn_fog: FogVolume          # the air in the hall, so the lamps come through the gaps as beams
 var car_body: MeshInstance3D
 var knocks0: Array = []         # the clock's seconds of each knock
 var door_rest0 := 0.0
@@ -171,12 +173,17 @@ func _pool():
 # ---------------------------------------------------------------- the car: two lamps that come up the drive and stop
 const CAR_FROM := [13.0, -16.0, 0.75]   # plan: down the forest road, out of sight
 const CAR_TO := [7.4, -11.0, 0.72]       # on the drive below Natsuki's car, its lamps on the front door
+const LAMP_E := 2.6                      # was 9.0: the hall went white under the print
+const LAMP_FOG := 3.0
 func _car():
 	for side in [-0.75, 0.75]:
 		var l := SpotLight3D.new(); l.light_color = Color(1.0, 0.95, 0.84); l.light_energy = 0.0
 		l.spot_range = 22.0; l.spot_angle = 22.0; l.spot_angle_attenuation = 1.6; l.spot_attenuation = 0.4
-		l.shadow_enabled = true; l.light_volumetric_fog_energy = 0.8; l.light_specular = 0.3
+		# 2026-11-14 (ユーザー「まぶしすぎる。隙間から光が差し込むようにしたい」): less on the walls, more in the air (beams through
+		# the gaps the boards leave; the shadows make the gaps)
+		l.shadow_enabled = true; l.light_volumetric_fog_energy = LAMP_FOG; l.light_specular = 0.3
 		l.set_meta("side", side)
+		l.set_meta("own_shadow", true)   # its shadow is the gaps' shape: kept at every quality (at 最低 without it the hall went white)
 		main.add_child(l); car.append(l)
 		var lens := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 0.09; sp.height = 0.12; lens.mesh = sp
 		var lm := StandardMaterial3D.new(); lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.albedo_color = Color(1, 0.97, 0.9)
@@ -187,6 +194,35 @@ func _car():
 	var cab := MeshInstance3D.new(); var cbm := BoxMesh.new(); cbm.size = Vector3(1.6, 0.55, 2.2); cab.mesh = cbm; cab.material_override = cm
 	car_body.add_child(cab); cab.position = Vector3(0, 0.75, 0.35)
 	main.add_child(car_body)
+	dawn_fog = FogVolume.new(); dawn_fog.size = Vector3(3.2, 2.6, 4.0)
+	var fm := FogMaterial.new(); fm.density = 0.012; fm.albedo = Color(1, 1, 1); fm.edge_fade = 0.4; dawn_fog.material = fm
+	main.add_child(dawn_fog); dawn_fog.global_position = gp(FRONT_DOOR[0], FRONT_DOOR[1] + 1.6, 1.3)
+	_police()
+
+# 2026-11-14 (ユーザー「扉を開けたら不気味な警察官が立っている」): a man's shape on the step, the lamps behind him; no face,
+# only the outline and a cap. One of the cast's bodies, drawn flat black, so nothing of him is lit
+func _police():
+	var path: String = main.BASE + "taiga.glb"
+	if not ResourceLoader.exists(path): return
+	police = (load(path) as PackedScene).instantiate()
+	main.add_child(police)
+	police.global_transform = Transform3D(Basis(), gp(FRONT_DOOR[0] - 0.1, FRONT_DOOR[1] - 0.75, 0.0))   # facing in, down the hall
+	var ink := StandardMaterial3D.new(); ink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; ink.albedo_color = Color(0.01, 0.01, 0.015)
+	for mi in police.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_override = ink; (mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	var sks := police.find_children("*", "Skeleton3D", true, false)
+	if sks.size() > 0:
+		var sk := sks[0] as Skeleton3D
+		var ba := BoneAttachment3D.new(); ba.bone_name = "head"; sk.add_child(ba)
+		var cap := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.105; cy.bottom_radius = 0.115; cy.height = 0.09; cap.mesh = cy
+		cap.material_override = ink; ba.add_child(cap); cap.position = Vector3(0, 0.15, 0.0)
+		var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.13; bm2.bottom_radius = 0.13; bm2.height = 0.012; brim.mesh = bm2
+		brim.material_override = ink; ba.add_child(brim); brim.position = Vector3(0, 0.11, 0.05)
+	for ap in police.find_children("*", "AnimationPlayer", true, false):
+		var a := ap as AnimationPlayer
+		var names := a.get_animation_list()
+		if names.size() > 0: a.play(names[0]); a.seek(0.0, true); a.pause()
+	police.visible = false
 
 func _car_tick(dt: float):
 	if car_t < 0.0: return
@@ -200,7 +236,7 @@ func _car_tick(dt: float):
 	for l in car:
 		var lp: Vector3 = p + right * float(l.get_meta("side"))
 		l.look_at_from_position(lp, aim + right * float(l.get_meta("side")) * 0.6, Vector3.UP)
-		l.light_energy = 9.0 * smoothstep(0.0, 1.5, car_t)
+		l.light_energy = LAMP_E * smoothstep(0.0, 1.5, car_t)
 	car_body.global_transform = Transform3D(Basis.looking_at(fw, Vector3.UP), p + Vector3(0, -0.12, 0) - fw * 2.25)
 
 # ---------------------------------------------------------------- her print on the door, her feet on the floor
@@ -408,7 +444,8 @@ func _open_tick(dt: float):
 		main.door_pivot.position = door_pos0
 		main.door_pivot.rotation.y = door_rest0 + deg_to_rad(OPEN_DEG) * k * float(main.S.get("door_sign", 1.0))
 		door_light.light_energy = 3.0 * k
-		for l in car: l.light_energy = 9.0 + 6.0 * k
+		for l in car: l.light_energy = LAMP_E + 2.0 * k
+		if police: police.visible = opened_t > 0.6
 	var A: Array = B("序.あと")
 	# the light comes in white; then black, and on the black only her answer (it could not be read over the dawn)
 	if opened_t > 5.0: black.color.a = clampf((opened_t - 5.0) / 0.8, 0.0, 1.0)

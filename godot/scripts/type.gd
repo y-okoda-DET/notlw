@@ -55,6 +55,11 @@ class Soft extends Control:
 		elif p.vertical_alignment == VERTICAL_ALIGNMENT_BOTTOM: y = p.size.y - total
 		# a line typed in a letter at a time (story.gd _type: the whole text is set, visible_characters grows) has shadow
 		# only under the letters that are out; the Label centres what is out so far (it trims before it shapes), so does this
+		# 2026-11-14 (ユーザー「字幕のシャドウが先行して出ることがしばしば」): a row is laid out by its container a frame after
+		# its text is set; until then the Label is narrower than its line, and the pool was drawn where the line was not yet
+		# (at 3 fps, a third of a second). No pool until the Label is as wide as its widest line
+		for whole in lines:
+			if f.get_string_size(whole.replace("​", ""), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > p.size.x + 2.0: return
 		var left: int = p.visible_characters if p.visible_characters >= 0 else 1 << 30
 		for whole in lines:
 			var line: String = whole.substr(0, clampi(left, 0, whole.length()))

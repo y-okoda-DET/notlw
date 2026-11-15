@@ -29,6 +29,7 @@ var step_was := 0
 var y_was := 0.0
 var steps_n := 0
 var g_was := {}
+var catch_t := -1.0   # seconds since the pull that catches: ブオ、ブオ、ブオーン (ユーザー 2026-11-14)
 # the three stations (2026-11-13): kHz and strength, as the recipe has them; the dB are where the mix sits in the game (仮)
 const RADIO := {"music": [594.0, 0.75], "news": [1017.0, 0.85], "foreign": [1350.0, 0.6]}
 const RADIO_DB := -4.0
@@ -75,7 +76,10 @@ func _loop(name: String, db: float, at = null) -> Node:
 		add_child(p3); p3.global_position = at; p = p3
 	else:
 		p = AudioStreamPlayer.new(); (p as AudioStreamPlayer).stream = s; add_child(p)
-	p.set("volume_db", db); p.call("play")
+	p.set("volume_db", db)
+	# the bulletin runs on the story's clock (story.gd NEWS_T): it is where it would be had it been playing all along
+	if name.begins_with("radio_news") and main and main.story and "bc_t" in main.story: p.call("play", fmod(float(main.story.bc_t), 49.4))
+	else: p.call("play")
 	print("SOUND loop %s %.1f" % [name, db])
 	loops[name] = p
 	return p
@@ -87,6 +91,7 @@ func setup(m):
 	main = m
 	if "--nosound" in OS.get_cmdline_user_args(): set_process(false); return
 	storm = main.SCENE == "night" or (main.SCENE == "house" and main.TIME in ["t20", "t23", "t02", "t0330"])
+	if main.get("play") == "ch11": storm = false   # 2026-11-14（ユーザー「VHS の場面は雨音なし」）: the tape's room is another night
 	if storm:
 		var r := _loop("rain", -10.0)
 		# 2026-11-14 第2章の20時は、停電の直後の「ひどい雨になっていました」と一緒に雨が大きくなる（ユーザー「雨の音が急に鳴る」）
@@ -105,7 +110,7 @@ func _lit() -> bool:
 # 2026-11-13 (ユーザー「発電機の音がするのは発電機がついてから」): in 第2章 at 20:00 only the engine itself counts, not the circuit
 func _gen_running() -> bool:
 	var st = main.story
-	if st != null and is_instance_valid(st) and "gen" in st and "house" in st and st.house: return bool(st.gen.get("run", false))
+	if st != null and is_instance_valid(st) and "gen" in st and "house" in st and st.house: return bool(st.gen.get("run", false)) and (catch_t < 0.0 or catch_t > CATCH[2])
 	return main.gen_on
 
 # 2026-11-13 (ユーザー「局を合わせたあとも嵐の雑音が波のように何度もかぶる」、選局の通し_3局_v3_嵐の雑音_作り方.py): swells of the storm's
@@ -121,6 +126,7 @@ func _swell(dt: float) -> float:
 	if sw_t <= 0.0: sw_in = 0.0; sw_d = randf_range(0.5, 1.3); sw_a = randf_range(0.5, 1.0)
 	return 0.0
 
+const CATCH := [0.0, 1.0, 2.0]
 func _gen_at() -> Vector3:
 	return Vector3(9.45 - 4.8, -2.0, 6.3 - 6.3)   # story.gd GEN_P, GEN_Y (plan) on the cellar floor, in Godot
 
@@ -139,7 +145,14 @@ func _process(dt):
 			# the cord (ユーザー「小さい音2回、のあとに大きい音1回」): the pulls that do not catch are small, the one that catches is big
 			if int(g.get("fails", 0)) > int(g_was.get("fails", 0)): one(self, "gen_pull", -18.0, _gen_at())
 			if int(g.get("fails_c", 0)) > int(g_was.get("fails_c", 0)): one(self, "gen_cough", -15.0, _gen_at())
-			if bool(g.get("run", false)) and not bool(g_was.get("run", false)): one(self, "gen_start", 0.0, _gen_at())
+			# the pull that catches (ユーザー 2026-11-14「ブオ、ブオ、ブオーンとしたい」): it coughs twice and then catches, as her line says
+			# (三回引いて、かかりました). The engine's hum comes in with the third
+			if bool(g.get("run", false)) and not bool(g_was.get("run", false)): catch_t = 0.0
+			if catch_t >= 0.0:
+				var was := catch_t; catch_t += dt
+				for i in 3:
+					if was < CATCH[i] and catch_t >= CATCH[i]: one(self, "gen_start" if i == 2 else "gen_cough", 0.0 if i == 2 else -13.0, _gen_at())
+				if catch_t > CATCH[2] + 0.5: catch_t = -1.0
 			g_was = g.duplicate()
 		var on := _gen_running()
 		if on:
