@@ -1390,7 +1390,13 @@ func phones(on: bool):
 	for k in CHARS:
 		if not S.has(k + "_node"): continue
 		for ba in S[k + "_node"].find_children("*", "BoneAttachment3D", true, false):
-			if ba.find_child("torch", true, false): (ba as Node3D).visible = on
+			# 試作117: the screen came in as a bone of its own, apart from the phone's body (and its torch): it stayed in the
+			# hand, a white card (ユーザー「スマホは持たない」)
+			var ph: bool = ba.find_child("torch", true, false) != null
+			for mi in ba.find_children("*", "MeshInstance3D", true, false):
+				var nm := String(mi.name)
+				if nm.ends_with("_scr") or nm.contains("phone"): ph = true
+			if ph: (ba as Node3D).visible = on
 
 func _rig_of(k: String) -> Node3D:
 	return S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0].get_parent() as Node3D
