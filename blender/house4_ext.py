@@ -235,7 +235,10 @@ def back_porch_boxes():
 def foundation(M, OW):
     """Concrete from the ground up to the siding's foot; on the east the cellar wall shows above the falling ground."""
     for side, (ax, fixed, lo, hi, n, holes) in OW.items():
-        steps = np.linspace(lo, hi, 11)
+        # 試作124 (ユーザー「建物に隙間があるように見える」): each side stopped at the wall centre line, so at the corners
+        # the two slabs (out at WOFF ± .03) left an open vertical slit. Run every side out past the corner to cover it.
+        E = WOFF + .04
+        steps = np.linspace(lo - E, hi + E, 11)
         for a, b in zip(steps[:-1], steps[1:]):
             gz = min(ground(*_at(ax, fixed, n, a, .25, 0).xy), ground(*_at(ax, fixed, n, b, .25, 0).xy)) - .15
             o = _box('ext_found', ax, fixed, n, (a + b) / 2, WOFF - .01, (gz + Z_SID + .05) / 2, (b - a) / 2 + .004, .03, (Z_SID + .05 - gz) / 2, M['ext_found'])
