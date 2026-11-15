@@ -14,7 +14,7 @@ const Sound = preload("res://scripts/sound.gd")
 # 2026-11-14（ユーザー「居間、みんな内側を向いて会話している感じに。スマホなし」）：低い机を囲む。桐生と大河はソファ（西向き、
 # 机の方）に座り、真琴は机の南西、夏希は北（映写機のそば。ユーザー「夏希、上映の準備を進めているように」）に立つ。
 # 大河の [2.85, 0.95] はソファの肘掛けの中だった
-const AT21 := {"kiryu": [3.28, 2.25], "makoto": [1.2, 1.05], "taiga": [3.28, 1.3], "natsuki": [1.95, 2.8]}
+const AT21 := {"kiryu": [3.1, 2.25], "makoto": [1.2, 1.05], "taiga": [3.1, 1.3], "natsuki": [1.95, 2.8]}
 const FACE21 := [1.9, 1.85]                    # the middle of the low table (the lantern, the projector)
 const SIT21 := {"kiryu": "talk/sit_b", "taiga": "talk/sit_a"}   # facing the table (west), they do not turn
 const SIT_Z := 0.0                              # how far the sitters' root is lifted (the seat's height against Mixamo's chair)

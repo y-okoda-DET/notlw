@@ -167,7 +167,9 @@ def stairs_up(M, z_bottom, z_top):
         prim('cube', 'stringer', loc=(X(xs), (Y(y0) + Y(y1)) / 2, (z_bottom + z_top) / 2 - .12), rot=(-ang, 0, 0), scale=(.02, L / 2 + .1, .14), mat=M['trim'])
     # open side (west, toward the hall) gets balusters and a rail; the east side runs along the hall's east wall
     def z_rail(y):   # the handrail's centre line (it runs .92 above the stringer line, half a run back)
-        return (z_bottom + z_top) / 2 + .92 + (y - ((y0 + y1) / 2 - run / 2)) * (z_top - z_bottom) / (y1 - y0)
+        # 2026-11-15 (ユーザー「白く飛び出している棒」): the rail's middle is half a run toward the top (plan y 4.215: Y() turns
+        # the sign of its '- run / 2'); this said 3.985, and every baluster stood 20 cm over the rail
+        return (z_bottom + z_top) / 2 + .92 + (y - ((y0 + y1) / 2 + run / 2)) * (z_top - z_bottom) / (y1 - y0)
     for i in range(NSTEP):
         y = y0 + (i + .5) * run; z = z_bottom + (i + 1) * rise
         h = max(.1, z_rail(y) - .03 - z)   # up to the rail's underside (they poked through it at the foot)
