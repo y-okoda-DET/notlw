@@ -140,7 +140,7 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
-	if play == "h21" and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them)
+	if play in ["h21", "ch3"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）
 	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
@@ -185,9 +185,9 @@ func _ready():
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
-	if play in ["ch0", "h21"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card
+	if play in ["ch0", "h21", "ch3"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card
 		CARD_TIME = 0.0
-		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
+		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
 	if "--q0" in OS.get_cmdline_user_args():   # 試作125: checking as the player's machine runs it (perf.gd 最低)
 		_quality(false); get_viewport().scaling_3d_scale = 0.5; shadow_n = 2; trees_far(40.0)
 		if env: env.volumetric_fog_enabled = false
@@ -1654,7 +1654,7 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
-const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch4": "t0330", "ch11": "t0330"}
+const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch11": "t0330"}
 func to_chapter(p: String):
 	_save_settings()
 	_cover()

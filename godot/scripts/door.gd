@@ -89,7 +89,8 @@ func _process(dt):
 		if ended > (8.0 if OS.get_cmdline_user_args().has("--demo") else 14.0) and not demo_on:
 			demo_on = true
 			if OS.get_cmdline_user_args().has("--demo"): print("DEMO door t=%.1f fails=%d" % [t_now, DEMO_FAILS])
-			if ResourceLoader.exists("res://scripts/fps.gd"): main.to_chapter("ch4")
+			if ResourceLoader.exists("res://scripts/ch3.gd"): main.to_chapter("ch3")   # ステップ F: 第3章（夜中）
+			elif ResourceLoader.exists("res://scripts/fps.gd"): main.to_chapter("ch4")
 			elif OS.get_cmdline_user_args().has("--demo"): print("DEMO DONE t=%.1f fails=%d" % [t_now, DEMO_FAILS]); get_tree().quit()
 		return
 	if OS.get_cmdline_user_args().has("--demo"): _demo_door(dt)

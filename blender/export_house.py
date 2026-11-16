@@ -18,7 +18,7 @@ from lib import prim
 OUT = f'{P.RULES}/assets/house'
 os.makedirs(OUT, exist_ok=True)
 E.OUT = OUT
-DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_')   # switched per time in Godot: kept out of the joined, lightmapped mesh
+DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_', 'bed1b_blanket')   # switched per time in Godot: kept out of the joined, lightmapped mesh (bed1b_blanket: 第3章で澪が持っていく)
 E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
