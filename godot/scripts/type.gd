@@ -58,9 +58,15 @@ class Soft extends Control:
 		# 2026-11-14 (ユーザー「字幕のシャドウが先行して出ることがしばしば」): a row is laid out by its container a frame after
 		# its text is set; until then the Label is narrower than its line, and the pool was drawn where the line was not yet
 		# (at 3 fps, a third of a second). No pool until the Label is as wide as its widest line
-		for whole in lines:
-			if f.get_string_size(whole.replace("​", ""), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > p.size.x + 2.0: return
+		# 試作125 (ユーザー「字幕が先行して白が出てきてる。シャドウがかかってるものと一緒に出てきてほしい」): the Label shapes only
+		# the letters that are out, so while a line is being typed it is as wide as those, not as the whole line, and the
+		# test on the whole line held the pool back until the last letter. The test is on what is out
 		var left: int = p.visible_characters if p.visible_characters >= 0 else 1 << 30
+		var lft := left
+		for whole in lines:
+			var out: String = whole.substr(0, clampi(lft, 0, whole.length())).replace("​", "")
+			lft -= whole.length() + 1
+			if f.get_string_size(out, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > p.size.x + 1.5 * fs + 2.0: return   # a letter or so behind (its layout lags a frame) still draws
 		for whole in lines:
 			var line: String = whole.substr(0, clampi(left, 0, whole.length()))
 			left -= whole.length() + 1   # the line break counts as one

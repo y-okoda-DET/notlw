@@ -51,6 +51,17 @@ func _process(_dt: float):
 		if ms > 33.4: cur.over33 += 1
 		if ms > 50.0: cur.over50 += 1
 		if (cur.ms as Array).size() < 60000: (cur.ms as Array).append(ms)
+	# 試作125: at 最低 and still under 12 a second (a last resort: the baked bounce is brighter and flatter), the bounce light (VoxelGI) goes to the baked one, once a scene
+	if auto and level == 0 and since_scene > 4.0 and main and is_instance_valid(main) and main.get("gi_mode") == 1 and main.get("voxel_gi"):
+		win_sum += ms; win_n += 1
+		if win_n >= 60 or win_sum > 3000.0:
+			var avg0 := win_sum / win_n
+			if avg0 > 80.0:
+				main._set_gi(0)
+				notes.append("%s  %s：最低でも平均 %.1f ms なので、照り返しを焼いた物に" % [_clock(), where, avg0])
+				cur = {"where": where + "（焼いた照り返し）", "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": []}; segs.append(cur)
+				since_scene = 2.0
+			win_sum = 0.0; win_n = 0
 	if auto and level > 0 and since_scene > 4.0 and main and is_instance_valid(main):
 		win_sum += ms; win_n += 1
 		if win_n >= 90 or win_sum > 3000.0:
@@ -69,7 +80,9 @@ func _apply(l: int):
 	main._quality(l >= 2)
 	if l == 0:
 		get_viewport().scaling_3d_scale = 0.5
-		main.shadow_n = 1
+		# 試作125 (ユーザー「明るすぎて夏希が白飛び」「明るすぎる」、123 を最低で): with one lamp's shadow, the others lit
+		# through the walls and every room came out about half again as bright (NOTES 2026-11-15 夜). Two, as at 低
+		main.shadow_n = 2
 		main.trees_far(40.0)
 		if main.env: main.env.volumetric_fog_enabled = false
 

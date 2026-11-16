@@ -489,15 +489,7 @@ def cellar(M):
     # under the 1F floor; from the hall only the top two treads showed. It stops at the shaft (x 5.06..6, y 2.5..5.64)
     for (a, b, c, d) in ((4.0, 1.0, 5.06, 7.0), (6.0, 1.0, 10.0, 7.0), (5.06, 1.0, 6.0, 2.5), (5.06, 5.64, 6.0, 7.0)):
         box('cellar_ceiling', a, b, c, d, -.33, -.3, M['concrete'])
-    for i in range(7):   # the joists of the floor above, bare
-        x = 4.3 + i * .9
-        # 2026-11-14 (ユーザー「地下へ下りるとき・上がるときの謎の板」, ずっと指摘されていた物): the one at x 5.2 ran on
-        # through the stair shaft (x 5.06..6, y 2.5..5.64), a lit plank across the opening over the stairs. It stops at the shaft
-        if 5.06 - .04 < x < 6.0 + .04:
-            box('cellar_joist', x - .04, 1.0, x + .04, 2.5, -.52, -.33, M['agari'])
-            box('cellar_joist', x - .04, 5.64, x + .04, 7.0, -.52, -.33, M['agari'])
-            continue
-        box('cellar_joist', x - .04, 1.0, x + .04, 7.0, -.52, -.33, M['agari'])
+    # 2026-11-15 (ユーザー「天井にある木の棒、トル」、123): the bare joists under the ceiling are gone
     generator(M)
     # fuel: the owner's steel jerrycans along the north wall, his tape on the green one; a funnel by the generator
     for i, (a, x) in enumerate((('metal_jerrycan', 8.05), ('metal_jerrycan_green', 8.45), ('metal_jerrycan', 8.85))):

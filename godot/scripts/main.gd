@@ -92,6 +92,9 @@ func _ready():
 		if a == "--nowear": ARGS["nowear"] = true      # 段階2 使い込みの跡 off (before/after shots)
 		if a == "--weardbg": ARGS["weardbg"] = true    # the wear decals in red (where they land)
 		if a == "--minicam": ARGS["minicam"] = true    # check stills: 澪の小さなカメラ, the old boxes and the new model side by side
+		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
+		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
+		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -185,6 +188,11 @@ func _ready():
 	if play in ["ch0", "h21"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
+	if "--q0" in OS.get_cmdline_user_args():   # 試作125: checking as the player's machine runs it (perf.gd 最低)
+		_quality(false); get_viewport().scaling_3d_scale = 0.5; shadow_n = 2; trees_far(40.0)
+		if env: env.volumetric_fog_enabled = false
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--shn="): shadow_n = int(a.substr(6))
 	if ARGS.has("genoff"): generator(false)   # 試作91: the stills of 第2章 before the generator
 	if "--boards" in OS.get_cmdline_user_args() and SCENE == "house":   # 試作92: stills of the boards as 第2章 leaves them at 20:00
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
@@ -254,8 +262,23 @@ func _environment():
 	fog_vol.material = fm
 	add_child(fog_vol)
 
+# 試作125 (ユーザー「章カードの表示時間短くなってないのは、そこで読み込みとかしてるから？」, 重さの記録: 場面ごとに 18〜30 秒
+# 止まるコマ): every chapter is a reload of this scene, and the house and the people were read from the pck again each
+# time (the old scene's resources are freed with it). Kept here across reloads, the next chapter finds them in memory
+# (Not in a static var: held there, the scenes were let go so late at quitting that Godot hung on the way out; the
+# --bake-gi run of 23:00 never ended. A node on the root is freed with the tree.)
+static var KEEP_NODE: Node = null
+func _ps_keep() -> Dictionary:
+	if KEEP_NODE == null or not is_instance_valid(KEEP_NODE):
+		KEEP_NODE = Node.new(); KEEP_NODE.name = "PSKeep"; KEEP_NODE.set_meta("d", {})
+		get_tree().root.add_child.call_deferred(KEEP_NODE)
+	return KEEP_NODE.get_meta("d")
 func _load_scene(path: String, key: String):
-	var ps: PackedScene = load(path)
+	var keep := _ps_keep() if SCENE == "house" and not ARGS.has("bake") else {}
+	var ps: PackedScene = keep.get(path)
+	if ps == null:
+		ps = load(path)
+		if SCENE == "house" and not ARGS.has("bake"): keep[path] = ps
 	var inst := ps.instantiate()
 	inst.name = key
 	add_child(inst)
@@ -387,7 +410,9 @@ func _gi():
 		if String(mi.name).begins_with("rain") or String(mi.name).begins_with("slitglass"): mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	for k in CHARS:
 		if not S.has(k + "_node"): continue
-		for mi in S[k + "_node"].find_children("*", "MeshInstance3D", true, false): mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		# 試作131 (ユーザーの PC：第1章 --gi=none で 17→58コマ/秒、--nochars で 26): a moving thing in GI_MODE_DYNAMIC is
+		# drawn into the VoxelGI again every frame. The people take the bounce; they no longer give it
+		for mi in S[k + "_node"].find_children("*", "MeshInstance3D", true, false): mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	voxel_gi = VoxelGI.new()
 	voxel_gi.size = Vector3(3.8, 3.1, 6.4)
 	voxel_gi.subdiv = VoxelGI.SUBDIV_128
@@ -494,7 +519,9 @@ func _lights_dusk(only: Array = []):
 				lights.fres_d = _mk_spot(L, 2.6 * k * DUSK_K.key, L.angle, 0.06); DUSK_BASE["key"] = 2.6 * k
 				lights.fres_d.light_volumetric_fog_energy = 2.0
 			"reflector_bounce":
-				var r := _mk_spot(L, 0.9 * k, 70.0, 0.4, false); r.light_specular = 0.1; r.light_volumetric_fog_energy = 0.0
+				# 試作125 (ユーザー「明るすぎて夏希が白飛び」、123 の第1章): in the whole house the reflector's bounce lands on her white
+				# sweater on top of the house's own dusk; half of it there
+				var r := _mk_spot(L, 0.9 * k * float(ARGS.get("refl", "0.5" if SCENE == "house" else "1.0")), 70.0, 0.4, false); r.light_specular = 0.1; r.light_volumetric_fog_energy = 0.0
 				lights.refl = r
 			"taiga_fill", "taiga_rim":
 				# Taiga against the sky, as the eye adapts to him (ユーザー指摘): only his layer, no shadow, no fog
@@ -562,7 +589,7 @@ func _phone_lights():
 func _house_state():
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
 		var nm := String(mi.name)
-		if nm.begins_with("board_"): mi.visible = ST.boards
+		if nm.begins_with("board_"): mi.visible = ST.boards or play == "h21"   # 試作125 (ユーザー「窓、釘が打ち付けてある状態に」): 21時 is after the boards went up; the 20:00 state hid them again after the line above
 		elif nm.begins_with("gencord"): mi.visible = ST.cord
 		elif nm.begins_with("crew_"): mi.visible = ST.get("crew", true)   # the crew's lanterns and candles, out from 23:00 (times.py)
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
@@ -605,6 +632,9 @@ func _lights_house():
 				var d := DirectionalLight3D.new()
 				d.light_color = Color(L.color[0], L.color[1], L.color[2]).linear_to_srgb()
 				d.light_energy = g.e; d.shadow_enabled = g.get("sh", 1) > 0; d.light_angular_distance = g.get("ang", 0.8)
+				# 試作125 (重さの記録：第4章・第11章が最低でも毎秒3〜4コマ): the storm's sky at night (0.08〜0.12) throws no shadow
+				# anyone can see, but its four splits drew the whole wood round the house again every frame
+				if L.name == "storm_sky" and not ARGS.has("skyshadow"): d.shadow_enabled = false
 				d.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS; d.directional_shadow_max_distance = 22.0
 				add_child(d)
 				var dir = b2g(L.dir)
@@ -916,7 +946,13 @@ func _card():
 	foot.visible = false
 
 # ------------------------------------------------------------------ time
+var cover_frames := 0
 func _process(dt):
+	if COVER:   # _cover(): off once this scene has drawn twice (its card is up by then)
+		cover_frames += 1
+		if cover_frames > 2:
+			if is_instance_valid(COVER): COVER.queue_free()
+			COVER = null
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
 	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
@@ -1275,6 +1311,12 @@ func _t20_people():
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); add_child(col)
 		S[k + "_col"] = col
 		place_person(k, T20[k].pos, T20[k].yaw)
+	# 試作125 (ユーザー「廊下を見ているようにしよう（監督しているので）。スマホは持ってない状態で」、123): the director at
+	# the front door turns from it to the hall, hands empty
+	if S.has("kiryu_node") and T20.has("kiryu"):
+		phones(false, ["kiryu"])
+		place_person("kiryu", T20.kiryu.pos, 0.0)
+		set_stand("kiryu", "talk/idle", 0.0)
 
 # 試作97: in the dark they hold the phone's torch down on the floor ahead of their feet, not out at the others: straight
 # out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
@@ -1386,9 +1428,9 @@ func set_stand(k: String, anim: String, blend := 0.5):
 		get_tree().create_timer(blend + 0.05).timeout.connect(func(): sk.set_bone_pose_position(bi, sk.get_bone_rest(bi).origin))
 
 # the phones in their hands (and the torch on each) shown or put away
-func phones(on: bool):
+func phones(on: bool, only := []):
 	for k in CHARS:
-		if not S.has(k + "_node"): continue
+		if not S.has(k + "_node") or (not only.is_empty() and not k in only): continue
 		for ba in S[k + "_node"].find_children("*", "BoneAttachment3D", true, false):
 			# 試作117: the screen came in as a bone of its own, apart from the phone's body (and its torch): it stayed in the
 			# hand, a white card (ユーザー「スマホは持たない」)
@@ -1520,6 +1562,10 @@ func generator(on: bool):
 	var base := float(ARGS.get("lme", str(S.get("lme", 1.5))))
 	# 試作97: the 20:00 lightmap holds only the generator's bulbs and the storm's sky: off, almost nothing is left of it
 	for mm in lm_mats: mm.set_shader_parameter("bounce", (base if on else base * 0.04) if gi_mode == 0 else 0.0)
+	# 試作125 (ユーザー「階段が何かに照らされてるのが変。光源が説明できないなら暗くする。真っ暗にはしない」、123): in the
+	# blackout the only lights are the phones, and the bounce pushed to 4x carried Taiga's torch from the generator round
+	# the corner onto the foot of the cellar stair, a lit patch with nothing to light it. Half the push while it is out
+	if voxel_gi and voxel_gi.data: voxel_gi.data.energy = float(ARGS.get("gie", "4.0")) * (1.0 if on else 0.5)
 
 # ------------------------------------------------------------------ 試作97: one stage (ステップ C)
 static var ONE := true
@@ -1587,6 +1633,21 @@ func _ch1_set():
 			if pa in moved: under = true
 			pa = pa.get_parent()
 		if not under: (mi as Node3D).global_position += b2g([0.0, 4.47 - 4.70, 0.0])
+	# 試作125 (ユーザー「三脚の足がのめり込んでいる」、123 の第1章): there one leg went into the step down to the genkan. The
+	# legs (not the camcorder) turn a sixth of a turn about the column, so that the step falls between two of them
+	var axis: Vector3 = b2g([-0.45, 4.47, 0.0])
+	for mi in moved:
+		if not String(mi.name).begins_with("tpd_"): continue
+		var under2 := false
+		var pa2: Node = mi.get_parent()
+		while pa2 != null and pa2 != S.env_node:
+			if pa2 in moved: under2 = true
+			pa2 = pa2.get_parent()
+		if under2: continue
+		var n3 := mi as Node3D
+		var rel := n3.global_position - axis; rel.y = 0.0
+		var rot := Basis(Vector3.UP, deg_to_rad(60.0))
+		n3.global_transform = Transform3D(rot * n3.global_basis, axis + rot * rel + Vector3(0, n3.global_position.y - axis.y, 0))
 
 func _door_set():
 	_bring("res://assets/", ["rain", "cable"])
@@ -1596,11 +1657,22 @@ static var NEXT_PLAY := ""
 const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch4": "t0330", "ch11": "t0330"}
 func to_chapter(p: String):
 	_save_settings()
+	_cover()
 	SCENE = "house"; NEXT_PLAY = p
 	get_tree().reload_current_scene()
 
+# 試作125 (ユーザー「21時のカードの前、一瞬何かが写る」): between one chapter and the next the screen held the last frame
+# of the old one, or showed the new one before its card. The card's paper over everything until the next scene draws its own
+func _cover():
+	var layer := CanvasLayer.new(); layer.layer = 100; get_tree().root.add_child(layer)
+	var c := ColorRect.new(); c.color = CARD_BG; c.set_anchors_preset(Control.PRESET_FULL_RECT); c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(c)
+	COVER = layer
+static var COVER: CanvasLayer = null
+
 func to_night(from_story := false):
 	_save_settings()
+	_cover()
 	SCENE = "night"
 	FROM_STORY = from_story
 	get_tree().reload_current_scene()
@@ -1686,7 +1758,22 @@ func _shadow_budget(dt: float):
 		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
 		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
 	cand.sort_custom(func(a, b): return a[0] < b[0])
-	for i in cand.size(): cand[i][1].shadow_enabled = i < shadow_n
+	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
+	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
+	# a lamp the eye cannot see (the house's walls between, by a ray) is put out (its cull mask) until it is near again;
+	# one in sight keeps its light, without the shadow
+	var space := get_world_3d().direct_space_state if not ARGS.has("leak") else null
+	for i in cand.size():
+		var l: Light3D = cand[i][1]
+		l.shadow_enabled = i < shadow_n
+		if not l.has_meta("mask"): l.set_meta("mask", l.light_cull_mask)
+		var on := true
+		if i >= shadow_n and space:
+			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
+			var q := PhysicsRayQueryParameters3D.create(e, to)
+			q.collide_with_areas = false
+			on = space.intersect_ray(q).is_empty()
+		l.light_cull_mask = int(l.get_meta("mask")) if on else 0
 
 # 2026-11-14（ユーザー「4章以降が重い」、重さの記録：第1章も最低で重い）: the cedar wood round the clearing is 1793 trees, about
 # 15 million triangles, every one drawn in every frame (Godot does not know the near ones hide the far). Beyond this many
