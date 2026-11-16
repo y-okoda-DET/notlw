@@ -52,7 +52,8 @@ func _process(_dt: float):
 		if ms > 50.0: cur.over50 += 1
 		if (cur.ms as Array).size() < 60000: (cur.ms as Array).append(ms)
 	# 試作125: at 最低 and still under 12 a second (a last resort: the baked bounce is brighter and flatter), the bounce light (VoxelGI) goes to the baked one, once a scene
-	if auto and level == 0 and since_scene > 4.0 and main and is_instance_valid(main) and main.get("gi_mode") == 1 and main.get("voxel_gi"):
+	# 試作125 の重さの記録（第1章が「最低でも平均 5739.9 ms」）: a frame of the next scene's loading is not its weight
+	if auto and level == 0 and since_scene > 4.0 and ms < 500.0 and main and is_instance_valid(main) and main.get("gi_mode") == 1 and main.get("voxel_gi"):
 		win_sum += ms; win_n += 1
 		if win_n >= 60 or win_sum > 3000.0:
 			var avg0 := win_sum / win_n
@@ -62,7 +63,7 @@ func _process(_dt: float):
 				cur = {"where": where + "（焼いた照り返し）", "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": []}; segs.append(cur)
 				since_scene = 2.0
 			win_sum = 0.0; win_n = 0
-	if auto and level > 0 and since_scene > 4.0 and main and is_instance_valid(main):
+	if auto and level > 0 and since_scene > 4.0 and ms < 500.0 and main and is_instance_valid(main):
 		win_sum += ms; win_n += 1
 		if win_n >= 90 or win_sum > 3000.0:
 			var avg := win_sum / win_n

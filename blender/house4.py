@@ -175,8 +175,11 @@ def stairs_up(M, z_bottom, z_top):
         h = max(.1, z_rail(y) - .03 - z)   # up to the rail's underside (they poked through it at the foot)
         prim('cube', 'baluster', loc=(X(x0), Y(y), z + h / 2), scale=(.016, .016, h / 2), mat=M['trim'])
     hr = prim('cube', 'handrail', loc=(X(x0), (Y(y0) + Y(y1)) / 2 - run / 2, (z_bottom + z_top) / 2 + .92), rot=(-ang, 0, 0), scale=(.03, L / 2 + .05, .025), mat=M['door']); lib.uv_box(hr, 1.0)
-    prim('cube', 'newel', loc=(X(x0), Y(y0) + .05, z_bottom + .55), scale=(.05, .05, .55), mat=M['trim'])
-    prim('cube', 'newelcap', loc=(X(x0), Y(y0) + .05, z_bottom + 1.12), scale=(.065, .065, .025), mat=M['door'])
+    # 試作125 (ユーザー「カメラで覗くと、手すりを突き抜ける白い棒がまだ残ってる」): the newel stood 1.145 m, 37 cm over the
+    # rail's foot, a white post through the rail in the camera. It ends at the rail now, its cap just over the rail's foot
+    zn = z_rail(y0 - .05) + .03 - z_bottom
+    prim('cube', 'newel', loc=(X(x0), Y(y0) + .05, z_bottom + zn / 2), scale=(.05, .05, zn / 2), mat=M['trim'])
+    prim('cube', 'newelcap', loc=(X(x0), Y(y0) + .05, z_bottom + zn + .025), scale=(.065, .065, .025), mat=M['door'])
 
 def stairs_down(M):
     """Cellar stair under the up-stair: from the cellar door at the stair's back end (plan y 5.6) down toward the front."""
