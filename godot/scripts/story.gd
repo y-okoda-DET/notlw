@@ -104,6 +104,7 @@ func _ready():
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
+	if house: RESTS[1] = ["point", [0.30, 3.65, _rail_z(3.75) + 0.10], 0.09]   # 試作125: the newel ends at the rail now (house4.stairs_up)
 	_items()
 	_page()
 	_board()
@@ -1270,7 +1271,10 @@ func _radio_tick(dt):
 	player.look_enabled = not up
 	_set_dial()
 	if mode == FREE: _radio_write()
-	# Taiga remembers the manager's number when it will not come
+	# Taiga remembers the manager's number when it will not come. 試作125 (ユーザー「周波数あわせてた場合も、この台詞が出る
+	# のは不自然」): while she has the news, his clock waits
+	var rq0 := _reception()
+	if rq0[0] >= 0 and STATIONS[rq0[0]][2] == "news" and float(rq0[1]) > 0.35: radio_since = maxf(radio_since, t_now - (39.0 if hint_said == 0 else 84.0))
 	if radio_stage == 0 and mode == FREE and hint_said == 0 and t_now - radio_since > 40.0:
 		hint_said = 1; talk_with = "taiga"; radio_up = false
 		_start(B("ラジオ.ヒント1"))
@@ -1299,7 +1303,7 @@ func _reception() -> Array:
 	var best := -1; var q := 0.0
 	for i in range(STATIONS.size()):
 		var st: Array = STATIONS[i]
-		var c: float = st[1] * exp(-pow((f - float(st[0])) / (11.0 if st[2] == "news" else 7.0), 2.0))   # the bulletin a little wider (合格の試し1「合わせが甘かった」)
+		var c: float = st[1] * exp(-pow((f - float(st[0])) / (16.0 if st[2] == "news" else 7.0), 2.0))   # the bulletin a little wider (合格の試し1「合わせが甘かった」; 試作125「合っているのに合ってない判定」11→16 kHz)
 		if st[2] == "news": c *= 1.0 - 0.1 * (0.5 + 0.5 * sin(bc_t * 1.3))   # the mountains: the signal swells and fades
 		if c > q: q = c; best = i
 	return [best, q]
@@ -1726,6 +1730,8 @@ func _boards_start():
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	_helpers_to_windows()
 	talk_with = "taiga"
+	# 試作125 (ユーザー「ここの大河、足が変だから普通に立っているように」): he stood in the 20:00 pose (a step half taken)
+	if main.S.has("taiga_node"): main.set_stand("taiga", "talk/idle", 0.0)
 	main.carry_boards("taiga", true)
 	script_q.append_array(B("板.始まり"))
 

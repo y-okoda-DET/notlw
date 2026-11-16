@@ -129,6 +129,9 @@ func _unhandled_input(e):
 
 func toggle(d: MeshInstance3D):
 	var s: Dictionary = doors[d]
+	# 試作125: at 22:00 Taiga asks Mio to lock the front door (ch2_21.gd); E on it is her locking it
+	if s.key == "door_front" and main.has_meta("front_lock") and (main.get_meta("front_lock") as Callable).is_valid():
+		var cb: Callable = main.get_meta("front_lock"); main.remove_meta("front_lock"); cb.call(); return
 	if s.locked != "":
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open

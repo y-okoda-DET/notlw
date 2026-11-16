@@ -107,7 +107,9 @@ func _turn_to_speaker(dt: float):
 		if part == 21 and SIT21.has(k): continue
 		var rig: Node3D = main._rig_of(k)
 		if rig == null or not rig.visible: continue
-		main.set_stand(k, SPEAK[k] if who == k else LISTEN[k])
+		# 試作125 (ユーザー「同じモーションが繰り返されて気持ち悪い」、22時の廊下): standing in the hall, the speaker's gesture
+		# came round again every few seconds. At 22:00 they only stand and turn
+		main.set_stand(k, SPEAK[k] if who == k and part == 21 else LISTEN[k])
 		var me := [rig.global_position.x + 4.8, rig.global_position.z + 6.3]
 		var target: Array
 		if who == "" or who == "mio":
@@ -148,7 +150,7 @@ func _process(dt):
 	if mode == TALK: _talk_tick(dt)
 	_update_looks()
 	_turn_to_speaker(dt)
-	player.move_enabled = (mode == FREE) and stage == "see_off"
+	player.move_enabled = (mode == FREE) and stage in ["see_off", "lock"]
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
 	main.story_talking = (mode == TALK)
 	if stage == "see_off":
@@ -158,7 +160,21 @@ func _process(dt):
 		if mode == FREE and (near or see_t > 25.0) and not main.walkers.has("natsuki"):
 			stage = "door_talk"; _start(B("二十二.玄関"))
 		if demo21 and mode == FREE: _demo_walk(dt)
+	if stage == "lock" and mode == FREE:
+		lock_t += dt
+		if demo21 and lock_t > 1.5: _lock_now()
 	if out_t >= 0.0: _out_tick(dt)
+
+# 試作125: Taiga asks her to lock it; she goes to the door and does
+var lock_t := 0.0
+func _near_door() -> bool:
+	var d := gp(5.0, 0.0, 0.0); var p := player.global_position
+	return Vector2(p.x - d.x, p.z - d.z).length() < 1.8
+func _lock_now():
+	if stage != "lock": return
+	stage = "locked"; _set_mission("")
+	if main.has_meta("front_lock"): main.remove_meta("front_lock")
+	_start(B("二十二.鍵"))
 
 func _unhandled_input(e):
 	if card_t > 0.0: return
@@ -169,6 +185,8 @@ func _unhandled_input(e):
 		if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and cur.has("choose"):
 			_move_choice(-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1); return
 		if press: _advance()
+	elif stage == "lock" and mode == FREE:
+		if press and _near_door(): _lock_now()
 
 # the choice waits for her; in the unattended run she says what the memory keeps her saying anyway: the first one
 func _talk_tick(dt):
@@ -204,6 +222,9 @@ func _do(what: String):
 			Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
 			get_tree().create_timer(1.0).timeout.connect(func():
 				main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false; out_gone = out_t))
+		"lock_ask":
+			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
+			main.set_meta("front_lock", _lock_now)
 		"lock":
 			Sound.one(self, "knock1", -14.0, gp(5.0, 0.0, 1.0))   # the latch (a placeholder: there is no lock sound yet)
 		"to23":
