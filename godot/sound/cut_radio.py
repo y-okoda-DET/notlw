@@ -60,9 +60,26 @@ NAME = [(4.81, 5.61), (10.39, 11.19), (29.99, 30.79), (35.31, 36.11)]   # 音の
 # place on through「の化学工場で爆発があり、有毒なガスが」(found by the loudness: the comma's pause at 7.2 / 32.1 s, then
 # 「有毒なガスが」is the first half of the next phrase). What comes through is「……広がっているとの情報が入っています」
 NAME = [(4.81, 8.75), (10.39, 11.19), (29.99, 33.6), (35.31, 36.11)]
+if os.path.exists(SRC + "ニュース_症状_2026-11-17.m4a"):
+    # after the new sentence went in: the second reading's spans 2.75 s later, and「むやみに外へ出ず、」(5.4〜6.38 s of the
+    # take) buried too (F のスレッドの台本：症状は聞こえ、外へ出るなは雑音)
+    NAME = [(4.81, 8.75), (10.39, 11.19), (32.74, 36.35), (38.06, 38.86), (21.95, 22.93), (49.5, 50.48)]
 news = SRC + "ニュース_元.wav"
 if os.path.exists(news):
-    x = load(news)[int(1.2 * SR):int(48.6 * SR)]
+    full = load(news)
+    # 2026-11-17（夏希をゾンビに見せる証拠 1、ユーザーの録り直し ニュース_症状_2026-11-17.m4a）: the last sentence, read again
+    # with the symptoms in front ("頭痛、めまい、ろれつが回らないなどの、"), takes the old one's place in both readings
+    # (raw 18.45〜22.05 and 43.25〜46.95 s; the clip is 1.9〜8.25 s of the new take, its voice 2.0〜8.15). Everything after
+    # moves 2.75 s later each time; story.gd NEWS_T / NEWS_LOOP and sound.gd follow (NEWS_LOOP 54.9)
+    sym = SRC + "ニュース_症状_2026-11-17.m4a"
+    if os.path.exists(sym):
+        c = load(sym)[int(1.9 * SR):int(8.25 * SR)]
+        c = c * (0.058 / 0.0615)        # the old take's level (the loud 50 ms blocks)
+        k = int(0.03 * SR); c[:k] *= np.linspace(0, 1, k); c[-k:] *= np.linspace(1, 0, k)
+        cut = lambda a, b: (int(a * SR), int(b * SR))
+        (a1, b1), (a2, b2) = cut(18.45, 22.05), cut(43.25, 46.95)
+        full = np.concatenate([full[:a1], c, full[b1:a2], c, full[b2:]])
+    x = full[int(1.2 * SR):int((48.6 + (5.5 if os.path.exists(sym) else 0)) * SR)]
     # over the place: the voice down to -26 dB, the static (radio_static.wav, cut from the user's recording: no broadcast in it) and crackle on top
     st, _ = sf.read(OUT + "radio_static.wav"); st = st.mean(1) if st.ndim == 2 else st
     st = sosfilt(AM, np.resize(st, len(x)))
