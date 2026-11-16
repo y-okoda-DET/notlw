@@ -106,6 +106,7 @@ var start_at := "t0"
 
 func _ready():
 	player = main.player
+	if not main.ARGS.has("nochars"): main._t20_people()   # the people as at 20:00-22:00 (main.gd does this for h21 itself; the boards are up at t23)
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)

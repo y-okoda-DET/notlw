@@ -140,8 +140,8 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
-	if play in ["h21", "ch3"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them)
-	if play in ["h21", "ch3"]:   # every board is up by then
+	if play == "h21" and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them)
+	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
 		place_person("taiga", T20.taiga_gen.pos, T20.taiga_gen.yaw)
@@ -589,7 +589,7 @@ func _phone_lights():
 func _house_state():
 	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
 		var nm := String(mi.name)
-		if nm.begins_with("board_"): mi.visible = ST.boards or play in ["h21", "ch3"]   # 試作125 (ユーザー「窓、釘が打ち付けてある状態に」): 21時 is after the boards went up; the 20:00 state hid them again after the line above
+		if nm.begins_with("board_"): mi.visible = ST.boards or play == "h21"   # 試作125 (ユーザー「窓、釘が打ち付けてある状態に」): 21時 is after the boards went up; the 20:00 state hid them again after the line above
 		elif nm.begins_with("gencord"): mi.visible = ST.cord
 		elif nm.begins_with("crew_"): mi.visible = ST.get("crew", true)   # the crew's lanterns and candles, out from 23:00 (times.py)
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
@@ -1732,7 +1732,7 @@ func _perf(checking0: bool):
 	if perf == null:
 		perf = load("res://scripts/perf.gd").new(); perf.name = "Perf"; get_tree().root.add_child.call_deferred(perf)
 		await get_tree().process_frame
-	var w: String = {"ch0": "序章 5時", "ch1": "第1章 夕方", "h21": "第2章 21時・22時", "door": "第2章 23時の扉", "ch3": "第3章 夜中", "ch4": "第4章 3時半", "ch11": "第11章 テープ"}.get(play, "")
+	var w: String = {"ch0": "序章 5時", "ch1": "第1章 夕方", "h21": "第2章 21時・22時", "door": "第2章 23時の扉", "ch4": "第4章 3時半", "ch11": "第11章 テープ"}.get(play, "")
 	if w == "": w = ("第2章 20時" if ch2_house else "家 " + String(TIME_LABEL.get(TIME, TIME))) if SCENE == "house" else SCENE
 	perf.set_main(self, w)
 
