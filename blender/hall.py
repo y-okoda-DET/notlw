@@ -74,7 +74,7 @@ def note_tex(path, lines):
     # halftone at a step's distance (at 44 px it printed as a grey smudge, 2026-11-02)
     d.text((180, 115), lines[0], font=f1, fill=(30, 28, 26), anchor='mm')
     d.text((180, 255), lines[1], font=f3, fill=(30, 28, 26), anchor='mm')
-    d.text((180, 375), lines[2], font=f2, fill=(150, 30, 26), anchor='mm')
+    if len(lines) > 2: d.text((180, 375), lines[2], font=f2, fill=(150, 30, 26), anchor='mm')   # 2026-11-17: the cellar note has two lines now (no ※換気注意)
     d.rectangle((140, 0, 220, 26), fill=(200, 190, 150))
     im.save(path); return path
 
