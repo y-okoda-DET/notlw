@@ -140,7 +140,7 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
-	if play == "h21" and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them)
+	if play in ["h21", "ch3"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）
 	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):

@@ -39,7 +39,7 @@ func _main() -> Node:
 func _coords(w: Array) -> Array:
 	var r := []
 	for k in range(2, w.size()):
-		if String(w[k]).is_valid_float(): r.append(float(w[k]))
+		if String(w[k]).is_valid_float() and not String(w[k]).begins_with("+"): r.append(float(w[k]))   # +秒 は待つ秒（座標ではない）
 	return r
 
 func _due(w: Array) -> bool:

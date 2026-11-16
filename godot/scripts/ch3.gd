@@ -106,7 +106,6 @@ var start_at := "t0"
 
 func _ready():
 	player = main.player
-	if not main.ARGS.has("nochars"): main._t20_people()   # the people as at 20:00-22:00 (main.gd does this for h21 itself; the boards are up at t23)
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
@@ -117,7 +116,8 @@ func _ready():
 	for e in main.torches:
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	main.phones(false)
-	if main.S.has("natsuki_node"): (main.S.natsuki_node as Node3D).visible = false   # she is in the car
+	_hide("natsuki")   # she is in the car (her collider goes too)
+	if main.S.has("natsuki_node"): (main.S.natsuki_node as Node3D).visible = false
 	main.TALK = {}
 	_night_cam()
 	_gaps()
@@ -284,7 +284,7 @@ func _candle():
 	var fmat := StandardMaterial3D.new(); fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
 	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; flame.add_child(f)
-	candle_light = OmniLight3D.new(); candle_light.light_color = Color(1.0, 0.66, 0.34); candle_light.light_energy = 0.55
+	candle_light = OmniLight3D.new(); candle_light.light_color = Color(1.0, 0.66, 0.34); candle_light.light_energy = 0.26
 	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = true
 	candle_light.light_volumetric_fog_energy = 0.2; candle_light.position.y = 0.16
 	candle.add_child(candle_light)
@@ -312,7 +312,7 @@ func _candle_tick(dt: float):
 	if lean.length() > 0.001:
 		var ax := Vector3.UP.cross(lean.normalized()).normalized()
 		flame.basis = Basis(ax, tilt) if ax.length() > 0.5 else Basis()
-	candle_light.light_energy = 0.55 + 0.08 * sin(t_now * 17.0) + 0.05 * sin(t_now * 5.3) - 0.15 * k * absf(sin(t_now * 9.0))
+	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0))
 
 # ---------------------------------------------------------------- upstairs
 func _up_items():
@@ -411,6 +411,7 @@ func _begin(st: String):
 			stage = "up"; candle.visible = true
 			_set_mission("二階の寝室から、毛布を取ってきました。")
 		"watch":
+			_hide("makoto"); candle.visible = false   # 一時: Mio alone at the door (Makoto is in the kitchen with the candle)
 			_sit(); _flow_start("扉の番.一時", "watch15")
 		"watch15":
 			_flow_start("扉の番.一時半", "t2card")
@@ -742,14 +743,14 @@ func _flow_event(e: Dictionary):
 			"thud":
 				Sound.one(self, "ch3_thud", -2.0, gp(5.5, 2.6, ZBASE + 0.8)); _hear("cellar")
 			"makoto_come":
-				_put("makoto", [4.75, 4.6], PI); main.set_stand("makoto", "talk/idle", 0.0)
+				_put("makoto", [4.75, 4.6], PI); main.set_stand("makoto", "talk/idle", 0.0); candle.visible = true
 				main.walk_to("makoto", [[4.7, 2.6, 0.0]], Callable(), _face([4.7, 2.6], SIT_AT))
 				talk_with = "makoto"
 			"makoto_head":
 				main.set_stand("makoto", "talk/think")
 			"makoto_up":
 				talk_with = ""
-				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"))
+				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
 				get_tree().create_timer(8.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
 				get_tree().create_timer(20.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
 			"knock":
