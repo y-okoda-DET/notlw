@@ -172,6 +172,7 @@ func _doors():
 		var s: Dictionary = dn.doors[k]
 		if s.key == "door_back": (s.pivot as Node3D).rotation.y = lerpf(float(s.rest), float(s.open), 0.28)   # ajar: a hand's width more than a person
 		if s.key == "door_cellar" and s.is_open: dn.toggle(k)
+	if start_at in ["peel", "end"]: get_tree().create_timer(0.8).timeout.connect(_cellar_ajar)
 
 # Makoto has only her two talk clips (main.gd TALK_CLIPS): the crouch is Taiga's (the cellar window, 20時), the plain
 # stand Natsuki's. The bones are the same rig's; the clips turn them only, so they sit on her
@@ -190,6 +191,15 @@ func _borrow_clips():
 					if an.track_get_type(ti) == Animation.TYPE_POSITION_3D and not String(an.track_get_path(ti)).ends_with("pelvis"): an.remove_track(ti)
 				lib.add_animation(c[1], an)
 				print("CH5 borrowed %s/%s" % c)
+
+# she left the cellar's top door standing a little open behind her (wide, it lies across the way to the kitchen)
+func _cellar_ajar():
+	if not dn: return
+	for k in dn.doors.keys():
+		var s: Dictionary = dn.doors[k]
+		if s.key != "door_cellar": continue
+		s.is_open = true
+		create_tween().tween_property(s.pivot, "rotation:y", lerpf(float(s.rest), float(s.open), 0.3), 0.8).set_trans(Tween.TRANS_SINE)
 
 # Natsuki where she fell (第4章's second blow, at its end: on her knees and then forward, a little onto her right side)
 func _natsuki():
@@ -610,6 +620,7 @@ func _do(what: String):
 			talk_with = ""
 			main.walk_to("makoto", [[5.8, 6.2, 0.0], [5.5, 5.9, 0.0]], func():
 				if dn: dn.open_key("door_cellar")
+				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)
 				main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 3.6, ZBASE * (5.55 - 3.6) / 2.9]], func():
 					_hide("makoto"); main.phones(false, ["makoto"])))
 			_blanket_on()
@@ -805,7 +816,6 @@ func _end_scene():
 		player.global_position = gp(at[0], at[1], 0.0); player.velocity = Vector3.ZERO
 		var h := _nat_chest()
 		_look_from(at, [h.x + 4.8 - 0.1, h.z + 6.3], 1.52, 0.1)
-		if dn: dn.open_key("door_cellar")
 		candle_held = true)
 	tw.tween_interval(0.6)
 	tw.tween_property(black, "color:a", 0.0, 1.2)
