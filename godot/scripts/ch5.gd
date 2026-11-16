@@ -199,7 +199,7 @@ func _cellar_ajar():
 		var s: Dictionary = dn.doors[k]
 		if s.key != "door_cellar": continue
 		s.is_open = true
-		create_tween().tween_property(s.pivot, "rotation:y", lerpf(float(s.rest), float(s.open), 0.3), 0.8).set_trans(Tween.TRANS_SINE)
+		create_tween().tween_property(s.pivot, "rotation:y", lerpf(float(s.rest), float(s.open), 0.12), 0.8).set_trans(Tween.TRANS_SINE)
 
 # Natsuki where she fell (第4章's second blow, at its end: on her knees and then forward, a little onto her right side)
 func _natsuki():
@@ -713,6 +713,7 @@ func _peel_tick(dt: float):
 		_: note_lb.text = ""
 
 func _press_peel():
+	if not stage in ["peel", "done"]: return
 	match look_k:
 		"tape":
 			var gq := _near_tape()
@@ -858,8 +859,8 @@ func _demo_script() -> Array:
 	st.append(["walk", [[7.4, 6.8], [6.9, 6.2]]])
 	for k in ["g1", "g2", "g3", "g4", "g5"]:
 		st.append(["walk", routes[k]]); st.append(["tape", k]); st.append(["wait_free"])
-	st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
-	st.append(["walk", [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"])
+	st.append(["walk", [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
+	st.append(["walk", [[5.8, 6.2], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
 	st.append(["wait_stage", "end"])
 	return st
 
@@ -870,6 +871,7 @@ func _demo_tick(dt):
 			while ds < demo_steps.size() and not (demo_steps[ds][0] == "wait_stage" and demo_steps[ds][1] == "peel"): ds += 1
 	if ds >= demo_steps.size() or card_t > 0.0: return
 	var s: Array = demo_steps[ds]
+	if stage in ["end", "fin"] and s[0] != "wait_stage": ds += 1; return
 	dwait += dt
 	var done := false
 	match String(s[0]):
