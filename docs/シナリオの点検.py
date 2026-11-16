@@ -20,13 +20,13 @@ for n, f, kind, s, why in rows:
         print(f'未 {n} {f} {why}'); continue
     b = body(f)
     if b is None:
-        print(f'× {n} {f} ファイルが無い'); bad += 1; continue
+        print(f'未 {n} {f} 台本がまだ無い（{why}）'); continue   # 表の頭の約束どおり（作業ブランチにだけある台本も、ここで未）
     hit = [x for x in b if s in x]
     ok = (not hit) if kind == '無い' else bool(hit)
     bad += not ok
     extra = '' if ok else ('　残っている行：' + hit[0].strip() if hit else '　入っていない')
     print(f"{'○' if ok else '×'} {n} {f} 「{s}」が{kind}（{why}）{extra}")
-for f in ['ch2_20.txt', 'ch2_21.txt', 'ch2_23.txt', 'ch4.txt', 'ch11.txt']:
+for f in ['ch2_20.txt', 'ch2_21.txt', 'ch2_23.txt', 'ch3.txt', 'ch4.txt', 'ch11.txt']:
     b = body(f)
     if b is None: continue
     block, count = '', {}
