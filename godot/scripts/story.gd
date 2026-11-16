@@ -384,7 +384,7 @@ func _fixed_cam():
 	var dark := StandardMaterial3D.new(); dark.albedo_color = Color(0.62, 0.62, 0.6); dark.roughness = 0.35; dark.metallic = 0.5
 	var mk = func(mesh: Mesh, mat: Material, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
 		var mi := MeshInstance3D.new(); mi.mesh = mesh; mi.material_override = mat; mi.position = pos; mi.rotation = rot
-		mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		fixed_cam.add_child(mi); return mi
 	# the model: blender/camcorder.py build_small (godot/props/minicam.glb; ユーザー「主人公が持つカメラもクオリティアップ」
 	# 2026-11-06). Raised .025 so the clamp's flat foot (.097 under the model's centre) sits where the old box clamp's did
@@ -392,7 +392,7 @@ func _fixed_cam():
 	var ps: PackedScene = load("res://props/minicam.glb")
 	if ps:
 		var m3: Node3D = ps.instantiate(); m3.position = Vector3(0, 0.025, 0); fixed_cam.add_child(m3)
-		for mi in m3.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		for mi in m3.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	else:
 		var body := BoxMesh.new(); body.size = Vector3(0.055, 0.065, 0.115)
 		mk.call(body, dark, Vector3(0, 0.0, 0.0))
@@ -1195,7 +1195,7 @@ func _radio():
 	if ps == null: return
 	radio = ps.instantiate()
 	main.add_child(radio)
-	for mi in radio.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+	for mi in radio.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	radio_needle = radio.find_child("needle", true, false) as Node3D
 	# 2026-11-13 (ユーザー「ラジオ、目盛りが見えない」): the needle was 1.2 mm, thinner than the print's dots. Three times as wide, and
 	# unlit dark red so the dial lamp does not wash it out

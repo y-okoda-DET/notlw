@@ -410,7 +410,9 @@ func _gi():
 		if String(mi.name).begins_with("rain") or String(mi.name).begins_with("slitglass"): mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	for k in CHARS:
 		if not S.has(k + "_node"): continue
-		for mi in S[k + "_node"].find_children("*", "MeshInstance3D", true, false): mi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		# 試作131 (ユーザーの PC：第1章 --gi=none で 17→58コマ/秒、--nochars で 26): a moving thing in GI_MODE_DYNAMIC is
+		# drawn into the VoxelGI again every frame. The people take the bounce; they no longer give it
+		for mi in S[k + "_node"].find_children("*", "MeshInstance3D", true, false): mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	voxel_gi = VoxelGI.new()
 	voxel_gi.size = Vector3(3.8, 3.1, 6.4)
 	voxel_gi.subdiv = VoxelGI.SUBDIV_128
