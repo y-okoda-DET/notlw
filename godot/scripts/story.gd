@@ -104,6 +104,7 @@ func _ready():
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
+	if house: RESTS[1] = ["point", [0.30, 3.65, _rail_z(3.75) + 0.10], 0.09]   # 試作125: the newel ends at the rail now (house4.stairs_up)
 	_items()
 	_page()
 	_board()
@@ -1270,7 +1271,10 @@ func _radio_tick(dt):
 	player.look_enabled = not up
 	_set_dial()
 	if mode == FREE: _radio_write()
-	# Taiga remembers the manager's number when it will not come
+	# Taiga remembers the manager's number when it will not come. 試作125 (ユーザー「周波数あわせてた場合も、この台詞が出る
+	# のは不自然」): while she has the news, his clock waits
+	var rq0 := _reception()
+	if rq0[0] >= 0 and STATIONS[rq0[0]][2] == "news" and float(rq0[1]) > 0.35: radio_since = maxf(radio_since, t_now - (39.0 if hint_said == 0 else 84.0))
 	if radio_stage == 0 and mode == FREE and hint_said == 0 and t_now - radio_since > 40.0:
 		hint_said = 1; talk_with = "taiga"; radio_up = false
 		_start(B("ラジオ.ヒント1"))
@@ -1363,6 +1367,9 @@ func _radio_write():
 		# the signal, moment by moment: dropouts come in clumps
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
+		# 試作134（ユーザー「聞こえてるのに、聞こえてないと処理されるのが問題」）: where sound.gd plays the voice itself clear (its
+		# unmuffled gain exp(-(off/4.5)^2) above ~0.37), every character counts as heard, whatever the swell
+		if rq[0] >= 0 and STATIONS[rq[0]][2] == "news" and absf(_khz() - float(STATIONS[rq[0]][0])) < 4.5: clear = true
 		if ch == "~":   # the cause (化学工場, ガス): buried in static on the recording too (cut_radio.py), whatever the dial
 			_seg("noise", ""); continue
 		if ch == "#":
@@ -1726,6 +1733,8 @@ func _boards_start():
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	_helpers_to_windows()
 	talk_with = "taiga"
+	# 試作125 (ユーザー「ここの大河、足が変だから普通に立っているように」): he stood in the 20:00 pose (a step half taken)
+	if main.S.has("taiga_node"): main.set_stand("taiga", "talk/idle", 0.0)
 	main.carry_boards("taiga", true)
 	script_q.append_array(B("板.始まり"))
 
