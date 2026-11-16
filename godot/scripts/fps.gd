@@ -756,7 +756,7 @@ func _after(dt: float):
 		if rec_t > 4.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
 			left = true
 			if demo4: print("DEMO ch4 t=%.1f fails=%d" % [clock, DEMO_FAILS])
-			if main.play == "ch4": main.to_chapter("ch11")
+			if main.play == "ch4": main.to_chapter("ch5" if ResourceLoader.exists("res://scripts/ch5.gd") else "ch11")   # ステップ F: 第4章の終わり → 第5章 → 第11章
 			elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
 # ブラッシュアップ案 2026-11-13: she was never struck. The night goes black for a moment, and the testimony goes on flat,
@@ -780,7 +780,7 @@ func _quiet(dt: float):
 	if quiet_t > said + 3.0 and not left:
 		left = true
 		if demo4: print("DEMO ch4 quiet t=%.1f fails=%d" % [clock, DEMO_FAILS])
-		if main.play == "ch4": main.to_chapter("ch11")
+		if main.play == "ch4": main.to_chapter("ch5" if ResourceLoader.exists("res://scripts/ch5.gd") else "ch11")
 		elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
 func _unhandled_input(e):

@@ -16,7 +16,7 @@ if [ "$MODE" = movie ]; then
   timeout 14400 xvfb-run -a -s "-screen 0 ${RES}x24" $GODOT $BASE --windowed --resolution $RES --write-movie $O/通し.avi --fixed-fps ${FPS:-6} --quit-after ${FRAMES:-3400} -- $UA $HP --demo --demoquit --mfps=${FPS:-6} --lite=${LITE:-t} > $L 2>&1
   ffmpeg -y -loglevel error -i $O/通し.avi -c:v libx264 -crf 23 -pix_fmt yuv420p $O/通し.mp4 && rm -f $O/通し.avi
 else
-  timeout 2400 $GODOT $BASE --headless --fixed-fps 24 --quit-after 60000 -- $UA $HP --demo --demoquit --frameclock > $L 2>&1
+  timeout 3600 $GODOT $BASE --headless --fixed-fps 24 --quit-after 90000 -- $UA $HP --demo --demoquit --frameclock > $L 2>&1
 fi
 grep "^SAY " $L | sed 's/^SAY //' > $O/通し_台詞.txt
 F=$(grep -c "DEMO FAIL" $L); E=$(grep -c "SCRIPT ERROR" $L)

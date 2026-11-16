@@ -465,12 +465,16 @@ def generator(M):
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST
+    # 2026-11-17（第5章の設計、ユーザー OK）: the fourth board was nailed down on it. It goes out under the top board, squashed
+    # flat between the board and the board below it (z -1.27), round again outside, and down to the ground. Before
+    # (試作97〜): it came out through a gap left in the second board, open
+    zf = -1.275 - ZB
     lib.tube('gen_hose', [(X(ex), Y(ey), ez), (X(ex + .12), Y(ey + .05), ez + .15), (X(9.82), Y(6.42), ZB + .8),
-                          (X(9.9), Y(6.45), ZB + 1.0), (X(10.15), Y(6.45), ZB + .97),
-                          # 試作97: on out between the boards and down to the ground (ユーザー「窓からホースが出てない」: in 96 it
-                          # stopped inside the wall, behind the boards; Mio's testimony remembers it coming out)
-                          (X(10.45), Y(6.45), ZB + .98), (X(10.75), Y(6.5), ZB + .82), (X(11.0), Y(6.58), ZB + .6),
-                          (X(11.35), Y(6.68), ZB + .5)], [.026] * 9, M['hose'], seg=12, sub=4)   # 試作98: .045 (9 cm) was too thick (ユーザー「太すぎる」)
+                          (X(9.9), Y(6.45), ZB + zf - .06), (X(10.12), Y(6.45), ZB + zf),
+                          (X(10.24), Y(6.45), ZB + zf), (X(10.33), Y(6.45), ZB + zf),
+                          (X(10.47), Y(6.45), ZB + zf - .02), (X(10.75), Y(6.5), ZB + .82), (X(11.0), Y(6.58), ZB + .6),
+                          (X(11.35), Y(6.68), ZB + .5)],
+              [.026, .026, .026, .026, (.034, .012), (.04, .005), (.04, .005), (.03, .016), .026, .026, .026], M['hose'], seg=12, sub=4)   # 試作98: .045 (9 cm) was too thick (ユーザー「太すぎる」)
 
 def cellar(M):
     z0 = ZB
@@ -642,11 +646,6 @@ def boards(M):
     for i in range(4):
         z = -1.66 + i * .13
         rx = rng.uniform(-.03, .03)
-        if i == 1:   # 試作97: the hose comes out here: this board is two, either side of it
-            for k, (y0, y1) in enumerate(((6.0, 6.39), (6.51, 6.9))):
-                o = prim('cube', f'board_cellar{i}{"ab"[k]}', loc=(X(10) + .28, Y((y0 + y1) / 2), z + .06), rot=(rx, 0, 0), scale=(.011, (y1 - y0) / 2, .062), mat=M['board'])
-                lib.uv_box(o, 4.0)
-            continue
         o = prim('cube', f'board_cellar{i}', loc=(X(10) + .28, Y(6.45), z + .06), rot=(rx, 0, 0), scale=(.011, .45, .062), mat=M['board'])
         lib.uv_box(o, 4.0)
     print('boards', n)
