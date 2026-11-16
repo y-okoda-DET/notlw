@@ -168,7 +168,7 @@ func _process(dt):
 # 試作125: Taiga asks her to lock it; she goes to the door and does
 var lock_t := 0.0
 func _near_door() -> bool:
-	var d := gp(5.0, 0.0, 0.0); var p := player.global_position
+	var d: Vector3 = gp(5.0, 0.0, 0.0); var p: Vector3 = player.global_position
 	return Vector2(p.x - d.x, p.z - d.z).length() < 1.8
 func _lock_now():
 	if stage != "lock": return
