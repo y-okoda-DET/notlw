@@ -1303,7 +1303,7 @@ func _reception() -> Array:
 	var best := -1; var q := 0.0
 	for i in range(STATIONS.size()):
 		var st: Array = STATIONS[i]
-		var c: float = st[1] * exp(-pow((f - float(st[0])) / (16.0 if st[2] == "news" else 7.0), 2.0))   # the bulletin a little wider (合格の試し1「合わせが甘かった」; 試作125「合っているのに合ってない判定」11→16 kHz)
+		var c: float = st[1] * exp(-pow((f - float(st[0])) / (11.0 if st[2] == "news" else 7.0), 2.0))   # the bulletin a little wider (合格の試し1「合わせが甘かった」)
 		if st[2] == "news": c *= 1.0 - 0.1 * (0.5 + 0.5 * sin(bc_t * 1.3))   # the mountains: the signal swells and fades
 		if c > q: q = c; best = i
 	return [best, q]
@@ -1367,6 +1367,9 @@ func _radio_write():
 		# the signal, moment by moment: dropouts come in clumps
 		var wob := 0.5 + 0.5 * sin(bc_t * 4.7 + 2.0 * sin(bc_t * 1.9)) * sin(bc_t * 0.83 + 1.0)
 		var clear := q + 0.3 * (wob - 0.5) > 0.6
+		# 試作134（ユーザー「聞こえてるのに、聞こえてないと処理されるのが問題」）: where sound.gd plays the voice itself clear (its
+		# unmuffled gain exp(-(off/4.5)^2) above ~0.37), every character counts as heard, whatever the swell
+		if rq[0] >= 0 and STATIONS[rq[0]][2] == "news" and absf(_khz() - float(STATIONS[rq[0]][0])) < 4.5: clear = true
 		if ch == "~":   # the cause (化学工場, ガス): buried in static on the recording too (cut_radio.py), whatever the dial
 			_seg("noise", ""); continue
 		if ch == "#":

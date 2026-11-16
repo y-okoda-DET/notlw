@@ -206,9 +206,8 @@ func _process(dt):
 			var sw := _swell(dt)
 			for k in RADIO:
 				var off: float = f - float(RADIO[k][0])
-				var wn := 1.45 if k == "news" else 1.0   # 試作125: the bulletin is caught a little wider (story.gd _reception)
-				var g := exp(-pow(off / (4.5 * wn), 2.0))
-				var amp: float = exp(-pow(off / (9.0 * wn), 2.0)) * float(RADIO[k][1]) * (1.0 + 0.25 * sin(TAU * 0.13 * Time.get_ticks_msec() / 1000.0 + float(RADIO[k][0])))
+				var g := exp(-pow(off / 4.5, 2.0))
+				var amp: float = exp(-pow(off / 9.0, 2.0)) * float(RADIO[k][1]) * (1.0 + 0.25 * sin(TAU * 0.13 * Time.get_ticks_msec() / 1000.0 + float(RADIO[k][0])))
 				var c := _loop("radio_" + k, -80.0); var m := _loop("radio_" + k + "_muf", -80.0)
 				var duck := 1.0 - 0.55 * sw   # the storm's swell takes the station under for a moment
 				if c: c.set("volume_db", maxf(-80.0, linear_to_db(maxf(amp * g * duck, 1e-4)) + RADIO_DB))
