@@ -17,7 +17,7 @@ const F2 := 2.75
 const ZBASE := -2.45
 const NAT_AT := [4.62, 1.95]          # where she stood when the second blow came (fps.gd: a metre short of Mio)
 const MIO_AT := [4.55, 3.0]           # Mio, as 第4章 leaves her (fps.gd MIO_AT)
-const TRIPOD_AT := [4.2, 3.15]        # dropped at her feet
+const TRIPOD_AT := [4.24, 3.75]       # dropped at her feet (its feet; it lies south from here)
 const MAKOTO_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
 # plan points of the house as 第3章 has them (ch3.gd GAPS): the tape over each, and what Mio calls the place
 const GAPS := [
@@ -141,8 +141,9 @@ func _place_for(st: String):
 	_hide("makoto")
 	match st:
 		"t4":
-			player.global_position = gp(MIO_AT[0], MIO_AT[1] + 0.35, 0.0)
-			_look_from([MIO_AT[0], MIO_AT[1] + 0.35], [NAT_AT[0], NAT_AT[1] + 0.6], 1.52, 0.15)
+			# a step back from where she stood: she has backed off from her (and not looked away)
+			player.global_position = gp(4.8, 3.55, 0.0)
+			_look_from([4.8, 3.55], [4.45, 2.2], 1.52, 0.2)
 		"back":
 			player.global_position = gp(8.3, 5.2, 0.0)
 			_look_from([8.3, 5.2], BACK_STAND)
@@ -189,8 +190,14 @@ func _borrow_clips():
 				var an: Animation = src.get_animation(c[1]).duplicate()
 				for ti in range(an.get_track_count() - 1, -1, -1):   # the hips' place is his: keep her own
 					if an.track_get_type(ti) == Animation.TYPE_POSITION_3D and not String(an.track_get_path(ti)).ends_with("pelvis"): an.remove_track(ti)
+				# the tracks name his skeleton's path: put hers in their place
+				var own: Animation = lib.get_animation(lib.get_animation_list()[0])
+				var mine := String(own.track_get_path(0)).get_slice(":", 0)
+				for ti in an.get_track_count():
+					var tp2 := String(an.track_get_path(ti))
+					an.track_set_path(ti, NodePath(mine + ":" + tp2.get_slice(":", 1)))
 				lib.add_animation(c[1], an)
-				print("CH5 borrowed %s/%s" % c)
+				print("CH5 borrowed %s/%s %s -> %s" % [c[0], c[1], String(src.get_animation(c[1]).track_get_path(0)), mine])
 
 # she left the cellar's top door standing a little open behind her (wide, it lies across the way to the kitchen)
 func _cellar_ajar():
@@ -244,6 +251,7 @@ func _natsuki():
 	nrig.global_transform = Transform3D(rb, knee_w - rb * knee_l)
 	for mi in nat.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).extra_cull_margin = 3.0
 	nat.visible = true
+	print("CH5 natsuki head %s chest %s rig %s" % [_nat_head(), _nat_chest(), nrig.global_position])
 	if main.S.has("natsuki_col"): (main.S.natsuki_col as Node3D).global_position = Vector3(0, -50, 0)
 	# the wound: fps.gd's own overlay, carried once (she does not move again)
 	var sh := Shader.new(); sh.code = FPS.BLOOD_SHADER
@@ -293,7 +301,24 @@ func _tripod():
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
 	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false
 	# on its side on the boards, its head toward her
-	tripod.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-60.0)) * Basis(Vector3.BACK, deg_to_rad(84.0)), gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.05))
+	# on the boards where it fell from her hands: its feet by hers, its head toward Natsuki's, along the hall's west side
+	tripod.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)) * Basis(Vector3.RIGHT, deg_to_rad(-87.0)), gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.06))
+	print("CH5 tripod bb %s h %.2f up %s parts %d" % [bb, bb.size.y, tripod.global_basis.y, parts.size()])
+	# the crew's light on its stand in the middle of the hall (C-stand, since 23時): it went over when she fell against
+	# it (第4章). Down, out of the way: a pole straight up in front of every picture of her
+	var cs := Vector2.INF
+	for mi in main.S.env_node.find_children("cscol*", "MeshInstance3D", true, false):
+		var c0: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		if c0.x + 4.8 > 4.0 and c0.x + 4.8 < 5.4 and c0.z + 6.3 > 2.5 and c0.z + 6.3 < 4.2: cs = Vector2(c0.x, c0.z)
+	if cs != Vector2.INF:
+		for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
+			var bb3: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			var c3 := bb3.get_center()
+			if Vector2(c3.x, c3.z).distance_to(cs) < 0.5 and bb3.size.x < 0.9 and bb3.size.z < 0.9 and c3.y > -0.2 and c3.y < 2.4 and not String(mi.name).begins_with("door") and not String(mi.name).begins_with("stair") and not String(mi.name).begins_with("wall"):
+				(mi as Node3D).visible = false; print("CH5 stand down ", mi.name)
+		for k in main.lights:
+			var l = main.lights[k]
+			if l is Light3D and Vector2((l as Node3D).global_position.x, (l as Node3D).global_position.z).distance_to(cs) < 0.6: print("CH5 stand light ", k)
 
 # the crew's lantern under the handrail camera, as 第4章 hung it (fps.gd _lantern)
 func _lantern():
@@ -434,7 +459,7 @@ func _candle_tick(dt: float):
 	if candle_held:
 		var cam: Camera3D = player.get_node("Head/Camera")
 		# low in her right hand, before her: it keeps upright whatever she looks at
-		var p: Vector3 = cam.global_position + Basis(Vector3.UP, player.yaw) * Vector3(0.17, -0.42, -0.36)
+		var p: Vector3 = cam.global_position + Basis(Vector3.UP, player.yaw) * Vector3(0.2, -0.36, -0.42)
 		candle.global_transform = Transform3D(Basis(), p)
 	var lean := Vector3.ZERO; var best := 99.0
 	for gq in gaps:
@@ -541,6 +566,7 @@ func _begin(st: String):
 			_start(B("四時.会話"))
 		"back":
 			stage = "back"; talk_with = "makoto"
+			_turn_to(gp(BACK_DOOR[0], BACK_DOOR[1] - 0.2, 0.7), 1.4)
 			_start(B("四時.勝手口"))
 		"peel":
 			stage = "peel"; candle.visible = true; candle_held = true
@@ -568,6 +594,7 @@ func _do(what: String):
 			main.walk_to("makoto", MAKOTO_DOWN, func(): _release(), _face([5.5, 2.55], [MIO_AT[0], MIO_AT[1]]))
 		"makoto_see":
 			talk_with = "makoto"
+			_turn_to(_mk_face(), 1.0)
 		"makoto_kneel":
 			# beside her, by her shoulder, facing her: she goes down on her heels
 			var c := _nat_chest()
@@ -575,6 +602,7 @@ func _do(what: String):
 			hold = true
 			main.stand_anim["makoto"] = "talk/crouch"
 			main.walk_to("makoto", [[5.3, 2.4, 0.0], [at[0], at[1], 0.0]], func(): _release(), _face(at, [c.x + 4.8, c.z + 6.3 + 0.2]))
+			_turn_to(Vector3(c.x + 0.25, 0.35, c.z), 1.6)
 		"makoto_tripod":
 			var r := _rig("makoto")
 			var to := gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.0) - r.global_position
@@ -596,12 +624,14 @@ func _do(what: String):
 			_nod(0.08, false)
 		"makoto_temple":
 			torch_at = Vector3.ZERO
+			get_tree().create_timer(1.6).timeout.connect(func(): _turn_to(_mk_face(), 1.2))
 			main.walk_to("makoto", [[MK_THINK[0], MK_THINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think"), _face(MK_THINK, [player.global_position.x + 4.8, player.global_position.z + 6.3]))
 			gen_want = -30.0
 		"makoto_hand":
 			hold = true
 			main.stand_anim["makoto"] = "talk/crouch"
 			torch_at = gp(HAND_AT[0], HAND_AT[1], HAND_AT[2])
+			_turn_to(gp(HAND_AT[0], HAND_AT[1], HAND_AT[2] + 0.2), 1.6)
 			main.walk_to("makoto", [[9.45, 4.55, 0.0]], func():
 				get_tree().create_timer(3.2).timeout.connect(func():
 					main.set_stand("makoto", "talk/idle", 0.6); main.stand_anim["makoto"] = "talk/idle"
@@ -613,6 +643,7 @@ func _do(what: String):
 			Sound.one(self, "ch3_blanket", -18.0, player.global_position)
 		"makoto_go":
 			hold = true
+			get_tree().create_timer(1.0).timeout.connect(func(): _turn_to(gp(7.3, 6.15, 1.4), 1.5))
 			main.walk_to("makoto", [[8.1, 5.6, 0.0], [7.3, 6.15, 0.0]], func(): _release(), _face([7.3, 6.15], [player.global_position.x + 4.8, player.global_position.z + 6.3]))
 		"makoto_blanket":
 			pass   # on her way down she lays Mio's blanket over her (seen at the end: _cellar_go)
@@ -635,6 +666,19 @@ func _do(what: String):
 			script_q.clear()
 			get_tree().create_timer(1.5).timeout.connect(_end_card)
 		_: super._do(what)
+
+# her eyes go to what the talk is about (the view turns by itself; she may look away again)
+func _turn_to(at: Vector3, dur := 1.2):
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := at - cam.global_position
+	var y1: float = player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI)
+	var p1 := asin(clampf(to.normalized().y, -1.0, 1.0))
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(player, "yaw", y1, dur).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player, "pitch", p1, dur).set_trans(Tween.TRANS_SINE)
+
+func _mk_face() -> Vector3:
+	return _rig("makoto").global_position + Vector3(0, 1.45 if main.stand_of("makoto") != "talk/crouch" else 0.9, 0)
 
 # her head: a shake (no) or a nod (yes), the view itself moving
 func _nod(a: float, shake: bool):
@@ -742,7 +786,7 @@ func _press_peel():
 			said[key] = true
 			if e.is_empty(): return
 			_start(e)
-			if stage == "done": end_wait = maxf(end_wait, 30.0)
+			if stage == "done": end_wait = maxf(end_wait, 22.0)
 
 # ---------------------------------------------------------------- the cellar: heard, not seen
 func _below_start():
@@ -813,10 +857,12 @@ func _end_scene():
 	tw.tween_property(black, "color:a", 1.0, 0.8)
 	tw.tween_callback(func():
 		# by her: the blanket, the shut front door, the cellar's open door behind; the generator
-		var at := [5.15, 3.35]
+		# down on her knees by her head, the candle on the boards beside her
+		var at := [4.85, 3.05]
 		player.global_position = gp(at[0], at[1], 0.0); player.velocity = Vector3.ZERO
+		player.eye_height = 0.95; player.get_node("Head").position.y = 0.95
 		var h := _nat_chest()
-		_look_from(at, [h.x + 4.8 - 0.1, h.z + 6.3], 1.52, 0.1)
+		_look_from(at, [h.x + 4.8, h.z + 6.3 - 0.25], 0.95, 0.1)
 		candle_held = true)
 	tw.tween_interval(0.6)
 	tw.tween_property(black, "color:a", 0.0, 1.2)
