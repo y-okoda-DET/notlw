@@ -843,6 +843,8 @@ func _lock_now():
 
 # 二時.閉めた ends in ＞next: on to 二時半
 func _next():
+	# the counted silence holds the talk: story._next goes straight on after a ＞ (it went on with the next line in the same frame, and the silence was never seen)
+	if cur.has("silence") and silence_t >= 0.0: return
 	if script_q.is_empty() and stage == "locked" and mode == TALK:
 		super._next()
 		stage = "wait"
