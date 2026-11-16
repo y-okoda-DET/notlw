@@ -749,8 +749,8 @@ func _flow_event(e: Dictionary):
 			"makoto_up":
 				talk_with = ""
 				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"))
-				get_tree().create_timer(14.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
-				get_tree().create_timer(30.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
+				get_tree().create_timer(8.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
+				get_tree().create_timer(20.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
 			"knock":
 				Sound.one(self, "knock", -2.0, gp(FRONT_DOOR[0], FRONT_DOOR[1], 1.2)); _hear("knock")
 				for i in 3: knock_ts.append(t_now + 0.42 * i)
@@ -945,7 +945,11 @@ func _demo_script():
 	return steps
 
 func _demo_tick(dt):
-	if demo_steps.is_empty(): demo_steps = _demo_script(); ds = 0
+	if demo_steps.is_empty():
+		demo_steps = _demo_script(); ds = 0
+		var mark: Array = {"seal": ["wait_stage", "seal"], "up": ["wait_stage", "up"], "watch": ["wait_stage", "flow"], "t2": ["wait_stage", "lock"]}.get(start_at, [])
+		if not mark.is_empty():
+			while ds < demo_steps.size() and not (demo_steps[ds][0] == mark[0] and demo_steps[ds][1] == mark[1]): ds += 1
 	if ds >= demo_steps.size() or card_t > 0.0: return
 	var s: Array = demo_steps[ds]
 	dwait += dt
@@ -974,9 +978,12 @@ func _demo_tick(dt):
 				player.auto_path = path; player.auto_t = 0.0
 				s.append(t)
 			elif s.size() > 2 and player.auto_t > float(s[2]) + 0.6:
+				# on the stair's ramp she is slower than the path's clock: the path holds its last point, give her time
 				var last: Array = s[1][-1]
 				var at: Vector3 = gp(last[0], last[1], 0.0)
-				if Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length() > 0.6: _dfail("walk: stuck at %s on the way to %s" % [_plan_of(player), last])
+				var off := Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length()
+				if off > 0.3 and player.auto_t < float(s[2]) + 12.0: return
+				if off > 0.6: _dfail("walk: stuck at %s on the way to %s" % [_plan_of(player), last])
 				player.auto_path = []; done = true
 		"aim":
 			var cam: Camera3D = player.get_node("Head/Camera")
@@ -1018,8 +1025,10 @@ func _demo_tick(dt):
 				_press_up(); done = true
 			elif dwait > 5.0: _dfail("item %s: cannot look at it from %s (%.1f m)" % [s[1], _plan_of(player), to3.length()]); done = true
 		"hear":
-			if not s_heard.has(s[1]) and not s[1] in ["door", "gen"]:
-				if dwait > 200.0: _dfail("never s_heard %s" % s[1]); done = true
+			if s.size() < 3: s.append(0.0)
+			if not s_heard.has(s[1]) and not (s[1] in ["door", "gen"]):
+				s[2] = float(s[2]) + dt; dwait = 0.0   # the time to turn counts from the sound
+				if float(s[2]) > 200.0: _dfail("never s_heard %s" % s[1]); done = true
 			else:
 				var q: Array = SOUNDS[s[1]][0]
 				var cam4: Camera3D = player.get_node("Head/Camera")
