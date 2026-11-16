@@ -78,7 +78,7 @@ func _loop(name: String, db: float, at = null) -> Node:
 		p = AudioStreamPlayer.new(); (p as AudioStreamPlayer).stream = s; add_child(p)
 	p.set("volume_db", db)
 	# the bulletin runs on the story's clock (story.gd NEWS_T): it is where it would be had it been playing all along
-	if name.begins_with("radio_news") and main and main.story and "bc_t" in main.story: p.call("play", fmod(float(main.story.bc_t), 49.4))
+	if name.begins_with("radio_news") and main and main.story and "bc_t" in main.story: p.call("play", fmod(float(main.story.bc_t), 54.9))   # 54.9 = story.gd NEWS_LOOP
 	else: p.call("play")
 	print("SOUND loop %s %.1f" % [name, db])
 	loops[name] = p

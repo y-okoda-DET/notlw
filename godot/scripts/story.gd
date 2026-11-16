@@ -1313,9 +1313,10 @@ func _reception() -> Array:
 # reading (ニュース_元.wav from 1.2 s, 49.4 s with its tail), read through twice with「繰り返します」between; each sentence's
 # span in it, found by its pauses (the second reading falls 24.9 s after the first). sound.gd starts the loop at
 # fmod(bc_t, NEWS_LOOP), so the voice and the transcript are on the same clock even when the radio was off
-const NEWS_LOOP := 49.4
-const NEWS_T := [[0, 0.35, 1.55], [1, 2.3, 8.6], [2, 9.2, 13.15], [3, 13.85, 16.45], [4, 17.3, 20.8], [5, 21.65, 22.2],
-	[0, 25.55, 26.7], [1, 27.5, 33.5], [2, 34.1, 38.05], [3, 38.7, 41.35], [4, 42.15, 45.7]]
+# 2026-11-17: the last sentence re-read with the symptoms (cut_radio.py), 2.75 s longer in each reading
+const NEWS_LOOP := 54.9
+const NEWS_T := [[0, 0.35, 1.55], [1, 2.3, 8.6], [2, 9.2, 13.15], [3, 13.85, 16.45], [4, 17.45, 23.4], [5, 24.4, 24.95],
+	[0, 28.3, 29.45], [1, 30.25, 36.25], [2, 36.85, 40.8], [3, 41.45, 44.1], [4, 45.0, 50.95]]
 func _spoken(lines: Array) -> Array:
 	var t := fmod(bc_t, NEWS_LOOP)
 	var last: Array = NEWS_T[-1]
