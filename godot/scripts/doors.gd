@@ -144,3 +144,13 @@ func open_key(key: String):
 	for d in doors:
 		var s: Dictionary = doors[d]
 		if s.key == key and not s.is_open and s.locked == "": toggle(d)
+
+# 2026-11-17（第4章は勝手口から）: the story opens a door whatever it says to the player (the back door is "locked" for her
+# once the boards are up: at 3:30 someone comes in by it). secs: how long it takes to swing
+func open_force(key: String, secs := SWING):
+	for d in doors:
+		var s: Dictionary = doors[d]
+		if s.key != key or s.is_open: continue
+		s.locked = ""; s.is_open = true
+		if secs <= 0.05: s.pivot.rotation.y = s.open
+		else: create_tween().tween_property(s.pivot, "rotation:y", s.open, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
