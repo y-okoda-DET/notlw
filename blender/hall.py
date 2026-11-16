@@ -145,7 +145,7 @@ def build_hall(M, ceiling=True, back_wall=False, cut=None, door_open=False):
         o = prim('cube', 'understair', loc=(ST_X1 - .03, (y0 + y1) / 2, hgt / 2), scale=(.025, (y1 - y0) / 2, hgt / 2), mat=M['beadboard'] if STYLE == 'siding' else M['door']); lib.uv_box(o, 1.0)   # 見比べ2: beadboard, not a flat white board
     for a, b in ((ST_Y0 + 1.1, 2.5), (2.5, yd0), (yd1, ST_Y1)): under_panel(a, b)
     bd = prim('cube', 'basement_door', loc=(ST_X1 - .02, (yd0 + yd1) / 2, .85), scale=(.02, (yd1 - yd0) / 2 - .01, .85), mat=M['door']); lib.uv_box(bd, 1.0, offset=(.3, 0))
-    nt = mat_image('note', note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)
+    nt = mat_image('note', note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機']), rough=.8, bump=0)
     n = prim('plane', 'note', loc=(ST_X1 + .005, 3.7, 1.35), rot=(math.pi / 2, 0, math.pi / 2), scale=(.09, .12, 1), mat=nt)
     lv = prim('cube', 'bd_lever', loc=(ST_X1 + .02, yd0 + .08, .95), scale=(.012, .05, .01), mat=M['chrome'])
     # ---- front door (slit window, left of centre)
