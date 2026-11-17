@@ -61,7 +61,7 @@ def mats(M):
     M['sofa'] = mat_image('sofa', tex_path('ph/poly_wool_herringbone_diff'), rough=.9, coords='UV', bump=.15, tint=(.62, .7, .55))
     M['walnut'] = mat_image('walnut', tex_path('ph/american_walnut_veneer_diff'), rough=.45, coords='UV', bump=.05)
     M['oak'] = mat_image('oak', tex_path('ph/oak_veneer_01_diff'), rough=.5, coords='UV', bump=.05, tint=(.9, .85, .78))
-    M['rug'] = mat_image('rug', tex_path('plaid'), rough=.95, coords='UV', bump=.05, tint=(.75, .55, .45))
+    M['rug'] = mat_image('rug', tex_path('rug'), rough=.95, coords='UV', bump=.05, tint=(1., 1., 1.))   # 2026-11-17 夜（ユーザー「絨毯と毛布の柄が同じ」）: a rag rug of its own (assets/tex/rug.png, made here), not the blankets' plaid
     M['iron'] = mat_basic('iron', (.035, .033, .03), .55, metal=.6)
     M['hearth'] = mat_image('hearth', tex_path('tile'), rough=.5, coords='UV', bump=.1, tint=(.7, .55, .45))
     M['screen'] = mat_basic('screen', (.82, .82, .8), .9)

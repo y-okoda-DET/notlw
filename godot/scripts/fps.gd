@@ -27,7 +27,7 @@ const NSPEED := 0.36                              # m/s: she drags herself in
 # through the kitchen and out of its door into the hall behind Mio; down the hall past her, dazed, toward the front door
 # she was shut out of at 23:00; there she turns. The tape's frame (the handrail camera, toward the genkan) and everything
 # from the turn on are as before. (Before: in at the front door, [5.0, -0.75] → [4.75, 2.0])
-const NPATH := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.85, 4.4, 0.0, 25.0], [4.95, 3.0, 0.0, 30.0], [4.85, 2.25, 0.0, 1e9]]
+const NPATH := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.8, 4.5, 0.0, 25.0], [4.75, 3.9, 0.0, 1e9]]   # 2026-11-17 夜: the tape's walk ends where the game's does (NPATH_GAME): one place she lies, in every chapter
 # played, she comes at Mio from behind, wherever Mio stands (the last point is "a metre short of her", _npoint): she does
 # not go on past her as she did on the night itself (the tape). The memory and the tape part here
 const NPATH_GAME := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.8, 4.5, 0.0, 25.0], [4.75, 3.9, 0.0, 1e9]]

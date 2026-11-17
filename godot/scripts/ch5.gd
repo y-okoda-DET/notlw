@@ -15,7 +15,7 @@ const FPS = preload("res://scripts/fps.gd")
 
 const F2 := 2.75
 const ZBASE := -2.45
-const NAT_AT := [4.62, 1.95]          # where she stood when the second blow came (fps.gd: a metre short of Mio)
+const NAT_AT := [4.75, 3.9]           # where she stood when the second blow came (fps.gd NPATH_GAME's end, a metre short of Mio on the kitchen side; 2026-11-17 夜: one place in every chapter)
 const MIO_AT := [4.55, 3.0]           # Mio, as 第4章 leaves her (fps.gd MIO_AT)
 const TRIPOD_AT := [4.24, 3.75]       # dropped at her feet (its feet; it lies south from here)
 const MAKOTO_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
@@ -32,7 +32,7 @@ const FRONT_DOOR := [5.0, 0.03, 1.0]
 const BACK_DOOR := [9.87, 4.88, 1.0]
 const CELLAR_DOOR := [5.5, 5.62, 1.0]
 const BACK_STAND := [9.25, 4.95]      # where Mio stops before the back door (the talk starts)
-const MK_BACK := [9.45, 4.3]          # Makoto at the back door, on its hinge side, her light on it (Mio sees the latch side past her)
+const MK_BACK := [9.4, 4.62]          # Makoto at the back door, on its hinge side, her light on it (Mio sees the latch side past her). 2026-11-17 夜（ユーザー「真琴が冷蔵庫にのめり込んでいる」）: y 4.3 was in the fridge (its front is at 4.325)
 const MK_THINK := [8.6, 5.6]          # two steps in, where she puts it together
 # the hand on the inside wall beside the back door's latch side, low: pushed, to get up off the threshold.
 # (2026-11-17: it was on the hinge side's jamb, y 4.42, where the jamb's face runs along the light: it printed as black
@@ -269,7 +269,7 @@ func _natsuki():
 		var pg: Basis = pose0[nm][1]
 		var r := Basis(Vector3.UP, e[1]) * Basis(Vector3.BACK, e[2]) * Basis(Vector3.RIGHT, e[0])
 		nsk.set_bone_pose_rotation(bi, (pg.inverse() * r * pg).get_rotation_quaternion() * (pose0[nm][0] as Quaternion))
-	var b0 := Basis(Vector3.UP, 0.0)
+	var b0 := Basis(Vector3.UP, PI)   # facing Mio, toward the door (she came down the hall from the kitchen)
 	var base := gp(NAT_AT[0], NAT_AT[1], 0.0)
 	var thk := 0.05 + kn * 0.4; var cfk := 0.65 + 2.0 * kn * 0.4
 	var feet := base + b0 * Vector3(0, 0, -1) * 0.24 + b0 * Vector3(-1, 0, 0) * 0.10
@@ -596,6 +596,8 @@ var bl_h := PackedFloat32Array()   # the cloth's height above the boards, per gr
 var bl_free := PackedFloat32Array() # 0 where it rests on her or on the boards' middle, 1 at the loose hem
 var bl_body := PackedFloat32Array() # her height under it (−1: nothing)
 var bl_t := 0.0
+var bl_lim_p := PackedFloat32Array()   # per row: how far across (+x) before a wall
+var bl_lim_n := PackedFloat32Array()
 
 func _nat_heights():
 	var c := _nat_chest(); var h := _nat_head()
@@ -680,6 +682,23 @@ func _nat_heights():
 			if iv <= 2: e += 0.012 * (1.0 - iv / 2.0)
 			bl_h[k] = maxf(bl_h[k] + e, (hb + 0.012) if hb > 0.0 else 0.003)
 			bl_free[k] = clampf(1.0 - edge / 6.0, 0.0, 1.0) * (1.0 if not on_her else 0.15)
+	# 2026-11-17 夜（ユーザー「毛布が壁を通り抜けてしまっている」）: where she lies by a wall (the cellar stair's side, the
+	# hall's boarding) the sheet stops at the wall and goes up it a little, not through it. Per row, how far it can go each side
+	bl_lim_p = PackedFloat32Array(); bl_lim_n = PackedFloat32Array(); bl_lim_p.resize(nv); bl_lim_n.resize(nv)
+	var ss := get_viewport().world_3d.direct_space_state
+	for iv in nv:
+		var zc := float(iv) / BL_NV * BL_L
+		for sd in [1.0, -1.0]:
+			var lim := BL_W * 0.5
+			for hh in [0.06, 0.25]:
+				var a0: Vector3 = bl_frame * Vector3(0.0, hh, zc)
+				var a1: Vector3 = bl_frame * Vector3(sd * BL_W * 0.5, hh, zc)
+				var q := PhysicsRayQueryParameters3D.create(a0, a1)
+				q.exclude = [player.get_rid()]
+				var hit := ss.intersect_ray(q)
+				if not hit.is_empty(): lim = minf(lim, maxf(0.05, a0.distance_to(hit.position) - 0.025))
+			if sd > 0.0: bl_lim_p[iv] = lim
+			else: bl_lim_n[iv] = lim
 	print("CH5 blanket body verts %d floor %.3f" % [n_v, fy])
 
 func _blanket_mesh() -> ArrayMesh:
@@ -699,6 +718,9 @@ func _blanket_mesh() -> ArrayMesh:
 			var k := iv * nu + iu
 			var x := (float(iu) / BL_NU - 0.5) * BL_W; var z := float(iv) / BL_NV * BL_L
 			var y: float = ys[k]
+			if bl_lim_p.size() == nv:   # against a wall: it stops there and goes up it by what was left over
+				var lim: float = bl_lim_p[iv] if x > 0.0 else bl_lim_n[iv]
+				if absf(x) > lim: y = maxf(y, 0.003) + minf(absf(x) - lim, 0.12); x = signf(x) * lim
 			# the normal from the heights around (SurfaceTool.generate_normals left it unlit: black)
 			var dx: float = (ys[iv * nu + mini(iu + 1, BL_NU)] - ys[iv * nu + maxi(iu - 1, 0)]) / (du * float(mini(iu + 1, BL_NU) - maxi(iu - 1, 0)))
 			var dz: float = (ys[mini(iv + 1, BL_NV) * nu + iu] - ys[maxi(iv - 1, 0) * nu + iu]) / (dv * float(mini(iv + 1, BL_NV) - maxi(iv - 1, 0)))
@@ -804,7 +826,7 @@ func _begin(st: String):
 			stage = "back"; talk_with = "makoto"   # (the view goes down to the door with the light: makoto_light)
 			_start(B("四時.勝手口"))
 		"peel":
-			stage = "peel"; candle.visible = true; candle_held = true
+			stage = "peel"; candle.visible = true; candle_held = true; main.clock_at(4, 10)
 			_below_start()
 		"end":
 			_end_scene()
@@ -867,7 +889,18 @@ func _do(what: String):
 			# beside her, by her shoulder, facing her: she goes down on her heels
 			var c := _nat_chest()
 			# (the kneel carries her hips 0.2 m forward: she stops a step short)
-			var at := [c.x + 4.8 + 0.62, c.z + 6.3 - 0.05]
+			# 2026-11-17 夜（ユーザー「真琴が座る場所、変」）: the side of her with room (east of her was the stair's side when she
+			# lay at the stair's foot): the one the boards are clear on for 0.85 m
+			var side := 1.0
+			var ss := get_viewport().world_3d.direct_space_state
+			var room := {}
+			for sd in [1.0, -1.0]:
+				var q := PhysicsRayQueryParameters3D.create(Vector3(c.x, 0.45, c.z), Vector3(c.x + sd * 0.95, 0.45, c.z))
+				q.exclude = [player.get_rid()]
+				var hit := ss.intersect_ray(q)
+				room[sd] = 0.95 if hit.is_empty() else Vector3(c.x, 0.45, c.z).distance_to(hit.position)
+			if room[-1.0] > room[1.0] + 0.05: side = -1.0
+			var at := [c.x + 4.8 + 0.62 * side, c.z + 6.3 - 0.05]
 			hold = true
 			main.stand_anim["makoto"] = "talk/idle"
 			main.walk_to("makoto", [[5.3, 2.4, 0.0], [at[0], at[1], 0.0]], func():
@@ -1051,7 +1084,7 @@ func _what_looked() -> String:
 	var gq := _near_tape()
 	if not gq.is_empty(): return "tape"
 	if _looking_at(gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2]), 1.9, 30.0): return "back"
-	if _looking_at(gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2]), 1.9, 28.0): return "cellar"
+	# 地下の扉には Ｅ を出さない（2026-11-17 ユーザー「E 降りる はいらないよね？」）。下りないことは【五.終わり】の証言だけで言う
 	if _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2]), 2.4, 25.0): return "front"
 	return ""
 

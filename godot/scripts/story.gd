@@ -1548,6 +1548,7 @@ func _taiga_reel_tick():
 
 func _house_tick(dt):
 	_taiga_reel_tick()
+	_helpers_tick()
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var pz: float = player.global_position.y
 	if hs == 0:
@@ -1732,8 +1733,69 @@ func _helpers_to_windows():
 		if inward.length() < 0.01: continue
 		var at := c + inward.normalized() * 0.9; at.y = 0.0
 		var to := c - at
-		main.place_person(k, [at.x, -at.z, 0.0], atan2(to.x, to.z))   # 2026-11-13: +PI had them face the room (the light away from the window)
-		if items.has(k): items[k].pos = at + Vector3.UP * 1.5
+		# 2026-11-17 夜（ユーザー「桐生が喋り終わったらフッと消える」）: not at once in front of her; each goes to the window
+		# when Mio is not looking at them (_helpers_tick)
+		helpers_pending[k] = [[at.x, -at.z, 0.0], atan2(to.x, to.z), at + Vector3.UP * 1.5]   # 2026-11-13: +PI had them face the room (the light away from the window)
+
+var helpers_pending := {}
+
+# ---------------------------------------------------------------- someone opens the front door by hand (2026-11-17 夜)
+# The leaf is 1.1 m (x 4.45..5.55, hinge at 4.45) and opens inward: whoever stood within 1.1 m of the hinge was swept through.
+# They stop by the knob's side, put the hand on it (reach.gd), the door comes to them a little, they step back with it
+# out of its way, let go, and it goes on open. then(rest) is called with the door's shut angle.
+func _front_knob(near: Vector3) -> Node3D:
+	if main.door_pivot == null: return null
+	var best: Node3D = null; var bd := 1e9
+	for mi in main.door_pivot.find_children("*knob*", "MeshInstance3D", true, false):
+		var c: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		if c.distance_to(near) < bd: bd = c.distance_to(near); best = mi
+	return best
+
+func _reach(k: String, to: Node3D, fallback: Vector3) -> Node:
+	var sk: Skeleton3D = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+	var rc: Node = load("res://scripts/reach.gd").new()
+	rc.target_node = to; rc.target = fallback
+	sk.add_child(rc)
+	return rc
+
+func _front_open_by(k: String, then: Callable, zb := -0.18):
+	if main.door_pivot == null: then.call(0.0); return
+	var rest: float = main.door_pivot.rotation.y
+	var at := [5.3, 0.62, zb]
+	main.walk_to(k, [at], func():
+		var rig: Node3D = main._rig_of(k)
+		var rc := _reach(k, _front_knob(rig.global_position + Vector3.UP), gp(5.4, 0.05, 1.0))
+		var tw := create_tween()
+		tw.tween_property(rc, "w", 1.0, 0.45).set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(func(): preload("res://scripts/sound.gd").one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0)))
+		tw.tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(24.0), 0.6).set_trans(Tween.TRANS_SINE)
+		# a step back with it, still facing the door
+		var back: Vector3 = gp(5.47, 1.22, zb)
+		tw.tween_property(rig, "global_position", Vector3(back.x, rig.global_position.y, back.z), 0.7).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(80.0), 1.0).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(rc, "w", 0.0, 0.4).set_delay(0.35)
+		tw.tween_callback(func():
+			if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = rig.global_position
+			rc.queue_free(); then.call(rest)),
+		atan2(0.0, -1.0))
+func _helpers_tick():
+	if helpers_pending.is_empty(): return
+	var cam: Camera3D = player.get_node("Head/Camera")
+	for k in helpers_pending.keys():
+		if talk_with == k and mode == TALK: continue   # not while she is talking to them
+		var rig: Node3D = main._rig_of(k)
+		if rig == null: helpers_pending.erase(k); continue
+		var seen := false
+		for h in [0.3, 1.0, 1.6]:
+			var p: Vector3 = rig.global_position + Vector3.UP * h
+			if cam.is_position_in_frustum(p) and cam.global_position.distance_to(p) < 14.0:
+				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, p))
+				if hit.is_empty() or (hit.position as Vector3).distance_to(p) < 0.4: seen = true
+		if seen: continue
+		var q: Array = helpers_pending[k]
+		main.place_person(k, q[0], q[1])
+		if items.has(k): items[k].pos = q[2]
+		helpers_pending.erase(k)
 
 # ================================================================ 第2章: the boards (試作92)
 # After rule 1 Taiga brings boards up from the cellar and they board the ground floor's windows from inside (rooms2.boards,
