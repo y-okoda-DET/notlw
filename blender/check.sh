@@ -40,6 +40,13 @@ echo "- [ ] 通し_台詞.txt を読んだ（台詞の順、抜け、言い回�
 echo
 } >> $M
 
+# 0c. 字体（台本の字がゲームの字体に全部入っているか。足りない字は別の字体で浮く。試作127「射」「影」）
+GC=$(python3 $K/godot/check/glyph_check.py 2>&1); echo "$GC" | tail -1 >> $L
+{
+echo "## 0c. 字体（godot/check/glyph_check.py）：$(echo "$GC" | tail -1)"
+echo "$GC" | grep "足りない字" | sed 's/^/- [ ] ×：/'
+echo
+} >> $M
 # 0b. シナリオの決定が台本に入っているか（docs/シナリオの点検表.md を godot/story に照らす。× は一つずつ一覧に出す）
 SC=$(python3 $K/docs/シナリオの点検.py $K/godot/story 2>&1); echo "$SC" | tail -1 >> $L
 {
