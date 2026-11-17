@@ -182,6 +182,11 @@ func _doors():
 				var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb(); bb = a if f else bb.merge(a); f = false
 			print("CH5 door_back pivot %s rest %.2f open %.2f leaf %s" % [_plan_of(s.pivot), float(s.rest), float(s.open), bb])
 		if s.key == "door_cellar" and s.is_open: dn.toggle(k)
+	# 試作127（ユーザー「一度勝手口から外に出て…家の中に戻れなくなった」）: the door stands ajar, but she never goes out (rule 1):
+	# an unseen wall in the doorway. The door's look and 「［Ｅ　外に出る］」→ the silence stay as they were (they go by where she looks)
+	var sb := StaticBody3D.new(); sb.name = "back_doorway"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
+	bx.size = Vector3(0.30, 2.2, 0.95); cs.shape = bx; sb.add_child(cs); main.add_child(sb)
+	sb.global_position = gp(10.0, 4.83, 1.1)
 	if start_at in ["peel", "end"]: get_tree().create_timer(0.8).timeout.connect(_cellar_ajar)
 
 # Makoto had only her two talk clips (main.gd TALK_CLIPS): until the house is written with her own kneel and stand, the
