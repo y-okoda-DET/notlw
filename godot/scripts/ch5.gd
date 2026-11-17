@@ -32,9 +32,13 @@ const FRONT_DOOR := [5.0, 0.03, 1.0]
 const BACK_DOOR := [9.87, 4.88, 1.0]
 const CELLAR_DOOR := [5.5, 5.62, 1.0]
 const BACK_STAND := [9.25, 4.95]      # where Mio stops before the back door (the talk starts)
-const MK_BACK := [9.35, 5.55]         # Makoto at the back door, her light on it
+const MK_BACK := [9.45, 4.3]          # Makoto at the back door, on its hinge side, her light on it (Mio sees the latch side past her)
 const MK_THINK := [8.6, 5.6]          # two steps in, where she puts it together
-const HAND_AT := [9.86, 4.42, 0.42]   # the hand on the back door's frame, low: pushed, to get up
+# the hand on the inside wall beside the back door's latch side, low: pushed, to get up off the threshold.
+# (2026-11-17: it was on the hinge side's jamb, y 4.42, where the jamb's face runs along the light: it printed as black
+# streaks. The door opens outward on hinges at y 4.40; its opening runs to y 5.25)
+const HAND_AT := [9.865, 5.42, 0.45]
+const MK_HAND := [9.5, 5.85]          # where Makoto goes down on her knee to lay her hand on it (Mio at the door sees both)
 const IDLE_STEP := 90.0               # nothing done for this long: the cellar goes on one step
 # the cellar's steps, by the tapes peeled: 1 → 地下.一, 3 → 地下.三, 4 → 地下.四, 5 → 地下.五
 const BELOW := [[1, "地下.一"], [3, "地下.三"], [4, "地下.四"], [5, "地下.五"]]
@@ -172,19 +176,28 @@ func _doors():
 	for k in dn.doors.keys():
 		var s: Dictionary = dn.doors[k]
 		if s.key == "door_back": (s.pivot as Node3D).rotation.y = lerpf(float(s.rest), float(s.open), 0.28)   # ajar: a hand's width more than a person
+		if s.key == "door_back":
+			var bb := AABB(); var f := true
+			for mi in (s.pivot as Node3D).find_children("*", "MeshInstance3D", true, false):
+				var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb(); bb = a if f else bb.merge(a); f = false
+			print("CH5 door_back pivot %s rest %.2f open %.2f leaf %s" % [_plan_of(s.pivot), float(s.rest), float(s.open), bb])
 		if s.key == "door_cellar" and s.is_open: dn.toggle(k)
 	if start_at in ["peel", "end"]: get_tree().create_timer(0.8).timeout.connect(_cellar_ajar)
 
-# Makoto has only her two talk clips (main.gd TALK_CLIPS): the crouch is Taiga's (the cellar window, 20時), the plain
-# stand Natsuki's. The bones are the same rig's; the clips turn them only, so they sit on her
+# Makoto had only her two talk clips (main.gd TALK_CLIPS): until the house is written with her own kneel and stand, the
+# crouch is Taiga's (the cellar window, 20時), the plain stand Natsuki's. The bones are the same rig's; the clips turn them only, so they sit on her
 func _borrow_clips():
 	if not main.S.has("makoto_node"): return
 	for ap in main.S.makoto_node.find_children("*", "AnimationPlayer", true, false):
 		if not (ap as AnimationPlayer).has_animation_library("talk"): continue
 		var lib: AnimationLibrary = (ap as AnimationPlayer).get_animation_library("talk")
+		# 2026-11-17: her own kneel (Mixamo Kneel, export_talk.py kneel / kneel_up) and stand, once the house is written with them.
+		# The kneel goes down and stays down: it does not loop
+		for nm in ["kneel", "kneel_up"]:
+			if lib.has_animation(nm): lib.get_animation(nm).loop_mode = Animation.LOOP_NONE
 		for c in [["taiga", "crouch"], ["natsuki", "idle"]]:
 			var tp := "res://assets/dusk/%s_talk.res" % c[0]
-			if lib.has_animation(c[1]) or not ResourceLoader.exists(tp): continue
+			if lib.has_animation(c[1]) or (c[1] == "crouch" and lib.has_animation("kneel")) or not ResourceLoader.exists(tp): continue
 			var src: AnimationLibrary = load(tp)
 			if src.has_animation(c[1]):
 				var an: Animation = src.get_animation(c[1]).duplicate()
@@ -271,6 +284,9 @@ func _natsuki():
 	var pm := StandardMaterial3D.new(); pm.albedo_color = Color(0.16, 0.006, 0.006); pm.roughness = 0.1; pm.metallic_specular = 0.8
 	pool.material_override = pm; pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; pool.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	main.add_child(pool); pool.global_position = Vector3(hp.x + 0.05, 0.003, hp.z); pool.scale = Vector3(1.0, 1.0, 1.35)
+	_nat_heights()   # what the blanket will lie over (once: she does not move again)
+	nat_ready = true
+	if want_blanket: _blanket_on()
 
 func _nat_head() -> Vector3:
 	var bi := nsk.find_bone("head")
@@ -388,32 +404,70 @@ func _tape(gq: Dictionary):
 	gq.tape = mi
 
 # the hand on the back door's frame, low, from outside: a palm and fingers pressed flat to push up off the step.
-# Drawn here (no new picture file): dark, dry at the edges, the fingers spread
-func _hand():
-	var img := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+# Drawn here (no new picture file).
+# 2026-11-17（ユーザー「低い所の血の手形が読みにくい」）: the first one was a blot the size of a fist on the hinge side, behind
+# the jamb's edge. Now a hand's outline a hand's size (palm, four fingers apart, the thumb out to the side) on the wall by the
+# latch side, in the torch. Dark (dried blood): the night print makes a dark surface blue whatever its hue, and the torch makes
+# the wall around it paper, so it prints as a blue hand on white. (A brighter red went to paper with the wall: tried, 試作150.)
+# Below it, where the hand slid as it pushed, three drags.
+const HAND_PX := 256
+func _hand_img() -> Image:
+	var img := Image.create(HAND_PX, HAND_PX, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new(); rng.seed = 405
-	var blot := func(cx: float, cy: float, rx: float, ry: float, a: float):
-		for y in range(int(cy - ry) - 2, int(cy + ry) + 3):
-			for x in range(int(cx - rx) - 2, int(cx + rx) + 3):
-				if x < 0 or y < 0 or x >= 128 or y >= 128: continue
-				var d := pow((x - cx) / rx, 2.0) + pow((y - cy) / ry, 2.0)
-				if d > 1.0: continue
-				var al: float = a * (0.55 + 0.45 * d) * rng.randf_range(0.75, 1.0)   # heavier at the edge, where it dried
-				var o := img.get_pixel(x, y)
-				img.set_pixel(x, y, Color(0.22, 0.01, 0.01, maxf(o.a, al)))
-	blot.call(64.0, 82.0, 26.0, 30.0, 0.8)                     # the palm
-	for f in [[34.0, 44.0, 7.0, 17.0], [50.0, 34.0, 7.0, 20.0], [67.0, 31.0, 7.0, 21.0], [83.0, 38.0, 6.5, 18.0]]:
-		blot.call(f[0], f[1], f[2], f[3], 0.75)               # the fingers
-	blot.call(98.0, 78.0, 8.0, 16.0, 0.7)                      # the thumb
-	for i in 5:   # where it slid down
-		blot.call(58.0 + i * 6.0, 112.0 + rng.randf_range(0, 6), 2.5, 8.0, 0.5)
-	var tex := ImageTexture.create_from_image(img)
-	var dc := Decal.new(); dc.texture_albedo = tex; dc.size = Vector3(0.2, 0.3, 0.2)
-	dc.albedo_mix = 1.0; dc.cull_mask = 1; dc.upper_fade = 0.1; dc.lower_fade = 0.1
+	var cov := PackedFloat32Array(); cov.resize(HAND_PX * HAND_PX)   # how much blood: 0..1
+	var put := func(x: int, y: int, v: float):
+		if x < 0 or y < 0 or x >= HAND_PX or y >= HAND_PX: return
+		cov[y * HAND_PX + x] = maxf(cov[y * HAND_PX + x], v)
+	# a capsule from a to b, radius r (a finger, the thumb)
+	var caps := func(ax: float, ay: float, bx: float, by: float, r: float):
+		var a2 := Vector2(ax, ay); var b2 := Vector2(bx, by)
+		for y in range(int(minf(ay, by) - r) - 1, int(maxf(ay, by) + r) + 2):
+			for x in range(int(minf(ax, bx) - r) - 1, int(maxf(ax, bx) + r) + 2):
+				var p := Vector2(x, y); var ab := b2 - a2
+				var t := clampf((p - a2).dot(ab) / ab.length_squared(), 0.0, 1.0)
+				var d := p.distance_to(a2 + ab * t) / r
+				if d < 1.0: put.call(x, y, 1.0 - d * d * 0.3)
+	# the palm: a rounded block, wider at the knuckles (y up the picture is up the wall)
+	for y in range(118, 210):
+		var f := float(y - 118) / 92.0
+		var half := lerpf(46.0, 36.0, f * f)
+		for x in range(int(128 - half), int(128 + half)):
+			var edge := minf(absf(x - 128) / half, 1.0)
+			put.call(x, y, 1.0 - 0.3 * edge * edge)
+	caps.call(92.0, 120.0, 70.0, 40.0, 10.0)     # little finger, apart
+	caps.call(112.0, 116.0, 104.0, 22.0, 11.0)   # ring
+	caps.call(134.0, 116.0, 138.0, 14.0, 11.5)   # middle
+	caps.call(156.0, 120.0, 172.0, 30.0, 11.0)   # index
+	caps.call(166.0, 186.0, 214.0, 132.0, 13.0)  # the thumb, out to the side
+	for i in 3:   # where it slid down as she pushed up
+		var x0 := 104.0 + i * 22.0 + rng.randf_range(-3, 3)
+		caps.call(x0, 205.0, x0 + rng.randf_range(-4, 4), 236.0 + rng.randf_range(0, 14), 4.0 - i * 0.6)
+	# what a hand leaves: skin lines and gaps where it did not touch, heavier at the rim where it dried
+	for y in HAND_PX:
+		for x in HAND_PX:
+			var v: float = cov[y * HAND_PX + x]
+			if v <= 0.0: continue
+			var n := 0
+			for o in [Vector2i(-3, 0), Vector2i(3, 0), Vector2i(0, -3), Vector2i(0, 3)]:
+				var xx: int = x + o.x; var yy: int = y + o.y
+				if xx < 0 or yy < 0 or xx >= HAND_PX or yy >= HAND_PX or cov[yy * HAND_PX + xx] <= 0.0: n += 1
+			var rim := n > 0
+			var gap := rng.randf() < (0.06 if rim else 0.18) or (sin(x * 0.9 + y * 0.35) > 0.86 and not rim)
+			if gap: continue
+			var c := Color(0.09, 0.008, 0.006, 0.98) if rim else Color(0.26, 0.025, 0.015, 0.95 * v)
+			img.set_pixel(x, y, c)
+	return img
+
+func _hand():
+	var tex := ImageTexture.create_from_image(_hand_img())
+	var dc := Decal.new(); dc.texture_albedo = tex; dc.size = Vector3(0.22, 0.4, 0.26)
+	dc.albedo_mix = 1.0; dc.cull_mask = 1; dc.upper_fade = 0.05; dc.lower_fade = 0.05
+	dc.normal_fade = 0.5   # the wall's face only, not the jamb's side running along it
 	add_child(dc)
-	dc.global_position = gp(HAND_AT[0] - 0.04, HAND_AT[1], HAND_AT[2])
-	dc.rotation = Vector3(0.0, 0.0, PI / 2)   # projects along its -Y: into the frame (plan +x)
+	dc.global_position = gp(HAND_AT[0], HAND_AT[1], HAND_AT[2])
+	# projects along its -Y into the jamb (plan +x); the picture's up is the wall's up
+	dc.global_basis = Basis(Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, -1, 0)).orthonormalized()
 
 func _peel(gq: Dictionary, quiet := false):
 	if gq.peeled: return
@@ -490,34 +544,177 @@ func _gen_loud():
 	gen_want = -9.0
 
 # ---------------------------------------------------------------- the blanket over her shoulders (after the answer)
+# 2026-11-17（ユーザー「毛布が平たい板に見える」）: a sheet laid on her, not a board above her. A height field over her body as she
+# lies (her skinned vertices, posed), the cloth taken down from it at a cloth's slope, to the boards on either side; folds where
+# it hangs, a few soft ridges where it lies on the floor, the hem curled. Built once (_nat_heights at the start), then only the
+# loose edge moves in the draught from the back door.
+const BL_W := 1.1        # across her (m): the hall is narrow (wider, it ran into the wall and over the step)
+const BL_L := 1.0        # from her shoulders toward her feet (m)
+const BL_NU := 36
+const BL_NV := 32
+var bl_frame := Transform3D()      # the blanket's own frame: x across her, z from her shoulders down, y up; origin its top middle
+var bl_h := PackedFloat32Array()   # the cloth's height above the boards, per grid point
+var bl_free := PackedFloat32Array() # 0 where it rests on her or on the boards' middle, 1 at the loose hem
+var bl_body := PackedFloat32Array() # her height under it (−1: nothing)
+var bl_t := 0.0
+
+func _nat_heights():
+	var c := _nat_chest(); var h := _nat_head()
+	var along := Vector3(c.x - h.x, 0.0, c.z - h.z).normalized()   # head to feet
+	var across := along.cross(Vector3.UP).normalized()
+	var top := c - along * 0.08                                      # the top edge just over her shoulders: her face stays bare
+	var fy := 0.003   # the hall's boards (her pool of blood lies at this height too)
+	bl_frame = Transform3D(Basis(across, Vector3.UP, along), Vector3(top.x, fy, top.z))
+	var inv := bl_frame.affine_inverse()
+	var nu := BL_NU + 1; var nv := BL_NV + 1
+	bl_body = PackedFloat32Array(); bl_body.resize(nu * nv); bl_body.fill(-1.0)
+	var sk_t := nsk.global_transform
+	var n_v := 0
+	for mi in nat.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or m.skin == null or not m.visible: continue
+		var nm := String(m.name)
+		if nm.contains("phone") or nm.contains("_scr"): continue
+		var binds := []
+		for j in m.skin.get_bind_count():
+			var bn := m.skin.get_bind_name(j)
+			var bi := nsk.find_bone(bn) if bn != "" else m.skin.get_bind_bone(j)
+			binds.append(sk_t * nsk.get_bone_global_pose(bi) * m.skin.get_bind_pose(j))
+		for si in m.mesh.get_surface_count():
+			var arr: Array = m.mesh.surface_get_arrays(si)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var bs = arr[Mesh.ARRAY_BONES]; var ws = arr[Mesh.ARRAY_WEIGHTS]
+			if bs == null or ws == null or (bs as Array).is_empty(): continue
+			var per: int = (bs as Array).size() / vs.size()
+			for vi in range(0, vs.size(), 2):   # every other vertex is plenty for a 3 cm grid
+				var p := Vector3.ZERO
+				for q in per:
+					var w: float = ws[vi * per + q]
+					if w <= 0.0: continue
+					p += (binds[bs[vi * per + q]] as Transform3D) * vs[vi] * w
+				var l := inv * p
+				var iu := int(round((l.x / BL_W + 0.5) * BL_NU)); var iv := int(round(l.z / BL_L * BL_NV))
+				if iu < 0 or iv < 0 or iu >= nu or iv >= nv: continue
+				var k := iv * nu + iu
+				if l.y > bl_body[k]: bl_body[k] = l.y
+				n_v += 1
+	# the cloth: under a sheet laid over her, each point is as high as the highest of her nearby less a cloth's fall
+	# (steep near her, flattening as it reaches the boards), smoothed, and never into her or into the floor
+	var du := BL_W / BL_NU; var dv := BL_L / BL_NV
+	bl_h = PackedFloat32Array(); bl_h.resize(nu * nv); bl_free = PackedFloat32Array(); bl_free.resize(nu * nv)
+	var R := 9
+	for iv in nv:
+		for iu in nu:
+			var best := 0.004
+			for jv in range(maxi(0, iv - R), mini(nv, iv + R + 1)):
+				for ju in range(maxi(0, iu - R), mini(nu, iu + R + 1)):
+					var hb: float = bl_body[jv * nu + ju]
+					if hb <= 0.0: continue
+					var d := Vector2((ju - iu) * du, (jv - iv) * dv).length()
+					var drop := 1.9 * d + 2.2 * d * d   # the hang: steep off her, out to the boards
+					best = maxf(best, hb + 0.025 - drop)
+			bl_h[iv * nu + iu] = best
+	for it in 3:   # soften the tent's ridges into a cloth's roundness
+		var sm := bl_h.duplicate()
+		for iv in range(1, nv - 1):
+			for iu in range(1, nu - 1):
+				var k := iv * nu + iu
+				sm[k] = 0.4 * bl_h[k] + 0.15 * (bl_h[k - 1] + bl_h[k + 1] + bl_h[k - nu] + bl_h[k + nu])
+		bl_h = sm
+	var rng := RandomNumberGenerator.new(); rng.seed = 1704
+	var ph := [rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU]
+	for iv in nv:
+		for iu in nu:
+			var k := iv * nu + iu
+			var x := (float(iu) / BL_NU - 0.5) * BL_W; var z := float(iv) / BL_NV * BL_L
+			var hb: float = bl_body[k]
+			var on_her := hb > 0.0 and bl_h[k] < hb + 0.06
+			var hang := clampf((bl_h[k] - 0.01) / 0.12, 0.0, 1.0) * (0.0 if on_her else 1.0)
+			var flat := 1.0 - clampf(bl_h[k] / 0.02, 0.0, 1.0)
+			# folds that run down off her (along the slope: across her, they run from her toward the boards)
+			var fold := sin(z * 23.0 + ph[0] + 2.0 * sin(x * 3.0)) * 0.6 + sin(z * 41.0 + ph[1]) * 0.25
+			var ridge := sin(x * 17.0 + z * 9.0 + ph[2]) * sin(z * 13.0 - x * 5.0)   # soft heaps where it lies on the boards
+			var e := 0.022 * hang * fold + 0.012 * flat * maxf(ridge, 0.0)
+			# the hem: the last few centimetres turn up a little; the top edge folded back once over her shoulders
+			var edge := minf(minf(iu, BL_NU - iu), minf(iv, BL_NV - iv))
+			if edge <= 1: e += 0.006
+			if iv <= 2: e += 0.012 * (1.0 - iv / 2.0)
+			bl_h[k] = maxf(bl_h[k] + e, (hb + 0.012) if hb > 0.0 else 0.003)
+			bl_free[k] = clampf(1.0 - edge / 6.0, 0.0, 1.0) * (1.0 if not on_her else 0.15)
+	print("CH5 blanket body verts %d floor %.3f" % [n_v, fy])
+
+func _blanket_mesh() -> ArrayMesh:
+	var nu := BL_NU + 1; var nv := BL_NV + 1
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# the draught comes up the hall from the kitchen end: the loose hem on that side lifts and settles
+	var gust := 0.5 + 0.5 * sin(bl_t * 1.3) * sin(bl_t * 0.47 + 1.0)
+	var ys := PackedFloat32Array(); ys.resize(nu * nv)
+	for iv in nv:
+		for iu in nu:
+			var k := iv * nu + iu
+			var x := (float(iu) / BL_NU - 0.5) * BL_W; var z := float(iv) / BL_NV * BL_L
+			ys[k] = bl_h[k] + bl_free[k] * gust * (0.012 + 0.006 * sin(bl_t * 4.1 + x * 6.0 + z * 4.0))
+	var du := BL_W / BL_NU; var dv := BL_L / BL_NV
+	for iv in nv:
+		for iu in nu:
+			var k := iv * nu + iu
+			var x := (float(iu) / BL_NU - 0.5) * BL_W; var z := float(iv) / BL_NV * BL_L
+			var y: float = ys[k]
+			# the normal from the heights around (SurfaceTool.generate_normals left it unlit: black)
+			var dx: float = (ys[iv * nu + mini(iu + 1, BL_NU)] - ys[iv * nu + maxi(iu - 1, 0)]) / (du * float(mini(iu + 1, BL_NU) - maxi(iu - 1, 0)))
+			var dz: float = (ys[mini(iv + 1, BL_NV) * nu + iu] - ys[maxi(iv - 1, 0) * nu + iu]) / (dv * float(mini(iv + 1, BL_NV) - maxi(iv - 1, 0)))
+			st.set_normal(Vector3(-dx, 1.0, -dz).normalized())
+			st.set_uv(Vector2(float(iu) / BL_NU * 3.7, float(iv) / BL_NV * 3.3))   # a check about 15 cm
+			st.add_vertex(Vector3(x, y, z))
+	for iv in BL_NV:
+		for iu in BL_NU:
+			var a := iv * nu + iu
+			st.add_index(a); st.add_index(a + nu); st.add_index(a + 1)   # wound so its normals face up (the other way it was lit from below: black)
+			st.add_index(a + 1); st.add_index(a + nu); st.add_index(a + nu + 1)
+	return st.commit()
+
+var nat_ready := false
+var want_blanket := false
 func _blanket_on():
 	if blanket: return
+	if not nat_ready: want_blanket = true; return   # she is not laid down yet (a start part-way): after _natsuki
 	blanket = MeshInstance3D.new()
-	var pm := PlaneMesh.new(); pm.size = Vector2(0.95, 0.75); pm.subdivide_width = 6; pm.subdivide_depth = 6
-	blanket.mesh = pm
-	var m: Material = null
-	var found: Array = main.S.env_node.find_children("bed1b_blanket*", "MeshInstance3D", true, false)
-	if not found.is_empty(): m = (found[0] as MeshInstance3D).get_active_material(0)
-	if m == null:
-		var sm := StandardMaterial3D.new(); sm.albedo_color = Color(0.45, 0.4, 0.35); sm.roughness = 0.95; m = sm
-	var dm := (m as Material).duplicate()
-	if dm is BaseMaterial3D: (dm as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
+	blanket.mesh = _blanket_mesh()
+	# Mio's own blanket: a worn wool plaid (the bedroom blanket's material is the house's atlas, wood where this grid's
+	# UVs fall). The checks follow the folds, which is most of what makes it read as cloth in the print
+	var dm := StandardMaterial3D.new()
+	dm.albedo_texture = ImageTexture.create_from_image(_plaid())
+	dm.roughness = 1.0; dm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	dm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	blanket.material_override = dm
 	blanket.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	main.add_child(blanket)
-	var c := _nat_chest()
-	var h := _nat_head()
-	var along := Vector3(h.x - c.x, 0.0, h.z - c.z).normalized()
-	# from her shoulders down her back: not over her face
-	var mid := c - along * 0.22
-	blanket.global_transform = Transform3D(Basis.looking_at(-along, Vector3.UP) * Basis(Vector3.RIGHT, 0.0), Vector3(mid.x, c.y + 0.12, mid.z))
+	blanket.global_transform = bl_frame
 
-func _blanket_tick():
+func _plaid() -> Image:
+	var n := 256
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	var base := Color(0.50, 0.30, 0.17)    # a faded rust
+	var band := Color(0.20, 0.17, 0.14)    # dark brown bands
+	var thin := Color(0.72, 0.62, 0.42)    # a pale thin line
+	var rng := RandomNumberGenerator.new(); rng.seed = 77
+	for y in n:
+		for x in n:
+			var bx := (x % 128) < 34; var by := (y % 128) < 34
+			var tx := absi(x % 128 - 80) < 3; var ty := absi(y % 128 - 80) < 3
+			var c := base
+			if bx and by: c = band.darkened(0.25)
+			elif bx or by: c = base.lerp(band, 0.7)   # a woven check: half where one band crosses the ground
+			if tx or ty: c = c.lerp(thin, 0.6)
+			c = c.darkened(rng.randf_range(0.0, 0.12) + (0.06 if (x + y) % 4 < 2 else 0.0))   # the twill and the wool
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return img
+
+func _blanket_tick(dt: float):
 	if blanket == null: return
-	# its edge lifts a little in the draught from the back door
-	var b := blanket.global_basis.orthonormalized()
-	blanket.global_basis = b.slerp(b, 0.0)
-	blanket.scale = Vector3(1.0, 1.0 + 0.02 * sin(t_now * 3.1) + 0.01 * sin(t_now * 7.3), 1.0)
+	bl_t += dt
+	if Engine.get_process_frames() % 2 == 0: blanket.mesh = _blanket_mesh()
 
 # ---------------------------------------------------------------- cards and the clock
 func _card(text: String, next: String, t := 1.5):
@@ -540,7 +737,7 @@ func _process(dt):
 	_candle_tick(dt)
 	_wind_tick(dt)
 	_gen_tick(dt)
-	_blanket_tick()
+	_blanket_tick(dt)
 	_torch()
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.get("text", "")).length()) else ""
 	main.story_talking = (mode == TALK)
@@ -565,8 +762,7 @@ func _begin(st: String):
 			stage = "t4"
 			_start(B("四時.会話"))
 		"back":
-			stage = "back"; talk_with = "makoto"
-			_turn_to(gp(BACK_DOOR[0], BACK_DOOR[1] - 0.2, 0.7), 1.4)
+			stage = "back"; talk_with = "makoto"   # (the view goes down to the door with the light: makoto_light)
 			_start(B("四時.勝手口"))
 		"peel":
 			stage = "peel"; candle.visible = true; candle_held = true
@@ -579,6 +775,39 @@ func _next():
 	if cur.has("silence") and silence_t >= 0.0: return   # the counted silence holds the talk (story._next goes straight on after a ＞)
 	if hold: cur = {}; return
 	super._next()
+	if cur.has("text") and cur.has("who"): _voice(String(cur.who), String(cur.text))
+
+# ---------------------------------------------------------------- Makoto's voice (2026-11-17, waiting on the recording)
+# The lines are numbered as on the sheet the user records from (/mnt/project-files/ステップF/第5章_仕上げ/真琴の声_録る台詞.md).
+# A take goes in as godot/sound/voice/makoto_05_NN.wav (or .ogg); until it is there the line is text only, as before.
+# In the room her voice is at her mouth; from below it comes up the cellar stair, the highs gone under the floor.
+# While she speaks, the line waits for her (it does not run on after the reading time).
+# 2026-11-17（ユーザー「ミニマムにしたほうがいい」）: only the voices from out of sight and the one line the chapter turns on
+const VOICE5 := {"ゾンビなんて、いない。": 1, "……大河さん？": 2, "開いてた。……閂、外してある。": 3, "大河さん！": 4,
+	"澪さん、……板、外せましたか。": 5, "澪さん、……止め方、……つまみ、……どれ。": 6}
+var voice_p: Node = null
+
+func _voice(who: String, text: String):
+	if not who.begins_with("真琴"): return
+	var key := text.replace("\n", "").strip_edges()
+	var n: int = VOICE5.get(key, 0)
+	if n == 0:
+		for k in VOICE5:   # the shown text may be wrapped or translated: find it by its words
+			if Tw(String(k)).replace("\n", "") == key: n = VOICE5[k]; break
+	if n == 0: return
+	var name := "voice/makoto_05_%02d" % n
+	if Sound.stream(name) == null: return
+	var below := who.contains("下から")
+	var at: Vector3 = gp(5.5, 4.2, ZBASE + 1.2) if below else (_mk_face() if main.S.has("makoto_node") else player.global_position)
+	if is_instance_valid(voice_p): voice_p.queue_free()
+	voice_p = Sound.one(self, name, -4.0 if below else 0.0, at)
+	if voice_p is AudioStreamPlayer3D:
+		var p3 := voice_p as AudioStreamPlayer3D
+		p3.unit_size = 4.0 if below else 2.0
+		if below: p3.attenuation_filter_cutoff_hz = 900.0; p3.attenuation_filter_db = -24.0   # through the floor and up the stair
+
+func _voice_on() -> bool:
+	return is_instance_valid(voice_p) and voice_p.call("is_playing")
 
 func _release():
 	hold = false
@@ -598,10 +827,12 @@ func _do(what: String):
 		"makoto_kneel":
 			# beside her, by her shoulder, facing her: she goes down on her heels
 			var c := _nat_chest()
-			var at := [c.x + 4.8 + 0.5, c.z + 6.3]
+			# (the kneel carries her hips 0.2 m forward: she stops a step short)
+			var at := [c.x + 4.8 + 0.62, c.z + 6.3 - 0.05]
 			hold = true
-			main.stand_anim["makoto"] = "talk/crouch"
-			main.walk_to("makoto", [[5.3, 2.4, 0.0], [at[0], at[1], 0.0]], func(): _release(), _face(at, [c.x + 4.8, c.z + 6.3 + 0.2]))
+			main.stand_anim["makoto"] = "talk/idle"
+			main.walk_to("makoto", [[5.3, 2.4, 0.0], [at[0], at[1], 0.0]], func():
+				_kneel(); get_tree().create_timer(1.6).timeout.connect(_release), _face(at, [c.x + 4.8, c.z + 6.3 + 0.2]))
 			_turn_to(Vector3(c.x + 0.25, 0.35, c.z), 1.6)
 		"makoto_tripod":
 			var r := _rig("makoto")
@@ -611,13 +842,15 @@ func _do(what: String):
 			tw.tween_interval(1.4)
 			tw.tween_property(r, "global_rotation:y", r.global_rotation.y, 1.0).set_trans(Tween.TRANS_SINE)
 		"makoto_back":
-			main.stand_anim["makoto"] = "talk/idle"
 			talk_with = ""
 			stage = "follow"
-			main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
-				Callable(), _face(MK_BACK, [BACK_DOOR[0], BACK_DOOR[1]]))
+			_stand_up(func(): main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
+				Callable(), _face(MK_BACK, [BACK_DOOR[0], BACK_DOOR[1]])))
 		"makoto_light":
-			torch_at = gp(BACK_DOOR[0], BACK_DOOR[1] - 0.25, 0.75)
+			# the light goes low, onto the torn tape and the hand under it, and Mio's eyes go with it (2026-11-17: the first
+			# time the light was on the door at chest height, and the hand never came into the picture)
+			torch_at = gp(BACK_DOOR[0], (BACK_DOOR[1] + HAND_AT[1]) * 0.5, 0.55)
+			_turn_to(gp(HAND_AT[0], (BACK_DOOR[1] + HAND_AT[1]) * 0.5, 0.65), 1.4)
 		"shake":
 			_nod(0.07, true)
 		"nod":
@@ -629,14 +862,15 @@ func _do(what: String):
 			gen_want = -30.0
 		"makoto_hand":
 			hold = true
-			main.stand_anim["makoto"] = "talk/crouch"
+			main.stand_anim["makoto"] = "talk/idle"
 			torch_at = gp(HAND_AT[0], HAND_AT[1], HAND_AT[2])
 			_turn_to(gp(HAND_AT[0], HAND_AT[1], HAND_AT[2] + 0.2), 1.6)
-			main.walk_to("makoto", [[9.45, 4.55, 0.0]], func():
-				get_tree().create_timer(3.2).timeout.connect(func():
-					main.set_stand("makoto", "talk/idle", 0.6); main.stand_anim["makoto"] = "talk/idle"
-					torch_at = Vector3.ZERO
-					get_tree().create_timer(1.4).timeout.connect(_release)), _face([9.45, 4.55], [HAND_AT[0], HAND_AT[1]]))
+			main.walk_to("makoto", [[MK_HAND[0], MK_HAND[1], 0.0]], func():
+				_kneel()
+				get_tree().create_timer(4.6).timeout.connect(func():
+					_stand_up(func():
+						torch_at = Vector3.ZERO
+						get_tree().create_timer(0.8).timeout.connect(_release))), _face(MK_HAND, [HAND_AT[0], HAND_AT[1]]))
 		"makoto_candle":
 			# a candle from the kitchen, lit, into her hand: the light on Mio's hands first
 			candle.visible = true; candle_held = true
@@ -668,17 +902,44 @@ func _do(what: String):
 		_: super._do(what)
 
 # her eyes go to what the talk is about (the view turns by itself; she may look away again)
+# down on one knee (her own kneel; Taiga's crouch on a house written before it) and up again
+func _kneel_anim() -> String:
+	var ap := _mk_ap()
+	return "talk/kneel" if ap and ap.has_animation("talk/kneel") else "talk/crouch"
+
+func _mk_ap() -> AnimationPlayer:
+	if not main.S.has("makoto_node"): return null
+	return main.S.makoto_node.find_children("*", "AnimationPlayer", true, false)[0]
+
+func _kneel():
+	main.set_stand("makoto", _kneel_anim(), 0.3)
+
+# up off her knee, then done (the walk, the next line)
+func _stand_up(done := Callable()):
+	var ap := _mk_ap()
+	if ap and main.stand_of("makoto") == "talk/kneel" and ap.has_animation("talk/kneel_up"):
+		main.set_stand("makoto", "talk/kneel_up", 0.2)
+		main.stand_anim["makoto"] = "talk/idle"
+		get_tree().create_timer(ap.get_animation("talk/kneel_up").length - 0.25).timeout.connect(func():
+			main.set_stand("makoto", "talk/idle", 0.3)
+			if done.is_valid(): done.call())
+		return
+	main.set_stand("makoto", "talk/idle", 0.6); main.stand_anim["makoto"] = "talk/idle"
+	if done.is_valid(): get_tree().create_timer(0.6).timeout.connect(done)
+
 func _turn_to(at: Vector3, dur := 1.2):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := at - cam.global_position
 	var y1: float = player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI)
 	var p1 := asin(clampf(to.normalized().y, -1.0, 1.0))
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(player, "yaw", y1, dur).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(player, "pitch", p1, dur).set_trans(Tween.TRANS_SINE)
+	if turn_tw and turn_tw.is_valid(): turn_tw.kill()   # a new look takes over (two at once: the first one won)
+	turn_tw = create_tween().set_parallel(true)
+	turn_tw.tween_property(player, "yaw", y1, dur).set_trans(Tween.TRANS_SINE)
+	turn_tw.tween_property(player, "pitch", p1, dur).set_trans(Tween.TRANS_SINE)
+var turn_tw: Tween
 
 func _mk_face() -> Vector3:
-	return _rig("makoto").global_position + Vector3(0, 1.45 if main.stand_of("makoto") != "talk/crouch" else 0.9, 0)
+	return _rig("makoto").global_position + Vector3(0, 1.45 if not main.stand_of("makoto") in ["talk/crouch", "talk/kneel"] else 0.95, 0)
 
 # her head: a shake (no) or a nod (yes), the view itself moving
 func _nod(a: float, shake: bool):
@@ -824,6 +1085,7 @@ func _below_tick(dt: float):
 			if n.contains("倒れる"): Sound.one(self, "ch3_thud", -7.0, gp(8.5, 6.0, ZBASE + 0.5))
 			if mode == FREE: _line_row("", n, 22, "note"); page_clear_t = 7.0
 			continue
+		_voice(String(e.get("who", "")), String(e.get("text", "")))   # heard whether or not the line can be shown now
 		if mode == FREE or cur.has("silence"):
 			var r = _line_row(String(e.who), Tw(String(e.text)), SAY_SIZE, "say")
 			page_clear_t = 8.0
@@ -841,6 +1103,7 @@ func _talk_tick(dt):
 		if silence_t >= silence_len: silence_t = -1.0; _next()
 		return
 	if cur.is_empty() and hold: return
+	if _voice_on() and typed >= float(String(cur.get("text", "")).length()): read_t = 0.0   # she is still saying it
 	super._talk_tick(dt)
 
 func _advance():

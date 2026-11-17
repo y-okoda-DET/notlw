@@ -21,7 +21,10 @@ OUT = W.OUT
 # clip: file. 話す4本は Mixamo の Talking 1〜4（届いた順の名前ではないので A〜D）、座って話す2本、立つ、考える、言い合う、しゃがむ
 CLIPS = {'talk_a': 'Talking_A.fbx', 'talk_b': 'Talking_B.fbx', 'talk_c': 'Talking_C.fbx', 'talk_d': 'Talking_D.fbx',
          'sit_a': 'Sitting_Talking_A.fbx', 'sit_b': 'Sitting_Talking_B.fbx', 'idle': 'Standing_Idle.fbx',
-         'think': 'Thinking.fbx', 'argue': 'Standing_Arguing.fbx', 'crouch': 'Crouching_Idle.fbx'}
+         'think': 'Thinking.fbx', 'argue': 'Standing_Arguing.fbx', 'crouch': 'Crouching_Idle.fbx',
+         # 2026-11-17 第5章（真琴が夏希の横にひざをつく、勝手口の手形に手を重ねる）：Mixamo の Kneel（10.8 秒、30fps）を二つに切る。
+         # kneel＝立ちから下りて片ひざをついたまま（1.7〜6.2 秒。Godot では繰り返さず、最後の形で止める）、kneel_up＝そこから立つ（6.2〜8.0 秒）
+         'kneel': ('Kneel.fbx', 1.7, 6.2), 'kneel_up': ('Kneel.fbx', 6.2, 8.0)}
 MAX_DUR = 24.0   # 座って話す2本は40秒を超える：前の24秒だけ（ループの継ぎ目は Godot で短く重ねる）
 ARMS = {'LeftShoulder': 'clavicle_l', 'LeftArm': 'upperarm_l', 'LeftForeArm': 'lowerarm_l', 'LeftHand': 'hand_l',
         'RightShoulder': 'clavicle_r', 'RightArm': 'upperarm_r', 'RightForeArm': 'lowerarm_r', 'RightHand': 'hand_r'}
@@ -31,15 +34,16 @@ MAP = dict(W.MAP); MAP.update(HEAD); MAP.update(ARMS)   # hierarchy order: legs 
 def rot_of(M):
     return M.to_3x3().normalized().to_quaternion()
 
-def read_clip(path):
+def read_clip(path, part=None):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.fbx(filepath=path)
     arm = [o for o in bpy.data.objects if o.type == 'ARMATURE'][0]
     f0, f1 = [int(x) for x in arm.animation_data.action.frame_range]
     sc = bpy.context.scene; Wm = arm.matrix_world
     f1 = min(f1, f0 + int(MAX_DUR * sc.render.fps))
+    if part: f0, f1 = f0 + round(part[0] * sc.render.fps), min(f1, f0 + round(part[1] * sc.render.fps))
     rest = {b: rot_of(Wm @ arm.data.bones['mixamorig:' + b].matrix_local) for b in MAP}
-    hip0 = Wm @ arm.data.bones['mixamorig:Hips'].head_local
+    hip0 = Wm @ arm.data.bones['mixamorig:Hips'].head_local   # the rest's hips (a part of a clip moves from there too)
     frames = []
     for f in range(f0, f1 + 1):
         sc.frame_set(f)
@@ -92,7 +96,9 @@ def bake(rig, name, clip, k_size, align):
 
 if __name__ == '__main__':
     only = os.environ.get('CLIPS')
-    clips = {k: read_clip(f'{SRC}/{v}') for k, v in CLIPS.items() if not only or k in only.split(',')}
+    clips = {k: (read_clip(f'{SRC}/{v}') if isinstance(v, str) else read_clip(f'{SRC}/{v[0]}', v[1:]))
+             for k, v in CLIPS.items() if not only or k in only.split(',')}
+    who = os.environ.get('WHO')   # e.g. WHO=makoto: only her glb is written (a quick try; build.sh writes all four)
     for k, c in clips.items(): print('CLIP', k, 'frames', len(c['frames']), flush=True)
     hip_ref = W.read_clip(f'{SRC}/Walking_1.fbx')['hip0'].z   # the size of Mixamo's body (the same for every clip); before build (it clears the scene)
     rigs = T.build()
@@ -101,6 +107,7 @@ if __name__ == '__main__':
             for md in o.modifiers: md.show_viewport = False
     out = {}
     for key, rig in rigs.items():
+        if who and key not in who.split(','): continue
         C.reset_pose(rig); bpy.context.view_layer.update()
         hip_h = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).z
         k_size = hip_h / hip_ref
@@ -126,5 +133,5 @@ if __name__ == '__main__':
                                   export_force_sampling=True, export_def_bones=False)
         rig.animation_data.action = None
         for a in acts.values(): bpy.data.actions.remove(a)
-    json.dump(out, open(f'{OUT}/talk.json', 'w'), indent=1)
+    if not who: json.dump(out, open(f'{OUT}/talk.json', 'w'), indent=1)
     print('EXPORTED talk')

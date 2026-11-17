@@ -15,6 +15,7 @@ cp $S/check/trial/boot.tscn $O/
 cp $S/shaders/*.gdshader $O/shaders/
 rm -rf $O/story; cp -r $S/story $O/story   # 台本（スクリプトと同じく、いまのリポジトリの物）
 rm -rf $O/sound; mkdir -p $O/sound; cp $S/sound/*.wav $S/sound/*.ogg $O/sound/   # ステップ E：仮の音（scripts/sound.gd）
+[ -d $S/sound/voice ] && cp -r $S/sound/voice $O/sound/   # 2026-11-17 録った声（sound/voice/、第5章の真琴から）
 cat > $O/boot.gd <<'GD'
 extends Node
 func _ready():
