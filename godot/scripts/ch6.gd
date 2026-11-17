@@ -534,12 +534,12 @@ func _holding() -> bool:
 # ================================================================ her hands (ユーザー OK 2026-11-18: 手と袖は出す。体と顔は出さない)
 # Built here from a few rounded pieces: under the print a hand is its outline and its light side. Each hand's own frame:
 # the fingers point to -Z, the palm faces -Y, the forearm (the sleeve) runs back to +Z. They ride the camera (rig6).
-const SKIN := Color(0.88, 0.71, 0.61)
-const CLOTH := Color(0.80, 0.78, 0.73)
+const SKIN := Color(0.74, 0.58, 0.49)
+const CLOTH := Color(0.62, 0.60, 0.56)
 const SLEEVE_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
-uniform vec3 cloth : source_color = vec3(0.80, 0.78, 0.73);
+uniform vec3 cloth : source_color = vec3(0.62, 0.60, 0.56);
 uniform float stain = 0.0;     // 1: the left sleeve, where she was caught at half past three
 uniform float wash = 0.0;      // 0 as it dried; 1 washed: the fingers are gone, a brown ring is left
 uniform float wet = 0.0;
@@ -549,34 +549,43 @@ float vn(vec2 x) { vec2 i = floor(x); vec2 f = fract(x); f = f * f * (3.0 - 2.0 
 float cap(vec2 p, vec2 a, vec2 b, float r) { vec2 pa = p - a; vec2 ba = b - a; float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return 1.0 - length(pa - ba * t) / r; }
 void fragment() {
 	// metres on the cloth: x round the arm (0.26 round), y along it from the cuff (0.34 long)
-	vec2 q = vec2(fract(UV.x + 0.27) * 0.26, clamp(UV.y * 2.0, 0.0, 1.0) * 0.34);
-	float m = -1.0;
+	vec2 q = vec2(fract(UV.x + 0.875) * 0.26, clamp(UV.y * 2.0, 0.0, 1.0) * 0.34);   // the fingers lie on the back of the arm
+	float m = -6.0;   // (-1 here put the halo's brown over the whole sleeve, and the ring was lost in it)
 	for (int i = 0; i < 4; i++) {            // four fingers laid round the forearm, a hand's width
-		float y = 0.085 + 0.024 * float(i);
-		float len = 0.105 - 0.012 * abs(float(i) - 1.3);
-		m = max(m, cap(q, vec2(0.045, y + 0.004 * float(i)), vec2(0.045 + len, y), 0.0095));
+		float y = 0.085 + 0.023 * float(i) + 0.004 * sin(float(i) * 2.3);
+		float len = 0.100 - 0.016 * abs(float(i) - 1.3) + 0.008 * sin(float(i) * 4.1);
+		m = max(m, cap(q, vec2(0.050 + 0.006 * sin(float(i) * 1.7), y + 0.007 * float(i)), vec2(0.050 + len, y - 0.003), 0.0100));
 	}
+	m = max(m, cap(q, vec2(0.022, 0.100), vec2(0.040, 0.150), 0.020) * 0.8);   // the heel of the hand, where the fingers start
 	m = max(m, cap(q, vec2(0.215, 0.105), vec2(0.245, 0.14), 0.012));   // the thumb, on the other side
 	m = max(m, cap(q, vec2(0.0, 0.105), vec2(0.02, 0.118), 0.012));
 	float n = vn(q * 220.0) * 0.6 + vn(q * 600.0) * 0.4;
-	float blood = smoothstep(0.0, 0.3, m + (n - 0.5) * 0.5) * stain;
-	float halo = smoothstep(-1.6, -0.2, m + (n - 0.5) * 0.4) * stain;
-	float ring = halo * (1.0 - smoothstep(-0.9, -0.1, m + (n - 0.5) * 0.4));
+	float blood = smoothstep(0.0, 0.3, m + (n - 0.5) * 0.9) * stain;
+	float mm = m + (n - 0.5) * 0.4;
+	float halo = smoothstep(-1.1, -0.3, mm) * stain;
+	float ring = smoothstep(-1.2, -0.8, mm) * (1.0 - smoothstep(-0.55, -0.15, mm)) * stain;   // the edge the water carried it to
 	vec3 c = cloth * (0.92 + 0.08 * vn(q * vec2(900.0, 90.0)));
 	c = mix(c, c * 0.62, wet * halo);
-	c = mix(c, vec3(0.50, 0.36, 0.25), ring * wash * 0.75);
-	c = mix(c, vec3(0.52, 0.40, 0.30), halo * wash * 0.25);
+	c = mix(c, vec3(0.40, 0.27, 0.19), halo * wash * 0.45);
+	c = mix(c, vec3(0.13, 0.065, 0.04), ring * wash * 0.95);
 	c = mix(c, vec3(0.17, 0.012, 0.012), blood * (1.0 - smoothstep(0.15, 0.95, wash)));
-	ALBEDO = c; ROUGHNESS = mix(0.95, 0.5, wet * halo);
+	ALBEDO = c; ROUGHNESS = 0.95; SPECULAR = 0.15;   // (wet cloth with a gloss took the light by her eye and went white: the stain was gone from the picture)
 }
 """
 var sleeve_l: ShaderMaterial
+var tri_fill: OmniLight3D
+var fill6: OmniLight3D           # the candle's light on what she holds up to her eye (her own hands stood black against it)
 
 func _hands():
 	rig6 = Node3D.new(); rig6.name = "rig6"; _cam().add_child(rig6)
 	hand_l = _mk_hand(true); hand_r = _mk_hand(false)
 	rig6.add_child(hand_l); rig6.add_child(hand_r)
 	hand_l.visible = false; hand_r.visible = false
+	fill6 = OmniLight3D.new(); fill6.light_color = Color(1.0, 0.82, 0.62); fill6.light_energy = 0.0; fill6.omni_range = 0.8; fill6.omni_attenuation = 1.6
+	fill6.shadow_enabled = false; fill6.light_specular = 0.1; fill6.position = Vector3(0.0, 0.06, 0.04); rig6.add_child(fill6)
+	# the tripod is black metal on a dark floor: a light of its own (layer 2), or it is not seen in her hands at all
+	tri_fill = OmniLight3D.new(); tri_fill.light_color = Color(1.0, 0.84, 0.66); tri_fill.light_energy = 0.0; tri_fill.omni_range = 2.6; tri_fill.omni_attenuation = 0.8
+	tri_fill.shadow_enabled = false; tri_fill.light_cull_mask = 2; tri_fill.position = Vector3(0.0, 0.12, -0.05); rig6.add_child(tri_fill)
 	hand_l.position = Vector3(-0.2, -0.6, -0.3); hand_r.position = Vector3(0.2, -0.6, -0.3)
 
 func _mk_hand(left: bool) -> Node3D:
@@ -729,6 +738,7 @@ func _props6():
 			var a: AABB = (mi as MeshInstance3D).transform * (mi as MeshInstance3D).get_aabb()
 			bb = a if first else bb.merge(a); first = false
 		tripod_h = bb.end.y
+		for mi in tripod.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 2
 		tri_blood = MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.075; cy.bottom_radius = 0.07; cy.height = 0.16; tri_blood.mesh = cy
 		var rm := StandardMaterial3D.new(); rm.albedo_color = Color(0.13, 0.008, 0.008, 0.92); rm.roughness = 0.25; rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		tri_blood.material_override = rm; tri_blood.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
@@ -781,8 +791,8 @@ func _nat_tick():
 var carrying := false
 var tri_k := 1.0               # the legs' length
 var tri_w := 1.0               # the legs' spread
-var tri_head := Vector3(-0.12, -0.20, -0.48)
-var tri_axis := Vector3(0.62, -0.22, -0.60)   # from its head to its feet, in her hands
+var tri_head := Vector3(0.30, -0.13, -0.52)
+var tri_axis := Vector3(-1.0, -0.04, -0.18)   # from its head to its feet, in her hands
 var wipe := 0.0
 var wipe_snd := 0.0
 
@@ -807,9 +817,9 @@ func _tripod_take():
 		var tw := create_tween()
 		tw.tween_method(func(k: float):
 			_tri_place(); tripod.transform = t0.interpolate_with(tripod.transform, k), 0.0, 1.0, 1.5).set_trans(Tween.TRANS_SINE)
-		create_tween().tween_property(self, "tri_w", 0.32, 1.5)
+		create_tween().tween_property(self, "tri_w", 0.55, 1.5)
 		_turn_to(_cam().global_position + Basis(Vector3.UP, player.yaw) * Vector3(0, -0.35, -1.0), 1.5)
-		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(-0.02, -0.035, 0.03), Vector3(20, -50, 60), 1.4); _curl(hand_l, 1.1)
+		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.0, 0.02, 0.05), Vector3(20, 8, 0), 1.4); _curl(hand_l, 1.1)
 		_after(1.7, func(): step = 1; _show_prompt("三脚.拭く")))
 
 func _show_prompt(key: String):
@@ -820,16 +830,16 @@ func _tripod_tick(dt: float):
 	if step == 1:
 		# her cuff pulled over her hand, along the head and back (her own hand's shadow over it)
 		if _holding():
-			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.05, 0.03, 0.05), Vector3(10, 40, -30), 0.4); _curl(hand_r, 1.2); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 4.5, 1.25)
+			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.05, 0.03, 0.05), Vector3(20, -8, 0), 0.4); _curl(hand_r, 1.2); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 3.2, 1.25)
 			wipe = minf(1.0, wipe + dt / 3.6)
-			if wipe > 0.1: hand_r.position = tri_head + tri_axis.normalized() * (0.05 + 0.07 * sin(t_now * 7.5)) + Vector3(0.0, 0.035, 0.045)
+			if wipe > 0.1: hand_r.position = tri_head + tri_axis.normalized() * (0.07 + 0.07 * sin(t_now * 7.5)) + Vector3(0.0, 0.035, 0.05)
 			wipe_snd -= dt
 			if wipe_snd <= 0.0: wipe_snd = 0.55; Sound.one(self, "ch3_blanket", -20.0)
 			(tri_blood.material_override as StandardMaterial3D).albedo_color.a = 0.92 * (1.0 - wipe)
 			if wipe >= 1.0:
 				tri_blood.visible = false; step = 2; legs_n = 0
 				(hand_r.get_node("cuff") as Node3D).position.z = 0.04; (hand_r.get_node("cuff") as Node3D).scale = Vector3.ONE
-				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.75 + Vector3(0.0, 0.03, 0.03), Vector3(10, 40, -60), 0.6)
+				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(0.0, 0.02, 0.05), Vector3(20, -8, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0, 0.02, 0.05), Vector3(20, 8, 0), 0.6)
 				_show_prompt("三脚.脚")
 var legs_n := 0
 
@@ -841,7 +851,7 @@ func _tripod_press():
 		# each lock is heard through the whole house
 		Sound.one(self, "lock", 2.0)
 		_after(0.28, func(): Sound.one(self, "lock", -13.0, gp(5.2, 6.4, F2 + 1.0)))
-		hand_r.position = tri_head + tri_axis.normalized() * (0.75 * k + 0.12) + Vector3(0.0, 0.03, 0.03)
+		hand_l.position = tri_head + tri_axis.normalized() * (0.60 * k + 0.26) + Vector3(0.0, 0.02, 0.05)
 		if legs_n == 3:
 			step = 3; note_lb.text = ""
 			_after(0.9, func():
@@ -910,7 +920,7 @@ func _cam_out():
 				var gt := cas2.global_transform
 				main.remove_child(cas2); hand_r.add_child(cas2); cas2.global_transform = gt
 				create_tween().tween_property(cas2, "transform", Transform3D(Basis(), Vector3(0, -0.022, -0.105)), 0.5)
-				_hand_to(hand_r, Vector3(0.07, -0.19, -0.27), Vector3(62, 8, 180), 0.9)
+				_hand_to(hand_r, Vector3(0.04, -0.125, -0.235), Vector3(64, 6, 180), 0.9)
 				_after(1.6, func(): step = 1; _show_prompt("カメラ.入れる")))))
 
 func _cam_in():
@@ -924,7 +934,7 @@ func _cam_in():
 		cas1.transform = Transform3D(Basis(), Vector3(0, -0.022, -0.105))
 		Sound.one(self, "ch3_blanket", -18.0)
 		# up into the candle's light, tilted to it: 「定点」, in her own hand
-		_hand_to(hand_r, Vector3(-0.015, -0.17, -0.25), Vector3(64, -14, 180), 0.9)
+		_hand_to(hand_r, Vector3(-0.01, -0.105, -0.215), Vector3(66, -12, 180), 0.9)
 		_after(2.6, func():
 			_hand_to(hand_r, _in_rig(_cam_top()) + Vector3(0.02, -0.06, 0.10), Vector3(55, 10, 0), 0.9)
 			_after(0.9, func():
@@ -962,6 +972,8 @@ func _cam_batt():
 # ================================================================ the hands' work: one clock, one key
 func _act_tick(dt: float):
 	_nat_tick()
+	tri_fill.light_energy = move_toward(tri_fill.light_energy, (1.1 * 0.56 / maxf(exp_now, 0.3)) if (act == "tripod" or carrying) and not candle_out else 0.0, dt * 1.2)
+	fill6.light_energy = move_toward(fill6.light_energy, (0.26 * 0.56 / maxf(exp_now, 0.3)) if (hand_l.visible or hand_r.visible) and not candle_out else 0.0, dt * 1.2)
 	if carrying or act == "tripod": _tripod_tick(dt)
 	match act:
 		"phone": _phone_tick(dt)
@@ -982,7 +994,7 @@ func _act_press():
 # 「携帯調べる時のビジュアル、新鮮な感じにしたい」). It is drawn over the print, where the phone's glass is; its light
 # is paper-white on Natsuki's face. A deleted letter is un-printed. When the cord comes out the paper goes back under the ink.
 const KN := [4.98, 2.20]              # on her knees beside her (plan): her pocket and her face both in reach
-const PH_HOLD := Vector3(0.0, -0.150, -0.215)
+const PH_HOLD := Vector3(0.0, -0.085, -0.225)
 const PH_DEG := Vector3(66, 0, 180)
 var ph_mode := "off"           # off | dead | lock | chat
 var ph_lit := 0.0
@@ -1184,7 +1196,7 @@ func _pack_take():
 	pack.get_parent().remove_child(pack); hand_l.add_child(pack); pack.visible = true
 	pack.transform = Transform3D(Basis(), Vector3(0, -0.024, -0.085))
 	hand_l.position = Vector3(-0.2, -0.6, -0.3); _curl(hand_l, 0.2)
-	_hand_to(hand_l, Vector3(-0.07, -0.19, -0.30), Vector3(58, -8, 180), 0.8)
+	_hand_to(hand_l, Vector3(-0.05, -0.125, -0.27), Vector3(62, -8, 180), 0.8)
 	_after(2.0, func():
 		_hand_away(hand_l, 0.7)
 		_after(0.7, func(): pack.visible = false; act = ""))
@@ -1283,16 +1295,16 @@ func _box_press():
 		for mi in box_env: (mi as Node3D).visible = false
 		case6.visible = true; case_lid.rotation.z = 0.0
 		hand_l.position = _in_rig(bp); hand_l.quaternion = Quaternion(Basis.from_euler(Vector3(deg_to_rad(10), 0, PI), EULER_ORDER_YXZ)); _curl(hand_l, 0.15, 0.4)
-		_hand_to(hand_l, Vector3(-0.035, -0.185, -0.275), Vector3(60, -6, 180), 1.0)
+		_hand_to(hand_l, Vector3(-0.03, -0.115, -0.25), Vector3(64, -6, 180), 1.0)
 		create_tween().tween_property(player, "pitch", -0.5, 1.0).set_trans(Tween.TRANS_SINE)
 		_after(2.2, func():
 			# 夏希の字。her other hand lifts the lid
 			_curl(hand_r, 0.5)
-			_hand_to(hand_r, Vector3(0.075, -0.115, -0.255), Vector3(40, 30, -60), 0.6)
+			_hand_to(hand_r, Vector3(0.08, -0.045, -0.235), Vector3(40, 30, -60), 0.6)
 			_after(0.7, func():
 				Sound.one(self, "ch3_blanket", -16.0)
 				create_tween().tween_property(case_lid, "rotation:z", 2.45, 0.9).set_trans(Tween.TRANS_SINE)
-				_hand_to(hand_r, Vector3(0.16, -0.22, -0.26), Vector3(40, 30, -60), 0.9)
+				_hand_to(hand_r, Vector3(0.17, -0.15, -0.24), Vector3(40, 30, -60), 0.9)
 				_after(2.4, func():
 					step = 1
 					_start(B("箱.あと")); box_talk = true))))
@@ -1329,18 +1341,18 @@ func _sink6():
 	basin = MeshInstance3D.new(); var dc := CylinderMesh.new(); dc.top_radius = 0.17; dc.bottom_radius = 0.17; dc.height = 0.003; basin.mesh = dc
 	basin_mat = StandardMaterial3D.new(); basin_mat.albedo_color = Color(0.5, 0.56, 0.6, 0.0); basin_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; basin_mat.roughness = 0.05
 	basin.material_override = basin_mat; basin.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; main.add_child(basin)
-	basin.global_position = tp + Vector3(0, -0.29, -0.12); basin.scale = Vector3(1.3, 1.0, 0.9)
+	basin.global_position = tp + Vector3(0, -0.29, -0.12); basin.scale = Vector3(1.3, 1.0, 0.9); basin.visible = false
 	water_p = AudioStreamPlayer3D.new(); water_p.stream = Sound.stream("rain", true); water_p.pitch_scale = 1.9; water_p.volume_db = -60.0; water_p.unit_size = 1.2
 	add_child(water_p); water_p.global_position = tp
 
 func _sleeve_press():
 	act = "sleeve"; step = 0; note_lb.text = ""; sleeve_wait = true
 	_go([TAP[0], TAP[1] - 0.72], STAND_EYE6, gp(TAP[0], TAP[1] - 0.1, TAP[2] - 0.25))
-	_candle_down(gp(TAP[0] - 0.42, TAP[1] - 0.18, 0.895))
+	_candle_down(gp(TAP[0] - 0.72, TAP[1] - 0.10, 0.895))
 	_after(1.3, func():
 		# before the water: she looks at it once. The blood has the shape of fingers
 		hand_l.position = Vector3(-0.25, -0.6, -0.3); _curl(hand_l, 0.5)
-		_hand_to(hand_l, Vector3(-0.045, -0.16, -0.30), Vector3(28, -62, -78), 1.1)
+		_hand_to(hand_l, Vector3(0.11, -0.065, -0.30), Vector3(0, -64, 0), 1.1)
 		_after(1.4, func():
 			_ret_open("袖.見る")
 			step = 10))
@@ -1360,10 +1372,10 @@ func _sleeve_tick(dt: float):
 		water_p.volume_db = move_toward(water_p.volume_db, -16.0 if on else -60.0, dt * 80.0)
 		if on:
 			if wash <= 0.0:
-				_hand_to(hand_l, Vector3(-0.02, -0.235, -0.33), Vector3(8, -58, -80), 0.5)
-				_hand_to(hand_r, Vector3(0.05, -0.19, -0.25), Vector3(-5, 40, 60), 0.5); _curl(hand_r, 0.9)
+				_hand_to(hand_l, Vector3(0.11, -0.10, -0.34), Vector3(0, -64, 0), 0.5)
+				_hand_to(hand_r, Vector3(0.0, -0.075, -0.275), Vector3(18, 28, 0), 0.5); _curl(hand_r, 0.7)
 			wash = minf(1.0, wash + dt / 6.5)
-			if wash > 0.08: hand_r.position = Vector3(0.045 + 0.035 * sin(t_now * 6.5), -0.185, -0.245 + 0.02 * cos(t_now * 6.5))
+			if wash > 0.08: hand_r.position = Vector3(0.0 + 0.04 * sin(t_now * 6.5), -0.075, -0.275 + 0.012 * cos(t_now * 6.5))
 			sleeve_l.set_shader_parameter("wash", wash); sleeve_l.set_shader_parameter("wet", clampf(wash * 4.0, 0.0, 1.0))
 			# the water goes red, and then clear
 			var red := smoothstep(0.0, 0.22, wash) * (1.0 - smoothstep(0.5, 0.95, wash))
@@ -1373,8 +1385,9 @@ func _sleeve_tick(dt: float):
 				_water(false); water_p.volume_db = -60.0
 				create_tween().tween_property(basin_mat, "albedo_color:a", 0.0, 3.0)
 				_ret_after("袖.あと", 12.0)
-				_after(2.5, func():
-					_hand_away(hand_l, 0.9); _hand_away(hand_r, 0.9)
+				_hand_away(hand_r, 0.7); _hand_to(hand_l, Vector3(0.11, -0.065, -0.30), Vector3(0, -64, 0), 0.8)   # she looks at what is left
+				_after(3.2, func():
+					_hand_away(hand_l, 0.9)
 					_candle_up()
 					_after(1.0, func(): act = ""; done6["sleeve"] = true))
 
@@ -1489,6 +1502,9 @@ func _car():
 		cap.material_override = navy; police.add_child(cap); cap.position = Vector3(0, 1.69, 0.005)
 		var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.075; bm2.bottom_radius = 0.075; bm2.height = 0.01; brim.mesh = bm2
 		brim.material_override = navy; police.add_child(brim); brim.position = Vector3(0, 1.655, -0.085); brim.scale = Vector3(1.4, 1.0, 1.0)
+		var top := 0.0
+		for mi in pb.find_children("*", "MeshInstance3D", true, false): top = maxf(top, ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).end.y - police.global_position.y)
+		if top > 1.0: cap.position.y = top - 0.02; brim.position.y = top - 0.055
 		police.global_transform = Transform3D(Basis(Vector3.UP, PI - 0.2), gp(5.3, -0.95, 0.0))
 		police.visible = false
 
