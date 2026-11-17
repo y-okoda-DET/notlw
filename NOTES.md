@@ -501,3 +501,4 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 2026-11-17（試作162）：ディスクの割り当てが尽きると、書き出しは「DONE」と出ても RULES.pck が 0 バイトになる（build.log に何も出ない）。書き出しのあとは pck の大きさを見る。古い確認版（$BUILD/RULES_proto*）を消せば、SCENES=none で書き出しだけやり直せる（照り返しは cache hit）。
 
 - インタビューの聞き手のテープ（2026-11-17、8ミリ 95×62.5×15mm）：手を置く高さは people/pose.py の TT（座卓の上 0.33＋厚み 0.015＝0.345）。テープの大きさを変えたら TT と farI/near（長手の半分 0.034 前後）も合わせ、seiza・pinch・stroke を pose.py → pose2glb.py で焼き直す。ラベルは label_tex.py で 1mm＝20px（台紙 72×40mm＝1440×800）。
+- 2026-11-17（試作127）：字体は使う字だけの部分集合（godot/fonts/make_subset.py）。台本に新しい字が増えたのに作り直していなかったので、「射」「影」など177字が別の字体で描かれていた。台本を足したら make_subset.py を回す。check.sh の 0c（godot/check/glyph_check.py）が見張る。

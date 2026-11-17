@@ -116,6 +116,7 @@ func _ready():
 	for a2 in OS.get_cmdline_user_args():
 		if a2 == "--demo": _demo_script()
 		if a2.begins_with("--storystate="): call_deferred("_state", a2.substr(13))
+	if main.DEV_STATE != "": call_deferred("_state", main.DEV_STATE); main.DEV_STATE = ""   # 開発用の章選び（main.gd F5）
 
 func _rail_z(Y: float) -> float:
 	# 2026-11-15 (ユーザー「ここにおく」、122 で見て): house4.stairs_up's rail has its middle (z 2.295) at plan y 4.215 (half
