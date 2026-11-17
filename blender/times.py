@@ -42,15 +42,17 @@ LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't2
 # lit side no brighter than the dark): less world in the bake, half the ambient, less fog, the window light up
 DUSK_WIN = 2.0   # 1.4 (試作68): the lit walls upstairs came up, the print's darkest ink was already the shadows' floor
 STATE = {
+    # 試作127 A5（ユーザー「さすがに白く飛びすぎ」「白く飛びすぎな箇所が多すぎ」20時・23時・3時半）: the print's exposure
+    # down from 1.8 (t20 1.55, t23/t02 1.25, t0330 1.3), the darks still lifted by NIGHT_PRINT's dodge (main.gd)
     #        boards  front door (deg open)  cord  print exposure  ambient (colour, energy)       sky ring (emission, tint)        fog
     # crew: the crew's lanterns and candles are out (試作83, レビュー 試作82: at dusk, before the outage, the landing's
     # lantern already stood there). They bring them out at the outage; Godot hides the crew_ props before (main.gd _house_state)
     # slip: the forest road's outer shoulder at the bend has gone (outside.py; the storm takes it before 桐生 goes out at 2:00)
     'dusk':  dict(boards=False, front=105, cord=False, exp=1.3, amb=[.55, .42, .34], ambe=.05, sky=.75, skyc=[1, 1, 1], fog=.03, slip=False, crew=False),
-    't20':   dict(boards=False, front=0, cord=False, exp=1.8, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False, crew=False),
-    't23':   dict(boards=True, front=0, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False, crew=True),
-    't02':   dict(boards=True, front=88, cord=True, exp=1.8, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True, crew=True),
-    't0330': dict(boards=True, front=0, cord=True, exp=1.8, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True, crew=True),
+    't20':   dict(boards=False, front=0, cord=False, exp=1.55, amb=[.22, .26, .34], ambe=.03, sky=.1, skyc=[.55, .62, .8], fog=.06, slip=False, crew=False),
+    't23':   dict(boards=True, front=0, cord=True, exp=1.25, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=False, crew=True),
+    't02':   dict(boards=True, front=88, cord=True, exp=1.25, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True, crew=True),
+    't0330': dict(boards=True, front=0, cord=True, exp=1.3, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True, crew=True),
     't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06, slip=True, crew=True),
 }
 

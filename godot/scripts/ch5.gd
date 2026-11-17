@@ -25,7 +25,7 @@ const GAPS := [
 	{"key": "g2", "at": [0.13, 6.2, 1.5], "n": [1, 0], "name": "食堂の窓", "snd": "ch3_gap2"},
 	{"key": "g3", "at": [7.4, 7.87, 1.5], "n": [0, -1], "name": "台所の窓", "snd": "ch3_gap3"},
 	{"key": "g4", "at": [9.87, 6.2, 1.55], "n": [-1, 0], "name": "換気口", "snd": "ch3_gap4"},
-	{"key": "g5", "at": [9.87, 4.88, 1.0], "n": [-1, 0], "name": "勝手口", "snd": "ch3_gap5"},
+	{"key": "g5", "at": [9.96, 5.30, 1.0], "n": [-1, 0], "name": "勝手口", "snd": "ch3_gap5"},   # 試作127: on the latch side's seam, as 第3章 puts it
 ]
 const FRONT_GAP := [5.0, 0.08, -0.1]
 const FRONT_DOOR := [5.0, 0.03, 1.0]
@@ -141,6 +141,15 @@ func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var to := p - cam.global_position
 	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
 
+var fall_mio := Vector3.INF
+# after 第4章: Mio a step back from where she stood, looking at her (once she is laid: _natsuki awaits a frame)
+func _from_fall():
+	for i in 3: await get_tree().process_frame
+	if fall_mio == Vector3.INF: return
+	player.global_position = Vector3(fall_mio.x, 0.0, fall_mio.z); player.velocity = Vector3.ZERO
+	var c := _nat_chest(); var a := [fall_mio.x + 4.8, fall_mio.z + 6.3]
+	_look_from(a, [c.x + 4.8, c.z + 6.3], 1.52, 0.2)
+
 func _place_for(st: String):
 	_hide("makoto")
 	match st:
@@ -148,6 +157,7 @@ func _place_for(st: String):
 			# a step back from where she stood: she has backed off from her (and not looked away)
 			player.global_position = gp(4.8, 3.55, 0.0)
 			_look_from([4.8, 3.55], [4.45, 2.2], 1.52, 0.2)
+			if not FPS.LAST_FALL.is_empty(): _from_fall.call_deferred()
 		"back":
 			player.global_position = gp(8.3, 5.2, 0.0)
 			_look_from([8.3, 5.2], BACK_STAND)
@@ -182,6 +192,11 @@ func _doors():
 				var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb(); bb = a if f else bb.merge(a); f = false
 			print("CH5 door_back pivot %s rest %.2f open %.2f leaf %s" % [_plan_of(s.pivot), float(s.rest), float(s.open), bb])
 		if s.key == "door_cellar" and s.is_open: dn.toggle(k)
+	# 試作127（ユーザー「一度勝手口から外に出て…家の中に戻れなくなった」）: the door stands ajar, but she never goes out (rule 1):
+	# an unseen wall in the doorway. The door's look and 「［Ｅ　外に出る］」→ the silence stay as they were (they go by where she looks)
+	var sb := StaticBody3D.new(); sb.name = "back_doorway"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
+	bx.size = Vector3(0.30, 2.2, 0.95); cs.shape = bx; sb.add_child(cs); main.add_child(sb)
+	sb.global_position = gp(10.0, 4.83, 1.1)
 	if start_at in ["peel", "end"]: get_tree().create_timer(0.8).timeout.connect(_cellar_ajar)
 
 # Makoto had only her two talk clips (main.gd TALK_CLIPS): until the house is written with her own kneel and stand, the
@@ -262,6 +277,19 @@ func _natsuki():
 	var knee_l := Vector3(0.0, 0.74 - 0.33 * cos(thk), 0.33 * sin(thk))
 	var knee_w := feet + b0 * Vector3(0.0, 0.0, 0.33 * sin(0.45)) + Vector3(0, 0.045, 0)
 	nrig.global_transform = Transform3D(rb, knee_w - rb * knee_l)
+	# 試作127（ユーザー「倒れ込む場所、倒れた場所と揃える」）: after 第4章 she lies where and as she came to rest there
+	if not FPS.LAST_FALL.is_empty():
+		var rot: Dictionary = FPS.LAST_FALL.rot
+		for nm in rot:
+			var bi := nsk.find_bone(nm)
+			if bi >= 0: nsk.set_bone_pose_rotation(bi, rot[nm])
+		nrig.global_transform = FPS.LAST_FALL.xf
+		var mio: Vector3 = FPS.LAST_FALL.mio
+		var away := Vector3(mio.x - nrig.global_position.x, 0.0, mio.z - nrig.global_position.z)
+		if away.length() > 0.01: mio += away.normalized() * 0.55   # a step back from her (as _place_for "t4")
+		fall_mio = mio
+	# 試作127（ユーザー「このめり込み、どうにかしたいな」）: nothing of her under the boards
+	nrig.global_position.y += FPS.floor_lift(nsk, 0.0)
 	for mi in nat.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).extra_cull_margin = 3.0
 	nat.visible = true
 	print("CH5 natsuki head %s chest %s rig %s" % [_nat_head(), _nat_chest(), nrig.global_position])
@@ -384,18 +412,27 @@ func _tape(gq: Dictionary):
 	bm.size = Vector3(0.34 if along_x else 0.004, 0.05, 0.004 if along_x else 0.34)
 	var off := Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	if gq.key == "g5":
-		# 0時半 it ran down the door's edge (1.6 m). Pushed from outside, it tore at the height of a hand: the top stays,
-		# the rest is torn off and hangs in, curled
-		bm.size = Vector3(0.004, 0.72, 0.05)
-		mi.mesh = bm; mi.material_override = _tape_mat(); add_child(mi)
-		mi.global_position = gq.at + off + Vector3(0, 0.29, 0)
-		var lo := MeshInstance3D.new(); var lb := BoxMesh.new(); lb.size = Vector3(0.004, 0.42, 0.05); lo.mesh = lb
-		lo.material_override = _tape_mat(); add_child(lo)
-		lo.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(-38.0)) * Basis(Vector3.UP, 0.25), gq.at + off + Vector3(-0.12, -0.27, 0.0))
-		gq.tape2 = lo
-		# the torn end: a ragged lighter strip
+		# 試作127（ユーザー「テープも手形も変。どうにかする。手形はなしでもいいんじゃない？」、B8 手形はなし、テープは作り直す）:
+		# 0時半 it ran down the seam on the latch side (第3章: on the leaf's face and on the jamb, 1.86 m). The door was pushed
+		# in from outside: the leaf's strip tore across at the height of a hand. The top stays on, its lower end ragged; the
+		# rest hangs from the jamb's strip, peeled off the leaf and curled out into the room. No hand
+		var m := _tape_mat()
+		mi.mesh = bm; bm.size = Vector3(0.003, 0.80, 0.065); mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(mi)
+		mi.global_position = gp(9.977, 5.318, 1.50)
+		for k in 4:   # the torn edge: four short tongues of different lengths
+			var tg := MeshInstance3D.new(); var tb := BoxMesh.new(); tb.size = Vector3(0.003, [0.05, 0.022, 0.07, 0.035][k], 0.016); tg.mesh = tb
+			tg.material_override = m; tg.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; mi.add_child(tg)
+			tg.position = Vector3(0, -0.40 - float(tb.size.y) * 0.5, -0.024 + 0.016 * k)
+		var jamb := MeshInstance3D.new(); var jb := BoxMesh.new(); jb.size = Vector3(0.05, 1.86, 0.003); jamb.mesh = jb
+		jamb.material_override = m; jamb.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(jamb)
+		jamb.global_position = gp(9.958, 5.348, 0.97)
+		var lo := MeshInstance3D.new(); var lb := BoxMesh.new(); lb.size = Vector3(0.003, 0.62, 0.06); lo.mesh = lb
+		lo.material_override = m; lo.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(lo)
+		# hinged at the jamb's edge 1.0 m up, turned out into the kitchen (about the vertical) and sagging
+		lo.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-55.0)) * Basis(Vector3.RIGHT, deg_to_rad(12.0)), gp(9.90, 5.33, 0.66))
+		gq.tape2 = jamb
 		gq.tape = mi
-		_hand()
+		gq["tape3"] = lo
 		return
 	mi.mesh = bm; mi.material_override = _tape_mat(); mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(mi)
@@ -479,7 +516,7 @@ func _peel(gq: Dictionary, quiet := false):
 		var p: AudioStreamPlayer3D = gq.player
 		if p.stream: p.play(randf() * 4.0)
 		if quiet: p.volume_db = -6.0
-		else: wind_in[gq.key] = 0.0; Sound.one(self, "ch3_tape", -2.0, gq.at)
+		else: wind_in[gq.key] = 0.0; Sound.one(self, "tape_rip", -3.0, gq.at)   # 試作127: peeled off (kai_audio duct-tape-rip)
 
 func _wind_tick(dt: float):
 	for k in wind_in.keys():
@@ -851,8 +888,9 @@ func _do(what: String):
 		"makoto_light":
 			# the light goes low, onto the torn tape and the hand under it, and Mio's eyes go with it (2026-11-17: the first
 			# time the light was on the door at chest height, and the hand never came into the picture)
-			torch_at = gp(BACK_DOOR[0], (BACK_DOOR[1] + HAND_AT[1]) * 0.5, 0.55)
-			_turn_to(gp(HAND_AT[0], (BACK_DOOR[1] + HAND_AT[1]) * 0.5, 0.65), 1.4)
+			# 試作127: no hand any more: the light on the torn tape (the seam, plan y 5.32) at the tear's height
+			torch_at = gp(9.95, 5.30, 1.05)
+			_turn_to(gp(9.95, 5.30, 1.05), 1.4)
 		"shake":
 			_nod(0.07, true)
 		"nod":
@@ -860,7 +898,12 @@ func _do(what: String):
 		"makoto_temple":
 			torch_at = Vector3.ZERO
 			get_tree().create_timer(1.6).timeout.connect(func(): _turn_to(_mk_face(), 1.2))
-			main.walk_to("makoto", [[MK_THINK[0], MK_THINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think"), _face(MK_THINK, [player.global_position.x + 4.8, player.global_position.z + 6.3]))
+			# 試作127（ユーザー「距離が近いのとモデルが歪む」、B8 真琴との間を 1.2m に）: MK_THINK was 0.4 m from where Mio
+			# stood. She stops 1.2 m from Mio, toward the middle of the kitchen
+			var mio := Vector2(player.global_position.x + 4.8, player.global_position.z + 6.3)
+			var mk := mio + (Vector2(7.7, 5.9) - mio).normalized() * 1.2
+			mk.x = clampf(mk.x, 6.9, 9.0); mk.y = clampf(mk.y, 4.6, 6.9)
+			main.walk_to("makoto", [[mk.x, mk.y, 0.0]], func(): main.set_stand("makoto", "talk/think"), _face([mk.x, mk.y], [mio.x, mio.y]))
 			gen_want = -30.0
 		"makoto_hand":
 			hold = true

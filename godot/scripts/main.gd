@@ -95,6 +95,8 @@ func _ready():
 		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
 		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
+		if a.begins_with("--fogk="): ARGS["fogk"] = a.substr(7)
+		if a.begins_with("--fresfog="): ARGS["fresfog"] = a.substr(10)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -140,6 +142,7 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
+	if SCENE == "house" and play in ["ch0", "h21", "ch3", "door"]: _tripod_clear.call_deferred()
 	if play in ["h21", "ch3", "ch5"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）
 	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
@@ -257,6 +260,10 @@ func _environment():
 		fog_vol.size = Vector3(h1[0] - h0[0] - 0.6, h1[2] - h0[2] - 0.2, h1[1] - h0[1] - 0.6)
 		fog_vol.position = b2g([(h0[0] + h1[0]) / 2.0, (h0[1] + h1[1]) / 2.0, (h0[2] + h1[2]) / 2.0])
 		fm.density = ST.fog
+		# 試作127 A5（ユーザー「さすがに白く飛びすぎ」「白く飛びすぎな箇所が多すぎ」20時・23時・3時半）: on the user's GPU the
+		# lamps' haze laid a white veil over whole rooms (the check renderer here draws no volumetric fog, so it never showed
+		# in our stills). The night's haze at a bit over half; the print's exposure came down too (times.py exp)
+		fm.density = ST.fog * float(ARGS.get("fogk", {"t20": 0.6, "t23": 0.55, "t02": 0.55, "t0330": 0.55}.get(TIME, 1.0)))
 	fm.albedo = Color(1, 1, 1)
 	fm.edge_fade = 0.05
 	fog_vol.material = fm
@@ -645,6 +652,11 @@ func _lights_house():
 				lights.bolt = l
 		if l == null: continue
 		l.light_volumetric_fog_energy = g.get("fog", 1.0)
+		# 試作127 A4（ユーザー「場所によって明るさが違う。後者に揃えたい」、第1章 夕方）: standing in the fresnel's beam at the
+		# stair's foot, its haze filled the whole frame and the hall went to paper (a step toward the door, out of it, it did
+		# not). At dusk the beam is in daylight: a third of the haze (3.0 → 1.0). The check renderer draws no volumetric fog, so
+		# this is seen only on a GPU (the user's machine)
+		if L.name == "fresnel_key" and TIME == "dusk": l.light_volumetric_fog_energy = float(ARGS.get("fresfog", "1.0"))
 		if g.has("spec"): l.light_specular = g.spec
 		l.set_meta("e", float(g.get("e", 0.0))); l.set_meta("flick", String(g.get("flick", "")))
 		lights[L.name] = l
@@ -1154,6 +1166,36 @@ func _shot_tick() -> float:
 	return float(k) / 24.0
 
 
+# 試作127（ユーザー「開発段階では●●章から始める的な機能もつけたい」）: F5 opens a list of the chapters; a number key starts that
+# one from its card (the same way playing reaches it). Esc or F5 again closes it. The list: CHAPTERS
+static var DEV_STATE := ""   # story.gd _state() to jump to once the chapter is up (第2章 = 第1章's "card2")
+const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
+	["第2章　21時・22時", "h21", ""], ["第2章　23時の扉", "door", ""], ["第3章　零時〜2時", "ch3", ""],
+	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第11章　再生", "ch11", ""]]
+var chap_menu: CanvasLayer = null
+func _input(e):
+	if not (e is InputEventKey and e.pressed and not e.echo): return
+	if e.keycode == KEY_F5:
+		get_viewport().set_input_as_handled()
+		if chap_menu: chap_menu.queue_free(); chap_menu = null; return
+		chap_menu = CanvasLayer.new(); chap_menu.layer = 120; add_child(chap_menu)
+		var bg := ColorRect.new(); bg.color = Color(0.06, 0.07, 0.07, 0.86); bg.set_anchors_preset(Control.PRESET_FULL_RECT); chap_menu.add_child(bg)
+		var lb := Label.new(); lb.add_theme_font_override("font", Type.say()); lb.add_theme_font_size_override("font_size", 26)
+		var t := "章を選んで始める（開発用）　数字キーで選ぶ／F5・Esc で閉じる\n\n"
+		for i in CHAPTERS.size(): t += "%d　%s\n" % [i + 1, CHAPTERS[i][0]]
+		lb.text = t; lb.position = Vector2(80, 70); chap_menu.add_child(lb)
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		return
+	if chap_menu == null: return
+	get_viewport().set_input_as_handled()
+	if e.keycode == KEY_ESCAPE: chap_menu.queue_free(); chap_menu = null; return
+	var n: int = e.keycode - KEY_1
+	if n < 0 or n >= CHAPTERS.size(): return
+	var c: Array = CHAPTERS[n]
+	DEV_STATE = c[2]
+	if c[1] == "door": to_night(true)
+	else: to_chapter(c[1])
+
 func _unhandled_input(e):
 	if e is InputEventKey and e.pressed and not e.echo:
 		match e.keycode:
@@ -1648,6 +1690,53 @@ func _ch1_set():
 		var rel := n3.global_position - axis; rel.y = 0.0
 		var rot := Basis(Vector3.UP, deg_to_rad(60.0))
 		n3.global_transform = Transform3D(rot * n3.global_basis, axis + rot * rel + Vector3(0, n3.global_position.y - axis.y, 0))
+
+# 試作127（ユーザー「直したはずの三脚のめり込みが復活している」、第3章）: the 試作125 turn of the legs was only made for 第1章
+# (the tripod stands 23 cm nearer there). Elsewhere it stands where the plans put it (stage.TRIPOD_N), and a leg went into a
+# step. The legs turn about the column to the first angle where no foot is inside the house's collision
+func _tripod_clear():
+	await get_tree().physics_frame; await get_tree().physics_frame
+	var legs: Array = []
+	var all: Array = []
+	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if nm.begins_with("tpd_") or nm.begins_with("vcam_") or nm.begins_with("lcd") or nm.begins_with("recled"): all.append(mi)
+	for mi in all:
+		if not String(mi.name).begins_with("tpd_"): continue
+		var under := false
+		var pa: Node = mi.get_parent()
+		while pa != null and pa != S.env_node:
+			if pa in all: under = true
+			pa = pa.get_parent()
+		if not under: legs.append(mi)
+	if legs.is_empty(): return
+	var axis: Vector3 = b2g([-0.45, 4.70, 0.0])
+	var keep := {}
+	for mi in legs: keep[mi] = (mi as Node3D).global_transform
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new(); var sp := SphereShape3D.new(); sp.radius = 0.015; q.shape = sp
+	for a in [0.0, 60.0, -60.0, 30.0, -30.0, 90.0, -90.0, 120.0, 180.0]:
+		var rot := Basis(Vector3.UP, deg_to_rad(a))
+		var hits := 0
+		for mi in legs:
+			var t0: Transform3D = keep[mi]
+			var rel := t0.origin - axis; rel.y = 0.0
+			(mi as Node3D).global_transform = Transform3D(rot * t0.basis, axis + rot * rel + Vector3(0, t0.origin.y - axis.y, 0))
+			# the foot: the lowest corner of the leg's box, farthest from the column
+			var bb: AABB = (mi as Node3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			if bb.size.y < 0.3: continue   # the head and clamps, not a leg
+			var best := Vector3.ZERO; var bd := -1.0
+			for i in 8:
+				var c := bb.get_endpoint(i)
+				if c.y > bb.position.y + 0.01: continue
+				var d := Vector2(c.x - axis.x, c.z - axis.z).length()
+				if d > bd: bd = d; best = c
+			q.transform = Transform3D(Basis(), best + Vector3(0, 0.03, 0))
+			hits += space.intersect_shape(q, 1).size()
+		if hits == 0:
+			print("TRIPOD legs turned %d" % int(a)); return
+	for mi in legs: (mi as Node3D).global_transform = keep[mi]
+	print("TRIPOD no clear angle")
 
 func _door_set():
 	_bring("res://assets/", ["rain", "cable"])

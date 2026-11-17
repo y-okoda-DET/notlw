@@ -186,7 +186,7 @@ func _unhandled_input(e):
 			_move_choice(-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1); return
 		if press: _advance()
 	elif stage == "lock" and mode == FREE:
-		if press and _near_door(): _lock_now()
+		if press and _near_door(): get_viewport().set_input_as_handled(); _lock_now()   # 試作127: handled, or doors.gd then swung the door open (the lock's callback was gone)
 
 # the choice waits for her; in the unattended run she says what the memory keeps her saying anyway: the first one
 func _talk_tick(dt):
@@ -217,16 +217,21 @@ func _do(what: String):
 		"natsuki_out":
 			# 2026-11-13 (ユーザー「扉開いて出るアニメーション、もう少しきれいに」): she opens it, waits for it, goes through, and it shuts
 			# behind her once she is out of sight (not while she is in the doorway)
-			out_t = 0.0; out_gone = -1.0
-			door_rest = main.door_pivot.rotation.y if main.door_pivot else 0.0
-			Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
-			get_tree().create_timer(1.0).timeout.connect(func():
-				main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false; out_gone = out_t))
+			# 試作127（ユーザー「夏希が扉を開けていると感じられる動きにしたい。いまは謎に扉が開く→夏希が振り返る→外へ出る」）:
+			# she turns from Mio to the door and steps up to it first; only then does it open, as she is at the handle
+			var at := [4.97, 0.42, 0.0]
+			main.walk_to("natsuki", [at], func():
+				out_t = 0.0; out_gone = -1.0
+				door_rest = main.door_pivot.rotation.y if main.door_pivot else 0.0
+				Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
+				get_tree().create_timer(1.0).timeout.connect(func():
+					main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false; out_gone = out_t)),
+				_face(at, [5.0, -1.0]))
 		"lock_ask":
 			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
 			main.set_meta("front_lock", _lock_now)
 		"lock":
-			Sound.one(self, "knock1", -14.0, gp(5.0, 0.0, 1.0))   # the latch (a placeholder: there is no lock sound yet)
+			Sound.one(self, "lock", -8.0, gp(5.0, 0.0, 1.0))   # 試作127: the key turned in the lock (音の取捨選択 2026-11-17: strachszydlo)
 		"to23":
 			script_q.clear(); mode = FREE; stage = "to23"
 			get_tree().create_timer(3.5).timeout.connect(func():

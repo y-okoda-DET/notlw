@@ -138,7 +138,18 @@ def door_leaf(M, ax, fixed, a, b, z0, hinge='lo', ang=0, name='door', h=DOOR_H, 
     m = mat or M['door']
     if ax == 'X': o = prim('cube', name, loc=(hx + s * w / 2, hy, z0 + h / 2), scale=(w / 2 - .01, .02, h / 2 - .01), mat=m)
     else: o = prim('cube', name, loc=(hx, hy - s * w / 2, z0 + h / 2), scale=(.02, w / 2 - .01, h / 2 - .01), mat=m)
-    lib.uv_box(o, 1.0); o.parent = piv; o.location = o.location - piv.location
+    # 試作127（ユーザー「扉の色が高さによって違う」、序章の玄関）: at 1 m a tile the texture (lighter at its top, darker at its
+    # foot: 57 → 46 of 255) wrapped part-way up the leaf, a band across it. One tile now covers the leaf's whole height, its
+    # foot at the leaf's foot (no wrap on the faces)
+    S = h + .1
+    lib.uv_box(o, S, offset=(0.0, 0.0))
+    me = o.data; uvl = me.uv_layers['UVMap']
+    side = [poly for poly in me.polygons if abs(poly.normal.z) < .5]
+    dv = -min(uvl.data[li].uv[1] for poly in side for li in poly.loop_indices) + .005
+    for poly in side:   # each face its own u from the tile's left edge; v the same for all (the grain lines up round the edge)
+        du = -min(uvl.data[li].uv[0] for li in poly.loop_indices) + .005
+        for li in poly.loop_indices: uvl.data[li].uv = (uvl.data[li].uv[0] + du, uvl.data[li].uv[1] + dv)
+    o.parent = piv; o.location = o.location - piv.location
     if knob:
         zk = max(z0, 0) + .95
         for d in (-1, 1):
@@ -234,7 +245,9 @@ def under_stair(M):
     # a hand-written note on the cellar door (hall side)
     nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機']), rough=.8, bump=0)
     # faces the lobby (plan +y, Blender -Y), where the bulb is and where you read it from (it faced into the door before)
-    return prim('plane', 'note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
+    # 試作127（ユーザー「変なところに張り紙があります」）: named 'note', it was joined into the lightmapped static mesh and
+    # stayed in the doorway when the door swung: 'cellar_note' is kept out of the join (NO_LM) and turns with the leaf
+    return prim('plane', 'cellar_note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
 
 def cellar_shaft(M):
     """Walls round the cellar stair below the 1F floor, and the barred door at its foot (bar on the basement side)."""
@@ -305,6 +318,18 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
             ax = 'X' if p0[1] == p1[1] else 'Y'
             if ax == 'X': prim('cube', 'wellrail', loc=((X(p0[0]) + X(p1[0])) / 2, Y(p0[1]), F2 + .9), scale=((p1[0] - p0[0]) / 2, .03, .025), mat=M['door'])
             else: prim('cube', 'wellrail', loc=(X(p0[0]), (Y(p0[1]) + Y(p1[1])) / 2, F2 + .9), scale=(.03, (p1[1] - p0[1]) / 2, .025), mat=M['door'])
+            # 試作127（ユーザー「ここ、手すりのところに柵がないと変。もしくは壁？」）: balusters under the rail, as on the stair
+            L = math.hypot(p1[0] - p0[0], p1[1] - p0[1]); n = max(2, int(L / .12))
+            for i in range(n + 1):
+                f = i / n; bx, by = p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f
+                big = i in (0, n)
+                prim('cube', 'wellpost' if big else 'baluster', loc=(X(bx), Y(by), F2 + .44), scale=((.04, .04, .44) if big else (.016, .016, .44)), mat=M['trim'])
+        # 試作127（ユーザー「謎の隙間がある」、階段の途中から見上げて）: between the 1F ceiling (H1) and the 2F floor (F2) the
+        # stairwell's edges were open, a dark slot round the hole. A plaster lining closes each edge
+        x0, y0, x1, y1 = STAIR
+        for (cx, cy, sx, sy) in (((x0 + x1) / 2, y0, (x1 - x0) / 2, .01), ((x0 + x1) / 2, y1, (x1 - x0) / 2, .01),
+                                 (x0, (y0 + y1) / 2, .01, (y1 - y0) / 2), (x1 - .02, (y0 + y1) / 2, .01, (y1 - y0) / 2)):
+            prim('cube', 'welllining', loc=(X(cx), Y(cy), (H1 + F2) / 2), scale=(sx, sy, (F2 - H1) / 2 + .005), mat=M['plaster'])
     if 'B1' in floors:
         x0, y0, x1, y1 = B1
         for w in [('X', y0, x0, x1, [], [], -1), ('X', y1, x0, x1, [], [], 1), ('Y', x0, y0, y1, [], [], -1), ('Y', x1, y0, y1, [], [(6.15, 6.75)], 1)]:

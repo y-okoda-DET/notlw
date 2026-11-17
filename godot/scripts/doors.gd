@@ -4,6 +4,7 @@
 ## the same small serif line at the bottom left that names what you look at in the story scenes.
 extends Node
 const Type = preload("res://scripts/type.gd")
+const Sound = preload("res://scripts/sound.gd")
 
 const REACH := 1.9
 const SWING := 0.7          # seconds
@@ -108,7 +109,10 @@ func _looked() -> MeshInstance3D:
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not hit.collider.has_meta("door"): return null
-	return hit.collider.get_meta("door")
+	# 試作127（ユーザー「扉を選択するとnullとだけ出る」、第3章の玄関）: a chapter that takes a door for itself (ch3: the front
+	# door) drops it from the list, but its body still carried the meta: E on it read a missing entry
+	var m = hit.collider.get_meta("door")
+	return m if doors.has(m) else null
 
 func _process(dt):
 	t += dt
@@ -128,6 +132,7 @@ func _unhandled_input(e):
 	toggle(d)
 
 func toggle(d: MeshInstance3D):
+	if not doors.has(d): return
 	var s: Dictionary = doors[d]
 	# 試作125: at 22:00 Taiga asks Mio to lock the front door (ch2_21.gd); E on it is her locking it
 	if s.key == "door_front" and main.has_meta("front_lock") and (main.get_meta("front_lock") as Callable).is_valid():
@@ -136,6 +141,9 @@ func toggle(d: MeshInstance3D):
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open
 	var to: float = s.open if s.is_open else s.rest
+	# 試作127（新しい音）: a wooden door opening, and shutting with its latch
+	if s.is_open: Sound.one(self, "door_open", -12.0, (d as Node3D).global_position)
+	else: get_tree().create_timer(SWING * 0.75).timeout.connect(func(): Sound.one(self, "door_close", -10.0, (d as Node3D).global_position))
 	create_tween().tween_property(s.pivot, "rotation:y", to, SWING).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	if s.pivot == main.door_pivot: main.S["door_rot"] = to
 
