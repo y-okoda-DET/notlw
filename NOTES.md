@@ -498,3 +498,5 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - snap.sh を二つ同時に回すと、どちらも $WORK/overlay を作り直して片方が壊れる（REV 付きは別のフォルダなので、前と後は並べて回せる）。
 - 真琴の声（決定事項 2026-11-17「声は最小限」）：godot/sound/voice/makoto_05_NN.wav（または .ogg）を置けば鳴る（ch5.gd VOICE5、番号は録る台詞のシート）。地下からの声は地下の階段の位置で、高い音を落とす。鳴っている間は行が先へ進まない。overlay.sh は sound/voice/ も写す。
 - 2026-11-17（試作160）：export_talk.py（会話の動き）は build.sh の **dusk** の段で回る。FAST SCENES=house では回らないので、動きを足したときは export_talk.py を手で回すか SCENES に dusk を入れる。
+
+- インタビューの聞き手のテープ（2026-11-17、8ミリ 95×62.5×15mm）：手を置く高さは people/pose.py の TT（座卓の上 0.33＋厚み 0.015＝0.345）。テープの大きさを変えたら TT と farI/near（長手の半分 0.034 前後）も合わせ、seiza・pinch・stroke を pose.py → pose2glb.py で焼き直す。ラベルは label_tex.py で 1mm＝20px（台紙 72×40mm＝1440×800）。
