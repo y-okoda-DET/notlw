@@ -232,7 +232,7 @@ def under_stair(M):
     # the cellar door's wall (plan y 5.6), full height under the landing; door leaf hung in build_house4
     wall_v4(M, ('X', 5.6, x0 - .04, 6.0 - T / 2, [(5.12, 5.93)], [], 0), 0.0, H1, SILL1, WH1)
     # a hand-written note on the cellar door (hall side)
-    nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機', '※換気注意']), rough=.8, bump=0)
+    nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機']), rough=.8, bump=0)
     # faces the lobby (plan +y, Blender -Y), where the bulb is and where you read it from (it faced into the door before)
     return prim('plane', 'note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
 

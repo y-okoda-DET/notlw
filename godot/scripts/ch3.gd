@@ -797,9 +797,11 @@ func _kiryu_comes():
 		for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
 			var nm := String(mi.name)
 			if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
-		main.walk_to("kiryu", [[4.65, 1.55, 0.0]], func():
+		# past her, down into the genkan: he stands before the door, just out of the leaf's swing (1.1 m round the
+		# hinge at x 4.45), where she sees him from the step (an arm's length beside her was out of her view)
+		main.walk_to("kiryu", [[4.45, 1.9, 0.0], [4.6, 1.3, -0.18], [5.3, 0.8, -0.18]], func():
 			talk_with = "kiryu"
-			_start(B("扉の番.二時")), _face([4.65, 1.55], SIT_AT)))
+			_start(B("扉の番.二時")), _face([5.3, 0.8], SIT_AT)))
 
 func _kiryu_tally():
 	if not main.S.has("kiryu_node"): return
@@ -820,7 +822,7 @@ func _kiryu_out():
 		Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
 		var tw := create_tween()
 		tw.tween_property(main.door_pivot, "rotation:y", door_rest + deg_to_rad(80.0), 1.0).set_trans(Tween.TRANS_SINE)
-		main.walk_to("kiryu", [[4.95, 0.6, -0.18], [5.0, -0.6, -0.21], [6.2, -1.1, -0.2]], func():
+		main.walk_to("kiryu", [[5.0, 0.4, -0.18], [5.0, -0.6, -0.21], [6.2, -1.1, -0.2]], func():
 			_hide("kiryu")
 			var tw2 := create_tween()
 			tw2.tween_property(main.door_pivot, "rotation:y", door_rest, 1.1).set_trans(Tween.TRANS_SINE)
@@ -841,6 +843,8 @@ func _lock_now():
 
 # 二時.閉めた ends in ＞next: on to 二時半
 func _next():
+	# the counted silence holds the talk: story._next goes straight on after a ＞ (it went on with the next line in the same frame, and the silence was never seen)
+	if cur.has("silence") and silence_t >= 0.0: return
 	if script_q.is_empty() and stage == "locked" and mode == TALK:
 		super._next()
 		stage = "wait"

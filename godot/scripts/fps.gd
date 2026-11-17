@@ -23,7 +23,15 @@ const REACH := 1.75                               # eye to her head: the tripod'
 const NSPEED := 0.36                              # m/s: she drags herself in
 # where she comes: [plan x, y, z, the second she goes on from there]. The last is where she stops in the canonical
 # night (the tape); played, the last is a metre short of wherever Mio stands when she sets off for it.
-const NPATH := [[5.0, -0.75, -0.21, 10.0], [5.0, 0.15, -0.18, 17.5], [4.95, 0.75, -0.18, 25.0], [4.85, 1.5, 0.0, 33.0], [4.75, 2.0, 0.0, 1e9]]
+# 2026-11-17（ユーザー「勝手口にするでオッケーです」、docs/資料/第5章の設計_2026-11-17.md）: she comes in by the back door,
+# through the kitchen and out of its door into the hall behind Mio; down the hall past her, dazed, toward the front door
+# she was shut out of at 23:00; there she turns. The tape's frame (the handrail camera, toward the genkan) and everything
+# from the turn on are as before. (Before: in at the front door, [5.0, -0.75] → [4.75, 2.0])
+const NPATH := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.85, 4.4, 0.0, 25.0], [4.95, 3.0, 0.0, 30.0], [4.85, 2.25, 0.0, 1e9]]
+# played, she comes at Mio from behind, wherever Mio stands (the last point is "a metre short of her", _npoint): she does
+# not go on past her as she did on the night itself (the tape). The memory and the tape part here
+const NPATH_GAME := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.8, 4.5, 0.0, 25.0], [4.75, 3.9, 0.0, 1e9]]
+func _np() -> Array: return NPATH if tape else NPATH_GAME
 const TAPE_TAKE := 45.6                          # on the tape, the tripod leaves its place (Mio takes it up) after the grab
 const GRAB_AT := 44.0                             # she falls against Mio and catches her sleeve (ch4.txt ＞grab; the tape: 40.0, 「ひとりじゃ、……むりだった」)
 const STRIKES := [50.0, 51.2]                     # the canonical blows (the tape: 46.0 and 47.2)
@@ -144,7 +152,7 @@ func _stage():
 	if not "--d4noblood" in OS.get_cmdline_user_args(): _blood()
 	_lookers()
 	hold = Hold.new(); nsk.add_child(hold)
-	nrig.global_transform = Transform3D(Basis(Vector3.UP, 0.0), gp(NPATH[0][0], NPATH[0][1], NPATH[0][2]))
+	nrig.global_transform = Transform3D(Basis(Vector3.UP, 0.0), gp(_np()[0][0], _np()[0][1], _np()[0][2]))
 	nat.visible = false
 	# the tripod and the camcorder on it: lifted out of the house (their vertices are in the house's own frame) onto a
 	# node at their feet, and stood by the newel
@@ -180,7 +188,10 @@ func _stage():
 	door_light.spot_range = 9.0; door_light.spot_angle = 26.0; door_light.spot_angle_attenuation = 1.4; door_light.spot_attenuation = 0.7
 	door_light.shadow_enabled = false; door_light.light_volumetric_fog_energy = 0.6; door_light.light_specular = 0.15
 	main.add_child(door_light)
-	door_light.look_at_from_position(gp(5.0, -3.2, 1.9), gp(4.85, 2.2, 0.2), Vector3.UP)
+	# the storm in the back door, seen through the kitchen and its door (open since 0:00, ch3.gd)
+	door_light.look_at_from_position(gp(11.2, 4.9, 1.9), gp(5.2, 6.3, 0.2), Vector3.UP)
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_force("door_kitchen", 0.0)
 	_night_cam4()
 	_lantern()
 	_mio_shadow()
@@ -332,8 +343,9 @@ func _drops_walk(p: Vector3, yaw: float):
 
 # check stills: the trail she would have left by the path's point j
 func _drops_upto(j: int):
-	for i in range(j):
-		var a := gp(NPATH[i][0], NPATH[i][1], NPATH[i][2]); var b := gp(NPATH[i + 1][0], NPATH[i + 1][1], NPATH[i + 1][2])
+	var P := _np()
+	for i in range(mini(j, P.size() - 1)):
+		var a := gp(P[i][0], P[i][1], P[i][2]); var b := gp(P[i + 1][0], P[i + 1][1], P[i + 1][2])
 		var n := int(a.distance_to(b) / 0.06)
 		for k in n:
 			var p := a.lerp(b, float(k) / float(n)); if k > n / 2: p.y = b.y
@@ -473,10 +485,12 @@ func _do4(what: String):
 
 # the night itself: the door, the one who comes in
 func _night(dt: float):
-	if door_t >= 0.0 and main.door_pivot:
+	if door_t >= 0.0:
+		if door_t == 0.0:
+			var dn = main.get_node_or_null("Doors")
+			if dn: dn.open_force("door_back", 4.5)   # the back door, its tape torn (ch4.txt): out of sight, in the kitchen
 		door_t += dt
 		var k := clampf(door_t / 4.5, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)
-		main.door_pivot.rotation.y = float(main.S.get("door_rot", 0.0)) + deg_to_rad(DOOR_OPEN) * k
 		door_light.light_energy = 2.2 * k
 		door_light.shadow_enabled = k > 0.01   # its shadow costs a render of the house: only once the door opens
 	if nstate == "out": return
@@ -490,8 +504,8 @@ func _night(dt: float):
 		"grab": _grab_nat(dt)
 		"stand":
 			if nwalk: nwalk = false; nap.pause()
-			if ni < NPATH.size() and clock >= float(NPATH[ni - 1][3]): nstate = "walk"
-			elif ni >= NPATH.size() and not tape and (_mio_eye() - nrig.global_position).length() > 2.1: ni = NPATH.size() - 1; nstate = "walk"   # Mio backs away: she comes on
+			if ni < _np().size() and clock >= float(_np()[ni - 1][3]): nstate = "walk"
+			elif ni >= _np().size() and not tape and (_mio_eye() - nrig.global_position).length() > 2.1: ni = _np().size() - 1; nstate = "walk"   # Mio backs away: she comes on
 			_sway(dt)
 		"walk":
 			if not nwalk:
@@ -621,8 +635,8 @@ func _sway(dt: float):
 	nrig.global_transform = Transform3D(Basis(Vector3.UP, y) * Basis(Vector3.FORWARD, 0.022 * sin(sway_t * 0.9)) * Basis(Vector3.RIGHT, 0.03 + 0.015 * sin(sway_t * 0.63 + 1.0)), p)
 
 func _npoint(i: int) -> Vector3:
-	var q: Array = NPATH[mini(i, NPATH.size() - 1)]
-	if i >= NPATH.size() - 1 and not tape:
+	var q: Array = _np()[mini(i, _np().size() - 1)]
+	if i >= _np().size() - 1 and not tape:
 		# a metre short of Mio, wherever she stands
 		var m: Vector3 = player.global_position
 		var p: Vector3 = nrig.global_position
@@ -648,7 +662,7 @@ func _look_at_things():
 	var near: bool = (at - cam.global_position).length() < 1.9 and (-cam.global_basis.z).angle_to(at - cam.global_position) < deg_to_rad(22.0)
 	note_lb.text = T("［Ｅ　三脚］") if near else ""
 	# she stands before her and Mio has taken nothing up: where the tripod is, once
-	if not told_tripod and nstate == "stand" and ni >= NPATH.size() and clock > 46.0:
+	if not told_tripod and nstate == "stand" and ni >= _np().size() and clock > 46.0:
 		told_tripod = true
 		var e: Dictionary = B("四.まだ")[0]; _say(e.who, e.text, true)
 
@@ -756,7 +770,7 @@ func _after(dt: float):
 		if rec_t > 4.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
 			left = true
 			if demo4: print("DEMO ch4 t=%.1f fails=%d" % [clock, DEMO_FAILS])
-			if main.play == "ch4": main.to_chapter("ch11")
+			if main.play == "ch4": main.to_chapter("ch5" if ResourceLoader.exists("res://scripts/ch5.gd") else "ch11")   # ステップ F: 第4章の終わり → 第5章 → 第11章
 			elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
 # ブラッシュアップ案 2026-11-13: she was never struck. The night goes black for a moment, and the testimony goes on flat,
@@ -780,7 +794,7 @@ func _quiet(dt: float):
 	if quiet_t > said + 3.0 and not left:
 		left = true
 		if demo4: print("DEMO ch4 quiet t=%.1f fails=%d" % [clock, DEMO_FAILS])
-		if main.play == "ch4": main.to_chapter("ch11")
+		if main.play == "ch4": main.to_chapter("ch5" if ResourceLoader.exists("res://scripts/ch5.gd") else "ch11")
 		elif demo4 and "--demoquit" in OS.get_cmdline_user_args(): print("DEMO DONE ch4 t=%.1f" % clock); get_tree().quit()
 
 func _unhandled_input(e):
@@ -806,10 +820,10 @@ func _jump(t: float):
 	# she is where the hour has her
 	if nstate != "out":
 		var j := 0
-		for i in range(NPATH.size() - 1):
-			if t > float(NPATH[i][3]) + 3.0: j = i + 1
+		for i in range(_np().size() - 1):
+			if t > float(_np()[i][3]) + 3.0: j = i + 1
 		ni = j + 1
-		var at := gp(NPATH[j][0], NPATH[j][1], NPATH[j][2])
+		var at := gp(_np()[j][0], _np()[j][1], _np()[j][2])
 		var m := _mio_eye() - at
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, atan2(m.x, m.z) if j >= 2 else 0.0), at)
 		_drops_upto(j)
@@ -912,7 +926,7 @@ func _grab_nat(dt: float):
 	reach.target = _sleeve()
 	reach.w = smoothstep(0.1, 0.4, g) * (1.0 - smoothstep(1.4, 2.0, g))
 	if g >= 2.3:
-		reach.w = 0.0; nstate = "stand"; ni = NPATH.size(); grab_t = -1.0
+		reach.w = 0.0; nstate = "stand"; ni = _np().size(); grab_t = -1.0
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, 0.12), p)
 
 func _grab_mio(dt: float):
