@@ -95,6 +95,7 @@ func _ready():
 		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
 		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
+		if a.begins_with("--fogk="): ARGS["fogk"] = a.substr(7)
 		if a.begins_with("--fresfog="): ARGS["fresfog"] = a.substr(10)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
@@ -259,6 +260,10 @@ func _environment():
 		fog_vol.size = Vector3(h1[0] - h0[0] - 0.6, h1[2] - h0[2] - 0.2, h1[1] - h0[1] - 0.6)
 		fog_vol.position = b2g([(h0[0] + h1[0]) / 2.0, (h0[1] + h1[1]) / 2.0, (h0[2] + h1[2]) / 2.0])
 		fm.density = ST.fog
+		# 試作127 A5（ユーザー「さすがに白く飛びすぎ」「白く飛びすぎな箇所が多すぎ」20時・23時・3時半）: on the user's GPU the
+		# lamps' haze laid a white veil over whole rooms (the check renderer here draws no volumetric fog, so it never showed
+		# in our stills). The night's haze at a bit over half; the print's exposure came down too (times.py exp)
+		fm.density = ST.fog * float(ARGS.get("fogk", {"t20": 0.6, "t23": 0.55, "t02": 0.55, "t0330": 0.55}.get(TIME, 1.0)))
 	fm.albedo = Color(1, 1, 1)
 	fm.edge_fade = 0.05
 	fog_vol.material = fm
