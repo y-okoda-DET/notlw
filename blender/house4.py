@@ -307,6 +307,18 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
             ax = 'X' if p0[1] == p1[1] else 'Y'
             if ax == 'X': prim('cube', 'wellrail', loc=((X(p0[0]) + X(p1[0])) / 2, Y(p0[1]), F2 + .9), scale=((p1[0] - p0[0]) / 2, .03, .025), mat=M['door'])
             else: prim('cube', 'wellrail', loc=(X(p0[0]), (Y(p0[1]) + Y(p1[1])) / 2, F2 + .9), scale=(.03, (p1[1] - p0[1]) / 2, .025), mat=M['door'])
+            # 試作127（ユーザー「ここ、手すりのところに柵がないと変。もしくは壁？」）: balusters under the rail, as on the stair
+            L = math.hypot(p1[0] - p0[0], p1[1] - p0[1]); n = max(2, int(L / .12))
+            for i in range(n + 1):
+                f = i / n; bx, by = p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f
+                big = i in (0, n)
+                prim('cube', 'wellpost' if big else 'baluster', loc=(X(bx), Y(by), F2 + .44), scale=((.04, .04, .44) if big else (.016, .016, .44)), mat=M['trim'])
+        # 試作127（ユーザー「謎の隙間がある」、階段の途中から見上げて）: between the 1F ceiling (H1) and the 2F floor (F2) the
+        # stairwell's edges were open, a dark slot round the hole. A plaster lining closes each edge
+        x0, y0, x1, y1 = STAIR
+        for (cx, cy, sx, sy) in (((x0 + x1) / 2, y0, (x1 - x0) / 2, .01), ((x0 + x1) / 2, y1, (x1 - x0) / 2, .01),
+                                 (x0, (y0 + y1) / 2, .01, (y1 - y0) / 2), (x1 - .02, (y0 + y1) / 2, .01, (y1 - y0) / 2)):
+            prim('cube', 'welllining', loc=(X(cx), Y(cy), (H1 + F2) / 2), scale=(sx, sy, (F2 - H1) / 2 + .005), mat=M['plaster'])
     if 'B1' in floors:
         x0, y0, x1, y1 = B1
         for w in [('X', y0, x0, x1, [], [], -1), ('X', y1, x0, x1, [], [], 1), ('Y', x0, y0, y1, [], [], -1), ('Y', x1, y0, y1, [], [(6.15, 6.75)], 1)]:

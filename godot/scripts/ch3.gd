@@ -190,7 +190,7 @@ func _place_for(st: String):
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			player.global_position = gp(4.6, 5.1, 0.0); _look_from([4.6, 5.1], [4.75, 6.1])
 		"up":
-			_hide("taiga"); _put("kiryu", [1.6, 1.2], 0.0); main.set_stand("kiryu", "talk/sit_b", 0.0)
+			_hide("taiga"); _hide("kiryu")   # 試作127 B5: he tapes the upstairs (零時半 kiryu_up)
 			_put("makoto", [4.6, 1.9], _face([4.6, 1.9], [5.0, 0.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			sealed_n = 5
 			for gq in gaps: _seal(gq, true)
@@ -242,9 +242,8 @@ func _gaps():
 	if front.stream: front.play()
 	for gd in GAPS:
 		var p := AudioStreamPlayer3D.new(); p.stream = Sound.stream(gd.snd, true); p.unit_size = 1.4; p.max_db = 0.0
-		p.volume_db = -6.0; p.attenuation_filter_cutoff_hz = 6000.0
+		p.volume_db = -60.0; p.attenuation_filter_cutoff_hz = 6000.0
 		add_child(p); p.global_position = gp(gd.at[0], gd.at[1], gd.at[2])
-		if p.stream: p.play(randf() * 4.0)
 		gaps.append({"key": gd.key, "at": gp(gd.at[0], gd.at[1], gd.at[2]), "n": gd.n, "name": gd.name, "player": p, "sealed": false, "tape": null})
 
 func _seal(gq: Dictionary, quiet := false):
@@ -303,23 +302,10 @@ func _candle_tick(dt: float):
 	if candle == null or not candle.visible: return
 	var r := _rig("makoto")
 	candle.global_position = r.global_transform * Vector3(0.12, 1.02, 0.28)
-	# the flame leans to the nearest gap that is still open (within 1.8 m), more as it is nearer, and shivers
-	var lean := Vector3.ZERO
-	var best := 99.0
-	for gq in gaps:
-		if gq.sealed: continue
-		var d: float = (gq.at as Vector3).distance_to(candle.global_position)
-		if d < best: best = d; lean = ((gq.at as Vector3) - candle.global_position)
-	var fr := FRONT_GAP
-	var dfront := gp(fr[0], fr[1], fr[2]).distance_to(candle.global_position)
-	if dfront < best: best = dfront; lean = gp(fr[0], fr[1], fr[2]) - candle.global_position
-	var k := clampf((2.0 - best) / 1.4, 0.0, 1.0)
-	lean.y = 0.0
-	var tilt := 0.9 * k + 0.05 * sin(t_now * 13.0) * (0.3 + k)
-	if lean.length() > 0.001:
-		var ax := Vector3.UP.cross(lean.normalized()).normalized()
-		flame.basis = Basis(ax, tilt) if ax.length() > 0.5 else Basis()
-	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0))
+	# 試作127（ユーザー「ろうそくの炎が傾くってのは目に見えない＆重くなる原因になるのではないかと懸念」）: no lean to the
+	# gaps any more (Makoto stands by the gap instead): the flame only shivers
+	flame.basis = Basis(Vector3.RIGHT, 0.05 * sin(t_now * 13.0))
+	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3)
 
 # ---------------------------------------------------------------- upstairs
 func _up_items():
@@ -391,7 +377,7 @@ func _process(dt):
 	_tes_tick(dt)
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.get("text", "")).length()) else ""
 	main.story_talking = (mode == TALK)
-	var free_walk := stage in ["tape", "seal", "up", "back"]
+	var free_walk := stage in ["tape", "seal", "up", "back", "t2walk", "lock"]
 	player.move_enabled = mode == FREE and free_walk
 	match stage:
 		"tape": _tape_tick()
@@ -399,6 +385,7 @@ func _process(dt):
 		"up", "back": _up_tick(dt)
 		"flow": _flow_tick(dt)
 		"lock": _lock_tick()
+		"t2walk": _t2walk_tick()
 	_watch_look()
 	if demo3: _demo_tick(dt)
 
@@ -423,8 +410,13 @@ func _begin(st: String):
 		"watch15":
 			_flow_start("扉の番.一時半", "t2card")
 		"t2":
-			_kiryu_comes()
+			# 試作127（B7、ユーザー「ここ、立ち上がった方がいいかな」）: she gets up, the blanket on her shoulders, to see the
+			# cellar door; Kiryu comes down the stair as she goes
+			stage = "t2walk"; kiryu_sent = false
+			_stand(STAND_EYE); _blanket_view(true, false)
+			_start(B("二時.地下へ"))
 		"t230":
+			_sit()
 			_flow_start("扉の番.二時半", "t3card")
 		"t3":
 			_flow_start("扉の番.三時", "end")
@@ -438,7 +430,9 @@ func _do(what: String):
 		"taiga_arm":
 			talk_with = "makoto"
 		"makoto_press":
-			main.walk_to("makoto", [[5.15, 5.85, 0.0]], Callable(), _face([5.15, 5.85], AT0.taiga))
+			# 試作127（ユーザー「カメラ位置のせいで、真琴が何をやっているかわからない」）: she stood between Mio and Taiga, her
+			# back to Mio. She goes round to his west side: from Mio's place she is seen side on, her hands on his arm
+			main.walk_to("makoto", [[4.85, 5.75, 0.0], [4.88, 6.0, 0.0]], Callable(), _face([4.88, 6.0], AT0.taiga))
 		"makoto_wipe":
 			main.set_stand("makoto", "talk/think")
 		"taiga_down":
@@ -468,6 +462,8 @@ func _do(what: String):
 				tw.tween_property(player, "yaw", y0 + 0.07, 0.16).set_trans(Tween.TRANS_SINE)
 				tw.tween_property(player, "yaw", y0 - 0.07, 0.2).set_trans(Tween.TRANS_SINE)
 			tw.tween_property(player, "yaw", y0, 0.16)
+		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the lantern up the stair, a roll of tape in his hand
+			main.walk_to("kiryu", [[1.6, 0.95, 0.0], [2.7, 0.95, 0.0], [2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
 		"kiryu_rec":
 			_kiryu_tally()
 		"kiryu_out":
@@ -539,7 +535,7 @@ func _swap_tape():
 func _near_gap() -> Dictionary:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	for gq in gaps:
-		if gq.sealed: continue
+		if gq.sealed or gq.key != _next_gap(): continue
 		var to: Vector3 = (gq.at as Vector3) - cam.global_position
 		if to.length() < 1.6 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(28.0): return gq
 	return {}
@@ -551,6 +547,13 @@ func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 
 func _seal_tick(dt: float):
 	_makoto_follow(dt)
+	# 試作127（ユーザー「虚空に向かって話している。変。直す。」）: when she speaks (or Mio does) she turns to Mio
+	if mode == TALK and not main.walking("makoto"):
+		var rig: Node3D = main._rig_of("makoto")
+		if rig and rig.visible:
+			var y1 := _face([rig.global_position.x + 4.8, rig.global_position.z + 6.3], [player.global_position.x + 4.8, player.global_position.z + 6.3])
+			var y0 := rig.global_rotation.y
+			rig.global_transform = Transform3D(Basis(Vector3.UP, y0 + wrapf(y1 - y0, -PI, PI) * minf(1.0, dt * 2.5)), rig.global_position)
 	if mode != FREE: note_lb.text = ""; return
 	var gq := _near_gap()
 	if not gq.is_empty() and _makoto_near(gq.at): note_lb.text = T(String(D.lines("目張り.案内")[0]))
@@ -559,35 +562,58 @@ func _seal_tick(dt: float):
 	else: note_lb.text = ""
 
 func _makoto_near(p: Vector3) -> bool:
-	return candle and candle.global_position.distance_to(p) < 1.9
+	return candle and mk_at != "" and mk_at == _next_gap() and candle.global_position.distance_to(p) < 2.2
 
-# she keeps a step behind Mio, and when Mio stands at a gap she brings the candle to it
-var mk_target := Vector3.ZERO
-func _makoto_follow(dt: float):
-	follow_t -= dt
-	if follow_t > 0.0 or main.walking("makoto"): return
-	follow_t = 0.5
-	var mp: Vector3 = player.global_position
-	var r := _rig("makoto")
-	var cam: Camera3D = player.get_node("Head/Camera")
-	var want := Vector3.ZERO
-	var gq := _near_gap()
-	if not gq.is_empty():
-		var at: Vector3 = gq.at; var side := Vector3(gq.n[0], 0.0, gq.n[1])
-		want = at + side * 0.55 + (mp - at).normalized().cross(Vector3.UP) * 0.35; want.y = mp.y
-	elif _looking_at(gp(FRONT_GAP[0], FRONT_GAP[1], 0.4), 2.2, 30.0):
-		want = gp(4.6, 0.75, -0.18)
-	else:
-		var back := Basis(Vector3.UP, player.yaw) * Vector3(0.45, 0, 1.1)
-		want = mp + back
-	if r.global_position.distance_to(want) < 0.5: return
-	var seen: bool = cam.is_position_in_frustum(r.global_position + Vector3(0, 1.2, 0)) and r.global_position.distance_to(cam.global_position) < 8.0
-	var wseen: bool = cam.is_position_in_frustum(want + Vector3(0, 1.2, 0))
-	var pw := [want.x + 4.8, want.z + 6.3, want.y]
-	if (not seen and not wseen) or r.global_position.distance_to(want) > 4.5:
-		if not seen and not wseen: main.place_person("makoto", [want.x, -want.z, want.y], _face([pw[0], pw[1]], [mp.x + 4.8, mp.z + 6.3]))
-		return
-	main.walk_to("makoto", [[pw[0], pw[1], pw[2]]], Callable(), _face([pw[0], pw[1]], [mp.x + 4.8, mp.z + 6.3]))
+# 試作127（ユーザー「真琴、主人公にぶつかったり、壁を通り抜けたりする」「「風の音とろうそくの炎が隙間の方へ傾く」が機能していない。
+# 真琴がどこにいるかよくわからない＆挙動不審」）: she no longer trails Mio (a straight line to a point behind her went through
+# walls, and a step behind Mio is a step into her). She goes ahead, by the ways the playthrough walks (laid on the --ch3map),
+# to the next gap in a fixed order, stands by it with the candle and waits; only that gap's wind is heard. After the fifth
+# she goes to the front door. Her spots stand off the place Mio stands to tape.
+const SEAL_ORDER_FIXED := ["g1", "g2", "g3", "g4", "g5"]
+const MK_WAY := {
+	"g1": [[4.95, 5.4], [4.8, 3.95], [4.3, 3.6], [3.6, 3.7], [2.7, 2.8], [2.7, 1.2], [1.95, 0.75]],
+	"g2": [[2.7, 1.2], [2.7, 2.8], [2.6, 3.5], [1.6, 4.6], [1.25, 5.1]],
+	"g3": [[1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [6.6, 6.8]],
+	"g4": [[7.4, 6.6], [7.9, 6.3], [8.95, 6.0]],
+	"g5": [[8.85, 4.9]],
+	"front": [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.55, 1.8]],
+}
+var mk_at := ""        # the gap (or "front") she stands at, "" while she walks
+var mk_going := ""
+
+func _next_gap() -> String:
+	for k in SEAL_ORDER_FIXED:
+		for gq in gaps:
+			if gq.key == k and not gq.sealed: return k
+	return "front"
+
+func _gap_at(k: String) -> Array:
+	for gd in GAPS:
+		if gd.key == k: return [gd.at[0], gd.at[1]]
+	return [FRONT_DOOR[0], FRONT_DOOR[1]]
+
+func _makoto_follow(_dt: float):
+	if mode != FREE or main.walking("makoto"): return
+	var k := _next_gap()
+	if mk_at == k or mk_going == k: return
+	mk_going = k; mk_at = ""
+	_wind_for(k)
+	var way: Array = MK_WAY[k]
+	var pts := []
+	for w in way: pts.append([w[0], w[1], 0.0])
+	var last: Array = way[way.size() - 1]
+	main.walk_to("makoto", pts, func(): mk_at = k; mk_going = "", _face([last[0], last[1]], _gap_at(k)))
+
+# only the gap she goes to is heard (the front's stays, under the door)
+func _wind_for(k: String):
+	for gq in gaps:
+		var p: AudioStreamPlayer3D = gq.player
+		if gq.sealed or wind_dim.has(gq.key): continue
+		if gq.key == k:
+			p.volume_db = -6.0
+			if p.stream and not p.playing: p.play(randf() * 4.0)
+		else:
+			p.volume_db = -60.0; p.stop()
 
 func _press_seal():
 	var gq := _near_gap()
@@ -595,10 +621,9 @@ func _press_seal():
 	_seal(gq)
 	sealed_n += 1
 	talk_with = "makoto"
-	var lines: Array = B("目張り.貼った")
 	var q: Array = []
 	if gq.key == "g5": q.append_array(B("目張り.勝手口"))
-	else: q.append(lines[min(sealed_n - 1, lines.size() - 1)])
+	else: q.append_array(B("目張り.貼った.%d" % mini(sealed_n, 4)))
 	if sealed_n == 3: q.append_array(B("目張り.問い"))
 	if sealed_n == 5: q.append_array(B("目張り.五つ"))
 	_start(q)
@@ -795,8 +820,14 @@ func _knock_tick():
 
 # ---------------------------------------------------------------- 二時: Kiryu
 const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0], [4.75, 2.2, 0.0]]
+var kiryu_sent := false
+func _t2walk_tick():
+	if kiryu_sent or mode != FREE: return
+	var off := Vector2(player.global_position.x + 4.8 - SIT_AT[0], player.global_position.z + 6.3 - SIT_AT[1]).length()
+	if off > 0.9 or t_stage > 20.0: kiryu_sent = true; _kiryu_comes()
+
 func _kiryu_comes():
-	stage = "t2"
+	stage = "t2walk"
 	_put("kiryu", [5.0, 6.6], PI, F2)
 	main.set_stand("kiryu", "talk/idle", 0.0)
 	main.walk_to("kiryu", KIRYU_DOWN, func():
@@ -804,11 +835,16 @@ func _kiryu_comes():
 		for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
 			var nm := String(mi.name)
 			if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
-		# past her, down into the genkan: he stands before the door, just out of the leaf's swing (1.1 m round the
-		# hinge at x 4.45), where she sees him from the step (an arm's length beside her was out of her view)
-		main.walk_to("kiryu", [[4.45, 1.9, 0.0], [4.6, 1.3, -0.18], [5.3, 0.8, -0.18]], func():
-			talk_with = "kiryu"
-			_start(B("扉の番.二時")), _face([5.3, 0.8], SIT_AT)))
+		# he turns to her where she is (the hall, on her way to the cellar door) and she to him
+		var me := [4.75, 2.2]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
+		var k := _rig("kiryu"); k.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), k.global_position)
+		var to: Vector3 = (k.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
+		var tw := create_tween(); tw.set_parallel(true)
+		tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.8).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.8).set_trans(Tween.TRANS_SINE)
+		_set_mission("")
+		talk_with = "kiryu"; stage = "t2"
+		_start(B("扉の番.二時")))
 
 func _kiryu_tally():
 	if not main.S.has("kiryu_node"): return
@@ -952,7 +988,9 @@ func _demo_script():
 	steps.append(["wait_stage", "flow"])
 	for k in ["door", "gen", "car", "cellar"]: steps.append(["hear", k])
 	steps.append(["wait_card", "watch15"]); steps.append(["hear", "cough"]); steps.append(["hear", "steps"])
-	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"]); steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2])]); steps.append(["press"])
+	steps.append(["wait_stage", "t2walk"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [4.7, 3.3]]])
+	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [5.0, 1.3]]])
+	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2])]); steps.append(["press"])
 	steps.append(["wait_stage", "flow"]); steps.append(["hear", "knock"])
 	steps.append(["wait_card", "t3"]); steps.append(["hear", "back"])
 	return steps
@@ -960,7 +998,7 @@ func _demo_script():
 func _demo_tick(dt):
 	if demo_steps.is_empty():
 		demo_steps = _demo_script(); ds = 0
-		var mark: Array = {"seal": ["wait_stage", "seal"], "up": ["wait_stage", "up"], "watch": ["wait_stage", "flow"], "t2": ["wait_stage", "lock"]}.get(start_at, [])
+		var mark: Array = {"seal": ["wait_stage", "seal"], "up": ["wait_stage", "up"], "watch": ["wait_stage", "flow"], "t2": ["wait_stage", "t2walk"]}.get(start_at, [])
 		if not mark.is_empty():
 			while ds < demo_steps.size() and not (demo_steps[ds][0] == mark[0] and demo_steps[ds][1] == mark[1]): ds += 1
 	if ds >= demo_steps.size() or card_t > 0.0: return

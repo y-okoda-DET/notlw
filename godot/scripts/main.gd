@@ -140,6 +140,7 @@ func _ready():
 	if ch2_house: _t20_people()
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
+	if SCENE == "house" and play in ["ch0", "h21", "ch3", "door"]: _tripod_clear.call_deferred()
 	if play in ["h21", "ch3", "ch5"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）
 	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
@@ -1678,6 +1679,53 @@ func _ch1_set():
 		var rel := n3.global_position - axis; rel.y = 0.0
 		var rot := Basis(Vector3.UP, deg_to_rad(60.0))
 		n3.global_transform = Transform3D(rot * n3.global_basis, axis + rot * rel + Vector3(0, n3.global_position.y - axis.y, 0))
+
+# 試作127（ユーザー「直したはずの三脚のめり込みが復活している」、第3章）: the 試作125 turn of the legs was only made for 第1章
+# (the tripod stands 23 cm nearer there). Elsewhere it stands where the plans put it (stage.TRIPOD_N), and a leg went into a
+# step. The legs turn about the column to the first angle where no foot is inside the house's collision
+func _tripod_clear():
+	await get_tree().physics_frame; await get_tree().physics_frame
+	var legs: Array = []
+	var all: Array = []
+	for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if nm.begins_with("tpd_") or nm.begins_with("vcam_") or nm.begins_with("lcd") or nm.begins_with("recled"): all.append(mi)
+	for mi in all:
+		if not String(mi.name).begins_with("tpd_"): continue
+		var under := false
+		var pa: Node = mi.get_parent()
+		while pa != null and pa != S.env_node:
+			if pa in all: under = true
+			pa = pa.get_parent()
+		if not under: legs.append(mi)
+	if legs.is_empty(): return
+	var axis: Vector3 = b2g([-0.45, 4.70, 0.0])
+	var keep := {}
+	for mi in legs: keep[mi] = (mi as Node3D).global_transform
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new(); var sp := SphereShape3D.new(); sp.radius = 0.015; q.shape = sp
+	for a in [0.0, 60.0, -60.0, 30.0, -30.0, 90.0, -90.0, 120.0, 180.0]:
+		var rot := Basis(Vector3.UP, deg_to_rad(a))
+		var hits := 0
+		for mi in legs:
+			var t0: Transform3D = keep[mi]
+			var rel := t0.origin - axis; rel.y = 0.0
+			(mi as Node3D).global_transform = Transform3D(rot * t0.basis, axis + rot * rel + Vector3(0, t0.origin.y - axis.y, 0))
+			# the foot: the lowest corner of the leg's box, farthest from the column
+			var bb: AABB = (mi as Node3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			if bb.size.y < 0.3: continue   # the head and clamps, not a leg
+			var best := Vector3.ZERO; var bd := -1.0
+			for i in 8:
+				var c := bb.get_endpoint(i)
+				if c.y > bb.position.y + 0.01: continue
+				var d := Vector2(c.x - axis.x, c.z - axis.z).length()
+				if d > bd: bd = d; best = c
+			q.transform = Transform3D(Basis(), best + Vector3(0, 0.03, 0))
+			hits += space.intersect_shape(q, 1).size()
+		if hits == 0:
+			print("TRIPOD legs turned %d" % int(a)); return
+	for mi in legs: (mi as Node3D).global_transform = keep[mi]
+	print("TRIPOD no clear angle")
 
 func _door_set():
 	_bring("res://assets/", ["rain", "cable"])

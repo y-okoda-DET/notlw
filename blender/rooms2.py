@@ -42,7 +42,9 @@ def mats(M):
     M['foam'] = mat_basic('foam', (.12, .12, .12), .95)
     M['bathtile'] = mat_image('bathtile', tex_path('tile'), rough=.3, coords='UV', bump=.05, tint=(.85, .9, .9))
     M['enamel'] = mat_basic('enamel', (.82, .83, .82), .15)
-    M['mirror'] = mat_basic('mirror', (.7, .72, .74), .03, metal=1)
+    # 試作127（ユーザー「鏡、ここどうしよう。自分の姿、写していい？」、B3 映さない）: a mirror misted over from the bath (the
+    # tub was run for the water cut): no image in it, a dull grey sheen. Mio's body and face are never on the screen
+    M['mirror'] = mat_basic('mirror', (.60, .63, .64), .55, metal=.25)
     M['towel'] = mat_basic('towel', (.6, .7, .72), .95)
     M['genred'] = mat_basic('genred', (.55, .08, .04), .45)
     M['genyel'] = mat_basic('genyel', (.75, .52, .05), .45)
@@ -422,10 +424,12 @@ def upstairs(M):
     box('wash_basin', 6.1, 4.9, 6.65, 5.7, z, z + .82, M['cabinet'], col=True)
     box('wash_top', 6.08, 4.88, 6.68, 5.72, z + .82, z + .86, M['enamel'])
     box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
-    box('wash_machine', 6.1, 7.2, 6.7, 7.85, z, z + .85, M['fridge'], col=True)
-    cyl('wash_machine_lid', 6.4, 7.52, z + .85, z + .86, .22, M['plastic'], 20)
+    # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
+    # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
+    box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
+    cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
     for i in range(3):
-        box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.0, z + 1.45, M['towel'])
+        box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
 
     # the landing: the runner; the crew's water and their rubbish by the bathroom door
     box('landing_runner', 4.12, 5.7, 5.9, 7.9, z, z + .008, M['rug'], 1.0)
