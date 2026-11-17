@@ -485,3 +485,13 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 人に別の人の会話の動き（talk/*.res）を借りるとき、トラックの道筋が元の人の骨の名前（taiga_rig/Skeleton3D:…）なので、そのままでは何も動かない。借りる人の道筋（makoto_rig/Skeleton3D）に書き換える（ch5.gd _borrow_clips）。
 - story.gd の _next は ＞ のあとすぐ次の行へ進むので、数える沈黙（cur = {"silence"}）は同じコマで次の行に上書きされていた（第3章の0時の沈黙が出ていなかった）。章のスクリプトの _next で、沈黙のあいだは戻るようにした（ch3.gd・ch5.gd）。
 - 3時半の廊下の真ん中（4.7, 3.4）には第1章のフレネルのスタンドが立っている。第5章ではそれを隠した（第4章で倒れた、という扱い）。地下の扉（上の階の扉）を開けきると台所への通り道をふさぐので、少しだけ開ける（ch5.gd _cellar_ajar）。
+
+## 第5章の仕上げ（試作150、2026-11-17。ch5.gd）
+- 勝手口（door_back）は**外開き**で、蝶番は y 4.40（南）、開口は y 4.40〜5.25、壁の内側の面は x 9.87。蝶番側の縁は扉の陰と抱き（13cm の奥行き）にかかり、そこに置いた手形は光に沿った面に伸びて黒い筋になっていた。手形は錠の側（y 5.42、高さ 0.45）の壁に置いた。
+- 夜の刷り（riso2 coverage_night）では、暗い面は色に関係なく青になる。真琴の懐中電灯は 1m の近さでは壁を紙まで白く飛ばし、暗い赤（0.26）の手形も一緒に紙になった。手形はほぼ黒（0.06）で隙間を少なく塗りつぶし、懐中電灯は近いほど弱める（ch5.gd _torch、距離 1.6m で元の強さ、最小 0.3）。こうして青い手の形が白い抱きに出る。刷りなしで見えても、刷りでは消えることがある。必ず刷りありで撮る。
+- 毛布：夏希の体（スキンの頂点を骨の姿勢で動かした位置）から 3cm 刻みの高さの表を作り、布が落ちる傾きで床まで下ろした形（_nat_heights、_blanket_mesh）。SurfaceTool.generate_normals では法線が付かず真っ黒になったので、法線は高さの差から自分で付ける。寝室の毛布の材質（bed1b_blanket）は家の一枚の絵（アトラス）なので、この網目の UV では木目になる。格子柄の絵を実行時に作って使う（_plaid）。
+- --ch5at=peel／end では _place_for が夏希を寝かせる前に毛布を作っていた（_natsuki に await がある）。nat_ready を待つ。
+- 真琴の片ひざ：Mixamo の Kneel（10.8秒）を export_talk.py で二つに切った（kneel＝1.7〜6.2秒、繰り返さず最後の形で止める。kneel_up＝6.2〜8.0秒）。Kneel は腰が 0.2m 前に出るので、一歩手前で止まる。main.gd TALK_CLIPS の真琴は think・talk_c・idle・kneel・kneel_up の5本（1人5本まで）。書き出し前の試しは `WHO=makoto CLIPS=think,talk_c,idle,kneel,kneel_up python3 blender/export_talk.py` で真琴の talk.glb だけを作り、$WORK/overlay/assets/dusk/ に置いて .res にする。
+- 同じコマに _turn_to が二つ来ると先の方が勝っていた（tween が二つ）。_turn_to は前の tween を止める。
+- snap.sh を二つ同時に回すと、どちらも $WORK/overlay を作り直して片方が壊れる（REV 付きは別のフォルダなので、前と後は並べて回せる）。
+- 真琴の声（決定事項 2026-11-17「声は最小限」）：godot/sound/voice/makoto_05_NN.wav（または .ogg）を置けば鳴る（ch5.gd VOICE5、番号は録る台詞のシート）。地下からの声は地下の階段の位置で、高い音を落とす。鳴っている間は行が先へ進まない。overlay.sh は sound/voice/ も写す。
