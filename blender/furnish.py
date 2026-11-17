@@ -3,7 +3,7 @@
 room (the big table) and the kitchen (counters, sink, fridge, the curry things bought on the way).
 Plan coordinates (house4: x east, y back), the same as F1_WALLS; every room face stands .06 in from its wall line.
 furnish(M) builds it all and returns collider boxes in the form house4.colliders() gives."""
-import math
+import math, os
 import bpy
 import lib, house4 as H4
 from lib import prim, mat_basic, mat_image, tex_path
@@ -127,6 +127,16 @@ def living(M):
     lib.tube('cable_proj', [(X(1.98), Y(1.88), .43), (X(2.15), Y(2.0), .41), (X(2.3), Y(2.3), .3), (X(2.45), Y(2.6), .015), (X(3.0), Y(2.95), .015)],
              [.005] * 5, M['plastic'], seg=6, sub=4)
     box('furn_remote', 2.0, 1.4, 2.05, 1.56, .4, .418, M['plastic'])
+    # 2026-11-17（決定事項「テープは8ミリビデオ」、企画書「居間の空の箱」）: the empty paper box of a small cassette
+    # (100 × 68 × 20 mm) by the projector, 夏希's 「上映用」 on it in her red pen: the same label as the tape the interviewer brings
+    # (blender/interview/tex/tape_label.png). Not baked (export_godot NO_LM 'tapebox'): smaller than a lightmap texel.
+    bx, by, bz = 2.12, 2.18, .40
+    tb = box('tapebox', bx, by, bx + .068, by + .100, bz, bz + .020, M['plastic'])
+    tb.rotation_euler.z = math.radians(-14)
+    lbl = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'interview', 'tex', 'tape_label.png')
+    if os.path.exists(lbl):
+        lm = mat_image('tapebox_label', lbl, rough=.8, bump=0.0)
+        o = prim('plane', 'tapebox_label', loc=(X(bx + .034), Y(by + .050), bz + .0205), rot=(0, 0, math.radians(-14) + math.pi / 2), scale=(.036, .020, 1), mat=lm)
     # sofa: three-seater facing west (the screen)
     # 2026-11-15（ユーザー「ソファがカクカクしすぎ。もう少しリアルにしたい」）: upholstered, not boxes: a rounded base on short
     # tapered legs, three filled seat cushions, three back cushions leaning back, rolled arms. And 20 cm further back

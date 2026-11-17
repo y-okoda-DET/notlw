@@ -111,6 +111,10 @@ func _room():
 		main.add_child(v); v.scale = Vector3(0.44, 0.68, 0.44); v.global_position = ROOM + Vector3(0, 0.15, -0.06)
 		for g in v.find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		deck.visible = false; slot.visible = false
+		# 2026-11-17（決定事項「テープは8ミリビデオ」）: the deck takes the small cassette (95 mm wide). Its own mouth is a full-size one
+		# (x -0.194..-0.022 here); two dark plates close it in from both sides to an 11 cm mouth, the flap left as it is in the middle.
+		for e in [[-0.1785, 0.031], [-0.0375, 0.031]]:
+			_box(Vector3(e[0], 0.212, 0.102), Vector3(e[1], 0.046, 0.004), Color(0.13, 0.13, 0.14), 0.55)
 	# its keys: 録画 and 取り出し at the right, each a key with its name printed over it
 	for k in [[0.085, "録画", Color(0.55, 0.12, 0.08)], [0.150, "取り出し", Color(0.30, 0.30, 0.31)]]:
 		_box(Vector3(k[0], 0.178, 0.112), Vector3(0.042, 0.016, 0.006), k[2], 0.5)
@@ -132,7 +136,7 @@ func _room():
 	_tvbox(tv + Vector3(0, -0.02, -0.02), Vector3(0.60, 0.50, 0.44), Color(0.20, 0.20, 0.21), 0.6)
 	_tvbox(tv + Vector3(0, 0.0, 0.196), Vector3(0.50, 0.385, 0.012), Color(0.05, 0.05, 0.055), 0.4)    # the mask round the glass
 	# the tape's case on the floor, its label to her
-	_box(Vector3(0.52, 0.012, 0.42), Vector3(0.075, 0.024, 0.105), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5
+	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen
 	glow = OmniLight3D.new(); glow.light_color = Color(0.72, 0.82, 1.0); glow.light_energy = 0.05
 	glow.omni_range = 3.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = true; glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.2; glow.light_cull_mask = 1
