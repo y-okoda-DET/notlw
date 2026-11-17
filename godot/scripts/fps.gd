@@ -67,6 +67,7 @@ var head_hits := 0
 var hud: Hud
 var hud_on := false
 var after_t := -1.0            # seconds since she went down
+static var LAST_FALL := {}     # where and how she lies at the end (第5章 starts from it)
 var after_said := 0
 var rec_t := -1.0
 var quiet_t := -1.0            # seconds since the night went black without a blow
@@ -569,6 +570,9 @@ func _night(dt: float):
 			var org_a := feet - Vector3(0, hip, 0)                                                         # on her feet
 			var org_b := knee_w - rb * knee_l                                                             # on her knees
 			nrig.global_transform = Transform3D(rb, org_a.lerp(org_b, smoothstep(0.30, 0.42, fall_t)))
+			# 試作127（ユーザー「このめり込み、どうにかしたいな」）: lying, her head and chest went into the boards. Whatever
+			# the pose, nothing of her goes under the floor (each bone kept its flesh's depth above it)
+			nrig.global_position.y += floor_lift(nsk, nbase.origin.y)
 
 # Her left hand, held to the wound all the way in: in the dark of the hall it is the first thing that says she is hurt.
 # Over the walk's clip, as a modifier (the clip's own arm comes back when w is 0).
@@ -763,11 +767,18 @@ func _after(dt: float):
 	if after_t < 0.0: return
 	after_t += dt
 	# 2026-11-13 夜（カメラは2台）: she says nothing and films nothing. The HUD is gone; silence, then black, then the tape (第11章)
-	if after_t > 6.0 and rec_t < 0.0: rec_t = 0.0
+	# 試作127（ユーザー「何をしたらいいのかわからなかった。何もしなくてよかったのね。カードの表示まで時間がかかりすぎ」）:
+	# 6 s of nothing to do, then 4 s to black. Now 2.5 s (she has come to rest), then 2 s to black
+	if after_t > 2.5 and rec_t < 0.0:
+		rec_t = 0.0
+		# 試作127（ユーザー「倒れ込む場所、倒れた場所と揃える」）: 第5章 lays her where she came to rest here, as she lies
+		var rot := {}
+		for i in nsk.get_bone_count(): rot[nsk.get_bone_name(i)] = nsk.get_bone_pose_rotation(i)
+		LAST_FALL = {"xf": nrig.global_transform, "rot": rot, "mio": player.global_position}
 	if rec_t >= 0.0:
 		rec_t += dt
-		black.color.a = clampf(rec_t / 2.5, 0.0, 1.0)
-		if rec_t > 4.0 and not left:      # the recording has gone to black: months later, the tape (第11章)
+		black.color.a = clampf(rec_t / 1.6, 0.0, 1.0)
+		if rec_t > 2.2 and not left:      # the recording has gone to black: months later, the tape (第11章)
 			left = true
 			if demo4: print("DEMO ch4 t=%.1f fails=%d" % [clock, DEMO_FAILS])
 			if main.play == "ch4": main.to_chapter("ch5" if ResourceLoader.exists("res://scripts/ch5.gd") else "ch11")   # ステップ F: 第4章の終わり → 第5章 → 第11章
@@ -999,3 +1010,17 @@ class Reach extends SkeletonModifier3D:
 		var g2 := sk.get_bone_global_pose(la)
 		var q2 := Quaternion((sk.get_bone_global_pose(ha).origin - g2.origin).normalized(), (sp + n * d - g2.origin).normalized())
 		sk.set_bone_global_pose(la, Transform3D(Basis(Quaternion().slerp(q2, w)) * g2.basis, g2.origin))
+
+# how far to lift a body lying on the floor at height fy so that no part of it is under the boards: each bone's joint
+# kept at least its flesh's depth above them (head, chest and hips are thick; hands and feet thin)
+const FLESH := {"head": 0.10, "neck_01": 0.08, "spine_03": 0.12, "spine_02": 0.11, "spine_01": 0.10, "pelvis": 0.10,
+	"upperarm_l": 0.05, "upperarm_r": 0.05, "lowerarm_l": 0.04, "lowerarm_r": 0.04, "hand_l": 0.025, "hand_r": 0.025,
+	"thigh_l": 0.07, "thigh_r": 0.07, "calf_l": 0.05, "calf_r": 0.05, "foot_l": 0.04, "foot_r": 0.04}
+static func floor_lift(sk: Skeleton3D, fy: float) -> float:
+	var lift := 0.0
+	for nm in FLESH:
+		var bi := sk.find_bone(nm)
+		if bi < 0: continue
+		var y: float = (sk.global_transform * sk.get_bone_global_pose(bi).origin).y
+		lift = maxf(lift, fy + float(FLESH[nm]) - y)
+	return lift

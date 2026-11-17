@@ -141,6 +141,15 @@ func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var to := p - cam.global_position
 	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
 
+var fall_mio := Vector3.INF
+# after 第4章: Mio a step back from where she stood, looking at her (once she is laid: _natsuki awaits a frame)
+func _from_fall():
+	for i in 3: await get_tree().process_frame
+	if fall_mio == Vector3.INF: return
+	player.global_position = Vector3(fall_mio.x, 0.0, fall_mio.z); player.velocity = Vector3.ZERO
+	var c := _nat_chest(); var a := [fall_mio.x + 4.8, fall_mio.z + 6.3]
+	_look_from(a, [c.x + 4.8, c.z + 6.3], 1.52, 0.2)
+
 func _place_for(st: String):
 	_hide("makoto")
 	match st:
@@ -148,6 +157,7 @@ func _place_for(st: String):
 			# a step back from where she stood: she has backed off from her (and not looked away)
 			player.global_position = gp(4.8, 3.55, 0.0)
 			_look_from([4.8, 3.55], [4.45, 2.2], 1.52, 0.2)
+			if not FPS.LAST_FALL.is_empty(): _from_fall.call_deferred()
 		"back":
 			player.global_position = gp(8.3, 5.2, 0.0)
 			_look_from([8.3, 5.2], BACK_STAND)
@@ -267,6 +277,19 @@ func _natsuki():
 	var knee_l := Vector3(0.0, 0.74 - 0.33 * cos(thk), 0.33 * sin(thk))
 	var knee_w := feet + b0 * Vector3(0.0, 0.0, 0.33 * sin(0.45)) + Vector3(0, 0.045, 0)
 	nrig.global_transform = Transform3D(rb, knee_w - rb * knee_l)
+	# 試作127（ユーザー「倒れ込む場所、倒れた場所と揃える」）: after 第4章 she lies where and as she came to rest there
+	if not FPS.LAST_FALL.is_empty():
+		var rot: Dictionary = FPS.LAST_FALL.rot
+		for nm in rot:
+			var bi := nsk.find_bone(nm)
+			if bi >= 0: nsk.set_bone_pose_rotation(bi, rot[nm])
+		nrig.global_transform = FPS.LAST_FALL.xf
+		var mio: Vector3 = FPS.LAST_FALL.mio
+		var away := Vector3(mio.x - nrig.global_position.x, 0.0, mio.z - nrig.global_position.z)
+		if away.length() > 0.01: mio += away.normalized() * 0.55   # a step back from her (as _place_for "t4")
+		fall_mio = mio
+	# 試作127（ユーザー「このめり込み、どうにかしたいな」）: nothing of her under the boards
+	nrig.global_position.y += FPS.floor_lift(nsk, 0.0)
 	for mi in nat.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).extra_cull_margin = 3.0
 	nat.visible = true
 	print("CH5 natsuki head %s chest %s rig %s" % [_nat_head(), _nat_chest(), nrig.global_position])
