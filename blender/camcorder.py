@@ -54,25 +54,34 @@ def body_tex():
     im = _wear(im, 22, grime_bottom=False, scratches=40)
     p = f'{W}/cam_body.png'; im.save(p); return p
 
-def side_tex():
+def side_tex(L=.15, H=.07, small=False):
     """the right side, over the grip: the zoom rocker's print, PHOTO, the tape door's seam and its EJECT slide.
-    (u along the body from back to front, v up)"""
-    w, h = int(.15 * PX), int(.06 * PX)
-    im = Image.new('RGB', (w, h), (44, 44, 46)); d = ImageDraw.Draw(im)
+    (u along the body from back to front, v up). 2026-11-17（決定事項「テープは8ミリビデオ」）: the cassette (95 × 62.5 mm) goes
+    in by this door, so the seam is drawn a little bigger than it: 100 × 65 mm on the big one; on the small one the door is the whole
+    side (as on the palm-sized ones), its seam just inside the plate's edge."""
+    w, h = int(L * PX), int(H * PX)
+    im = Image.new('RGB', (w, h), (150, 150, 147) if small else (44, 44, 46)); d = ImageDraw.Draw(im)
     f = ImageFont.truetype(FONT_SANS, 34); fs = ImageFont.truetype(FONT_SANS, 26)
-    ink = (196, 196, 190)
-    # the tape door: a seam all round, the slide at its back end
-    d.rounded_rectangle([60, 120, w - 160, h - 40], radius=30, outline=(14, 14, 15), width=6)
-    d.text((80, h - 70), '▲ OPEN/EJECT', fill=ink, font=fs, anchor='lm')
-    d.rectangle([66, h - 112, 150, h - 92], fill=(20, 20, 22))
-    # zoom rocker at the top front: W | T
-    d.rounded_rectangle([w - 300, 22, w - 120, 92], radius=34, fill=(70, 70, 72), outline=(14, 14, 15), width=4)
-    d.text((w - 270, 57), 'W', fill=ink, font=f, anchor='mm'); d.text((w - 150, 57), 'T', fill=ink, font=f, anchor='mm')
-    d.text((w - 210, 112), 'ZOOM', fill=ink, font=fs, anchor='mm')
-    d.ellipse([w - 420, 30, w - 350, 100], fill=(70, 70, 72), outline=(14, 14, 15), width=4)
-    d.text((w - 385, 120), 'PHOTO', fill=ink, font=fs, anchor='mm')
+    ink = (40, 40, 42) if small else (196, 196, 190)
+    if small:   # silver like the body: the door is a cut in the side, not a plate on it
+        d.rounded_rectangle([6, 6, w - 6, h - 6], radius=40, outline=(30, 30, 32), width=7)
+        x0, y1 = 12, h - 12
+    else:
+        dw, dh = int(.100 * PX), int(.065 * PX)
+        x0, y1 = 24, h - 14
+        d.rounded_rectangle([x0, y1 - dh, x0 + dw, y1], radius=30, outline=(14, 14, 15), width=6)
+    # the slide at the door's back end, low
+    d.text((x0 + 20, y1 - 30), '▲ OPEN/EJECT', fill=ink, font=fs, anchor='lm')
+    d.rectangle([x0 + 6, y1 - 72, x0 + 90, y1 - 52], fill=(20, 20, 22))
+    if not small:
+        # zoom rocker at the top front, PHOTO under it: in the strip in front of the door
+        d.rounded_rectangle([w - 215, 22, w - 35, 92], radius=34, fill=(70, 70, 72), outline=(14, 14, 15), width=4)
+        d.text((w - 185, 57), 'W', fill=ink, font=f, anchor='mm'); d.text((w - 65, 57), 'T', fill=ink, font=f, anchor='mm')
+        d.text((w - 125, 112), 'ZOOM', fill=ink, font=fs, anchor='mm')
+        d.ellipse([w - 160, 160, w - 90, 230], fill=(70, 70, 72), outline=(14, 14, 15), width=4)
+        d.text((w - 125, 250), 'PHOTO', fill=ink, font=fs, anchor='mm')
     im = _wear(im, 31, polish=(.8, .3, .1))
-    p = f'{W}/cam_side.png'; im.save(p); return p
+    p = f'{W}/{"mini" if small else "cam"}_side.png'; im.save(p); return p
 
 def back_tex():
     """the back above the battery: the START/STOP button's red ring, the power switch's print
@@ -260,7 +269,7 @@ def build(M, loc, yaw, head_z):
     sb = st.modifiers.new('bv', 'BEVEL'); sb.width = .002; sb.segments = 2
     # ---- the printed side plate (right), the back panel, START/STOP raised on it
     xs = BWd / 2 + .0085   # out on the grip's swell
-    plate('vcam_side', [(xs + .002, -.085, zc - .036), (xs + .002, .065, zc - .036), (xs, .065, zc + .024), (xs, -.085, zc + .024)], mat('vcam_sideprint', (1, 1, 1), .45, img=T['side']))
+    plate('vcam_side', [(xs + .002, -.085, zc - .040), (xs + .002, .065, zc - .040), (xs, .065, zc + .030), (xs, -.085, zc + .030)], mat('vcam_sideprint', (1, 1, 1), .45, img=T['side']))
     yb = -BL / 2 - .0102
     plate('vcam_back', [(-.033, yb, zc + .013), (.033, yb, zc + .013), (.033, yb, zc + .04), (-.033, yb, zc + .04)], mat('vcam_backprint', (1, 1, 1), .45, img=T['back']))
     tube('vcam_startstop', (-.014, yb, zc + .026), (-.014, yb - .0035, zc + .026), .0062, rub, 20)
@@ -370,7 +379,7 @@ def build_small():
     import bpy, bmesh
     from mathutils import Vector, Matrix
     os.makedirs(W, exist_ok=True)
-    T = dict(body=small_body_tex(), side=side_tex(), back=back_tex(), lens=lens_tex(), tape=small_tape_tex())
+    T = dict(body=small_body_tex(), side=side_tex(.101, .062, small=True), back=back_tex(), lens=lens_tex(), tape=small_tape_tex())
     bpy.ops.wm.read_factory_settings(use_empty=True)
     M = {}
     def mat(name, col, rough=.5, metal=0., img=None, spec=.5):
@@ -461,7 +470,7 @@ def build_small():
     rbox('mini_hinge', (-SW / 2 - .002, .032, .004), (.006, .008, .02), blk, .002)
     # the grip side: the black printed panel, the strap over it
     xs = SW / 2 + .0062
-    plate('mini_side', [(xs + .001, -.05, -.026), (xs + .001, .042, -.026), (xs, .042, .012), (xs, -.05, .012)], mat('mini_sideprint', (1, 1, 1), .45, img=T['side']))
+    plate('mini_side', [(xs - .0005, -.056, -.031), (xs - .0005, .044, -.025), (xs - .0005, .044, .026), (xs - .0005, -.056, .031)], mat('mini_sideprint', (1, 1, 1), .45, img=T['side']))
     bm = bmesh.new(); pts = [(-.055, 0), (-.035, .01), (0, .013), (.025, .011), (.042, 0)]
     vv = [(bm.verts.new((xs + .001 + o, y - .004, -.018)), bm.verts.new((xs + .001 + o, y - .004, .006))) for (y, o) in pts]
     for k in range(len(vv) - 1): bm.faces.new([vv[k][0], vv[k + 1][0], vv[k + 1][1], vv[k][1]])

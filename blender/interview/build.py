@@ -327,9 +327,9 @@ def build_props(M):
         o = box(name, (-size[0] / 2, size[0] / 2), (-size[1] / 2, size[1] / 2), (0, size[2]), m, bevel=0.002, coll=coll)
         o.location = (c[0], c[1], z0); o.rotation_euler = (0, 0, math.radians(ang)); return o
     x, y, a = P['tape']
-    # MiniDV のテープ（66×48×12mm、ユーザー 2026-11-15「本編のカメラは小さいから mini dv サイズに」）
-    rot_box('tape', (x, y), (0.066, 0.048, 0.012), top, a, M['tape'])
-    lab = rot_box('tape_label', (x, y), (0.048, 0.026, 0.0008), top + 0.012, a, M['label'])
+    # 8ミリビデオのカセット（95×62.5×15mm。ユーザー 2026-11-17「8mmにしよう」。作品の中のテープはすべてこの形）。ラベルは上の面
+    rot_box('tape', (x, y), (0.095, 0.0625, 0.015), top, a, M['tape'])
+    lab = rot_box('tape_label', (x, y), (0.072, 0.040, 0.0008), top + 0.015, a, M['label'])
     LT_ = os.path.join(HERE, 'tex', 'tape_label.png')
     if os.path.exists(LT_):   # 夏希の字で「上映用」（label_tex.py。ユーザーに確認中 2026-11-16）。字の上は +y（澪の側から読める）
         ml = bpy.data.materials.new('label_hand'); nt_ = ml.node_tree; pb_ = nt_.nodes['Principled BSDF']; pb_.inputs['Roughness'].default_value = 0.8
