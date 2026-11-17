@@ -95,6 +95,7 @@ func _ready():
 		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
 		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
+		if a.begins_with("--fresfog="): ARGS["fresfog"] = a.substr(10)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -646,6 +647,11 @@ func _lights_house():
 				lights.bolt = l
 		if l == null: continue
 		l.light_volumetric_fog_energy = g.get("fog", 1.0)
+		# 試作127 A4（ユーザー「場所によって明るさが違う。後者に揃えたい」、第1章 夕方）: standing in the fresnel's beam at the
+		# stair's foot, its haze filled the whole frame and the hall went to paper (a step toward the door, out of it, it did
+		# not). At dusk the beam is in daylight: a third of the haze (3.0 → 1.0). The check renderer draws no volumetric fog, so
+		# this is seen only on a GPU (the user's machine)
+		if L.name == "fresnel_key" and TIME == "dusk": l.light_volumetric_fog_energy = float(ARGS.get("fresfog", "1.0"))
 		if g.has("spec"): l.light_specular = g.spec
 		l.set_meta("e", float(g.get("e", 0.0))); l.set_meta("flick", String(g.get("flick", "")))
 		lights[L.name] = l

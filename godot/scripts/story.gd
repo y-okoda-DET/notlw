@@ -902,6 +902,7 @@ func _do(what: String):
 	match what:
 		"house_lights": main.generator(true); _gen_flicker()
 		"taiga_up": _walk_taiga("door")
+		"taiga_reel": _taiga_reel()
 		"boards_start": _boards_start()
 		"boards_rest": _boards_show_rest()
 		"board":
@@ -1505,12 +1506,48 @@ func _walk_taiga(where: String):
 	var J: Dictionary = main.T20.taiga_gen if where == "gen" else main.T20.taiga
 	main.walk_to("taiga", path, func():
 		taiga_moving = false; taiga_at = where; _person_item("taiga")
+		if where == "door" and taiga_reel: taiga_reel.queue_free(); taiga_reel = null   # set down at the stair's top (the cord runs to the hall's light later)
 		if looks.has("taiga"):
 			var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
 			var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
 			looks.taiga.setup(fwd.normalized()), float(J.yaw))
 
+# B2 (試作127, ユーザー「いつから延長ケーブルが？唐突感がある」): the orange cord of the hall's fresnel comes up from the
+# cellar with Taiga. He takes the reel from beside the generator and carries it up in the hand without the phone; it hangs
+# from his fist by its handle (godot/props/cord_reel.glb, Tripo, tripo/prep_props.py).
+var taiga_reel: Node3D
+var taiga_reel_bone := -1
+func _taiga_reel():
+	if taiga_reel: return
+	var ps: PackedScene = load("res://props/cord_reel.glb")
+	if ps == null: return
+	var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
+	var phone_bone := ""
+	for ba in sk.find_children("*", "BoneAttachment3D", true, false):
+		if ba.find_child("torch", true, false): phone_bone = (ba as BoneAttachment3D).bone_name
+	taiga_reel_bone = sk.find_bone("hand_r" if phone_bone.ends_with("_l") else "hand_l")
+	var r: Node3D = ps.instantiate()
+	var aabb := AABB(); var first := true
+	for mi in r.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (mi as MeshInstance3D).get_aabb()
+		aabb = b if first else aabb.merge(b); first = false
+	var hold := Node3D.new(); main.add_child(hold); hold.add_child(r)
+	var k := 0.36 / maxf(aabb.size.y, 0.01)       # a 30 m reel stands about 36 cm
+	r.scale = Vector3.ONE * k
+	r.position = -Vector3(aabb.get_center().x, aabb.end.y, aabb.get_center().z) * k   # the handle's top at the fist
+	taiga_reel = hold
+	print("TAIGA reel bone=%d" % taiga_reel_bone)
+
+func _taiga_reel_tick():
+	if taiga_reel == null or taiga_reel_bone < 0: return
+	var sk: Skeleton3D = main.S.taiga_node.find_children("*", "Skeleton3D", true, false)[0]
+	var hand: Vector3 = sk.global_transform * sk.get_bone_global_pose(taiga_reel_bone).origin
+	var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
+	taiga_reel.global_position = hand + Vector3(0, 0.02, 0)
+	if fwd.length() > 0.01: taiga_reel.global_basis = Basis.looking_at(fwd.normalized().rotated(Vector3.UP, PI * 0.5), Vector3.UP)
+
 func _house_tick(dt):
+	_taiga_reel_tick()
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var pz: float = player.global_position.y
 	if hs == 0:

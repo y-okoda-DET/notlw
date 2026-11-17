@@ -355,7 +355,7 @@ def upstairs(M):
         cloth.drop('natsuki_hoodie', (X(1.3), Y(.62)), (.55, .5), z + .9, M['hoodie'], [bpy.data.objects['bed1a_mattress']],
                    res=.025, frames=40, rumple=.12, seed=5, bend=.2, thick=.006)
     duffel(M, 2.75, .55, z, .25, M['bagred'], 'bag_natsuki', 'natsuki')
-    bag(M, 2.55, 3.85, .55, .3, .35, M['bagnavy'], 'bag_mio', -.1, z)
+    bag(M, 2.6, 3.7, .55, .3, .35, M['bagnavy'], 'bag_mio', -.35, z)
     for i, (x, y) in enumerate(((2.35, 1.6), (2.35, 1.9))):
         sleeproll(M, x, y, z, 0.0, f'sleepsack1_{i}')
     lived.ghost_frames(M, 'Y', 4, -1, [(.9, 1.35, z + 1.3, z + 1.62), (1.5, 1.8, z + 1.36, z + 1.74)])
@@ -401,7 +401,7 @@ def upstairs(M):
         for i, (dx, h, m) in enumerate(((0, .14, 'futon'), (.02, .14, 'futon'), (-.03, .12, 'futon2'))):
             o = box('futon_stack', 6.3 + dx, 3.4, 7.6 + dx, 4.08, z + i * .14, z + i * .14 + h, M[m]); apply_bevel(o, .05)
     collide(6.25, 3.35, 7.65, 4.1, z, z + .42)
-    bag(M, 7.3, .5, .5, .3, .34, M['bagnavy'], 'bag_makoto', .5, z)
+    bag(M, 7.4, .65, .5, .3, .34, M['bagnavy'], 'bag_makoto', .75, z)
     # the owner's chair by the east window, her jacket thrown over its back; her reflector in its round bag against
     # the wall (she holds it open in the first chapter)
     ch = lived.phm('painted_wooden_chair_01', 9.45, 3.1, z, rz=math.pi / 2 + .25, name='bed3_chair')
@@ -431,11 +431,61 @@ def upstairs(M):
     for i in range(3):
         box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
 
+    clutter2(M, z)
+
     # the landing: the runner; the crew's water and their rubbish by the bathroom door
     box('landing_runner', 4.12, 5.7, 5.9, 7.9, z, z + .008, M['rug'], 1.0)
     polytank(M, 5.75, 7.78, z, math.pi, 'polytank_landing')
     lived.phm('trashbag', 4.32, 7.72, z, rz=.7, s=.85, name='crew_trash')
     collide(4.1, 7.5, 4.55, 7.95, z, z + .45)
+
+# 試作127 B4（ユーザー「2階全体、部屋の置物感が強い。整えたい。」）: what a night's stay leaves on top of the rooms. In each
+# bedroom: clothes taken off and dropped (a T-shirt, socks), a bag's insides out on the floor, a towel thrown over
+# something, a paperback or the script face down; the bags turned off square. Nothing new is lined up against a wall.
+def clutter2(M, z):
+    if 'tee_w' not in M:
+        M['tee_w'] = mat_basic('tee_w', (.62, .62, .6), .95)
+        M['tee_k'] = mat_basic('tee_k', (.07, .07, .08), .95)
+        M['tee_r'] = mat_basic('tee_r', (.42, .12, .1), .95)
+        M['sock'] = mat_basic('sock', (.3, .3, .3), .95)
+        M['sock_k'] = mat_basic('sock_k', (.06, .06, .07), .95)
+        M['paper'] = mat_basic('paper', (.7, .69, .64), .85)
+        M['pouch'] = mat_basic('pouch', (.5, .38, .45), .6)
+        M['book'] = mat_basic('book', (.2, .26, .32), .7)
+    def tee(nm, x, y, zz, mat, on=(), r=0.0, seed=1):
+        cloth.drop(nm, (X(x), Y(y)), (.5, .62), zz, mat, list(on), rot=(0, 0, r), res=.03, frames=50, rumple=.14, seed=seed,
+                   floor=z, bend=.15, thick=.004, slack=1.1)
+    def sock(nm, x, y, r, mat, seed=1):
+        o = prim('cube', nm, loc=(X(x), Y(y), z + .012), rot=(0, 0, r), scale=(.045, .12, .012), mat=mat)
+        apply_bevel(o, .01, 2)
+        return o
+    def book(nm, x, y, zz, r, mat, w=.11, d=.17, h=.022):
+        o = prim('cube', nm, loc=(X(x), Y(y), zz + h / 2), rot=(0, 0, r), scale=(w / 2, d / 2, h / 2), mat=mat); apply_bevel(o, .003, 1)
+        return o
+    beds = lambda *n: [bpy.data.objects[k] for k in n if k in bpy.data.objects]
+
+    # 寝室1: Natsuki's things out of her open duffel across the floor toward her bed; Mio's side kept tidy but for a book
+    tee('tee_natsuki', 2.55, 1.05, z + .5, M['tee_r'], r=.7, seed=41)
+    sock('sock_n1', 2.2, .95, .9, M['sock']); sock('sock_n2', 2.05, 1.22, -.4, M['sock'])
+    o = prim('cube', 'pouch_natsuki', loc=(X(3.05), Y(.95), z + .05), rot=(0, 0, .5), scale=(.11, .06, .05), mat=M['pouch']); apply_bevel(o, .03, 3)
+    lib.tube('charger_natsuki', [(X(3.0), Y(1.0), z + .01), (X(2.75), Y(1.3), z + .006), (X(2.4), Y(1.25), z + .006), (X(1.95), Y(1.0), z + .62)],
+             [.003] * 4, M['plastic'], seg=5, sub=3)
+    book('book_mio', .4, 2.05, z + .616, .35, M['book'])
+    tee('tee_mio', 1.95, 3.25, z + .9, M['tee_w'], beds('bed1b_mattress'), r=1.9, seed=42)   # folded off her bag onto the bed's end
+
+    # 寝室2: Taiga's T-shirt on his bed, Kiryu's socks by his, a towel over the case; the script on the floor
+    tee('tee_taiga', 1.4, 7.1, z + 1.0, M['tee_k'], beds('bed2b_mattress', 'bed2b_blanket'), r=.4, seed=43)
+    sock('sock_k1', 2.15, 5.1, .2, M['sock_k']); sock('sock_k2', 2.3, 5.35, 1.4, M['sock_k'])
+    cloth.drop('towel_kiryu', (X(2.6), Y(4.64)), (.34, .7), z + .7, M['towel'], beds('case_cam'), rot=(0, 0, .3), res=.025, frames=50,
+               rumple=.06, seed=44, floor=z, bend=.3, thick=.004)
+    book('script_kiryu', 1.95, 5.75, z, .25, M['paper'], w=.21, d=.297, h=.012)
+
+    # 寝室3: Makoto's socks off by the bed, a towel over the futons, a paperback open face down on the bed
+    sock('sock_m1', 8.05, 1.55, -.6, M['sock']); sock('sock_m2', 8.2, 1.4, .3, M['sock'])
+    cloth.drop('towel_makoto', (X(7.0), Y(3.7)), (.34, .75), z + .9, M['towel'], beds('futon_stack'), rot=(0, 0, 1.2), res=.025, frames=50,
+               rumple=.06, seed=45, floor=z, bend=.3, thick=.004)
+    for k, a in ((0, .25), (1, -.25)):   # open, face down: two halves tented over the spine
+        o = prim('cube', f'book_makoto{k}', loc=(X(8.55 + .05 * (1 if k else -1)), Y(1.05), z + .72), rot=(0, a, .4), scale=(.06, .09, .006), mat=M['book'])
 
 # ---------------------------------------------------------------- 地下 x 4..10, y 1..7 (the stair shaft x 5.06..6, y 2.5..5.64)
 # the generator: plan centre, against the east wall under the small window (y 6.15..6.75). Poly Haven's
