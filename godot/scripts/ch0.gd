@@ -36,7 +36,7 @@ var car_t := -1.0
 var car: Array = []             # the two headlamps
 var police: Node3D               # who stands at the door when she opens it: a shape against the headlamps
 var dawn_fog: FogVolume          # the air in the hall, so the lamps come through the gaps as beams
-var car_body: MeshInstance3D
+var car_body: Node3D
 var knocks0: Array = []         # the clock's seconds of each knock
 var door_rest0 := 0.0
 var door_pos0 := Vector3.ZERO
@@ -98,7 +98,8 @@ func _front_door_mine():
 	if front_leaf == null and main.door_pivot:
 		for mi in main.door_pivot.find_children("door_front*", "MeshInstance3D", true, false):
 			if not String(mi.name).contains("knob") and not String(mi.name).contains("glass"): front_leaf = mi; break
-	_hand()
+	# 試作127（ユーザー「手形がここにある。」、B1 手形は消す：3時半に夏希は勝手口から入った。玄関の窓の手形はそれと合わない）
+	# _hand()
 	if "--c0dbg" in OS.get_cmdline_user_args():
 		var bb: AABB = front_leaf.global_transform * front_leaf.get_aabb() if front_leaf else AABB()
 		for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -188,12 +189,16 @@ func _car():
 		var lens := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 0.09; sp.height = 0.12; lens.mesh = sp
 		var lm := StandardMaterial3D.new(); lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.albedo_color = Color(1, 0.97, 0.9)
 		lens.material_override = lm; lens.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; l.add_child(lens); lens.position = Vector3(0, 0, -0.05)
-	# the car itself is only a dark shape against the dawn behind its lamps
-	car_body = MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(1.75, 1.0, 4.4); car_body.mesh = bm
-	var cm := StandardMaterial3D.new(); cm.albedo_color = Color(0.05, 0.05, 0.06); cm.roughness = 0.4; car_body.material_override = cm
-	var cab := MeshInstance3D.new(); var cbm := BoxMesh.new(); cbm.size = Vector3(1.6, 0.55, 2.2); cab.mesh = cbm; cab.material_override = cm
-	car_body.add_child(cab); cab.position = Vector3(0, 0.75, 0.35)
-	main.add_child(car_body)
+	# 試作127（ユーザー「扉のところ、警察官が立っていない。パトカーも居ない」）: the user's Tripo patrol car (tripo/prep_props.py,
+	# its front toward the model's -Z), 4.6 m long, behind its lamps. (It was a dark box: a shape against the dawn)
+	if ResourceLoader.exists("res://props/police_car.glb"):
+		car_body = Node3D.new(); main.add_child(car_body)
+		var pc: Node3D = (load("res://props/police_car.glb") as PackedScene).instantiate(); car_body.add_child(pc)
+		pc.scale = Vector3.ONE * 4.7
+	else:
+		var box := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(1.75, 1.0, 4.4); box.mesh = bm
+		var cm := StandardMaterial3D.new(); cm.albedo_color = Color(0.05, 0.05, 0.06); cm.roughness = 0.4; box.material_override = cm
+		car_body = Node3D.new(); car_body.add_child(box); box.position.y = 0.6; main.add_child(car_body)
 	dawn_fog = FogVolume.new(); dawn_fog.size = Vector3(3.2, 2.6, 4.0)
 	var fm := FogMaterial.new(); fm.density = 0.012; fm.albedo = Color(1, 1, 1); fm.edge_fade = 0.4; dawn_fog.material = fm
 	main.add_child(dawn_fog); dawn_fog.global_position = gp(FRONT_DOOR[0], FRONT_DOOR[1] + 1.6, 1.3)
@@ -202,6 +207,21 @@ func _car():
 # 2026-11-14 (ユーザー「扉を開けたら不気味な警察官が立っている」): a man's shape on the step, the lamps behind him; no face,
 # only the outline and a cap. One of the cast's bodies, drawn flat black, so nothing of him is lit
 func _police():
+	# 試作127（ユーザー「扉のところ、警察官が立っていない」）: the user's Tripo officer (blue uniform, boots: tripo/prep_props.py,
+	# facing the model's -Z), 1.72 m, his cap drawn here (the body came bare-headed). On the step, facing in, the lamps behind him.
+	# (The black figure below, one of the cast's bodies, was not there in the house: taiga.glb is not in its pack)
+	if ResourceLoader.exists("res://props/police_body.glb"):
+		police = Node3D.new(); main.add_child(police)
+		var pb: Node3D = (load("res://props/police_body.glb") as PackedScene).instantiate(); police.add_child(pb)
+		pb.scale = Vector3.ONE * 1.72
+		var navy := StandardMaterial3D.new(); navy.albedo_color = Color(0.06, 0.07, 0.12); navy.roughness = 0.6
+		var cap := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.115; cy.bottom_radius = 0.105; cy.height = 0.085; cap.mesh = cy
+		cap.material_override = navy; police.add_child(cap); cap.position = Vector3(0, 1.69, 0.005)
+		var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.075; bm2.bottom_radius = 0.075; bm2.height = 0.01; brim.mesh = bm2
+		brim.material_override = navy; police.add_child(brim); brim.position = Vector3(0, 1.655, -0.085); brim.scale = Vector3(1.4, 1.0, 1.0)
+		police.global_transform = Transform3D(Basis(Vector3.UP, PI - 0.2), gp(5.3, -0.95, 0.0))   # facing in, just past the leaf's swing (1.1 m round the hinge at x 4.45)
+		police.visible = false
+		return
 	var path: String = main.BASE + "taiga.glb"
 	if not ResourceLoader.exists(path): return
 	police = (load(path) as PackedScene).instantiate()
@@ -237,7 +257,7 @@ func _car_tick(dt: float):
 		var lp: Vector3 = p + right * float(l.get_meta("side"))
 		l.look_at_from_position(lp, aim + right * float(l.get_meta("side")) * 0.6, Vector3.UP)
 		l.light_energy = LAMP_E * smoothstep(0.0, 1.5, car_t)
-	car_body.global_transform = Transform3D(Basis.looking_at(fw, Vector3.UP), p + Vector3(0, -0.12, 0) - fw * 2.25)
+	car_body.global_transform = Transform3D(Basis.looking_at(fw, Vector3.UP), p + Vector3(0, -0.72, 0) - fw * 2.2)   # its foot on the drive (the lamps 0.72 up)
 
 # ---------------------------------------------------------------- her print on the door, her feet on the floor
 const HAND_SHADER := """

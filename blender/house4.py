@@ -138,7 +138,18 @@ def door_leaf(M, ax, fixed, a, b, z0, hinge='lo', ang=0, name='door', h=DOOR_H, 
     m = mat or M['door']
     if ax == 'X': o = prim('cube', name, loc=(hx + s * w / 2, hy, z0 + h / 2), scale=(w / 2 - .01, .02, h / 2 - .01), mat=m)
     else: o = prim('cube', name, loc=(hx, hy - s * w / 2, z0 + h / 2), scale=(.02, w / 2 - .01, h / 2 - .01), mat=m)
-    lib.uv_box(o, 1.0); o.parent = piv; o.location = o.location - piv.location
+    # 試作127（ユーザー「扉の色が高さによって違う」、序章の玄関）: at 1 m a tile the texture (lighter at its top, darker at its
+    # foot: 57 → 46 of 255) wrapped part-way up the leaf, a band across it. One tile now covers the leaf's whole height, its
+    # foot at the leaf's foot (no wrap on the faces)
+    S = h + .1
+    lib.uv_box(o, S, offset=(0.0, 0.0))
+    me = o.data; uvl = me.uv_layers['UVMap']
+    side = [poly for poly in me.polygons if abs(poly.normal.z) < .5]
+    dv = -min(uvl.data[li].uv[1] for poly in side for li in poly.loop_indices) + .005
+    for poly in side:   # each face its own u from the tile's left edge; v the same for all (the grain lines up round the edge)
+        du = -min(uvl.data[li].uv[0] for li in poly.loop_indices) + .005
+        for li in poly.loop_indices: uvl.data[li].uv = (uvl.data[li].uv[0] + du, uvl.data[li].uv[1] + dv)
+    o.parent = piv; o.location = o.location - piv.location
     if knob:
         zk = max(z0, 0) + .95
         for d in (-1, 1):
