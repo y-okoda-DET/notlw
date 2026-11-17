@@ -538,6 +538,10 @@ func _lookers():
 		looks[k] = lm
 
 func _update_looks():
+	# 試作127（ユーザー「5箇所貼ったら…「最後に、玄関を見ました。」を左上に表示させる。※左上表示されないこともしばしば」）:
+	# the chapters (ch3, ch5, 22時) run their own _process and never set this: the line showed only where a page left it on.
+	# Every chapter calls _update_looks each frame
+	if mission_box: mission_box.visible = mission != "" and tes_box.get_child_count() == 0
 	var eye: Vector3 = look_eye if look_eye != Vector3.ZERO else (player.get_node("Head/Camera") as Camera3D).global_position
 	for k in looks:
 		var lm: Look = looks[k]
@@ -620,7 +624,6 @@ func _process(dt):
 	else:
 		note_lb.text = ""
 	if mode == TALK: _talk_tick(dt)
-	mission_box.visible = mission != "" and tes_box.get_child_count() == 0
 	_update_looks()
 	player.move_enabled = (mode == FREE)
 	# who is talking moves their mouth (main.gd _update_faces)

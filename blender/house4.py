@@ -234,7 +234,9 @@ def under_stair(M):
     # a hand-written note on the cellar door (hall side)
     nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機']), rough=.8, bump=0)
     # faces the lobby (plan +y, Blender -Y), where the bulb is and where you read it from (it faced into the door before)
-    return prim('plane', 'note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
+    # 試作127（ユーザー「変なところに張り紙があります」）: named 'note', it was joined into the lightmapped static mesh and
+    # stayed in the doorway when the door swung: 'cellar_note' is kept out of the join (NO_LM) and turns with the leaf
+    return prim('plane', 'cellar_note', loc=(X(5.52), Y(5.6) - .03, 1.45), rot=(math.pi / 2, 0, 0), scale=(.09, .12, 1), mat=nt)
 
 def cellar_shaft(M):
     """Walls round the cellar stair below the 1F floor, and the barred door at its foot (bar on the basement side)."""

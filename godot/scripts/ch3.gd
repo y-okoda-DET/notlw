@@ -23,7 +23,7 @@ const GAPS := [
 	{"key": "g2", "at": [0.13, 6.2, 1.5], "n": [1, 0], "name": "板の隙間", "snd": "ch3_gap2"},      # the dining room's west window
 	{"key": "g3", "at": [7.4, 7.87, 1.5], "n": [0, -1], "name": "板の隙間", "snd": "ch3_gap3"},     # the kitchen's north window
 	{"key": "g4", "at": [9.87, 6.2, 1.55], "n": [-1, 0], "name": "換気口", "snd": "ch3_gap4"},      # the kitchen's small east window
-	{"key": "g5", "at": [9.87, 4.88, 1.0], "n": [-1, 0], "name": "勝手口の縁", "snd": "ch3_gap5"},   # the back door's edge
+	{"key": "g5", "at": [9.96, 5.30, 1.0], "n": [-1, 0], "name": "勝手口の縁", "snd": "ch3_gap5"},   # the back door's edge
 ]
 const FRONT_GAP := [5.0, 0.08, -0.1]   # under the front door: it stays
 const FRONT_DOOR := [5.0, 0.03, 1.0]
@@ -255,13 +255,20 @@ func _seal(gq: Dictionary, quiet := false):
 	var mi := MeshInstance3D.new(); var bm := BoxMesh.new()
 	var along_x: bool = gq.n[0] == 0
 	bm.size = Vector3(0.34 if along_x else 0.004, 0.05, 0.004 if along_x else 0.34)
-	if gq.key == "g5": bm.size = Vector3(0.004, 1.6, 0.05)   # down the back door's edge
 	mi.mesh = bm
 	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.62, 0.62, 0.6); m.roughness = 0.55; m.metallic = 0.1
 	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(mi)
-	mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006) + (Vector3(0, -0.15, 0) if gq.key == "g5" else Vector3.ZERO)
+	mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	mi.rotation.z = randf_range(-0.06, 0.06)
+	# 試作127（ユーザー「扉の縁に貼られていない」）: the strip stood 11 cm in front of the middle of the back door. Down the
+	# seam on the latch side (plan y 5.35, hinge at 4.4): one strip on the leaf's inside face (plan x 9.98), one on the jamb
+	if gq.key == "g5":
+		bm.size = Vector3(0.003, 1.86, 0.065); mi.rotation.z = 0.0
+		mi.global_position = gp(9.977, 5.318, 0.97)
+		var j := MeshInstance3D.new(); var jb := BoxMesh.new(); jb.size = Vector3(0.05, 1.86, 0.003); j.mesh = jb
+		j.material_override = m; j.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; mi.add_child(j)
+		j.global_position = gp(9.958, 5.348, 0.97)
 	gq.tape = mi
 	if quiet:
 		(gq.player as AudioStreamPlayer3D).stop()

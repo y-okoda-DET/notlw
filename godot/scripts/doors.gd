@@ -108,7 +108,10 @@ func _looked() -> MeshInstance3D:
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not hit.collider.has_meta("door"): return null
-	return hit.collider.get_meta("door")
+	# 試作127（ユーザー「扉を選択するとnullとだけ出る」、第3章の玄関）: a chapter that takes a door for itself (ch3: the front
+	# door) drops it from the list, but its body still carried the meta: E on it read a missing entry
+	var m = hit.collider.get_meta("door")
+	return m if doors.has(m) else null
 
 func _process(dt):
 	t += dt
@@ -128,6 +131,7 @@ func _unhandled_input(e):
 	toggle(d)
 
 func toggle(d: MeshInstance3D):
+	if not doors.has(d): return
 	var s: Dictionary = doors[d]
 	# 試作125: at 22:00 Taiga asks Mio to lock the front door (ch2_21.gd); E on it is her locking it
 	if s.key == "door_front" and main.has_meta("front_lock") and (main.get_meta("front_lock") as Callable).is_valid():
