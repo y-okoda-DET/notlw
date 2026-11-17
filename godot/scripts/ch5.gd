@@ -1194,7 +1194,7 @@ func _end_card():
 	get_tree().create_timer(5.0 if demo5 else 8.0).timeout.connect(func():
 		if demo5: print("DEMO ch5 t=%.1f fails=%d" % [t_now, DEMO_FAILS]); DEMO_HOUSE = true
 		if demo5 and "--ch5only" in OS.get_cmdline_user_args(): print("DEMO DONE ch5"); get_tree().quit(); return
-		main.to_chapter("ch11"))
+		main.to_chapter("ch6" if ResourceLoader.exists("res://scripts/ch6.gd") else "ch11"))   # 第5章の終わり → 第6章「片づけ」
 
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
