@@ -148,7 +148,9 @@ if HANDS == 'table':
             C.rot_world(rig, f'thumb_01_{side}', ax.normalized(), 3)
         return C.finger_tips(rig, side)
     THUMB_OUT = float(__import__('os').environ.get('THUMB_OUT', '-8'))
-    POSE = {'r': dict(wrist=[-0.146, 0.562, 0.345], fdir=(0.35, -1, 0), curls=(.0, .02, .05, .1, .0), sx=-1, roll=0, pitch=6, surf=0.342, thumb=(-0.048, 0.48, 0.356)),
+    # テープは8ミリ（95×62.5×15mm、2026-11-17）：上の面は 0.33+0.015。手はその上に置く
+    TT = 0.345
+    POSE = {'r': dict(wrist=[-0.146, 0.562, TT + 0.003], fdir=(0.35, -1, 0), curls=(.0, .02, .05, .1, .0), sx=-1, roll=0, pitch=6, surf=TT, thumb=(-0.048, 0.48, 0.356)),
             'l': dict(wrist=[0.230, 0.540, 0.356], fdir=None, curls=(.08, .1, .12, .16, .0), sx=1, roll=0, pitch=0, surf=0.336, thumb=(0.100, 0.53, 0.352))}
     THUMB = {k: v['thumb'] for k, v in POSE.items()}
     for side, P in POSE.items():
@@ -212,11 +214,11 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             tip = C.finger_tips(rig, 'r')[main]; err = Vector(aims[main][0]) - tip; best = min(best, (err.length, w.copy()), key=lambda t: t[0]); print('  err', tuple(round(x,3) for x in err), 'wrist want', tuple(round(x,3) for x in w), 'got', tuple(round(x,3) for x in C.bone_head(rig,'hand_r'))); w = w + err * (0.5 if it > 3 else 1.0)
             print('solve', HANDS, it, 'err mm', round(err.length * 1000, 1), {f: round((Vector(aims[f][0]) - C.finger_tips(rig, 'r')[f]).length * 1000, 1) for f in aims})
         tips = C.finger_tips(rig, 'r'); print('tips r', {k: tuple(round(x, 3) for x in v) for k, v in tips.items()})
-    TC = Vector((-0.10, 0.43, 0.342)); a14 = math.radians(14); U = Vector((math.cos(a14), math.sin(a14), 0)); NN = Vector((-math.sin(a14), math.cos(a14), 0))
+    TT = 0.345; TC = Vector((-0.10, 0.43, TT)); a14 = math.radians(14); U = Vector((math.cos(a14), math.sin(a14), 0)); NN = Vector((-math.sin(a14), math.cos(a14), 0))
     if HANDS == 'pinch':
         # photo 2: from above, the back of the hand toward her; fingers bent down onto the far long edge, thumb on the near one
-        farI = TC - NN * 0.027 + U * 0.006 + Vector((0, 0, -0.004))
-        near = TC + NN * 0.027 + U * 0.004 + Vector((0, 0, -0.003))
+        farI = TC - NN * 0.034 + U * 0.006 + Vector((0, 0, -0.004))
+        near = TC + NN * 0.034 + U * 0.004 + Vector((0, 0, -0.003))
         import os as _os
         fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.45,-0.7,-0.55').split(','))).normalized()
         pnp = Vector((0.0, 0.58, -0.8)); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
@@ -238,7 +240,7 @@ elif HANDS in ('pinch', 'stroke', 'write'):
         lo, hi = 0.34, 0.45
         for _k in range(9):
             mid = (lo + hi) / 2
-            if stroke_at(mid) < 0.345: lo = mid
+            if stroke_at(mid) < TT + 0.003: lo = mid
             else: hi = mid
         low = stroke_at(hi); print('stroke wrist z', round(hi, 3), 'lowest closed tip', round(low, 3), 'index tip', tuple(round(x, 3) for x in C.finger_tips(rig, 'r')['index']))
         tt = C.bone_head(rig, 'middle_02_r') + Vector((0.012, 0.0, 0.004)); tt.z = max(tt.z, 0.352)   # never under the table
