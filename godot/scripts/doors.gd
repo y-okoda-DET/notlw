@@ -4,6 +4,7 @@
 ## the same small serif line at the bottom left that names what you look at in the story scenes.
 extends Node
 const Type = preload("res://scripts/type.gd")
+const Sound = preload("res://scripts/sound.gd")
 
 const REACH := 1.9
 const SWING := 0.7          # seconds
@@ -140,6 +141,9 @@ func toggle(d: MeshInstance3D):
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open
 	var to: float = s.open if s.is_open else s.rest
+	# 試作127（新しい音）: a wooden door opening, and shutting with its latch
+	if s.is_open: Sound.one(self, "door_open", -12.0, (d as Node3D).global_position)
+	else: get_tree().create_timer(SWING * 0.75).timeout.connect(func(): Sound.one(self, "door_close", -10.0, (d as Node3D).global_position))
 	create_tween().tween_property(s.pivot, "rotation:y", to, SWING).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	if s.pivot == main.door_pivot: main.S["door_rot"] = to
 

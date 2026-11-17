@@ -516,7 +516,7 @@ func _peel(gq: Dictionary, quiet := false):
 		var p: AudioStreamPlayer3D = gq.player
 		if p.stream: p.play(randf() * 4.0)
 		if quiet: p.volume_db = -6.0
-		else: wind_in[gq.key] = 0.0; Sound.one(self, "ch3_tape", -2.0, gq.at)
+		else: wind_in[gq.key] = 0.0; Sound.one(self, "tape_rip", -3.0, gq.at)   # 試作127: peeled off (kai_audio duct-tape-rip)
 
 func _wind_tick(dt: float):
 	for k in wind_in.keys():

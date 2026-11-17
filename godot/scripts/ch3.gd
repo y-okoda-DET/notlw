@@ -525,7 +525,7 @@ func _tape_tick():
 
 func _swap_tape():
 	note_lb.text = ""
-	Sound.one(self, "tape_clunk", -6.0, fixed_cam.global_position)
+	Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
 	_rec3(false)
 	get_tree().create_timer(1.4).timeout.connect(func(): _rec3(true))
 	stage = "tape_done"

@@ -231,7 +231,7 @@ func _do(what: String):
 			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
 			main.set_meta("front_lock", _lock_now)
 		"lock":
-			Sound.one(self, "knock1", -14.0, gp(5.0, 0.0, 1.0))   # the latch (a placeholder: there is no lock sound yet)
+			Sound.one(self, "lock", -8.0, gp(5.0, 0.0, 1.0))   # 試作127: the key turned in the lock (音の取捨選択 2026-11-17: strachszydlo)
 		"to23":
 			script_q.clear(); mode = FREE; stage = "to23"
 			get_tree().create_timer(3.5).timeout.connect(func():

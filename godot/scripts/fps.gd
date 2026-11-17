@@ -721,6 +721,7 @@ func _aim() -> Dictionary:
 func _swing(dt: float):
 	if has_meta("swingk") and holding: _held(float(get_meta("swingk"))); return
 	if swing_t < 0.0: return
+	if swing_t == 0.0: Sound.one(self, "swing", -6.0)   # 試作127: the tripod through the air (metal-pipe-swing)
 	swing_t += dt
 	var k := swing_t / 0.9
 	_held(clampf(k, 0.0, 1.0))
@@ -732,6 +733,7 @@ func _swing(dt: float):
 
 func _blow(head: bool):
 	hud.hit = 0.22; hud.hit_head = head
+	Sound.one(self, "hit", -3.0 if head else -7.0, _nhead())   # 試作127: 照準の命中（候補 2026-11-13）
 	print("STORY ch4 hit %s t=%.1f" % ["head" if head else "body", clock])
 	if not head:
 		if nstate in ["walk", "stand"]:   # a blow to the body: she rocks, and comes on
@@ -749,6 +751,7 @@ func _blow(head: bool):
 		reel_pose = last_pose.duplicate(true)
 		nbase = hit_base
 		nstate = "down"; fall_t = 0.0; after_t = 0.0
+		get_tree().create_timer(0.7).timeout.connect(func(): Sound.one(self, "body_fall", -2.0, nrig.global_position + Vector3(0, 0.2, 0)))   # 試作127: onto the boards
 		_clear_page(); cur = {}
 
 func _hud_tick(dt: float):
@@ -969,7 +972,7 @@ func _grab_mio(dt: float):
 		yaw = lerp_angle(yaw, s2.x, wb); pit = lerpf(pit, s2.y, wb)
 		if not mio_g.hit and g >= 1.2:
 			mio_g.hit = true; wob_t = 0.0
-			Sound.one(self, "knock_weak", -6.0, weapon.global_position + Vector3(0, 0.9, 0))
+			Sound.one(self, "tripod_bump", -6.0, weapon.global_position + Vector3(0, 0.9, 0))   # 試作127: her hand on the tripod
 			print("STORY ch4 tripod hit t=%.1f" % clock)
 	if g > 0.5 and not mio_g.has("step"): mio_g["step"] = 1; Sound.one(self, "step3", -4.0)
 	player.yaw = yaw; player.pitch = pit
