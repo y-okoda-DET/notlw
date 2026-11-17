@@ -343,8 +343,9 @@ func _drops_walk(p: Vector3, yaw: float):
 
 # check stills: the trail she would have left by the path's point j
 func _drops_upto(j: int):
-	for i in range(j):
-		var a := gp(_np()[i][0], _np()[i][1], _np()[i][2]); var b := gp(_np()[i + 1][0], _np()[i + 1][1], _np()[i + 1][2])
+	var P := _np()
+	for i in range(mini(j, P.size() - 1)):
+		var a := gp(P[i][0], P[i][1], P[i][2]); var b := gp(P[i + 1][0], P[i + 1][1], P[i + 1][2])
 		var n := int(a.distance_to(b) / 0.06)
 		for k in n:
 			var p := a.lerp(b, float(k) / float(n)); if k > n / 2: p.y = b.y
