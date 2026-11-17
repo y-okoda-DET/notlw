@@ -408,7 +408,8 @@ func _tape(gq: Dictionary):
 # 2026-11-17（ユーザー「低い所の血の手形が読みにくい」）: the first one was a blot the size of a fist on the hinge side, behind
 # the jamb's edge. Now a hand's outline a hand's size (palm, four fingers apart, the thumb out to the side) on the wall by the
 # latch side, in the torch. Dark (dried blood): the night print makes a dark surface blue whatever its hue, and the torch makes
-# the wall around it paper, so it prints as a blue hand on white. (A brighter red went to paper with the wall: tried, 試作150.)
+# the wall around it paper, so it prints as a blue hand on white. (Under the torch even a dark red, 0.26, came out light enough to go to paper
+# with the wall: tried, 試作150. Nearly black, as old blood is in a strong light)
 # Below it, where the hand slid as it pushed, three drags.
 const HAND_PX := 256
 func _hand_img() -> Image:
@@ -453,9 +454,10 @@ func _hand_img() -> Image:
 				var xx: int = x + o.x; var yy: int = y + o.y
 				if xx < 0 or yy < 0 or xx >= HAND_PX or yy >= HAND_PX or cov[yy * HAND_PX + xx] <= 0.0: n += 1
 			var rim := n > 0
-			var gap := rng.randf() < (0.06 if rim else 0.18) or (sin(x * 0.9 + y * 0.35) > 0.86 and not rim)
+			# few gaps: a hand full of blood leaves a solid print (with more, the print read it as a grey outline)
+			var gap := rng.randf() < (0.03 if rim else 0.05)
 			if gap: continue
-			var c := Color(0.09, 0.008, 0.006, 0.98) if rim else Color(0.26, 0.025, 0.015, 0.95 * v)
+			var c := Color(0.035, 0.004, 0.003, 1.0) if rim else Color(0.06, 0.006, 0.004, 1.0)
 			img.set_pixel(x, y, c)
 	return img
 
@@ -958,12 +960,21 @@ func _nod(a: float, shake: bool):
 # Makoto's light: down ahead of her feet as main.gd aims it, or on what she looks at
 var torch_at := Vector3.ZERO
 func _torch():
-	if torch_at == Vector3.ZERO or not main.S.has("makoto_node"): return
+	if not main.S.has("makoto_node"): return
 	var sk: Skeleton3D = main.S.makoto_node.find_children("*", "Skeleton3D", true, false)[0]
+	if torch_at == Vector3.ZERO:
+		for e in main.torches:   # back to its own strength (main.gd aims it again)
+			if e[1] == sk and is_instance_valid(e[0]) and (e[0] as Node).has_meta("e0"): (e[0] as SpotLight3D).light_energy = float((e[0] as Node).get_meta("e0"))
+		return
 	for e in main.torches:
 		if e[1] != sk or not is_instance_valid(e[0]): continue
 		var sp: SpotLight3D = e[0]
 		sp.global_basis = Basis.looking_at((torch_at - sp.global_position).normalized(), Vector3.UP)
+		# close up (the back door's frame is a metre off) a phone's torch burns the wall out to bare paper, and the dark
+		# hand on it with it (試作150). Held near, it is a softer pool: the energy falls with the square of the nearness
+		if not sp.has_meta("e0"): sp.set_meta("e0", sp.light_energy)
+		var dist := sp.global_position.distance_to(torch_at)
+		sp.light_energy = float(sp.get_meta("e0")) * clampf(pow(dist / 1.6, 2.0), 0.3, 1.0)
 
 # ---------------------------------------------------------------- following her to the kitchen
 func _follow_tick():
