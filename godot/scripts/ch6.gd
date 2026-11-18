@@ -184,12 +184,34 @@ func _candle_tick(dt: float):
 var candle_off_now := Vector3(0.2, -0.36, -0.42)
 
 func _candle_down(at: Vector3):
-	candle_held = false
+	candle_held = false; c_block = null
 	var tw := create_tween()
 	tw.tween_property(candle, "global_position", at, 0.7).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func():
+		if c_hand and not candle_held:
+			var h := c_hand; c_hand = null; _hand_away(h, 0.4))
+
+# the hand under its saucer (user 2026-11-18: 「蝋燭の皿を下から持つようにしよう」): the palm up, the saucer on it, the
+# fingers round its rim. The hand on the side the candle is held; it goes with the candle (found with --c6bench)
+var c_hand: Node3D = null
+var c_block: Node3D = null       # a hand that was given something else while it held the candle
+var c_k := 0.0
+const CANDLE_IN_HAND := Vector3(0.0, -0.02, -0.085)
+func _candle_hand_tick(dt: float):
+	if candle_held and candle.visible:
+		var want: Node3D = hand_l if candle_off_now.x < 0.0 else hand_r
+		if want != c_hand and want != c_block:
+			if c_hand: var old := c_hand; c_hand = null; _hand_away(old, 0.3)
+			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true; _grip(want, "candle", 0.3)
+	if c_hand == null: return
+	c_k = minf(1.0, c_k + dt / 0.3)
+	var in_hand := Transform3D(Basis(Vector3.FORWARD, PI), Vector3(CANDLE_IN_HAND.x * (-1.0 if c_hand == hand_r else 1.0), CANDLE_IN_HAND.y, CANDLE_IN_HAND.z))
+	var yb := Basis(Vector3.UP, player.yaw)
+	c_hand.visible = true
+	c_hand.global_transform = Transform3D(yb, candle.global_position + yb * Vector3(0.0, -0.10, 0.08) * (1.0 - smoothstep(0.0, 1.0, c_k))) * in_hand.affine_inverse()
 
 func _candle_up():
-	candle_held = true
+	candle_held = true; c_block = null
 	candle_off_now = _cam().global_basis.inverse() * (candle.global_position - _cam().global_position)
 	candle_off_now = Basis(Vector3.UP, player.yaw).inverse() * (candle.global_position - _cam().global_position)
 
@@ -456,7 +478,7 @@ func _bench(path: String):
 	var out := path + ".out"; DirAccess.make_dir_recursive_absolute(out)
 	set_process(false); player.move_enabled = false; player.look_enabled = false
 	var bc := Camera3D.new(); bc.fov = 30.0; bc.near = 0.02; main.add_child(bc)
-	var objs := {"phone": phone, "pack": pack, "cas": cas1, "case": case6}
+	var objs := {"phone": phone, "pack": pack, "cas": cas1, "case": case6, "candle": candle}
 	for e in list:
 		var h: Node3D = hand_l if e.hand == "l" else hand_r
 		var o: Node3D = objs[e.obj]
@@ -562,6 +584,7 @@ func _process(dt):
 		return
 	if mode == TALK: _talk_tick(dt)
 	_candle_tick(dt)
+	_candle_hand_tick(dt)
 	_wind_tick(dt)
 	_gen_tick(dt)
 	_blanket_tick(dt)
@@ -874,6 +897,7 @@ const GRIPS := {
 	"tri_l2": [0.56, 0.91, 0.64, 0.59, 0.95, 0.66, 0.64, 1.01, 0.7, 0.64, 1.01, 0.7, 0.0, 0.03, 0.95, 0.64],
 	"cam_out": [0.37, 0.66, 0.47, 0.44, 0.76, 0.53, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, -0.1, 1.38],
 	"cam_batt": [-0.3, -0.22, -0.12, -0.3, -0.22, -0.12, -0.13, 0.0, -0.12, -0.13, 0.0, 0.03, 0.07, -0.01, -0.04, 0.3],
+	"wash": [0.52, 0.85, 0.59, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.0, -0.1, -0.1, -0.22],
 	"lid": [-0.3, 1.1, 0.76, 0.35, 0.63, 0.45, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, 0.13, 1.03],
 }
 
@@ -904,6 +928,7 @@ func _hold_xf(key: String, pos: Vector3, deg: Vector3, was: Vector3) -> Transfor
 	return old * _held(key).affine_inverse()
 
 func _hold_to(h: Node3D, key: String, pos: Vector3, deg: Vector3, was: Vector3, dur := 0.6) -> Tween:
+	_hand_claim(h)
 	var x := _hold_xf(key, pos, deg, was)
 	h.visible = true
 	var tw := create_tween().set_parallel(true)
@@ -931,17 +956,27 @@ func _curl_to(h: Node3D, a: float, dur := 0.4):
 	var a0: float = h.get_meta("curl") if h.has_meta("sk") else -((h.get_meta("kn")[0]) as Node3D).rotation.x
 	create_tween().tween_method(func(v: float): _curl(h, v), a0, a, dur)
 
+func _hand_claim(h: Node3D):
+	# a hand that is given something to do lets the candle go (and an older move of it stops)
+	if h == c_hand:
+		c_hand = null
+		if candle_held: c_block = h; print("CANDLEHAND taken from the candle: %s act=%s step=%d" % [h.name, act, step])
+	if h.has_meta("tw") and (h.get_meta("tw") as Tween).is_valid(): (h.get_meta("tw") as Tween).kill()
+
 func _hand_to(h: Node3D, pos: Vector3, deg: Vector3, dur := 0.6) -> Tween:
+	_hand_claim(h)
 	h.visible = true
 	var q := Quaternion(Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)), EULER_ORDER_YXZ))
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(h, "position", pos, dur).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(h, "quaternion", q, dur).set_trans(Tween.TRANS_SINE)
+	h.set_meta("tw", tw)
 	return tw
 
 # onto a thing from off it (not through it): first to a point 5 cm off along the back of the hand, then down
 func _hand_onto(h: Node3D, pos: Vector3, deg: Vector3, dur := 0.7):
 	var b := Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)), EULER_ORDER_YXZ)
+	_hand_claim(h)
 	h.visible = true
 	var tw := create_tween()
 	tw.tween_property(h, "position", pos + b.y * 0.05, dur * 0.7).set_trans(Tween.TRANS_SINE)
@@ -1160,6 +1195,7 @@ func _tri_len() -> float:
 var tri_head := Vector3(0.30, -0.16, -0.42)
 var tri_axis := Vector3(-1.0, -0.03, -0.12)   # from its head to its feet, in her hands
 var wipe := 0.0
+var tri_back := 0.0
 var wipe_snd := 0.0
 
 func _tri_place():
@@ -1167,7 +1203,37 @@ func _tri_place():
 	var ax := tri_axis.normalized()
 	var y := -ax; var x := y.cross(Vector3.BACK).normalized(); var z := x.cross(y).normalized()
 	_tri_pose()
-	tripod.transform = Transform3D(Basis(x, y, z), tri_head + ax * tripod_h)
+	# under her arm it is drawn back from a wall or a thing in front of it (its feet went into them)
+	var back_want := 0.0
+	if carrying:
+		var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+		var a: Vector3 = rig6.global_transform * (tri_head - ax * 0.25); var c: Vector3 = rig6.global_transform * (tri_head + ax * (_tri_len() + 0.06))
+		var q := PhysicsRayQueryParameters3D.create(a, c); q.exclude = [player.get_rid()]
+		var hit: Dictionary = space.intersect_ray(q)
+		if not hit.is_empty(): back_want = c.distance_to(hit.position)
+	tri_back = lerpf(tri_back, back_want, 0.25) if back_want < tri_back else back_want
+	tripod.transform = Transform3D(Basis(x, y, z), tri_head + ax * (tripod_h - tri_back))
+
+# the way to face with it across her hands: where its whole length is in the air (it stood through the stair's side.
+# User 2026-11-18: 「三脚が階段を貫いてる？」). The nearest such turn from where she looks
+func _tri_hits(yaw: float, pitch: float, head: Vector3, axis: Vector3, ln: float) -> bool:
+	var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+	var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, pitch)
+	var eye := _cam().global_position
+	for off in [Vector3.ZERO, Vector3(0, 0.09, 0), Vector3(0, -0.09, 0), Vector3(0, 0, -0.10), Vector3(0, 0, 0.10)]:
+		var a: Vector3 = eye + b * (head + off); var c: Vector3 = a + b * (axis.normalized() * ln)
+		var q := PhysicsRayQueryParameters3D.create(a, c); q.exclude = [player.get_rid()]
+		if not space.intersect_ray(q).is_empty(): return true
+	return false
+
+func _tri_clear_yaw() -> float:
+	var pitch := atan2(-0.35, 1.0)
+	for i in 25:
+		var k := float((i + 1) / 2) * (1.0 if i % 2 == 1 else -1.0)
+		var yaw: float = player.yaw + k * deg_to_rad(15.0)
+		if not _tri_hits(yaw, pitch, tri_head, tri_axis, tripod_h + 0.12):
+			print("TRIPOD clear to hold at a turn of %d deg" % int(k * 15.0)); return yaw
+	print("TRIPOD no clear turn here"); return player.yaw
 
 func _tripod_take():
 	act = "tripod"; step = 0; note_lb.text = ""
@@ -1184,7 +1250,7 @@ func _tripod_take():
 		tw.tween_method(func(k: float):
 			_tri_place(); tripod.transform = t0.interpolate_with(tripod.transform, k), 0.0, 1.0, 1.5).set_trans(Tween.TRANS_SINE)
 		create_tween().tween_property(self, "tri_close", 1.0, 1.5).set_trans(Tween.TRANS_SINE)
-		_turn_to(_cam().global_position + Basis(Vector3.UP, player.yaw) * Vector3(0, -0.35, -1.0), 1.5)
+		_turn_to(_cam().global_position + Basis(Vector3.UP, _tri_clear_yaw()) * Vector3(0, -0.35, -1.0), 1.5)
 		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.001, 0.008, 0.045), Vector3(25, -15, 0), 1.4); _grip(hand_l, "tri_l", 1.4)
 		_fit_dev(hand_l, "tri_l", [tripod], 1.9, null, true, true, -9.0, true)
 		_after(1.7, func(): step = 1; _show_prompt("三脚.拭く")))
@@ -1461,7 +1527,7 @@ func _phone6():
 	ph_glass = glass.material_override
 	ph_glass.emission_enabled = true; ph_glass.emission = Color(0.96, 0.95, 0.92); ph_glass.emission_energy_multiplier = 0.0
 	ph_light = OmniLight3D.new(); ph_light.light_color = Color(0.96, 0.96, 0.94); ph_light.light_energy = 0.0
-	ph_light.omni_range = 1.3; ph_light.omni_attenuation = 1.2; ph_light.shadow_enabled = false; ph_light.position = Vector3(0, -0.06, 0)
+	ph_light.omni_range = 1.3; ph_light.omni_attenuation = 1.2; ph_light.shadow_enabled = false; ph_light.position = Vector3(0, -0.28, 0)   # out in front of the glass (at 6cm it burnt the hand that holds it white)
 	phone.add_child(ph_light)
 	add_child(phone); phone.visible = false
 	pack = Node3D.new(); pack.add_child(_box_mesh(Vector3(0.066, 0.016, 0.105), Color(0.86, 0.86, 0.84), 0.5)); add_child(pack); pack.visible = false
@@ -1758,12 +1824,12 @@ func _sleeve_tick(dt: float):
 		if on:
 			if wash <= 0.0:
 				_hand_to(hand_l, Vector3(0.16, -0.12, -0.40), Vector3(15, -55, 0), 0.5)
-				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27) + Vector3(-0.0105, -0.0315, -0.015), Vector3(30, 35, 0), 0.5); _curl(hand_r, 0.45)
+				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27) + Vector3(-0.012, -0.036, -0.017), Vector3(30, 35, 0), 0.5); _grip(hand_r, "wash", 0.45)   # laid over the forearm, the fingers round it, the thumb beside
 				for kk in 3: _fit_dev(hand_r, "wash%d" % kk, [hand_l], 0.6 + 0.02 * kk, Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * (kk - 1), true, false, -9.0, true)
 			wash = minf(1.0, wash + dt / 6.5)
 			if wash > 0.08:   # along her forearm and back, on the sleeve (it thickens to the elbow: found at three points with --c6fit)
 				var sw := sin(t_now * 6.5)
-				hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sw + Vector3(-0.0105, -0.0315, -0.015) + Vector3(-0.00325, -0.010, -0.00475) * sw
+				hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sw + Vector3(-0.012, -0.036, -0.017) + Vector3(-0.00325, -0.010, -0.00475) * sw
 			sleeve_l.set_shader_parameter("wash", wash); sleeve_l.set_shader_parameter("wet", clampf(wash * 4.0, 0.0, 1.0))
 			# the water goes red, and then clear
 			var red := smoothstep(0.0, 0.22, wash) * (1.0 - smoothstep(0.5, 0.95, wash))
