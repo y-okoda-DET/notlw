@@ -525,7 +525,9 @@ func _lookers():
 		var sk: Skeleton3D = sks[0]
 		var lm := Look.new()
 		if k == "makoto":
-			lm.chain = [["spine_03", 0.5], ["neck_01", 0.5]]; lm.max_yaw = 1.05   # one spine bone: the reflector turns about it exactly
+			# one spine bone: the reflector turns about it exactly. 2026-11-18（試作166 の感想「真琴の顔が動きでゆがむ」）: half of a
+			# 60° turn in neck_01 alone twisted the skin of her jaw and face; the head takes its share as the others' does
+			lm.chain = [["spine_03", 0.4], ["neck_01", 0.25], ["head", 0.35]]; lm.max_yaw = 1.05
 		sk.add_child(lm)
 		var fwd := (sk.global_basis * Vector3(0, 0, 1)); fwd.y = 0.0
 		lm.setup(fwd.normalized())
