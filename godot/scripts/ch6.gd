@@ -842,6 +842,12 @@ func _mk_arm(left: bool) -> Node3D:
 	var zax := tgb.y.cross(Vector3.DOWN).normalized()   # (it lies along the fingers at rest: about their axis it would only roll)
 	if (Basis(zax, 0.5) * tgb.y).y > tgb.y.y: zax = -zax     # the way that takes its tip to the palm's side (−Y)
 	tb["ab"] = (tgb.inverse() * zax).normalized()
+	# and away from the forefinger in the palm's plane (about the palm's normal): to lie up the edge of a thing held across the hand
+	# (user 2026-11-18: 「親指はスマホの淵に沿って上を向く」). The 17th angle, where a grip has one
+	var to: Vector3 = (to_h * sk.get_bone_global_rest(tb.i)).origin
+	var yax := Vector3.UP
+	if (Basis(yax, 0.5) * tgb.y).x * signf(to.x) < tgb.y.x * signf(to.x): yax = -yax
+	tb["rad"] = (tgb.inverse() * yax).normalized()
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	var cf := Node3D.new(); cf.name = "cuff"; h.add_child(cf)
 	_curl(h, 0.25)
@@ -897,13 +903,13 @@ func _mk_hand(left: bool) -> Node3D:
 # (15 joints: index, middle, ring, little, thumb, three each, then the thumb's swing out of the palm). Found and checked with
 # scripts/grip_lab.gd (--c6bench): her skin is nowhere more than 1.5 mm into the thing (flesh gives that much)
 const HOLDS := {
-	"phone": [90.0, Vector3(-0.025, -0.035, -0.095), -35.0],   # across the hand: its right edge in the root of the thumb, the fingers hooked on its left edge, the thumb bent at the right edge (user 2026-11-18: 「スマホを持つ手、再検討して」. The screen is cut where the hand is before it: PhoneMask)
+	"phone": [90.0, Vector3(-0.025, -0.033, -0.095), -35.0],   # across the hand: its right edge in the root of the thumb, the fingers hooked on its left edge, the thumb straight up its right edge (user 2026-11-18: 「スマホを持つ手、再検討して」「親指はスマホの淵に沿って上を向く」. The screen is cut where the hand is before it: PhoneMask)
 	"cas": [60.0, Vector3(0.003, -0.017, -0.098)],      # across the fingers, the thumb on its lower corner (the label stays seen)
 	"pack": [-60.0, Vector3(-0.005, -0.021, -0.098)],
 	"case": [-15.0, Vector3(-0.020, -0.014, -0.100)],   # cradled, the thumb beside it (the lid must open)
 }
 const GRIPS := {
-	"phone": [-0.06, 0.44, 0.29, 0.25, 0.5, 0.36, 0.42, 0.72, 0.51, 0.42, 0.72, 0.51, 0.0, 0.95, 0.95, 0.19],
+	"phone": [-0.06, 0.44, 0.32, 0.25, 0.5, 0.36, 0.42, 0.72, 0.27, 0.42, 0.72, 0.51, -0.2, 0.0, 0.0, 0.0, 1.2],   # (the 17th: the thumb out from the forefinger)
 	"cas": [-0.3, 0.74, 1.2, 0.24, -0.22, -0.09, 0.48, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, 0.08, 0.95, -0.02],
 	"pack": [-0.3, -0.22, 0.18, 0.18, -0.22, -0.12, 0.51, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, -0.1, 0.95, 0.04],
 	"case": [-0.3, -0.22, -0.12, 0.21, -0.22, -0.06, 0.48, -0.22, -0.12, 1.02, -0.22, -0.12, -0.3, 0.13, 0.15, 0.23],
@@ -924,6 +930,7 @@ func _ang_set(h: Node3D, ang: Array):
 	for k in fb.size():
 		var b = fb[k]
 		var q: Quaternion = sk.get_bone_rest(b.i).basis.get_rotation_quaternion()
+		if b.has("rad") and ang.size() > 16: q = q * Quaternion(b.rad, ang[16])
 		if b.has("ab") and ang.size() > 15: q = q * Quaternion(b.ab, ang[15])
 		sk.set_bone_pose_rotation(b.i, q * Quaternion(b.ax, ang[k]))
 	h.set_meta("ang", ang)
@@ -934,7 +941,7 @@ func _grip(h: Node3D, key: String, dur := 0.4):
 	var a0: Array = h.get_meta("ang"); var a1: Array = GRIPS[key]
 	create_tween().tween_method(func(k: float):
 		var a := []
-		for i in 16: a.append(lerpf(a0[i] if i < a0.size() else 0.0, a1[i], k))
+		for i in maxi(a0.size(), a1.size()): a.append(lerpf(a0[i] if i < a0.size() else 0.0, a1[i] if i < a1.size() else 0.0, k))
 		_ang_set(h, a), 0.0, 1.0, maxf(dur, 0.01))
 
 func _held(key: String) -> Transform3D:

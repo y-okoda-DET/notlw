@@ -137,6 +137,7 @@ static func set_angles(h: Node3D, ang: Array):
 	for k in fb.size():
 		var b = fb[k]
 		var q: Quaternion = sk.get_bone_rest(b.i).basis.get_rotation_quaternion()
+		if b.has("rad") and ang.size() > 16: q = q * Quaternion(b.rad, ang[16])
 		if b.has("ab") and ang.size() > 15: q = q * Quaternion(b.ab, ang[15])
 		sk.set_bone_pose_rotation(b.i, q * Quaternion(b.ax, ang[k]))
 
@@ -201,8 +202,12 @@ static func fit(h: Node3D, root: Node, skip: Array, tag: String, only: Array = [
 	var touched := []
 	for f in 5:
 		var hit := false
-		if f == 4 and thumb_fix.size() == 4:   # or: it is put where it is told (beside a thing whose whole face must be seen)
-			ang[12] = thumb_fix[0]; ang[13] = thumb_fix[1]; ang[14] = thumb_fix[2]; ang[15] = thumb_fix[3]; set_angles(h, ang); touched.append(true); continue
+		if f == 4 and thumb_fix.size() >= 4:   # or: it is put where it is told (beside a thing whose whole face must be seen)
+			ang[12] = thumb_fix[0]; ang[13] = thumb_fix[1]; ang[14] = thumb_fix[2]; ang[15] = thumb_fix[3]
+			if thumb_fix.size() > 4:
+				if ang.size() < 17: ang.append(thumb_fix[4])
+				else: ang[16] = thumb_fix[4]
+			set_angles(h, ang); touched.append(true); continue
 		if f == 4 and side_ab > -5.0:   # or: it stays a little out of the palm, and closes sideways against the thing's edge
 			ang[15] = side_ab; set_angles(h, ang)
 		elif f == 4:   # the thumb comes down from out of the palm, like the other jaw of a clamp
