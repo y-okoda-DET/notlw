@@ -14,7 +14,13 @@ extends "res://scripts/story.gd"
 
 # ---------------------------------------------------------------- the night (plan metres: x east, y north from the front door; z up)
 const Sound = preload("res://scripts/sound.gd")
-const MIO_AT := [4.55, 3.0]                       # her feet: the middle of the hall, left of the handrail camera's frame
+const MIO_AT := [4.4, 3.1]                        # her feet: by the stair's foot, left of the handrail camera's frame (.54 m off the tripod: its collider .3 + hers .17)
+# 2026-11-18（レビュー2「第4章は主観の低い・斜めの向きで始め、夏希が入ってきて近づくのが最初の向きのまま見える形に」）:
+# she starts low (crouched by the newel), turned up the hall toward the kitchen door at a slant, not down it to the
+# front door; she rises to her full height once she moves or something takes her (before: [4.55, 3.0], yaw 0, eye 1.52)
+const START_YAW := -166.0
+const START_PITCH := 2.0
+const LOW_EYE := 1.36
 const TAPE_MIO := [4.35, 3.15]                    # on the tape she stands a step further left: all of her, and the tripod at her shoulder, outside the small camera's frame
 const WEAPON_AT := [4.16, 2.62]                   # the tripod, moved from the genkan to the stair's foot for this night
 const DOOR_OPEN := 88.0                           # as Kiryu left it open at two (scene.json state.t02.front)
@@ -122,12 +128,13 @@ func _ready():
 	black = ColorRect.new(); black.color = Color(0, 0, 0, 0); black.set_anchors_preset(Control.PRESET_FULL_RECT); black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black); black_layer = bl
 	player.global_position = gp(MIO_AT[0], MIO_AT[1], 0.0)
-	player.yaw = 0.0; player.pitch = deg_to_rad(-4.0)     # south (Godot -z), down the hall to the front door
+	player.yaw = deg_to_rad(START_YAW); player.pitch = deg_to_rad(START_PITCH)   # up the hall at a slant: the kitchen door, the stair at the right
+	player.eye_height = LOW_EYE; low_at = player.global_position
 	_foot.call_deferred("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　左クリック 振る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo": demo4 = true
 		if a == "--d4quiet": set_meta("quiet", true)   # the unattended run never takes the tripod up (the no-blow ending)
-		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0)   # check stills: where she stands
+		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0); low_at = player.global_position   # check stills: where she stands
 		if a.begins_with("--d4at="): call_deferred("_jump", float(a.substr(7)))   # stills: start the night at this second
 		if a == "--d4hold": holding = true; call_deferred("_take")                  # stills: the tripod already in her hands
 		if a == "--nocard4": card_t = 0.0
@@ -429,6 +436,7 @@ func _process(dt):
 	if tape: return
 	mio_shadow.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z)
 	mio_shadow.rotation.y = player.yaw
+	_rise(dt)
 	_look_at_things()
 	_grab_mio(dt)
 	_swing(dt)
@@ -650,6 +658,13 @@ func _npoint(i: int) -> Vector3:
 		to.y = 0.0 if to.z > gp(0, 1.45, 0).z else p.y
 		return to
 	return gp(q[0], q[1], q[2])
+
+var low_at := Vector3.ZERO
+var rising := false
+func _rise(dt: float):
+	if player.eye_height >= 1.52: return
+	if not rising and ((player.global_position - low_at).length() > 0.2 or holding or grab_t >= 0.0): rising = true
+	if rising: player.eye_height = minf(1.52, player.eye_height + dt * 0.4)   # about half a second to stand
 
 func _mio_eye() -> Vector3:
 	if tape: return gp(TAPE_MIO[0], TAPE_MIO[1], 1.5)
