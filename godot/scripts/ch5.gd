@@ -344,6 +344,20 @@ func _tripod():
 		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
 	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false
+	# the three leg locks came out of the house's file 1.5 m above the head (seen in 第6章, where she holds it up: three
+	# small things in the air, and the tripod measured 2.28 m for 1.44). Each back on its collar, on the outside
+	var cols: Array = []
+	for mi in parts:
+		if String(mi.name).begins_with("tpd_collar"): cols.append(mi)
+	for mi in parts:
+		if not String(mi.name).begins_with("tpd_lock") or cols.is_empty(): continue
+		var lc: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		var best: Vector3 = lc
+		for c in cols:   # tpd_lock_001 is tpd_collar_001's (where they came out, the nearest collar was the same one for all three)
+			if String(c.name).trim_prefix("tpd_collar") == String(mi.name).trim_prefix("tpd_lock"):
+				best = ((c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb()).get_center()
+		var out := Vector3(best.x - tripod.global_position.x, 0.0, best.z - tripod.global_position.z).normalized()
+		(mi as Node3D).global_position += best + out * 0.018 - lc
 	# on its side on the boards, its head toward her
 	# on the boards where it fell from her hands: its feet by hers, its head toward Natsuki's, along the hall's west side
 	tripod.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)) * Basis(Vector3.RIGHT, deg_to_rad(-87.0)), gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.06))

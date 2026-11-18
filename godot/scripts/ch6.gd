@@ -535,6 +535,9 @@ func _holding() -> bool:
 # Built here from a few rounded pieces: under the print a hand is its outline and its light side. Each hand's own frame:
 # the fingers point to -Z, the palm faces -Y, the forearm (the sleeve) runs back to +Z. They ride the camera (rig6).
 const SKIN := Color(0.74, 0.58, 0.49)
+const CUFF_Z := 0.02
+const POLICE_HEAD_K := 0.44
+const POLICE_HEAD_Z := 0.0
 const CLOTH := Color(0.62, 0.60, 0.56)
 const SLEEVE_SHADER := """
 shader_type spatial;
@@ -572,6 +575,50 @@ void fragment() {
 	ALBEDO = c; ROUGHNESS = 0.95; SPECULAR = 0.15;   // (wet cloth with a gloss took the light by her eye and went white: the stain was gone from the picture)
 }
 """
+# her own arm (blender/export_mio_arms.py: props/mio_arm_l.glb, mio_arm_r.glb): the model's cloth and skin, and on the
+# left sleeve the same stain, laid round the forearm from where the vertex is in the hand's frame
+const ARM_SHADER := """
+shader_type spatial;
+uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D nrm : hint_normal, filter_linear_mipmap;
+uniform bool has_nrm = false;
+uniform mat4 to_hand;
+uniform float cuff = 0.02;     // metres up the arm from the wrist where the cloth starts
+uniform float stain = 0.0;
+uniform float wash = 0.0;
+uniform float wet = 0.0;
+varying vec3 hp;
+float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vn(vec2 x) { vec2 i = floor(x); vec2 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
+float cap(vec2 p, vec2 a, vec2 b, float r) { vec2 pa = p - a; vec2 ba = b - a; float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return 1.0 - length(pa - ba * t) / r; }
+void vertex() { hp = (to_hand * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec3 c = texture(tex, UV).rgb;
+	if (has_nrm) NORMAL_MAP = texture(nrm, UV).rgb;
+	float on = stain * step(cuff, hp.z);
+	vec2 q = vec2(fract(atan(hp.x, hp.y) / TAU + 0.30) * 0.26, hp.z - cuff);
+	float m = -6.0;
+	for (int i = 0; i < 4; i++) {
+		float y = 0.085 + 0.023 * float(i) + 0.004 * sin(float(i) * 2.3);
+		float len = 0.100 - 0.016 * abs(float(i) - 1.3) + 0.008 * sin(float(i) * 4.1);
+		m = max(m, cap(q, vec2(0.050 + 0.006 * sin(float(i) * 1.7), y + 0.007 * float(i)), vec2(0.050 + len, y - 0.003), 0.0100));
+	}
+	m = max(m, cap(q, vec2(0.022, 0.100), vec2(0.040, 0.150), 0.020) * 0.8);
+	m = max(m, cap(q, vec2(0.215, 0.105), vec2(0.245, 0.14), 0.012));
+	m = max(m, cap(q, vec2(0.0, 0.105), vec2(0.02, 0.118), 0.012));
+	float n = vn(q * 220.0) * 0.6 + vn(q * 600.0) * 0.4;
+	float blood = smoothstep(0.0, 0.3, m + (n - 0.5) * 0.9) * on;
+	float mm = m + (n - 0.5) * 0.4;
+	float halo = smoothstep(-1.1, -0.3, mm) * on;
+	float ring = smoothstep(-1.2, -0.8, mm) * (1.0 - smoothstep(-0.55, -0.15, mm)) * on;
+	c = mix(c, c * 0.62, wet * halo);
+	c = mix(c, c * vec3(0.62, 0.42, 0.30), halo * wash * 0.45);
+	c = mix(c, c * vec3(0.30, 0.15, 0.10), ring * wash * 0.95);
+	c = mix(c, vec3(0.36, 0.035, 0.02), blood * (1.0 - smoothstep(0.15, 0.95, wash)));   // dried, on dark grey wool: a rust that the print's warm ink takes
+	ALBEDO = c; ROUGHNESS = 0.92; SPECULAR = 0.15;
+}
+"""
 var sleeve_l: ShaderMaterial
 var tri_fill: OmniLight3D
 var fill6: OmniLight3D           # the candle's light on what she holds up to her eye (her own hands stood black against it)
@@ -588,7 +635,48 @@ func _hands():
 	tri_fill.shadow_enabled = false; tri_fill.light_cull_mask = 2; tri_fill.position = Vector3(0.0, 0.12, -0.05); rig6.add_child(tri_fill)
 	hand_l.position = Vector3(-0.2, -0.6, -0.3); hand_r.position = Vector3(0.2, -0.6, -0.3)
 
+func _mk_arm(left: bool) -> Node3D:
+	var h := Node3D.new(); h.name = "hand_l" if left else "hand_r"
+	var inst: Node3D = (load("res://props/mio_arm_%s.glb" % ("l" if left else "r")) as PackedScene).instantiate()
+	h.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	var sm := ShaderMaterial.new(); var sh := Shader.new(); sh.code = ARM_SHADER; sm.shader = sh
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var src := m.mesh.surface_get_material(0) as BaseMaterial3D
+		if src:
+			sm.set_shader_parameter("tex", src.albedo_texture)
+			if src.normal_enabled and src.normal_texture: sm.set_shader_parameter("nrm", src.normal_texture); sm.set_shader_parameter("has_nrm", true)
+		# the vertex in the hand's frame (the wrist at the origin, the sleeve up +Z)
+		var rel := Transform3D(); var nd: Node3D = m
+		while nd != h: rel = nd.transform * rel; nd = nd.get_parent()
+		sm.set_shader_parameter("to_hand", Projection(rel))
+		m.material_override = sm; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
+		m.layers |= 2   # the tripod's own light falls on the hands that hold it
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	sm.set_shader_parameter("stain", 1.0 if left else 0.0); sm.set_shader_parameter("cuff", CUFF_Z)
+	if left: sleeve_l = sm
+	# the fingers: each joint bends about the axis across the finger and the palm (the palm faces -Y here)
+	var fb := []
+	var to_h := Transform3D(); var nd2: Node3D = sk
+	while nd2 != h: to_h = nd2.transform * to_h; nd2 = nd2.get_parent()
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_%s" % [f, j + 1, "l" if left else "r"])
+			if bi < 0: continue
+			var gb: Basis = (to_h * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = (gb.y.cross(Vector3.DOWN)).normalized()
+			if f == "thumb":   # the thumb closes across the palm, toward the root of the middle finger (about the fingers' axis it pointed straight down)
+				var o: Vector3 = (to_h * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
+			fb.append({"i": bi, "ax": (gb.inverse() * ax).normalized(), "thumb": f == "thumb", "j": j})
+	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
+	var cf := Node3D.new(); cf.name = "cuff"; h.add_child(cf)
+	_curl(h, 0.25)
+	return h
+
 func _mk_hand(left: bool) -> Node3D:
+	if ResourceLoader.exists("res://props/mio_arm_l.glb") and not OS.get_cmdline_user_args().has("--boxhands"): return _mk_arm(left)
 	var h := Node3D.new(); h.name = "hand_l" if left else "hand_r"
 	var skin := StandardMaterial3D.new(); skin.albedo_color = SKIN; skin.roughness = 0.75
 	var tx := 1.0 if left else -1.0
@@ -635,6 +723,14 @@ func _mk_hand(left: bool) -> Node3D:
 
 # the fingers' curl: 0 flat, 1.3 a fist
 func _curl(h: Node3D, a: float, thumb := -1.0):
+	if h.has_meta("sk"):
+		var sk: Skeleton3D = h.get_meta("sk")
+		var t2 := a * 0.6 if thumb < 0.0 else thumb
+		h.set_meta("curl", a)
+		for b in h.get_meta("fb"):
+			var ang: float = (t2 * [0.30, 0.55, 0.40][b.j]) if b.thumb else (a * [0.80, 1.05, 0.70][b.j])
+			sk.set_bone_pose_rotation(b.i, sk.get_bone_rest(b.i).basis.get_rotation_quaternion() * Quaternion(b.ax, ang))
+		return
 	for k in h.get_meta("kn"): (k as Node3D).rotation.x = -a
 	for j in h.get_meta("jn"): (j as Node3D).rotation.x = -a * 1.15
 	var t := a * 0.6 if thumb < 0.0 else thumb
@@ -642,7 +738,7 @@ func _curl(h: Node3D, a: float, thumb := -1.0):
 	(h.get_meta("tb") as Node3D).rotation.z = (1.0 if h == hand_l else -1.0) * t * 0.5
 
 func _curl_to(h: Node3D, a: float, dur := 0.4):
-	var a0: float = -((h.get_meta("kn")[0]) as Node3D).rotation.x
+	var a0: float = h.get_meta("curl") if h.has_meta("sk") else -((h.get_meta("kn")[0]) as Node3D).rotation.x
 	create_tween().tween_method(func(v: float): _curl(h, v), a0, a, dur)
 
 # a hand to a place before the eye (the camera's frame: x right, y up, -z ahead), turned by degrees (YXZ)
@@ -682,7 +778,8 @@ func _go(at: Array, eye: float, look: Vector3, dur := 1.1):
 	turn_tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), dur).set_trans(Tween.TRANS_SINE)
 
 # ================================================================ the things this chapter brings
-var bag6: MeshInstance3D
+var bag6: Node3D
+var bag_full := Vector3.ONE
 var cas1: Node3D               # the first tape (her hand: 「定点」)
 var cas2: Node3D               # the second (blank)
 var phone: Node3D
@@ -695,7 +792,7 @@ var water: MeshInstance3D
 var basin: MeshInstance3D
 var basin_mat: StandardMaterial3D
 var tri_blood: MeshInstance3D
-var tripod_h := 2.28
+var tripod_h := 1.44
 var up_tape: MeshInstance3D
 var peeled_balls: Node3D
 
@@ -726,19 +823,30 @@ func _cassette(label: String) -> Node3D:
 func _props6():
 	for mi in main.S.env_node.find_children("bed1b_blanket*", "MeshInstance3D", true, false): (mi as Node3D).visible = false   # it is over Natsuki
 	# the tripod's bag, flat and open, where the crew's things are
-	bag6 = MeshInstance3D.new(); var cm := CapsuleMesh.new(); cm.radius = 0.10; cm.height = 0.98; bag6.mesh = cm
-	var bm := StandardMaterial3D.new(); bm.albedo_color = Color(0.10, 0.11, 0.14); bm.roughness = 0.9; bag6.material_override = bm
-	bag6.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	main.add_child(bag6)
-	bag6.global_transform = Transform3D(Basis(Vector3.RIGHT, PI / 2.0).scaled(Vector3(1.0, 0.45, 1.0)), gp(BAG_AT[0], BAG_AT[1], 0.05))
+	if ResourceLoader.exists("res://props/tripod_case.glb"):
+		# the user's own case (Tripo, 2026-11-17): 0.98 long, lying along the wall; flat until the tripod is in it
+		bag6 = (load("res://props/tripod_case.glb") as PackedScene).instantiate()
+		for mi in bag6.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		main.add_child(bag6)
+		bag6.global_transform = Transform3D(Basis(Vector3.UP, PI / 2.0), gp(BAG_AT[0], BAG_AT[1], 0.0))
+		bag6.scale = Vector3(1.0, 0.5, 1.0)
+	else:
+		var bmi := MeshInstance3D.new(); var cm := CapsuleMesh.new(); cm.radius = 0.10; cm.height = 0.98; bmi.mesh = cm
+		var bm := StandardMaterial3D.new(); bm.albedo_color = Color(0.10, 0.11, 0.14); bm.roughness = 0.9; bmi.material_override = bm
+		bmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		bag6 = bmi; main.add_child(bag6)
+		bag6.global_transform = Transform3D(Basis(Vector3.RIGHT, PI / 2.0).scaled(Vector3(1.0, 0.45, 1.0)), gp(BAG_AT[0], BAG_AT[1], 0.05))
+		bag_full = Vector3(1.0, 0.85, 1.0)
 	# what the blow left on the tripod's head
 	if tripod:
 		var bb := AABB(); var first := true
 		for mi in tripod.find_children("*", "MeshInstance3D", true, false):
 			var a: AABB = (mi as MeshInstance3D).transform * (mi as MeshInstance3D).get_aabb()
 			bb = a if first else bb.merge(a); first = false
+			if OS.get_cmdline_user_args().has("--c6names"): print("TPD %s y %.2f..%.2f" % [mi.name, a.position.y, a.end.y])
 		tripod_h = bb.end.y
 		for mi in tripod.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 2
+		_tri_rig(bb)
 		tri_blood = MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.075; cy.bottom_radius = 0.07; cy.height = 0.16; tri_blood.mesh = cy
 		var rm := StandardMaterial3D.new(); rm.albedo_color = Color(0.13, 0.008, 0.008, 0.92); rm.roughness = 0.25; rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		tri_blood.material_override = rm; tri_blood.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
@@ -789,10 +897,70 @@ func _nat_tick():
 
 # ================================================================ Ａ 三脚
 var carrying := false
-var tri_k := 1.0               # the legs' length
-var tri_w := 1.0               # the legs' spread
-var tri_head := Vector3(0.30, -0.13, -0.52)
-var tri_axis := Vector3(-1.0, -0.04, -0.18)   # from its head to its feet, in her hands
+var tri_close := 0.0           # the legs brought together (0 open as it stood, 1 shut)
+var leg_in := [0.0, 0.0, 0.0]  # each leg's lower tube pushed up into the upper (0..1)
+var tri_legs: Array = []       # {piv, low, ax, ang, dir}
+var tri_spread: Array = []
+const LEG_SLIDE := 0.56
+
+# the legs as legs: each turns in at its hinge under the head, and its lower tube slides up into the upper one
+# (it was the whole tripod squeezed by a scale: the head went flat with the legs)
+func _tri_rig(bb: AABB):
+	var parts := tripod.find_children("tpd_*", "MeshInstance3D", true, false)
+	var box := func(mi: Node) -> AABB: return (mi as MeshInstance3D).transform * (mi as MeshInstance3D).get_aabb()
+	# the column's axis: the middle of the three feet (the box of the whole thing is pulled aside by the pan bar)
+	var c := Vector3.ZERO; var nf := 0
+	for mi in parts:
+		if String(mi.name).begins_with("tpd_foot"): c += (box.call(mi) as AABB).get_center(); nf += 1
+	c = Vector3(bb.get_center().x, 0.0, bb.get_center().z) if nf == 0 else Vector3(c.x / nf, 0.0, c.z / nf)
+	for u in parts:
+		if not String(u.name).begins_with("tpd_leg"): continue
+		var ua: AABB = box.call(u)
+		if ua.end.y < tripod_h * 0.75: continue            # an upper tube: it reaches the head
+		var out := Vector3(ua.get_center().x - c.x, 0.0, ua.get_center().z - c.z).normalized()
+		# the tube's own ends: the middle of its top and bottom vertices (the box's corners are not on a tube that leans)
+		var hinge := Vector3.ZERO; var knee := Vector3.ZERO; var n1 := 0; var n2 := 0
+		var um := u as MeshInstance3D
+		for si in um.mesh.get_surface_count():
+			for v in (um.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				var q: Vector3 = um.transform * v
+				if q.y > ua.end.y - 0.03: hinge += q; n1 += 1
+				if q.y < ua.position.y + 0.03: knee += q; n2 += 1
+		hinge /= maxf(n1, 1); knee /= maxf(n2, 1)
+		var dir := (knee - hinge).normalized()
+		var piv := Node3D.new(); tripod.add_child(piv); piv.position = hinge
+		var low := Node3D.new(); piv.add_child(low)
+		for mi in parts:
+			var nm := String(mi.name)
+			if not (nm.begins_with("tpd_leg") or nm.begins_with("tpd_collar") or nm.begins_with("tpd_lock") or nm.begins_with("tpd_foot")): continue
+			if mi.get_parent() != tripod: continue
+			var a: AABB = box.call(mi)
+			var o := Vector3(a.get_center().x - c.x, 0.0, a.get_center().z - c.z)
+			if o.length() < 0.01 or o.normalized().dot(out) < 0.8: continue
+			var lower: bool = (nm.begins_with("tpd_leg") and a.end.y < tripod_h * 0.75) or nm.begins_with("tpd_foot")
+			var t: Transform3D = (mi as Node3D).transform
+			tripod.remove_child(mi); (low if lower else piv).add_child(mi)
+			(mi as Node3D).transform = Transform3D(Basis(), -hinge) * t
+		if OS.get_cmdline_user_args().has("--c6names"): print("LEG hinge %s knee %s ang %.1f up %s low %s" % [hinge, knee, rad_to_deg(dir.angle_to(Vector3.DOWN)), piv.get_children().map(func(n): return n.name), low.get_children().map(func(n): return n.name)])
+		tri_legs.append({"piv": piv, "low": low, "ax": dir.cross(Vector3.DOWN).normalized(), "ang": dir.angle_to(Vector3.DOWN), "dir": dir})
+	for mi in parts:
+		if String(mi.name).begins_with("tpd_spread"): tri_spread.append(mi)
+	print("CH6 tripod legs %d spread %d h %.2f" % [tri_legs.size(), tri_spread.size(), tripod_h])
+
+func _tri_pose():
+	for i in tri_legs.size():
+		var L: Dictionary = tri_legs[i]
+		(L.piv as Node3D).basis = Basis(L.ax, L.ang * tri_close)
+		(L.low as Node3D).position = -(L.dir as Vector3) * LEG_SLIDE * float(leg_in[mini(i, 2)])
+	for mi in tri_spread:
+		(mi as Node3D).visible = tri_close < 0.5     # the spreader folds up between the legs
+
+func _tri_len() -> float:
+	var m := 0.0
+	for v in leg_in: m = maxf(m, 1.0 - float(v))
+	return tripod_h - LEG_SLIDE * (1.0 - m) * 0.98
+var tri_head := Vector3(0.30, -0.16, -0.42)
+var tri_axis := Vector3(-1.0, -0.03, -0.12)   # from its head to its feet, in her hands
 var wipe := 0.0
 var wipe_snd := 0.0
 
@@ -800,8 +968,8 @@ func _tri_place():
 	if not carrying and act != "tripod": return
 	var ax := tri_axis.normalized()
 	var y := -ax; var x := y.cross(Vector3.BACK).normalized(); var z := x.cross(y).normalized()
-	var b := Basis(x, y, z) * Basis.from_scale(Vector3(tri_w, tri_k, tri_w))
-	tripod.transform = Transform3D(b, tri_head + ax * tripod_h * tri_k)
+	_tri_pose()
+	tripod.transform = Transform3D(Basis(x, y, z), tri_head + ax * tripod_h)
 
 func _tripod_take():
 	act = "tripod"; step = 0; note_lb.text = ""
@@ -817,9 +985,9 @@ func _tripod_take():
 		var tw := create_tween()
 		tw.tween_method(func(k: float):
 			_tri_place(); tripod.transform = t0.interpolate_with(tripod.transform, k), 0.0, 1.0, 1.5).set_trans(Tween.TRANS_SINE)
-		create_tween().tween_property(self, "tri_w", 0.55, 1.5)
+		create_tween().tween_property(self, "tri_close", 1.0, 1.5).set_trans(Tween.TRANS_SINE)
 		_turn_to(_cam().global_position + Basis(Vector3.UP, player.yaw) * Vector3(0, -0.35, -1.0), 1.5)
-		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.0, 0.02, 0.05), Vector3(20, 8, 0), 1.4); _curl(hand_l, 1.1)
+		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.0, 0.02, 0.05), Vector3(25, -15, 0), 1.4); _curl(hand_l, 1.1)
 		_after(1.7, func(): step = 1; _show_prompt("三脚.拭く")))
 
 func _show_prompt(key: String):
@@ -830,7 +998,7 @@ func _tripod_tick(dt: float):
 	if step == 1:
 		# her cuff pulled over her hand, along the head and back (her own hand's shadow over it)
 		if _holding():
-			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.05, 0.03, 0.05), Vector3(20, -8, 0), 0.4); _curl(hand_r, 1.2); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 3.2, 1.25)
+			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.03, 0.025, 0.05), Vector3(25, 15, 0), 0.4); _curl(hand_r, 1.2); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 3.2, 1.25)
 			wipe = minf(1.0, wipe + dt / 3.6)
 			if wipe > 0.1: hand_r.position = tri_head + tri_axis.normalized() * (0.07 + 0.07 * sin(t_now * 7.5)) + Vector3(0.0, 0.035, 0.05)
 			wipe_snd -= dt
@@ -839,19 +1007,23 @@ func _tripod_tick(dt: float):
 			if wipe >= 1.0:
 				tri_blood.visible = false; step = 2; legs_n = 0
 				(hand_r.get_node("cuff") as Node3D).position.z = 0.04; (hand_r.get_node("cuff") as Node3D).scale = Vector3.ONE
-				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(0.0, 0.02, 0.05), Vector3(20, -8, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0, 0.02, 0.05), Vector3(20, 8, 0), 0.6)
+				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(0.0, 0.02, 0.05), Vector3(25, 15, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0, 0.02, 0.05), Vector3(25, -15, 0), 0.6)
 				_show_prompt("三脚.脚")
 var legs_n := 0
 
 func _tripod_press():
 	if step == 2 and legs_n < 3:
 		legs_n += 1
-		var k: float = [0.74, 0.52, 0.36][legs_n - 1]
-		create_tween().tween_property(self, "tri_k", k, 0.35).set_trans(Tween.TRANS_QUAD)
+		var li := legs_n - 1
+		create_tween().tween_method(func(v: float): leg_in[li] = v, 0.0, 1.0, 0.35).set_trans(Tween.TRANS_QUAD)
 		# each lock is heard through the whole house
 		Sound.one(self, "lock", 2.0)
 		_after(0.28, func(): Sound.one(self, "lock", -13.0, gp(5.2, 6.4, F2 + 1.0)))
-		hand_l.position = tri_head + tri_axis.normalized() * (0.60 * k + 0.26) + Vector3(0.0, 0.02, 0.05)
+		# her hand at the lock: a turn of the wrist, and the tube runs in
+		var hq := hand_l.quaternion
+		var tw := create_tween()
+		tw.tween_property(hand_l, "quaternion", hq * Quaternion(Vector3.FORWARD, 0.35), 0.12)
+		tw.tween_property(hand_l, "quaternion", hq, 0.25)
 		if legs_n == 3:
 			step = 3; note_lb.text = ""
 			_after(0.9, func():
@@ -867,14 +1039,14 @@ func _tripod_bag():
 	_turn_to(gp(BAG_AT[0], BAG_AT[1], 0.1), 0.7)
 	var gt := tripod.global_transform
 	rig6.remove_child(tripod); main.add_child(tripod); tripod.global_transform = gt
-	var ln := tripod_h * tri_k
-	var to := Transform3D(Basis(Vector3.RIGHT, PI / 2.0) * Basis.from_scale(Vector3(tri_w, tri_k, tri_w)), gp(BAG_AT[0], BAG_AT[1] - ln * 0.5, 0.07))
+	var ln := _tri_len()
+	var to := Transform3D(Basis(Vector3.RIGHT, PI / 2.0), gp(BAG_AT[0], BAG_AT[1] - tripod_h + ln * 0.5, 0.07))
 	var tw := create_tween()
 	tw.tween_property(tripod, "global_transform", to, 1.1).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func():
 		Sound.one(self, "ch3_blanket", -12.0, gp(BAG_AT[0], BAG_AT[1], 0.1))
 		tripod.visible = false
-		bag6.scale = Vector3(1.0, 0.85, 1.0))   # full
+		bag6.scale = bag_full)   # full
 	tw.tween_interval(0.8)
 	tw.tween_callback(func():
 		done6["tripod"] = true; act = ""
@@ -919,8 +1091,8 @@ func _cam_out():
 				# onto her fingers, and down before her eye: nothing is written on it
 				var gt := cas2.global_transform
 				main.remove_child(cas2); hand_r.add_child(cas2); cas2.global_transform = gt
-				create_tween().tween_property(cas2, "transform", Transform3D(Basis(), Vector3(0, -0.022, -0.105)), 0.5)
-				_hand_to(hand_r, Vector3(0.04, -0.125, -0.235), Vector3(64, 6, 180), 0.9)
+				create_tween().tween_property(cas2, "transform", Transform3D(Basis(), Vector3(0, -0.034, -0.075)), 0.5)
+				_curl(hand_r, 0.35, 0.5); _hand_to(hand_r, Vector3(0.04, -0.12, -0.24), Vector3(62, 6, 180), 0.9)
 				_after(1.6, func(): step = 1; _show_prompt("カメラ.入れる")))))
 
 func _cam_in():
@@ -931,7 +1103,7 @@ func _cam_in():
 		cas2.visible = false
 		hand_r.remove_child(cas2); add_child(cas2)
 		cas1.get_parent().remove_child(cas1); hand_r.add_child(cas1); cas1.visible = true
-		cas1.transform = Transform3D(Basis(), Vector3(0, -0.022, -0.105))
+		cas1.transform = Transform3D(Basis(), Vector3(0, -0.034, -0.075))
 		Sound.one(self, "ch3_blanket", -18.0)
 		# up into the candle's light, tilted to it: 「定点」, in her own hand
 		_hand_to(hand_r, Vector3(-0.01, -0.105, -0.215), Vector3(66, -12, 180), 0.9)
@@ -1351,8 +1523,8 @@ func _sleeve_press():
 	_candle_down(gp(TAP[0] - 0.72, TAP[1] - 0.10, 0.895))
 	_after(1.3, func():
 		# before the water: she looks at it once. The blood has the shape of fingers
-		hand_l.position = Vector3(-0.25, -0.6, -0.3); _curl(hand_l, 0.5)
-		_hand_to(hand_l, Vector3(0.11, -0.065, -0.30), Vector3(0, -64, 0), 1.1)
+		hand_l.position = Vector3(-0.25, -0.6, -0.3); _curl(hand_l, 0.2)
+		_hand_to(hand_l, Vector3(0.16, -0.10, -0.38), Vector3(15, -55, 0), 1.1)
 		_after(1.4, func():
 			_ret_open("袖.見る")
 			step = 10))
@@ -1372,10 +1544,10 @@ func _sleeve_tick(dt: float):
 		water_p.volume_db = move_toward(water_p.volume_db, -16.0 if on else -60.0, dt * 80.0)
 		if on:
 			if wash <= 0.0:
-				_hand_to(hand_l, Vector3(0.11, -0.10, -0.34), Vector3(0, -64, 0), 0.5)
-				_hand_to(hand_r, Vector3(0.0, -0.075, -0.275), Vector3(18, 28, 0), 0.5); _curl(hand_r, 0.7)
+				_hand_to(hand_l, Vector3(0.16, -0.12, -0.40), Vector3(15, -55, 0), 0.5)
+				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27), Vector3(30, 35, 0), 0.5); _curl(hand_r, 0.45)
 			wash = minf(1.0, wash + dt / 6.5)
-			if wash > 0.08: hand_r.position = Vector3(0.0 + 0.04 * sin(t_now * 6.5), -0.075, -0.275 + 0.012 * cos(t_now * 6.5))
+			if wash > 0.08: hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sin(t_now * 6.5)   # along her forearm and back
 			sleeve_l.set_shader_parameter("wash", wash); sleeve_l.set_shader_parameter("wet", clampf(wash * 4.0, 0.0, 1.0))
 			# the water goes red, and then clear
 			var red := smoothstep(0.0, 0.22, wash) * (1.0 - smoothstep(0.5, 0.95, wash))
@@ -1385,7 +1557,7 @@ func _sleeve_tick(dt: float):
 				_water(false); water_p.volume_db = -60.0
 				create_tween().tween_property(basin_mat, "albedo_color:a", 0.0, 3.0)
 				_ret_after("袖.あと", 12.0)
-				_hand_away(hand_r, 0.7); _hand_to(hand_l, Vector3(0.11, -0.065, -0.30), Vector3(0, -64, 0), 0.8)   # she looks at what is left
+				_hand_away(hand_r, 0.7); _hand_to(hand_l, Vector3(0.16, -0.10, -0.38), Vector3(15, -55, 0), 0.8)   # she looks at what is left
 				_after(3.2, func():
 					_hand_away(hand_l, 0.9)
 					_candle_up()
@@ -1495,16 +1667,24 @@ func _car():
 	main.add_child(fog); fog.global_position = gp(FRONT6[0], FRONT6[1] + 1.6, 1.3)
 	if ResourceLoader.exists("res://props/police_body.glb"):
 		police = Node3D.new(); main.add_child(police)
-		var pb: Node3D = (load("res://props/police_body.glb") as PackedScene).instantiate(); police.add_child(pb)
+		var with_head := ResourceLoader.exists("res://props/police_head.glb") and ResourceLoader.exists("res://props/police_body_nohead.glb")
+		var pb: Node3D = (load("res://props/police_body_nohead.glb" if with_head else "res://props/police_body.glb") as PackedScene).instantiate(); police.add_child(pb)
 		pb.scale = Vector3.ONE * 1.72
-		var navy := StandardMaterial3D.new(); navy.albedo_color = Color(0.06, 0.07, 0.12); navy.roughness = 0.6
-		var cap := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.115; cy.bottom_radius = 0.105; cy.height = 0.085; cap.mesh = cy
-		cap.material_override = navy; police.add_child(cap); cap.position = Vector3(0, 1.69, 0.005)
-		var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.075; bm2.bottom_radius = 0.075; bm2.height = 0.01; brim.mesh = bm2
-		brim.material_override = navy; police.add_child(brim); brim.position = Vector3(0, 1.655, -0.085); brim.scale = Vector3(1.4, 1.0, 1.0)
 		var top := 0.0
 		for mi in pb.find_children("*", "MeshInstance3D", true, false): top = maxf(top, ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).end.y - police.global_position.y)
-		if top > 1.0: cap.position.y = top - 0.02; brim.position.y = top - 0.055
+		if with_head:
+			# the user's own head and cap for him (Tripo, 2026-11-17; the bust under the chin cut away in prep_props.py): over the
+			# body cut at the chin (tripo/police_nohead.py), its cap's top 4 cm over where the body's crown was
+			var ph: Node3D = (load("res://props/police_head.glb") as PackedScene).instantiate(); police.add_child(ph)
+			ph.scale = Vector3.ONE * POLICE_HEAD_K
+			ph.position = Vector3(0, 0.978 * 1.72 + 0.04 - 0.667 * POLICE_HEAD_K, POLICE_HEAD_Z)
+		else:
+			var navy := StandardMaterial3D.new(); navy.albedo_color = Color(0.06, 0.07, 0.12); navy.roughness = 0.6
+			var cap := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.115; cy.bottom_radius = 0.105; cy.height = 0.085; cap.mesh = cy
+			cap.material_override = navy; police.add_child(cap); cap.position = Vector3(0, 1.69, 0.005)
+			var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.075; bm2.bottom_radius = 0.075; bm2.height = 0.01; brim.mesh = bm2
+			brim.material_override = navy; police.add_child(brim); brim.position = Vector3(0, 1.655, -0.085); brim.scale = Vector3(1.4, 1.0, 1.0)
+			if top > 1.0: cap.position.y = top - 0.02; brim.position.y = top - 0.055
 		police.global_transform = Transform3D(Basis(Vector3.UP, PI - 0.2), gp(5.3, -0.95, 0.0))
 		police.visible = false
 
@@ -1656,7 +1836,7 @@ func _jump6(s: String):
 	if n < 0: print("SCRIPT ERROR ch6: --ch6at=", s); return
 	var at := [4.3, 3.9]
 	if n >= 1:
-		tripod.visible = false; done6["tripod"] = true; bag6.scale = Vector3(1.0, 0.85, 1.0); _dawn()
+		tripod.visible = false; done6["tripod"] = true; bag6.scale = bag_full; _dawn()
 	if n >= 2:
 		done6["cam"] = true; looked["cam"] = true; _dawn(); struck6["澪＊：テープは、二本目にしました。"] = true
 	if n == 3:
