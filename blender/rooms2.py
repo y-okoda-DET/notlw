@@ -368,8 +368,12 @@ def upstairs(M):
     lived.phm('vintage_wooden_drawer_01', 4.0 - .07 - .34, 5.25, z, rz=-math.pi / 2, s=.62, name='bed2_chest')
     collide(3.3, 4.7, 3.93, 5.8, z, z + .68)
     zc = z + 1.09 * .62
-    box('makeup_box', 3.4, 4.85, 3.8, 5.15, zc, zc + .2, M['bagolive'])
-    tape(M, 'makeup', (X(3.6), Y(4.85) + .0, zc + .1), (0, 1, 0), .16)
+    # 2026-11-18 the user's Tripo kit (lid open, the mirror in it; front -Y in Blender): its front to the room (plan -x), .4 wide
+    if F.tripo_prop('makeupkit', (X(3.62), Y(5.0), zc), -math.pi / 2, .5, name='makeup_box'):
+        tape(M, 'makeup', (X(3.375) - .003, Y(4.87), zc + .09), (-1, 0, 0), .14)
+    else:
+        box('makeup_box', 3.4, 4.85, 3.8, 5.15, zc, zc + .2, M['bagolive'])
+        tape(M, 'makeup', (X(3.6), Y(4.85) + .0, zc + .1), (0, 1, 0), .16)
     for i in range(4):
         cyl('makeup_bottle', 3.45 + i * .09, 5.35, zc, zc + .1 + .03 * (i % 2), .022, M['canred'] if i % 2 else M['plastic'], 10)
     hardcase(M, 'case_cam', 2.25, 4.42, 2.95, 4.87, z, .32)
@@ -417,8 +421,13 @@ def upstairs(M):
     box('bath_floor', 6.06, 4.26, 9.94, 7.94, z, z + .015, M['bathtile'], 1.0)
     box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathtile'], col=True)
     box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathtile'], col=True)
-    box('bath_tub', 8.5, 6.6, 9.94, 7.94, z, z + .58, M['enamel'], col=True)
-    box('bath_water', 8.58, 6.68, 9.86, 7.86, z + .5, z + .505, M['glass'])
+    # 2026-11-18 the user's Tripo tub (tiled outside, blue enamel in; front -Y in Blender): 1.32 x .79 x .58 in the NE corner
+    if F.tripo_prop('bathtub', (X(9.26), Y(7.53), z), math.pi, (1.35, 1.0, 1.5), name='bath_tub'):
+        collide(8.6, 7.13, 9.92, 7.93, z, z + .58)
+        box('bath_water', 8.66, 7.19, 9.86, 7.87, z + .5, z + .505, M['glass'])
+    else:
+        box('bath_tub', 8.5, 6.6, 9.94, 7.94, z, z + .58, M['enamel'], col=True)
+        box('bath_water', 8.58, 6.68, 9.86, 7.86, z + .5, z + .505, M['glass'])
     box('bath_stool', 8.9, 5.6, 9.2, 5.9, z, z + .22, M['plastic'])
     cyl('bath_shower', 9.9, 6.0, z + 1.0, z + 1.9, .012, M['steel'], 8)
     box('wash_basin', 6.1, 4.9, 6.65, 5.7, z, z + .82, M['cabinet'], col=True)
@@ -426,8 +435,11 @@ def upstairs(M):
     box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
     # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
     # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
-    box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
-    cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
+    if F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine'):   # 2026-11-18 the user's Tripo machine, its front to the room
+        collide(7.04, 7.29, 7.56, 7.93, z, z + .88)
+    else:
+        box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
+        cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
     for i in range(3):
         box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
 

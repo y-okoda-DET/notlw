@@ -78,6 +78,7 @@ func _put(k: String, at: Array, yaw: float):
 
 func _set_part(p: int):
 	part = p
+	main.clock_at(21 if p == 21 else 22, 0)
 	_clear_page(); _set_mission("")
 	if p == 21:
 		for k in AT21:
@@ -164,6 +165,7 @@ func _process(dt):
 		lock_t += dt
 		if demo21 and lock_t > 1.5: _lock_now()
 	if out_t >= 0.0: _out_tick(dt)
+	_cam_tick()
 
 # 試作125: Taiga asks her to lock it; she goes to the door and does
 var lock_t := 0.0
@@ -173,6 +175,7 @@ func _near_door() -> bool:
 func _lock_now():
 	if stage != "lock": return
 	stage = "locked"; _set_mission("")
+	main.set_meta("front_locked", true)   # doors.gd: from now on the front door only rattles on its lock
 	if main.has_meta("front_lock"): main.remove_meta("front_lock")
 	_start(B("二十二.鍵"))
 
@@ -184,7 +187,7 @@ func _unhandled_input(e):
 		if cur.has("choose") and e is InputEventKey and e.pressed and e.keycode in [KEY_S, KEY_DOWN, KEY_D, KEY_RIGHT]: _move_choice(1); return
 		if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and cur.has("choose"):
 			_move_choice(-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1); return
-		if press: _advance()
+		if press: get_viewport().set_input_as_handled(); _advance()   # 2026-11-17 夜（ユーザー「扉を締めたあとに扉が開く」）: the E that went on to the line also reached doors.gd and swung the locked door open
 	elif stage == "lock" and mode == FREE:
 		if press and _near_door(): get_viewport().set_input_as_handled(); _lock_now()   # 試作127: handled, or doors.gd then swung the door open (the lock's callback was gone)
 
@@ -211,6 +214,10 @@ func _do(what: String):
 		"to22":
 			script_q.clear(); mode = FREE
 			get_tree().create_timer(2.5).timeout.connect(func(): _set_part(22))
+		"natsuki_cam":
+			_natsuki_cam()
+		"cam_back":
+			_cam_back()
 		"natsuki_door":
 			stage = "see_off"; see_t = 0.0
 			main.walk_to("natsuki", [[4.85, 1.2, 0.0], NAT_DOOR], Callable(), _face(NAT_DOOR, MIO22))
@@ -220,13 +227,14 @@ func _do(what: String):
 			# 試作127（ユーザー「夏希が扉を開けていると感じられる動きにしたい。いまは謎に扉が開く→夏希が振り返る→外へ出る」）:
 			# she turns from Mio to the door and steps up to it first; only then does it open, as she is at the handle
 			var at := [4.97, 0.42, 0.0]
-			main.walk_to("natsuki", [at], func():
-				out_t = 0.0; out_gone = -1.0
-				door_rest = main.door_pivot.rotation.y if main.door_pivot else 0.0
-				Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
-				get_tree().create_timer(1.0).timeout.connect(func():
-					main.walk_to("natsuki", NAT_OUT, func(): main._rig_of("natsuki").visible = false; out_gone = out_t)),
-				_face(at, [5.0, -1.0]))
+			# 2026-11-17 夜（ユーザー「扉に手をかけて扉を開けるアニメーション入れられるか？」）: her hand on the knob, the door comes
+			# to her and she steps back with it (story.gd _front_open_by); then out, and it shuts behind her once she is gone
+			_front_open_by("natsuki", func(rest: float):
+				main.walk_to("natsuki", NAT_OUT, func():
+					main._rig_of("natsuki").visible = false
+					var tw := create_tween(); tw.tween_interval(0.6)
+					tw.tween_property(main.door_pivot, "rotation:y", rest, 1.0).set_trans(Tween.TRANS_SINE)
+					tw.tween_callback(func(): Sound.one(self, "door_close", -8.0, gp(5.0, 0.0, 1.0)))), 0.0)
 		"lock_ask":
 			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
 			main.set_meta("front_lock", _lock_now)
@@ -239,6 +247,78 @@ func _do(what: String):
 				if demo21 and "--demoquit" in OS.get_cmdline_user_args() and "--h21only" in OS.get_cmdline_user_args(): print("DEMO DONE h21"); get_tree().quit(); return
 				main.to_night(true))
 		_: super._do(what)
+
+# ---------------------------------------------------------------- 21時: Natsuki fetches Kiryu's camera (2026-11-17 夜)
+# She gets up, goes out to the hall, takes the camcorder off its tripod at the stair's foot, brings it back and sets it
+# by the projector; the line about it comes once it is there. The talk waits for her (the queue is put by and taken up).
+var cam_parts := []        # [mesh, its parent, its global transform on the tripod]
+var cam_holder: Node3D
+var cam_carry := false
+const NAT_CAM_ROUTE := [[2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [4.25, 3.65, 0.0]]
+func _natsuki_cam():
+	var rest_q := script_q.duplicate(); script_q.clear()
+	cam_parts = []
+	var bb := AABB(); var first := true
+	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"):
+			cam_parts.append([mi, mi.get_parent(), (mi as Node3D).global_transform])
+			var b: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			bb = b if first else bb.merge(b); first = false
+	if cam_parts.is_empty(): _start(rest_q); return
+	var cam_c := bb.get_center()
+	var cpl := [cam_c.x + 4.8, cam_c.z + 6.3]
+	# where she stands: 0.5 m from it on the way she came
+	var last: Array = NAT_CAM_ROUTE[-1]
+	var dv := Vector2(last[0] - cpl[0], last[1] - cpl[1]); dv = dv.normalized() * 0.5 if dv.length() > 0.01 else Vector2(0.0, 0.5)
+	var stand := [cpl[0] + dv.x, cpl[1] + dv.y, 0.0]
+	main.set_stand("natsuki", "talk/idle", 0.3)
+	var route := NAT_CAM_ROUTE.duplicate(); route.append(stand)
+	main.walk_to("natsuki", route, func():
+		var rc := _reach("natsuki", null, cam_c)
+		var tw := create_tween()
+		tw.tween_property(rc, "w", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(func():
+			Sound.one(self, "dial_tick", -10.0, cam_c)   # the shoe's catch
+			cam_holder = Node3D.new(); main.add_child(cam_holder)
+			cam_holder.global_position = cam_c   # the camera's middle: _cam_tick puts this in her hand
+			for c in cam_parts:
+				var gt: Transform3D = c[2]
+				(c[0] as Node3D).get_parent().remove_child(c[0]); cam_holder.add_child(c[0]); (c[0] as Node3D).global_transform = gt
+			cam_carry = true)
+		tw.tween_property(rc, "w", 0.0, 0.4)
+		tw.tween_callback(func():
+			rc.queue_free()
+			var back := NAT_CAM_ROUTE.duplicate(); back.reverse(); back.append([AT21.natsuki[0], AT21.natsuki[1], 0.0])
+			main.walk_to("natsuki", back, func():
+				# set down by the projector
+				cam_carry = false
+				var proj := Vector3.INF
+				for mi in main.S.env_node.find_children("furn_proj*", "MeshInstance3D", true, false):
+					var pb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+					proj = Vector3(pb.get_center().x + 0.32, pb.end.y, pb.get_center().z)
+				if proj != Vector3.INF:
+					var lo := INF
+					for c in cam_parts: lo = minf(lo, ((c[0] as MeshInstance3D).global_transform * (c[0] as MeshInstance3D).get_aabb()).position.y)
+					cam_holder.global_position += Vector3(proj.x - cam_holder.global_position.x, proj.y - lo, proj.z - cam_holder.global_position.z)
+				Sound.one(self, "dial_tick", -12.0, cam_holder.global_position)
+				main.set_stand("natsuki", LISTEN.natsuki, 0.3)
+				_start(rest_q), _face(AT21.natsuki, FACE21))))
+
+func _cam_tick():
+	if not cam_carry or cam_holder == null: return
+	var sk: Skeleton3D = main.S.natsuki_node.find_children("*", "Skeleton3D", true, false)[0]
+	var hb := sk.find_bone("hand_r")
+	if hb < 0: return
+	var hand: Vector3 = sk.global_transform * sk.get_bone_global_pose(hb).origin
+	cam_holder.global_position = hand + Vector3(0, -0.05, 0)
+
+func _cam_back():
+	for c in cam_parts:
+		if not is_instance_valid(c[0]): continue
+		(c[0] as Node3D).get_parent().remove_child(c[0]); (c[1] as Node).add_child(c[0]); (c[0] as Node3D).global_transform = c[2]
+	if cam_holder: cam_holder.queue_free(); cam_holder = null
+	cam_parts = []
 
 # the front door: it opens (1.0 s), stays open while she goes through, and shuts 0.6 s after she is gone
 var out_gone := -1.0

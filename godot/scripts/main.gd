@@ -97,6 +97,7 @@ func _ready():
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
 		if a.begins_with("--fogk="): ARGS["fogk"] = a.substr(7)
 		if a.begins_with("--fresfog="): ARGS["fresfog"] = a.substr(10)
+		if a.begins_with("--ptone="): ARGS["ptone"] = a.substr(8)
 		if a.begins_with("--tf="): ARGS["tf"] = a.substr(5)       # Taiga's dusk fill/rim scale (check shots)
 		if a.begins_with("--lamp="): ARGS["lamp"] = a.substr(7)   # the lobby bulb's scale (check shots)
 		if a.begins_with("--scene=") and SCENE == "": SCENE = a.substr(8)
@@ -188,9 +189,9 @@ func _ready():
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
-	if play in ["ch0", "h21", "ch3", "ch5"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card; ステップ F: 第3章・第5章
+	if play in ["ch0", "h21", "ch3", "ch5", "ch6"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card; ステップ F: 第3章・第5章・第6章
 		CARD_TIME = 0.0
-		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch5.gd") if play == "ch5" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
+		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch5.gd") if play == "ch5" else load("res://scripts/ch6.gd") if play == "ch6" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
 	if "--q0" in OS.get_cmdline_user_args():   # 試作125: checking as the player's machine runs it (perf.gd 最低)
 		_quality(false); get_viewport().scaling_3d_scale = 0.5; shadow_n = 2; trees_far(40.0)
 		if env: env.volumetric_fog_enabled = false
@@ -656,7 +657,9 @@ func _lights_house():
 		# stair's foot, its haze filled the whole frame and the hall went to paper (a step toward the door, out of it, it did
 		# not). At dusk the beam is in daylight: a third of the haze (3.0 → 1.0). The check renderer draws no volumetric fog, so
 		# this is seen only on a GPU (the user's machine)
-		if L.name == "fresnel_key" and TIME == "dusk": l.light_volumetric_fog_energy = float(ARGS.get("fresfog", "1.0"))
+		# 2026-11-17 夜（試作166、ユーザー「ここ、色が違うのがおかしい。後者に揃えたい」、同じ所の2度目）: a third was still too much; the
+		# beam makes no haze of its own at dusk now (the room's fog still lies in it)
+		if L.name == "fresnel_key" and TIME == "dusk": l.light_volumetric_fog_energy = float(ARGS.get("fresfog", "0.0"))
 		if g.has("spec"): l.light_specular = g.spec
 		l.set_meta("e", float(g.get("e", 0.0))); l.set_meta("flick", String(g.get("flick", "")))
 		lights[L.name] = l
@@ -959,7 +962,72 @@ func _card():
 
 # ------------------------------------------------------------------ time
 var cover_frames := 0
+# ---------------------------------------------------------------- the kitchen's wall clock (2026-11-17 夜、ユーザー「背景の時計、時刻を正確に」)
+# Its hands were the model's own, stopped; now they are drawn here and go: the scene's hour, then on in real seconds.
+# A chapter sets the hour when its story moves on (clock_at). blender/lived.py leaves the model's hands out.
+const CLOCK_OF_PLAY := {"ch0": [5, 0], "ch1": [17, 30], "h21": [21, 0], "door": [23, 0], "ch3": [0, 0], "ch4": [3, 30], "ch5": [4, 0], "ch11": [3, 30]}
+const CLOCK_OF_TIME := {"dusk": [17, 30], "t20": [20, 0], "t23": [23, 0], "t02": [2, 0], "t0330": [3, 30], "t0430": [4, 30]}
+var clock_sec := -1.0
+var clock_hands := []      # [hour, minute, second] pivots
+func clock_at(h: int, m: int):
+	clock_sec = float(h * 3600 + m * 60)
+
+func _clock_tick(dt: float):
+	if SCENE != "house" or not S.has("env_node"): return
+	if clock_hands.is_empty():
+		var c := Vector3(6.08 - 4.8, 1.95, 5.3 - 6.3); var r := 0.14
+		var face := Vector3(1, 0, 0)
+		for mi in S.env_node.find_children("lived_clock*", "MeshInstance3D", true, false):
+			var bb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			c = Vector3(bb.end.x + 0.004, bb.get_center().y, bb.get_center().z); r = minf(bb.size.y, bb.size.z) * 0.5
+			break
+		var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.05, 0.05, 0.05); mat.roughness = 0.6
+		var red := StandardMaterial3D.new(); red.albedo_color = Color(0.55, 0.06, 0.04); red.roughness = 0.6
+		for spec in [[0.52, 0.018, mat, 0.004], [0.78, 0.012, mat, 0.008], [0.86, 0.005, red, 0.012]]:
+			var piv := Node3D.new(); add_child(piv)
+			piv.global_position = c + face * float(spec[3])
+			var mi := MeshInstance3D.new(); var bm := BoxMesh.new()
+			var L: float = r * float(spec[0])
+			bm.size = Vector3(0.003, L * 1.18, float(spec[1])); mi.mesh = bm; mi.material_override = spec[2]
+			mi.position = Vector3(0, L * 0.5 - L * 0.18 + L * 0.09, 0)   # a short tail past the middle
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			piv.add_child(mi); clock_hands.append(piv)
+		if clock_sec < 0.0:
+			var hm: Array = CLOCK_OF_PLAY.get(play, CLOCK_OF_TIME.get(TIME, [12, 0]))
+			clock_at(int(hm[0]), int(hm[1]))
+	clock_sec += dt
+	var sec := fposmod(clock_sec, 43200.0)
+	var ang := [sec / 43200.0 * TAU, fposmod(sec, 3600.0) / 3600.0 * TAU, floorf(fposmod(sec, 60.0)) / 60.0 * TAU]
+	for i in 3:
+		# on the west wall, facing east: seen from the room, clockwise is from +y (up) toward -z (plan south... the viewer's right)
+		(clock_hands[i] as Node3D).rotation = Vector3(-ang[i], 0.0, 0.0)
+
+# 2026-11-17 夜（ユーザー「変わらず、人が白飛びしすぎ」、20時・23時）: the night's lamps and lanterns are near the people and
+# their light colours are warm whites; the white tops (Mio, Natsuki, Makoto) and the faces went to paper. At night the people's
+# own colours are taken down (the house's are lightmapped and were not white). --ptone=<k> for check stills.
+const PEOPLE_TONE := {"t20": 0.62, "t23": 0.62, "t02": 0.62, "t0330": 0.7, "t0430": 0.75}
+var people_toned := {}
+func _people_tone_tick():
+	if SCENE != "house" or not PEOPLE_TONE.has(TIME): return
+	var k := float(ARGS.get("ptone", PEOPLE_TONE[TIME]))
+	for who in ["mio", "natsuki", "makoto", "taiga", "kiryu"]:
+		if people_toned.has(who) or not S.has(who + "_node") or not is_instance_valid(S[who + "_node"]): continue
+		people_toned[who] = true
+		for mi in (S[who + "_node"] as Node).find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if m.mesh == null: continue
+			for si in m.mesh.get_surface_count():
+				var src: Material = m.get_surface_override_material(si)
+				if src == null: src = m.mesh.surface_get_material(si)
+				if not (src is BaseMaterial3D): continue
+				var dm: BaseMaterial3D = (src as BaseMaterial3D).duplicate()
+				var c := dm.albedo_color
+				dm.albedo_color = Color(c.r * k, c.g * k, c.b * k, c.a)
+				m.set_surface_override_material(si, dm)
+
 func _process(dt):
+	_clock_tick(dt)
+	_people_tone_tick()
 	if COVER:   # _cover(): off once this scene has drawn twice (its card is up by then)
 		cover_frames += 1
 		if cover_frames > 2:
@@ -1171,7 +1239,7 @@ func _shot_tick() -> float:
 static var DEV_STATE := ""   # story.gd _state() to jump to once the chapter is up (第2章 = 第1章's "card2")
 const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
 	["第2章　21時・22時", "h21", ""], ["第2章　23時の扉", "door", ""], ["第3章　零時〜2時", "ch3", ""],
-	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第11章　再生", "ch11", ""]]
+	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["第11章　再生", "ch11", ""]]
 var chap_menu: CanvasLayer = null
 func _input(e):
 	if not (e is InputEventKey and e.pressed and not e.echo): return
@@ -1546,7 +1614,7 @@ func _walk_tick(dt: float):
 				walkers.erase(k)
 				if w.done.is_valid(): w.done.call()
 			continue
-		var p := rig.global_position
+		var p: Vector3 = w.get("pos", rig.global_position)   # where on the way (the rig is drawn off it on the stairs, below)
 		var seg: Vector3 = w.pts[w.i] - p
 		var hz := Vector2(seg.x, seg.z).length()
 		var mode := "walk"
@@ -1563,7 +1631,16 @@ func _walk_tick(dt: float):
 			p += seg * (step / hz)
 		var yaw := rig.global_rotation.y
 		if hz > 0.05: yaw = lerp_angle(yaw, atan2(seg.x, seg.z), minf(1.0, dt * 5.0))
-		rig.global_transform = Transform3D(Basis(Vector3.UP, yaw), p)
+		w.pos = p
+		# 2026-11-17 夜（ユーザー「降りてくるアニメーション、変」）: the stair clips carry their own travel (walk.json: a cycle goes
+		# fwd 0.36 m on and rise -0.40 m down), and the way moved her on top of it: she sank and slid through each cycle and
+		# popped back (the crouch on the way down). The clip's own travel is taken back off where the rig is drawn
+		var draw := p
+		if mode != "walk" and J.has("fwd") and w.i < w.pts.size():
+			var ph := fposmod((w.ap as AnimationPlayer).current_animation_position, float(J.get("dur", 1.0))) / float(J.get("dur", 1.0))
+			var hd := Vector3(seg.x, 0.0, seg.z).normalized() if hz > 0.01 else Vector3.ZERO
+			draw = p - hd * float(J.fwd) * ph - Vector3(0, float(J.get("rise", 0.0)) * ph, 0)
+		rig.global_transform = Transform3D(Basis(Vector3.UP, yaw), draw)
 		(S[k + "_col"] as Node3D).global_position = p
 		if w.i >= w.pts.size():
 			var ap: AnimationPlayer = w.ap
@@ -1743,7 +1820,7 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
-const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch11": "t0330"}
+const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch11": "t0330"}
 func to_chapter(p: String):
 	_save_settings()
 	_cover()

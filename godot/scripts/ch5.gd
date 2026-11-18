@@ -15,7 +15,7 @@ const FPS = preload("res://scripts/fps.gd")
 
 const F2 := 2.75
 const ZBASE := -2.45
-const NAT_AT := [4.62, 1.95]          # where she stood when the second blow came (fps.gd: a metre short of Mio)
+const NAT_AT := [4.75, 3.9]           # where she stood when the second blow came (fps.gd NPATH_GAME's end, a metre short of Mio on the kitchen side; 2026-11-17 夜: one place in every chapter)
 const MIO_AT := [4.55, 3.0]           # Mio, as 第4章 leaves her (fps.gd MIO_AT)
 const TRIPOD_AT := [4.24, 3.75]       # dropped at her feet (its feet; it lies south from here)
 const MAKOTO_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
@@ -32,7 +32,7 @@ const FRONT_DOOR := [5.0, 0.03, 1.0]
 const BACK_DOOR := [9.87, 4.88, 1.0]
 const CELLAR_DOOR := [5.5, 5.62, 1.0]
 const BACK_STAND := [9.25, 4.95]      # where Mio stops before the back door (the talk starts)
-const MK_BACK := [9.45, 4.3]          # Makoto at the back door, on its hinge side, her light on it (Mio sees the latch side past her)
+const MK_BACK := [9.4, 4.62]          # Makoto at the back door, on its hinge side, her light on it (Mio sees the latch side past her). 2026-11-17 夜（ユーザー「真琴が冷蔵庫にのめり込んでいる」）: y 4.3 was in the fridge (its front is at 4.325)
 const MK_THINK := [8.6, 5.6]          # two steps in, where she puts it together
 # the hand on the inside wall beside the back door's latch side, low: pushed, to get up off the threshold.
 # (2026-11-17: it was on the hinge side's jamb, y 4.42, where the jamb's face runs along the light: it printed as black
@@ -147,6 +147,7 @@ func _from_fall():
 	for i in 3: await get_tree().process_frame
 	if fall_mio == Vector3.INF: return
 	player.global_position = Vector3(fall_mio.x, 0.0, fall_mio.z); player.velocity = Vector3.ZERO
+	print("CH5 mio from the fall %s" % [_plan_of(player)])
 	var c := _nat_chest(); var a := [fall_mio.x + 4.8, fall_mio.z + 6.3]
 	_look_from(a, [c.x + 4.8, c.z + 6.3], 1.52, 0.2)
 
@@ -269,7 +270,7 @@ func _natsuki():
 		var pg: Basis = pose0[nm][1]
 		var r := Basis(Vector3.UP, e[1]) * Basis(Vector3.BACK, e[2]) * Basis(Vector3.RIGHT, e[0])
 		nsk.set_bone_pose_rotation(bi, (pg.inverse() * r * pg).get_rotation_quaternion() * (pose0[nm][0] as Quaternion))
-	var b0 := Basis(Vector3.UP, 0.0)
+	var b0 := Basis(Vector3.UP, PI)   # facing Mio, toward the door (she came down the hall from the kitchen)
 	var base := gp(NAT_AT[0], NAT_AT[1], 0.0)
 	var thk := 0.05 + kn * 0.4; var cfk := 0.65 + 2.0 * kn * 0.4
 	var feet := base + b0 * Vector3(0, 0, -1) * 0.24 + b0 * Vector3(-1, 0, 0) * 0.10
@@ -344,6 +345,20 @@ func _tripod():
 		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
 	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false
+	# the three leg locks came out of the house's file 1.5 m above the head (seen in 第6章, where she holds it up: three
+	# small things in the air, and the tripod measured 2.28 m for 1.44). Each back on its collar, on the outside
+	var cols: Array = []
+	for mi in parts:
+		if String(mi.name).begins_with("tpd_collar"): cols.append(mi)
+	for mi in parts:
+		if not String(mi.name).begins_with("tpd_lock") or cols.is_empty(): continue
+		var lc: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		var best: Vector3 = lc
+		for c in cols:   # tpd_lock_001 is tpd_collar_001's (where they came out, the nearest collar was the same one for all three)
+			if String(c.name).trim_prefix("tpd_collar") == String(mi.name).trim_prefix("tpd_lock"):
+				best = ((c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb()).get_center()
+		var out := Vector3(best.x - tripod.global_position.x, 0.0, best.z - tripod.global_position.z).normalized()
+		(mi as Node3D).global_position += best + out * 0.018 - lc
 	# on its side on the boards, its head toward her
 	# on the boards where it fell from her hands: its feet by hers, its head toward Natsuki's, along the hall's west side
 	tripod.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)) * Basis(Vector3.RIGHT, deg_to_rad(-87.0)), gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.06))
@@ -533,6 +548,10 @@ func _candle():
 	stick.material_override = wm; stick.position.y = 0.06; candle.add_child(stick)
 	var saucer := MeshInstance3D.new(); var sm := CylinderMesh.new(); sm.top_radius = 0.045; sm.bottom_radius = 0.04; sm.height = 0.01
 	saucer.mesh = sm; var sw := StandardMaterial3D.new(); sw.albedo_color = Color(0.85, 0.84, 0.8); saucer.material_override = sw; candle.add_child(saucer)
+	# its rim: the dark line of an enamel dish (in the print the pale saucer and the pale hand under it were one shape. 第6章, 2026-11-18)
+	var rim := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.0425; tm.outer_radius = 0.0475; tm.rings = 32; tm.ring_segments = 6
+	rim.mesh = tm; var rw := StandardMaterial3D.new(); rw.albedo_color = Color(0.05, 0.07, 0.16); rw.roughness = 0.5; rim.material_override = rw
+	rim.name = "nocol_rim"; rim.position.y = 0.0045; rim.scale = Vector3(1.0, 0.6, 1.0); candle.add_child(rim)
 	flame = Node3D.new(); flame.position.y = 0.125; candle.add_child(flame)
 	var f := MeshInstance3D.new(); var fm := SphereMesh.new(); fm.radius = 0.007; fm.height = 0.028
 	f.mesh = fm; f.position.y = 0.013
@@ -596,6 +615,8 @@ var bl_h := PackedFloat32Array()   # the cloth's height above the boards, per gr
 var bl_free := PackedFloat32Array() # 0 where it rests on her or on the boards' middle, 1 at the loose hem
 var bl_body := PackedFloat32Array() # her height under it (−1: nothing)
 var bl_t := 0.0
+var bl_lim_p := PackedFloat32Array()   # per row: how far across (+x) before a wall
+var bl_lim_n := PackedFloat32Array()
 
 func _nat_heights():
 	var c := _nat_chest(); var h := _nat_head()
@@ -680,6 +701,23 @@ func _nat_heights():
 			if iv <= 2: e += 0.012 * (1.0 - iv / 2.0)
 			bl_h[k] = maxf(bl_h[k] + e, (hb + 0.012) if hb > 0.0 else 0.003)
 			bl_free[k] = clampf(1.0 - edge / 6.0, 0.0, 1.0) * (1.0 if not on_her else 0.15)
+	# 2026-11-17 夜（ユーザー「毛布が壁を通り抜けてしまっている」）: where she lies by a wall (the cellar stair's side, the
+	# hall's boarding) the sheet stops at the wall and goes up it a little, not through it. Per row, how far it can go each side
+	bl_lim_p = PackedFloat32Array(); bl_lim_n = PackedFloat32Array(); bl_lim_p.resize(nv); bl_lim_n.resize(nv)
+	var ss := get_viewport().world_3d.direct_space_state
+	for iv in nv:
+		var zc := float(iv) / BL_NV * BL_L
+		for sd in [1.0, -1.0]:
+			var lim := BL_W * 0.5
+			for hh in [0.06, 0.25]:
+				var a0: Vector3 = bl_frame * Vector3(0.0, hh, zc)
+				var a1: Vector3 = bl_frame * Vector3(sd * BL_W * 0.5, hh, zc)
+				var q := PhysicsRayQueryParameters3D.create(a0, a1)
+				q.exclude = [player.get_rid()]
+				var hit := ss.intersect_ray(q)
+				if not hit.is_empty(): lim = minf(lim, maxf(0.05, a0.distance_to(hit.position) - 0.025))
+			if sd > 0.0: bl_lim_p[iv] = lim
+			else: bl_lim_n[iv] = lim
 	print("CH5 blanket body verts %d floor %.3f" % [n_v, fy])
 
 func _blanket_mesh() -> ArrayMesh:
@@ -699,6 +737,9 @@ func _blanket_mesh() -> ArrayMesh:
 			var k := iv * nu + iu
 			var x := (float(iu) / BL_NU - 0.5) * BL_W; var z := float(iv) / BL_NV * BL_L
 			var y: float = ys[k]
+			if bl_lim_p.size() == nv:   # against a wall: it stops there and goes up it by what was left over
+				var lim: float = bl_lim_p[iv] if x > 0.0 else bl_lim_n[iv]
+				if absf(x) > lim: y = maxf(y, 0.003) + minf(absf(x) - lim, 0.12); x = signf(x) * lim
 			# the normal from the heights around (SurfaceTool.generate_normals left it unlit: black)
 			var dx: float = (ys[iv * nu + mini(iu + 1, BL_NU)] - ys[iv * nu + maxi(iu - 1, 0)]) / (du * float(mini(iu + 1, BL_NU) - maxi(iu - 1, 0)))
 			var dz: float = (ys[mini(iv + 1, BL_NV) * nu + iu] - ys[maxi(iv - 1, 0) * nu + iu]) / (dv * float(mini(iv + 1, BL_NV) - maxi(iv - 1, 0)))
@@ -804,7 +845,7 @@ func _begin(st: String):
 			stage = "back"; talk_with = "makoto"   # (the view goes down to the door with the light: makoto_light)
 			_start(B("四時.勝手口"))
 		"peel":
-			stage = "peel"; candle.visible = true; candle_held = true
+			stage = "peel"; candle.visible = true; candle_held = true; main.clock_at(4, 10)
 			_below_start()
 		"end":
 			_end_scene()
@@ -867,7 +908,18 @@ func _do(what: String):
 			# beside her, by her shoulder, facing her: she goes down on her heels
 			var c := _nat_chest()
 			# (the kneel carries her hips 0.2 m forward: she stops a step short)
-			var at := [c.x + 4.8 + 0.62, c.z + 6.3 - 0.05]
+			# 2026-11-17 夜（ユーザー「真琴が座る場所、変」）: the side of her with room (east of her was the stair's side when she
+			# lay at the stair's foot): the one the boards are clear on for 0.85 m
+			var side := 1.0
+			var ss := get_viewport().world_3d.direct_space_state
+			var room := {}
+			for sd in [1.0, -1.0]:
+				var q := PhysicsRayQueryParameters3D.create(Vector3(c.x, 0.45, c.z), Vector3(c.x + sd * 0.95, 0.45, c.z))
+				q.exclude = [player.get_rid()]
+				var hit := ss.intersect_ray(q)
+				room[sd] = 0.95 if hit.is_empty() else Vector3(c.x, 0.45, c.z).distance_to(hit.position)
+			if room[-1.0] > room[1.0] + 0.05: side = -1.0
+			var at := [c.x + 4.8 + 0.62 * side, c.z + 6.3 - 0.05]
 			hold = true
 			main.stand_anim["makoto"] = "talk/idle"
 			main.walk_to("makoto", [[5.3, 2.4, 0.0], [at[0], at[1], 0.0]], func():
@@ -1051,7 +1103,7 @@ func _what_looked() -> String:
 	var gq := _near_tape()
 	if not gq.is_empty(): return "tape"
 	if _looking_at(gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2]), 1.9, 30.0): return "back"
-	if _looking_at(gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2]), 1.9, 28.0): return "cellar"
+	# 地下の扉には Ｅ を出さない（2026-11-17 ユーザー「E 降りる はいらないよね？」）。下りないことは【五.終わり】の証言だけで言う
 	if _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2]), 2.4, 25.0): return "front"
 	return ""
 
@@ -1194,7 +1246,7 @@ func _end_card():
 	get_tree().create_timer(5.0 if demo5 else 8.0).timeout.connect(func():
 		if demo5: print("DEMO ch5 t=%.1f fails=%d" % [t_now, DEMO_FAILS]); DEMO_HOUSE = true
 		if demo5 and "--ch5only" in OS.get_cmdline_user_args(): print("DEMO DONE ch5"); get_tree().quit(); return
-		main.to_chapter("ch11"))
+		main.to_chapter("ch6" if ResourceLoader.exists("res://scripts/ch6.gd") else "ch11"))   # 第5章の終わり → 第6章「片づけ」
 
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
@@ -1207,23 +1259,25 @@ func _unhandled_input(e):
 # ---------------------------------------------------------------- the unattended playthrough (--demo)
 func _demo_script() -> Array:
 	var st := []
+	# 試作168: the kitchen door is in the wall x 6, y 6.0..6.85: through its middle (y 6.42). At y 6.2 she scraped its
+	# south jamb, and when a leg ran late the timed path cut the corner into the wall (stuck at 5.77, 6.0)
 	st.append(["wait_stage", "follow"]); st.append(["wait_free"])
-	st.append(["walk", [[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [8.1, 6.2], [8.7, 5.4], [BACK_STAND[0], BACK_STAND[1]]]])
+	st.append(["walk", [[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.75, 6.42], [8.1, 6.2], [8.7, 5.4], [BACK_STAND[0], BACK_STAND[1]]]])
 	st.append(["wait_stage", "peel"]); st.append(["wait_free"])
 	# one wrong first (the kitchen's own window, unless it is the first in her order), then her order
 	var routes := {
-		"g1": [[6.9, 6.2], [5.8, 6.2], [5.5, 5.9], [5.0, 5.9], [4.8, 5.7], [4.8, 4.4], [4.1, 3.7], [3.6, 3.7], [2.7, 2.8], [2.7, 0.8], [2.6, 0.7]],
+		"g1": [[6.6, 6.42], [5.75, 6.42], [5.5, 5.9], [5.0, 5.9], [4.8, 5.7], [4.8, 4.4], [4.1, 3.7], [3.6, 3.7], [2.7, 2.8], [2.7, 0.8], [2.6, 0.7]],
 		"g2": [[2.6, 3.5], [0.7, 5.4], [0.7, 6.0], [0.5, 6.2]],
-		"g3": [[0.5, 5.6], [0.9, 5.2], [1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [7.4, 7.1]],
+		"g3": [[0.5, 5.6], [0.9, 5.2], [1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.75, 6.42], [6.5, 6.42], [7.4, 7.1]],
 		"g4": [[7.4, 6.8], [7.9, 6.3], [9.4, 6.3], [9.5, 6.2]],
 		"g5": [[9.5, 5.0], [9.4, 4.9]]}
 	if order[0] != "g3":
 		st.append(["walk", [[8.4, 6.3], [7.6, 6.9], [7.4, 7.1]]]); st.append(["tape", "g3"]); st.append(["wait_free"])
-	st.append(["walk", [[7.4, 6.8], [6.9, 6.2]]])
+	st.append(["walk", [[7.4, 6.8], [6.6, 6.42]]])
 	for k in ["g1", "g2", "g3", "g4", "g5"]:
 		st.append(["walk", routes[k]]); st.append(["tape", k]); st.append(["wait_free"])
-	st.append(["walk", [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
-	st.append(["walk", [[5.8, 6.2], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
+	st.append(["walk", [[8.2, 4.9], [6.6, 6.42], [5.7, 6.42], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
+	st.append(["walk", [[5.75, 6.42], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
 	st.append(["wait_stage", "end"])
 	return st
 

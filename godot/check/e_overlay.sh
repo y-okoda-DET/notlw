@@ -12,5 +12,7 @@ if "ov_sound" not in s:
     s=s.replace("\tadd_child(m)\n","\tadd_child(m)\n\tif ResourceLoader.exists(\"res://ov_sound.gd\") and not m.has_node(\"Sound\"):\n\t\tvar snd: Node = load(\"res://ov_sound.gd\").new(); snd.name = \"Sound\"; m.add_child(snd); snd.setup(m)\n",1)
 open(p,'w').write(s)
 PY
+# models that are not in the pck yet (第6章：澪の腕)
+mkdir -p $O/props; cp $REPO/godot/props/mio_arm_*.glb $REPO/godot/props/police_head.glb $REPO/godot/props/tripod_case.glb $REPO/godot/props/police_body_nohead.glb $O/props/ 2>/dev/null || true
 $GODOT --headless --path $O --import >/dev/null 2>&1 || true
 echo $O

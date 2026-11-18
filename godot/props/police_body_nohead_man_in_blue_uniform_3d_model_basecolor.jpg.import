@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://b4n72f0gjrhys"
+path="res://.godot/imported/police_body_nohead_man_in_blue_uniform_3d_model_basecolor.jpg-518d5521391b8514a476e4710db4bbd4.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "df3c67c5d53a6fd929a76a7547296274"
+}
+
+[deps]
+
+source_file="res://props/police_body_nohead_man_in_blue_uniform_3d_model_basecolor.jpg"
+dest_files=["res://.godot/imported/police_body_nohead_man_in_blue_uniform_3d_model_basecolor.jpg-518d5521391b8514a476e4710db4bbd4.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1
