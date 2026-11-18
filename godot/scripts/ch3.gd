@@ -4,8 +4,9 @@
 ## 零時：地下から上がってきた大河。真琴が傷を素手で押さえる。桐生「四時間か」。言えたはずの一言の所は（沈黙）。大河は自分で
 ##   地下へ下り、閂をかける。澪は手すりの定点のカメラのテープを替える。
 ## 零時半：目張り。隙間ごとに風の音がその場所から鳴り、真琴のろうそくの炎がそちらへ傾く。Ｅでテープ。5か所。玄関の下は貼れない。
-## 零時四十五分：二階へ毛布を取りに。寝室3つと洗面所の物を調べられる（澪の証言が出る）。
-## 一時〜三時：扉の番。玄関の上がり框に毛布で座ったまま、見る・聞くだけ。音のするほうを見て Ｅ で証言の文。
+## 一時：区切り（2026-11-18 レビュー5）。時計は止まり、家を歩ける。台所の真琴、地下の扉越しの大河、二階の桐生と一度ずつ話せる。
+##   二階へ毛布を取りに。寝室3つと洗面所の物を調べられる（澪の証言が出る）。毛布を持って玄関で「座る」と一時半へ。
+## 一時半〜三時：扉の番。玄関の上がり框に毛布で座ったまま、見る・聞くだけ。音のするほうを見て Ｅ で証言の文。
 ##   二時、桐生が下りてきてカメラを外し、「俺でもだ」と出ていく。鍵を閉めるのはプレイヤー。二時半、ノックと欠けた声。三時、裏で何かが鳴る。
 extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
@@ -110,6 +111,7 @@ func _ready():
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
 	_load_file("ch3")
+	T1_TALK = {}
 	_page()
 	_lookers()
 	main.generator(true)
@@ -208,10 +210,9 @@ func _place_for(st: String):
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			player.global_position = gp(4.6, 5.1, 0.0); _look_from([4.6, 5.1], [4.75, 6.1])
 		"up":
-			_hide("taiga"); _hide("kiryu")   # 試作127 B5: he tapes the upstairs (零時半 kiryu_up)
-			_put("makoto", [4.6, 1.9], _face([4.6, 1.9], [5.0, 0.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			sealed_n = 5
 			for gq in gaps: _seal(gq, true)
+			_place_one()
 			player.global_position = gp(4.75, 1.9, 0.0); _look_from([4.75, 1.9], [5.5, 3.5])
 		"watch", "t2", "t230", "t3":
 			_hide("taiga"); _hide("makoto")
@@ -220,6 +221,17 @@ func _place_for(st: String):
 			sealed_n = 5; has_blanket = true
 			for gq in gaps: _seal(gq, true)
 			_sit()
+
+# 一時 (2026-11-18 レビュー5): where they are while the clock stands: Makoto in the kitchen with the candle, Kiryu on the
+# landing upstairs taping its window, Taiga behind the barred door (a voice only)
+const MK_ONE := [6.9, 6.2]
+const KR_ONE := [4.9, 7.5]
+const CELLAR_DOOR := [5.5, 5.62]
+func _place_one():
+	_hide("taiga")
+	_put("makoto", MK_ONE, _face(MK_ONE, [5.7, 6.2])); main.set_stand("makoto", "talk/idle", 0.0)
+	mk_at = "one"; mk_going = ""
+	_put("kiryu", KR_ONE, _face(KR_ONE, [4.9, 8.0]), F2); main.set_stand("kiryu", "talk/idle", 0.0)
 
 # the small camera on the handrail, recording (2026-11-15: always there by 20:00)
 func _night_cam():
@@ -440,10 +452,8 @@ func _begin(st: String):
 		"up":
 			stage = "up"; candle.visible = true
 			_set_mission("二階の寝室から、毛布を取ってきました。")
-		"watch":
-			_hide("makoto"); candle.visible = false   # 一時: Mio alone at the door (Makoto is in the kitchen with the candle)
-			_sit(); _flow_start("扉の番.一時", "watch15")
-		"watch15":
+		"watch", "watch15":   # (--ch3at=watch starts here, sat)
+			_hide("makoto"); _hide("kiryu"); candle.visible = false
 			_flow_start("扉の番.一時半", "t2card")
 		"t2":
 			# 試作127（B7、ユーザー「ここ、立ち上がった方がいいかな」）: she gets up, the blanket on her shoulders, to see the
@@ -491,7 +501,9 @@ func _do(what: String):
 			get_tree().create_timer(0.6).timeout.connect(func(): _begin("up"))
 		"to0100":
 			script_q.clear(); mode = FREE
-			get_tree().create_timer(1.2).timeout.connect(func(): _card(D.lines("一時.カード")[0], "watch"))
+			get_tree().create_timer(1.2).timeout.connect(func(): _place_one(); _card(D.lines("一時.カード")[0], "up"))
+		"cellar_voice":
+			Sound.one(self, "ch3_murmur", -10.0, gp(5.5, 5.4, -0.6)); _hear("cellar")
 		"silence":
 			_silence_open()
 		"shake":
@@ -696,12 +708,40 @@ func _up_tick(_dt: float):
 	if mode != FREE: return
 	var k := _item_looked()
 	look_at_k = k
+	var who := _one_looked()
+	if who != "" and k != "blanket": look_at_k = ""; one_k = who; note_lb.text = T("［%s］" % ONE_NAME[who]); return
+	one_k = ""
 	if k == "blanket": note_lb.text = T(String(D.lines("二階.毛布")[0]))
 	elif k != "": note_lb.text = T("［%s］" % up_items[k].name)
 	elif has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5: note_lb.text = T(String(D.lines("二階.戻る")[0]))
 	else: note_lb.text = ""
 
+# 一時: whom she can talk to, once each (T1_TALK keeps who: 第10章・第11章)
+const ONE_NAME := {"makoto": "真琴", "kiryu": "桐生", "taiga": "地下の扉"}
+var one_k := ""
+static var T1_TALK := {}
+func _one_looked() -> String:
+	if mode != FREE: return ""
+	for w in ["makoto", "kiryu"]:
+		if T1_TALK.has(w): continue
+		var r := _rig(w)
+		if r == null or not r.visible: continue
+		if _looking_at(r.global_position + Vector3(0, 1.3, 0), 2.4, 18.0): return w
+	if not T1_TALK.has("taiga") and player.global_position.y < 0.5 and _looking_at(gp(CELLAR_DOOR[0], CELLAR_DOOR[1], 1.0), 1.9, 25.0): return "taiga"
+	return ""
+
+func _talk_one(w: String):
+	T1_TALK[w] = true
+	note_lb.text = ""; one_k = ""
+	talk_with = w if w != "taiga" else ""
+	if w == "makoto" or w == "kiryu":
+		var r := _rig(w); var me := _plan_of(r); var mio := _plan_of(player)
+		r.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), r.global_position)
+	print("STORY ch3 one %s t=%.1f" % [w, t_now])
+	_start(B({"makoto": "一時.真琴", "kiryu": "一時.桐生", "taiga": "一時.大河"}[w]))
+
 func _press_up():
+	if one_k != "": _talk_one(one_k); return
 	var k := look_at_k
 	if k == "blanket" and not has_blanket:
 		has_blanket = true
@@ -717,9 +757,16 @@ func _press_up():
 		up_items[k].seen = true
 		if not e.is_empty(): _say_tes(e[0].text)
 		return
-	if stage == "back" and has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0):
+	if stage == "back" and has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5:
 		note_lb.text = ""
-		_do("to0100")
+		_sit_down()
+
+# 一時の区切り: she sits on the step with the blanket round her, and the clock goes on to half past
+func _sit_down():
+	_sit(); stage = "sat"
+	Sound.one(self, "ch3_blanket", -10.0, player.global_position)
+	print("STORY ch3 sat t=%.1f talked=%s" % [t_now, ",".join(T1_TALK.keys())])
+	get_tree().create_timer(1.2).timeout.connect(func(): _card(D.lines("一時半.カード")[0], "watch15"))
 
 # her answer, months later, at the top left: typed, it stays a while and fades
 func _say_tes(text: String):
@@ -791,6 +838,7 @@ func _flow_tick(_dt: float):
 	while fi < flow.size() and t_stage >= float(flow[fi].t):
 		_flow_event(flow[fi]); fi += 1
 	if cur.has("text") and typed < String(cur.text).length():
+		if not is_instance_valid(cur_lb): cur = {}; return   # an answer at the top left took its row (2026-11-18: the cough came while it typed)
 		typed = min(float(String(cur.text).length()), typed + _dt * (20.0 if cur.get("testimony", false) else 15.0))
 		_type(cur_lb, String(cur.text), int(typed))
 
@@ -822,8 +870,8 @@ func _flow_event(e: Dictionary):
 			"makoto_up":
 				talk_with = ""
 				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
-				get_tree().create_timer(8.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
-				get_tree().create_timer(20.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
+				get_tree().create_timer(7.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
+				get_tree().create_timer(13.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
 			"knock":
 				Sound.one(self, "knock", -2.0, gp(FRONT_DOOR[0], FRONT_DOOR[1], 1.2)); _hear("knock")
 				for i in 3: knock_ts.append(t_now + 0.42 * i)
@@ -1007,8 +1055,13 @@ func _demo_script():
 	steps.append(["walk", [[5.5, 6.0], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.6, 1.9], [4.8, 1.5], [5.0, 1.2]]])
 	steps.append(["aim", gp(FRONT_GAP[0], FRONT_GAP[1], 0.4)]); steps.append(["press"])
 	steps.append(["wait_stage", "up"]); steps.append(["wait_free"])
-	# 零時四十五分: up the stair, every one of the things in the rooms, the blanket, down to the door
-	steps.append(["walk", [[4.8, 1.9], [5.0, 1.9], [5.5, 2.4], [5.5, 5.75], [5.5, 6.0]]])
+	# 一時の区切り: Taiga through the cellar door, Makoto in the kitchen, then up the stair (Kiryu on the landing),
+	# every one of the things in the rooms, the blanket, down to the door, and sit
+	steps.append(["walk", [[4.8, 1.6], [4.6, 1.9], [4.6, 2.6], [4.3, 2.9], [4.3, 3.2], [4.2, 3.4], [4.3, 3.7], [4.8, 4.2], [4.8, 5.7], [5.1, 6.0], [5.5, 6.3]]])
+	steps.append(["one", "taiga"]); steps.append(["wait_free"])
+	steps.append(["walk", [[5.7, 6.2], [6.0, 6.2]]]); steps.append(["one", "makoto"]); steps.append(["wait_free"])
+	steps.append(["walk", [[5.5, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.8, 1.9], [5.0, 1.9], [5.5, 2.4], [5.5, 5.75], [5.5, 6.0]]])
+	steps.append(["one", "kiryu"]); steps.append(["wait_free"])
 	steps.append(["walk", [[5.2, 6.0], [4.8, 5.6], [4.8, 4.4], [4.1, 3.7], [3.2, 3.7], [2.6, 3.1]]]); steps.append(["item", "bag_m"])
 	steps.append(["walk", [[2.3, 3.1], [2.1, 2.9], [1.4, 2.9], [1.2, 2.7]]]); steps.append(["item", "blanket"])
 	steps.append(["walk", [[1.2, 1.6], [1.3, 1.5]]]); steps.append(["item", "hoodie"])
@@ -1024,8 +1077,7 @@ func _demo_script():
 	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6)]); steps.append(["press"])
 	# 一時から: turn to each sound as it comes, and press
 	steps.append(["wait_stage", "flow"])
-	for k in ["door", "gen", "car", "cellar"]: steps.append(["hear", k])
-	steps.append(["wait_card", "watch15"]); steps.append(["hear", "cough"]); steps.append(["hear", "steps"])
+	for k in ["door", "gen", "car", "cellar", "cough", "steps"]: steps.append(["hear", k])
 	steps.append(["wait_stage", "t2walk"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [4.7, 3.3]]])
 	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [5.0, 1.3]]])
 	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2])]); steps.append(["press"])
@@ -1103,6 +1155,15 @@ func _demo_tick(dt):
 		"open":
 			if dn: dn.open_key(s[1])
 			done = true
+		"one":
+			var tp: Vector3 = gp(CELLAR_DOOR[0], CELLAR_DOOR[1], 1.0) if s[1] == "taiga" else _rig(s[1]).global_position + Vector3(0, 1.3, 0)
+			var cam5: Camera3D = player.get_node("Head/Camera")
+			var to5: Vector3 = tp - cam5.global_position
+			var k5 := 1.0 - exp(-dt * 6.0)
+			player.yaw = lerp_angle(player.yaw, atan2(-to5.x, -to5.z), k5)
+			player.pitch = lerpf(player.pitch, asin(clampf(to5.normalized().y, -1.0, 1.0)), k5)
+			if dwait > 1.0 and one_k == s[1] and mode == FREE: _talk_one(s[1]); done = true
+			elif dwait > 6.0: _dfail("one %s: cannot talk from %s (%.1f m)" % [s[1], _plan_of(player), to5.length()]); done = true
 		"item":
 			var it: Dictionary = up_items[s[1]]
 			var cam3: Camera3D = player.get_node("Head/Camera")
