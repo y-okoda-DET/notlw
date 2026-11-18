@@ -1241,23 +1241,25 @@ func _unhandled_input(e):
 # ---------------------------------------------------------------- the unattended playthrough (--demo)
 func _demo_script() -> Array:
 	var st := []
+	# 試作168: the kitchen door is in the wall x 6, y 6.0..6.85: through its middle (y 6.42). At y 6.2 she scraped its
+	# south jamb, and when a leg ran late the timed path cut the corner into the wall (stuck at 5.77, 6.0)
 	st.append(["wait_stage", "follow"]); st.append(["wait_free"])
-	st.append(["walk", [[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [8.1, 6.2], [8.7, 5.4], [BACK_STAND[0], BACK_STAND[1]]]])
+	st.append(["walk", [[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.75, 6.42], [8.1, 6.2], [8.7, 5.4], [BACK_STAND[0], BACK_STAND[1]]]])
 	st.append(["wait_stage", "peel"]); st.append(["wait_free"])
 	# one wrong first (the kitchen's own window, unless it is the first in her order), then her order
 	var routes := {
-		"g1": [[6.9, 6.2], [5.8, 6.2], [5.5, 5.9], [5.0, 5.9], [4.8, 5.7], [4.8, 4.4], [4.1, 3.7], [3.6, 3.7], [2.7, 2.8], [2.7, 0.8], [2.6, 0.7]],
+		"g1": [[6.6, 6.42], [5.75, 6.42], [5.5, 5.9], [5.0, 5.9], [4.8, 5.7], [4.8, 4.4], [4.1, 3.7], [3.6, 3.7], [2.7, 2.8], [2.7, 0.8], [2.6, 0.7]],
 		"g2": [[2.6, 3.5], [0.7, 5.4], [0.7, 6.0], [0.5, 6.2]],
-		"g3": [[0.5, 5.6], [0.9, 5.2], [1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [7.4, 7.1]],
+		"g3": [[0.5, 5.6], [0.9, 5.2], [1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.75, 6.42], [6.5, 6.42], [7.4, 7.1]],
 		"g4": [[7.4, 6.8], [7.9, 6.3], [9.4, 6.3], [9.5, 6.2]],
 		"g5": [[9.5, 5.0], [9.4, 4.9]]}
 	if order[0] != "g3":
 		st.append(["walk", [[8.4, 6.3], [7.6, 6.9], [7.4, 7.1]]]); st.append(["tape", "g3"]); st.append(["wait_free"])
-	st.append(["walk", [[7.4, 6.8], [6.9, 6.2]]])
+	st.append(["walk", [[7.4, 6.8], [6.6, 6.42]]])
 	for k in ["g1", "g2", "g3", "g4", "g5"]:
 		st.append(["walk", routes[k]]); st.append(["tape", k]); st.append(["wait_free"])
-	st.append(["walk", [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
-	st.append(["walk", [[5.8, 6.2], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
+	st.append(["walk", [[8.2, 4.9], [6.6, 6.42], [5.7, 6.42], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
+	st.append(["walk", [[5.75, 6.42], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
 	st.append(["wait_stage", "end"])
 	return st
 

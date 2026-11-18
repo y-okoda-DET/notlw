@@ -85,8 +85,8 @@ def living(M):
     # the wood stove on the west wall, cold (it is summer), on a tiled hearth; the pipe goes out through the wall
     box('furn_hearth', .07, 2.85, 1.05, 3.95, 0, .035, M['hearth'], 1.2)
     # 2026-11-18 the user's Tripo stove (front -Y in Blender, its pipe .21 behind its middle): door to the room (plan +x)
-    if tripo_prop('woodstove', (X(.62), Y(3.4), .035), math.pi / 2, .85, name='furn_stove'):
-        px, py, pr, pz = .44, 3.42, .06, .8
+    if tripo_prop('woodstove', (X(.62), Y(3.4), .035), math.pi / 2, 1.0, name='furn_stove'):   # 試作168: at .85 it looked small beside the old one
+        px, py, pr, pz = .41, 3.42, .07, .95
     else:
         sx0, sx1, sy0, sy1 = .3, .78, 3.13, 3.67
         box('furn_stove', sx0, sy0, sx1, sy1, .16, .74, M['iron'])
