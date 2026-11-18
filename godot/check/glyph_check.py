@@ -8,7 +8,7 @@ src = ''.join(open(p, encoding='utf-8').read() for p in sorted(glob.glob(G + '/s
 chars = set(''.join(re.findall(r'"([^"]*)"', src)))
 for p in [G + '/lang/text.csv'] + sorted(glob.glob(G + '/story/*.txt')):
     if os.path.exists(p): chars |= set(open(p, encoding='utf-8').read())
-chars = {c for c in chars if c > ' ' and ord(c) > 0x2FF and c not in '\u200b\ufeff＞｜'}   # ＞ と ｜ は台本の記号（画面に出ない）
+chars = {c for c in chars if c > ' ' and ord(c) > 0x2FF and c not in '\u200b\ufeff＞｜↩'}   # ＞ ｜ ↩ は台本の記号（画面に出ない。↩ は第6章の戻ってくる行）
 bad = 0
 for name in ['BIZUDMincho-Bold.ttf', 'ShipporiMinchoB1-SemiBold.ttf', 'ShipporiMinchoB1-Medium.ttf']:
     cmap = TTFont(f'{G}/fonts/{name}').getBestCmap()
