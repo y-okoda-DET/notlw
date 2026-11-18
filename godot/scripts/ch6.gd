@@ -196,7 +196,7 @@ func _candle_down(at: Vector3):
 var c_hand: Node3D = null
 var c_block: Node3D = null       # a hand that was given something else while it held the candle
 var c_k := 0.0
-const CANDLE_IN_HAND := Vector3(0.0, -0.02, -0.085)
+const CANDLE_IN_HAND := Vector3(0.0, -0.0235, -0.098)
 func _candle_hand_tick(dt: float):
 	if candle_held and candle.visible:
 		var want: Node3D = hand_l if candle_off_now.x < 0.0 else hand_r
@@ -802,7 +802,7 @@ func _mk_arm(left: bool) -> Node3D:
 		while nd != h: rel = nd.transform * rel; nd = nd.get_parent()
 		sm.set_shader_parameter("to_hand", Projection(rel))
 		m.material_override = sm; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
-		m.layers |= 2   # the tripod's own light falls on the hands that hold it
+		m.layers = 2    # the tripod's own light falls on the hands that hold it; the phone's glow (layer 1 only) does not: it burnt the hand that holds it to a white shape
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	sm.set_shader_parameter("stain", 1.0 if left else 0.0); sm.set_shader_parameter("cuff", CUFF_Z)
 	if left: sleeve_l = sm
@@ -881,13 +881,13 @@ func _mk_hand(left: bool) -> Node3D:
 # (15 joints: index, middle, ring, little, thumb, three each, then the thumb's swing out of the palm). Found and checked with
 # scripts/grip_lab.gd (--c6bench): her skin is nowhere more than 1.5 mm into the thing (flesh gives that much)
 const HOLDS := {
-	"phone": [15.0, Vector3(0.022, -0.0145, -0.100)],   # cradled along the hand, the thumb beside its edge (its whole face is the screen)
+	"phone": [90.0, Vector3(-0.025, -0.035, -0.095), -35.0],   # across the hand: its right edge in the root of the thumb, the fingers hooked on its left edge, the thumb bent at the right edge (user 2026-11-18: 「スマホを持つ手、再検討して」. The screen is cut where the hand is before it: PhoneMask)
 	"cas": [60.0, Vector3(0.003, -0.017, -0.098)],      # across the fingers, the thumb on its lower corner (the label stays seen)
 	"pack": [-60.0, Vector3(-0.005, -0.021, -0.098)],
 	"case": [-15.0, Vector3(-0.020, -0.014, -0.100)],   # cradled, the thumb beside it (the lid must open)
 }
 const GRIPS := {
-	"phone": [-0.24, -0.22, -0.09, 0.18, -0.22, -0.12, 0.45, -0.22, -0.12, 0.93, -0.19, -0.12, -0.3, 0.15, 0.15, 0.2],
+	"phone": [-0.06, 0.44, 0.29, 0.25, 0.5, 0.36, 0.42, 0.72, 0.51, 0.42, 0.72, 0.51, 0.0, 0.95, 0.95, 0.19],
 	"cas": [-0.3, 0.74, 1.2, 0.24, -0.22, -0.09, 0.48, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, 0.08, 0.95, -0.02],
 	"pack": [-0.3, -0.22, 0.18, 0.18, -0.22, -0.12, 0.51, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, -0.1, 0.95, 0.04],
 	"case": [-0.3, -0.22, -0.12, 0.21, -0.22, -0.06, 0.48, -0.22, -0.12, 1.02, -0.22, -0.12, -0.3, 0.13, 0.15, 0.23],
@@ -897,6 +897,7 @@ const GRIPS := {
 	"tri_l2": [0.56, 0.91, 0.64, 0.59, 0.95, 0.66, 0.64, 1.01, 0.7, 0.64, 1.01, 0.7, 0.0, 0.03, 0.95, 0.64],
 	"cam_out": [0.37, 0.66, 0.47, 0.44, 0.76, 0.53, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, -0.1, 1.38],
 	"cam_batt": [-0.3, -0.22, -0.12, -0.3, -0.22, -0.12, -0.13, 0.0, -0.12, -0.13, 0.0, 0.03, 0.07, -0.01, -0.04, 0.3],
+	"candle": [-0.2, -0.09, -0.04, -0.01, 0.16, 0.13, 0.18, 0.41, 0.09, 0.18, 0.41, 0.3, 0.0, -0.07, -0.08, 0.22],
 	"wash": [0.52, 0.85, 0.59, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.0, -0.1, -0.1, -0.22],
 	"lid": [-0.3, 1.1, 0.76, 0.35, 0.63, 0.45, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, 0.13, 1.03],
 }
@@ -920,7 +921,8 @@ func _grip(h: Node3D, key: String, dur := 0.4):
 		_ang_set(h, a), 0.0, 1.0, maxf(dur, 0.01))
 
 func _held(key: String) -> Transform3D:
-	return Transform3D(Basis(Vector3.UP, deg_to_rad(HOLDS[key][0])), HOLDS[key][1])
+	var e: Array = HOLDS[key]   # [the turn about the palm's normal, the place in the hand, (the tilt about its own length)]
+	return Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(e[0]), deg_to_rad(e[2] if e.size() > 2 else 0.0)), EULER_ORDER_YXZ), e[1])
 
 # where the hand must be for the thing to be where it was shown before (the hand at pos/deg with the thing at `was` in it)
 func _hold_xf(key: String, pos: Vector3, deg: Vector3, was: Vector3) -> Transform3D:
@@ -1423,7 +1425,7 @@ func _cam_batt():
 func _act_tick(dt: float):
 	_nat_tick()
 	tri_fill.light_energy = move_toward(tri_fill.light_energy, (1.1 * 0.56 / maxf(exp_now, 0.3)) if (act == "tripod" or carrying) and not candle_out else 0.0, dt * 1.2)
-	fill6.light_energy = move_toward(fill6.light_energy, (0.26 * 0.56 / maxf(exp_now, 0.3)) if (hand_l.visible or hand_r.visible) and not candle_out else 0.0, dt * 1.2)
+	fill6.light_energy = move_toward(fill6.light_energy, ((0.10 if act == "phone" else 0.26) * 0.56 / maxf(exp_now, 0.3)) if (hand_l.visible or hand_r.visible) and not candle_out else 0.0, dt * 1.2)
 	if carrying or act == "tripod": _tripod_tick(dt)
 	match act:
 		"phone": _phone_tick(dt)
@@ -1458,6 +1460,42 @@ var ph_light: OmniLight3D
 var ph_glass: StandardMaterial3D
 var ph_spot := Vector3.ZERO
 var del_tick := 0
+
+class PhoneMask extends Node2D:
+	var st
+	var cache := {}
+	func _process(_dt): queue_redraw()
+	func _draw():
+		if st == null or st.phone == null or not st.phone.is_visible_in_tree() or st.ph_lit <= 0.01: return
+		var cam := get_viewport().get_camera_3d()
+		if cam == null: return
+		var GL = load("res://scripts/grip_lab.gd")
+		var pg: Transform3D = st.phone.global_transform
+		var white := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE])
+		for h in [st.hand_r, st.hand_l]:
+			if h == null or not h.visible or not h.has_meta("sk"): continue
+			if (h.global_position as Vector3).distance_to(pg.origin) > 0.3: continue
+			var rel: Transform3D = pg.affine_inverse() * (h.global_transform as Transform3D)
+			var key := [(h.get_meta("ang") as Array).duplicate(), rel.origin.snappedf(0.0005), rel.basis.get_euler().snappedf(0.003)]
+			if not cache.has(h.name) or cache[h.name][0] != key:
+				# her hand's triangles that are before the glass, in the phone's frame (found again only when the hold changes)
+				var to_p: Transform3D = rel * GL.sk_to_h(h)
+				var out := PackedVector3Array()
+				for mi in h.find_children("*", "MeshInstance3D", true, false):
+					if (mi as MeshInstance3D).skin == null: continue
+					var F: PackedVector3Array = GL.skinned_faces(mi)
+					for i in range(0, F.size(), 3):
+						var a: Vector3 = to_p * F[i]; var b: Vector3 = to_p * F[i + 1]; var c: Vector3 = to_p * F[i + 2]
+						if minf(a.y, minf(b.y, c.y)) > -0.0048: continue
+						if absf(a.x) > 0.045 and absf(b.x) > 0.045 and absf(c.x) > 0.045: continue
+						if absf(a.z) > 0.08 and absf(b.z) > 0.08 and absf(c.z) > 0.08: continue
+						out.append(a); out.append(b); out.append(c)
+				cache[h.name] = [key, out]
+			var T: PackedVector3Array = cache[h.name][1]
+			for i in range(0, T.size(), 3):
+				var p0: Vector3 = pg * T[i]; var p1: Vector3 = pg * T[i + 1]; var p2: Vector3 = pg * T[i + 2]
+				if cam.is_position_behind(p0) or cam.is_position_behind(p1) or cam.is_position_behind(p2): continue
+				draw_primitive(PackedVector2Array([cam.unproject_position(p0), cam.unproject_position(p1), cam.unproject_position(p2)]), white, PackedVector2Array())
 
 class PhoneUI extends Control:
 	var st
@@ -1527,15 +1565,23 @@ func _phone6():
 	ph_glass = glass.material_override
 	ph_glass.emission_enabled = true; ph_glass.emission = Color(0.96, 0.95, 0.92); ph_glass.emission_energy_multiplier = 0.0
 	ph_light = OmniLight3D.new(); ph_light.light_color = Color(0.96, 0.96, 0.94); ph_light.light_energy = 0.0
-	ph_light.omni_range = 1.3; ph_light.omni_attenuation = 1.2; ph_light.shadow_enabled = false; ph_light.position = Vector3(0, -0.28, 0)   # out in front of the glass (at 6cm it burnt the hand that holds it white)
+	ph_light.omni_range = 1.3; ph_light.omni_attenuation = 1.2; ph_light.shadow_enabled = false; ph_light.light_cull_mask = 1; ph_light.position = Vector3(0, -0.28, 0)   # out in front of the glass (at 6cm it burnt the hand that holds it white)
 	phone.add_child(ph_light)
 	add_child(phone); phone.visible = false
 	pack = Node3D.new(); pack.add_child(_box_mesh(Vector3(0.066, 0.016, 0.105), Color(0.86, 0.86, 0.84), 0.5)); add_child(pack); pack.visible = false
 	cable = MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0022; cy.bottom_radius = 0.0022; cy.height = 1.0; cy.radial_segments = 6; cable.mesh = cy
 	var cm := StandardMaterial3D.new(); cm.albedo_color = Color(0.9, 0.9, 0.88); cable.material_override = cm; add_child(cable); cable.visible = false
 	var lay := CanvasLayer.new(); lay.layer = 11; add_child(lay)   # over the print (10), under the page (13)
+	# the screen and, over it, the holes where her hand is in front of the glass: the two in one group, so the hole is cut
+	# in the screen only and the printed hand under it shows (the screen is drawn over the print: a thumb on it was lost)
+	var grp := CanvasGroup.new(); grp.fit_margin = 4000.0; grp.clear_margin = 4000.0; lay.add_child(grp)
 	ph_ui = PhoneUI.new(); ph_ui.st = self; ph_ui.set_anchors_preset(Control.PRESET_FULL_RECT); ph_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lay.add_child(ph_ui)
+	ph_ui.size = get_viewport().get_visible_rect().size
+	grp.add_child(ph_ui)
+	var pm := PhoneMask.new(); pm.st = self
+	var msh := Shader.new(); msh.code = "shader_type canvas_item;\nrender_mode blend_disabled;\nvoid fragment() { COLOR = vec4(0.0); }"
+	var mm := ShaderMaterial.new(); mm.shader = msh; pm.material = mm
+	grp.add_child(pm)
 	for ln in D.lines("スマホ.画面"):
 		var t := String(ln)
 		if t.begins_with("（送る欄）"): ph_draft0 = t.substr(5)
