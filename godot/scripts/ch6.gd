@@ -615,7 +615,7 @@ void fragment() {
 	c = mix(c, c * 0.62, wet * halo);
 	c = mix(c, c * vec3(0.62, 0.42, 0.30), halo * wash * 0.45);
 	c = mix(c, c * vec3(0.30, 0.15, 0.10), ring * wash * 0.95);
-	c = mix(c, vec3(0.36, 0.035, 0.02), blood * (1.0 - smoothstep(0.15, 0.95, wash)));   // dried, on dark grey wool: a rust that the print's warm ink takes
+	c = mix(c, vec3(0.035, 0.006, 0.006), blood * (1.0 - smoothstep(0.15, 0.95, wash)));   // dried, on dark grey wool: near black (a rust was the lit sleeve's own tone in the print, and was not seen)
 	ALBEDO = c; ROUGHNESS = 0.92; SPECULAR = 0.15;
 }
 """
