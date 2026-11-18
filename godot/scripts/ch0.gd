@@ -496,7 +496,7 @@ func _jump0(t: float):
 	clock = t
 
 # the unattended run: sit through it, get up, round her by the west wall, open the door
-const DEMO_PATH := [[4.30, 1.20], [4.80, 0.75]]   # 2026-11-17 夜: she sits on the door side of Natsuki now
+const DEMO_PATH := [[4.75, 2.05], [4.85, 1.25], [4.80, 0.75]]   # 2026-11-17 夜: she sits on the door side of Natsuki now. 試作167: round the tripod (x 4.0..4.6, y 1.3..1.9) on its east
 func _demo0(dt: float):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	match dstep:
