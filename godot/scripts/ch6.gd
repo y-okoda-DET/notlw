@@ -104,6 +104,9 @@ func _ready():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--ch6at="): start6 = a.substr(8)   # check stills and a part's playthrough (see _jump6)
 		if a == "--c6names": call_deferred("_names_dbg")
+		if a == "--c6grip" or a == "--c6fit": grip6 = a.substr(4)   # check only: scripts/grip_lab.gd
+		if a.begins_with("--c6bench="): _after(3.0, _bench.bind(a.substr(10)))   # check only: try grips of the things she holds, one by one (scripts/grip_lab.gd)
+		if a.begins_with("--c6probe="): probe6 = a.substr(10)   # check only: look at the hands from the side (does a finger pass through what it holds)
 	var c: Array = D.lines("六.カード")
 	card = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
 	card_t = 2.75; card_next = "t420card"
@@ -423,9 +426,133 @@ func _air_tick(dt: float):
 		AudioServer.set_bus_effect_enabled(0, lp_i, up_air > 0.02)
 		lp.cutoff_hz = lerpf(20000.0, 1400.0, pow(up_air, 0.5))
 
+var grip6 := ""
+var grip_key := ""
+var grip_t := 0.0
+var grip_n := 0
+func _grip_tick(dt: float):
+	var key := "%s/%d" % [act, step]
+	if key != grip_key: grip_key = key; grip_t = 1.6; grip_n = 0
+	grip_t -= dt
+	if grip_t > 0.0: return
+	grip_n += 1; grip_t = 2.0
+	var GL = load("res://scripts/grip_lab.gd")
+	var sh := Basis(Vector3.UP, player.yaw)
+	for h in [hand_l, hand_r]:
+		if h == null or not h.visible or not h.has_meta("sk"): continue
+		var tag := "%s#%d" % [key, grip_n]
+		# her skin against everything near (what rides this hand, the other hand, the things of the house)
+		GL.verify(h, main, [h.get_child(0)], tag)
+		# the elbow, from the shoulder (the upper arm is about 0.28 m; reaching, the shoulder comes forward some 0.08)
+		var el: Vector3 = h.global_transform * Vector3(0, 0, 0.25)
+		var shd: Vector3 = _cam().global_position + sh * Vector3(-0.17 if h == hand_l else 0.17, -0.21, 0.03)
+		print("ELBOW %s %s 肩から %.2fm" % [tag, h.name, el.distance_to(shd)])
+
+# check only. A json list of {name, hand: "l"/"r", obj: phone/pack/cas/case, rot: [deg YXZ, the thing in the hand's frame], off: [x, z],
+# objpose: [[pos in the rig], [deg]] (where the thing is held up; the hand follows)}. Writes <json>.out/<name>_<view>.png and prints SEAT / FIT / VERIFY
+func _bench(path: String):
+	var GL = load("res://scripts/grip_lab.gd")
+	var list: Array = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var out := path + ".out"; DirAccess.make_dir_recursive_absolute(out)
+	set_process(false); player.move_enabled = false; player.look_enabled = false
+	var bc := Camera3D.new(); bc.fov = 30.0; bc.near = 0.02; main.add_child(bc)
+	var objs := {"phone": phone, "pack": pack, "cas": cas1, "case": case6}
+	for e in list:
+		var h: Node3D = hand_l if e.hand == "l" else hand_r
+		var o: Node3D = objs[e.obj]
+		for k in objs: (objs[k] as Node3D).visible = false
+		hand_l.visible = false; hand_r.visible = false; h.visible = true
+		if o.get_parent() != h: o.get_parent().remove_child(o); h.add_child(o)
+		o.visible = true
+		var r: Array = e.rot
+		o.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(r[0]), deg_to_rad(r[1]), deg_to_rad(r[2])), EULER_ORDER_YXZ), Vector3(e.off[0], 0.0, e.off[1]))
+		GL.set_angles(h, GL.open_angles())
+		h.transform = Transform3D(Basis(), Vector3(0, -0.1, -0.3))
+		await get_tree().process_frame
+		if e.has("y"): o.position.y = e.y
+		else: GL.seat_obj(h, o, e.name)
+		var ang: Array = GL.fit(h, main, [h.get_child(0)], e.name, [o], true, e.get("side", -9.0), e.get("thumb", []))
+		ang = GL.refine(h, main, [h.get_child(0)], e.name, ang, [o], o)
+		GL.verify(h, main, [h.get_child(0)], e.name, [o])
+		var op: Array = e.objpose    # [the hand's old place, its old turn, the thing's old place in it]: the thing stays where it was seen
+		var ob := Transform3D(Basis.from_euler(Vector3(deg_to_rad(op[1][0]), deg_to_rad(op[1][1]), deg_to_rad(op[1][2])), EULER_ORDER_YXZ), Vector3(op[0][0], op[0][1], op[0][2])) * Transform3D(Basis(), Vector3(op[2][0], op[2][1], op[2][2]))
+		print("BENCH %s obj in hand: rot %s pos %s" % [e.name, r, o.position.snappedf(0.0005)])
+		h.transform = ob * o.transform.affine_inverse()
+		var el: Vector3 = h.global_transform * Vector3(0, 0, 0.25)
+		var shd: Vector3 = _cam().global_position + Basis(Vector3.UP, player.yaw) * Vector3(-0.17 if h == hand_l else 0.17, -0.21, 0.03)
+		print("BENCH %s hand pos %s deg %s  ひじは肩から %.2fm" % [e.name, h.position.snappedf(0.001), (h.basis.get_euler(EULER_ORDER_YXZ) * 180.0 / PI).snappedf(0.5), el.distance_to(shd)])
+		_cam().make_current()
+		for i in 3: await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s_eye.png" % [out, e.name])
+		var views := {"palm": [Vector3(0, -0.34, -0.08), Vector3(0, 0, -1)], "side": [Vector3(0.34, -0.02, -0.08), Vector3(0, 1, 0)], "tip": [Vector3(0, -0.02, -0.44), Vector3(0, 1, 0)], "back": [Vector3(0, 0.34, -0.08), Vector3(0, 0, -1)]}
+		for v in views:
+			bc.global_transform = h.global_transform * Transform3D(Basis(), views[v][0]).looking_at(Vector3(0, -0.02, -0.08), views[v][1])
+			bc.make_current()
+			for i in 2: await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [out, e.name, v])
+	print("BENCH done"); get_tree().quit()
+
+# check only (--c6fit): when the hand has come to a thing that stands by itself, bring the palm onto it, close the fingers on it,
+# and print the hand's place and the angles (to write into the hand's target and GRIPS). In play this does nothing
+func _fit_dev(h: Node3D, key: String, only: Array, delay: float, at = null, seat := true, fit := true, side := -9.0, done := false):
+	if grip6 != "fit" or (done and not OS.get_cmdline_user_args().has("--c6refit")): return
+	_after(delay, func():
+		var GL = load("res://scripts/grip_lab.gd")
+		var p0 := h.position
+		if at != null: h.position = at; p0 = at
+		var keep: Array = (h.get_meta("ang") as Array).duplicate()
+		if fit: GL.set_angles(h, GL.open_angles())
+		if seat:
+			GL.seat_hand(h, main, key, only, not fit)
+			print("FITDEV %s hand moved by %s (rig), now %s" % [key, (h.position - p0).snappedf(0.0005), h.position.snappedf(0.0005)])
+		if fit:
+			var ang: Array = GL.fit(h, main, [h], key, only, true, side)
+			ang = GL.refine(h, main, [h], key, ang, only, null, 0.0012, side > -5.0)
+			h.set_meta("ang", ang)
+		else: _ang_set(h, keep)
+		GL.verify(h, main, [h], key, only))
+
+# a step nearer, if the thing is farther than her arm (the eye within `reach` of it, level)
+func _step_near(target: Vector3, reach := 0.45, dur := 0.7):
+	var d := target - _cam().global_position; d.y = 0.0
+	var far := d.length() - reach
+	if far <= 0.02: return
+	var mv := d.normalized() * far
+	for i in 6:
+		if not player.test_move(player.global_transform, mv): break
+		mv *= 0.75
+	var went := 0.0
+	if not player.test_move(player.global_transform, mv):
+		went = mv.length()
+		create_tween().tween_property(player, "global_position", player.global_position + mv, dur).set_trans(Tween.TRANS_SINE)
+	# and what her feet cannot do (the rail is in the way), her body does: she leans to it
+	var lean := clampf(far - went, 0.0, 0.34)
+	if lean > 0.02:
+		lean_on = true
+		create_tween().tween_property(_cam(), "position", Vector3(0, 0, -lean), dur).set_trans(Tween.TRANS_SINE)
+var lean_on := false
+
+var probe6 := ""
+var probe_cam: Camera3D
+func _probe_tick():
+	if probe_cam == null:
+		probe_cam = Camera3D.new(); probe_cam.fov = 38.0; probe_cam.near = 0.02; _cam().add_child(probe_cam)
+		var at := Vector3(0.06, -0.12, -0.32)
+		var from: Vector3 = {"right": Vector3(0.55, -0.02, -0.30), "left": Vector3(-0.50, -0.02, -0.30), "top": Vector3(0.06, 0.42, -0.30), "under": Vector3(0.06, -0.62, -0.26), "front": Vector3(0.06, -0.02, -0.86)}.get(probe6, Vector3(0.55, -0.02, -0.30))
+		probe_cam.transform = Transform3D(Basis(), from).looking_at(at, Vector3.FORWARD if absf(from.y - at.y) > 0.3 else Vector3.UP)
+		for o in [Vector3(0.5, 0.4, -0.1), Vector3(-0.4, -0.3, -0.6)]:
+			var pl := OmniLight3D.new(); pl.omni_range = 2.0; pl.light_energy = 0.8; pl.shadow_enabled = false; pl.position = o; _cam().add_child(pl)
+	if not probe_cam.current: probe_cam.make_current()
+
 # ---------------------------------------------------------------- the clock
 func _process(dt):
 	t_now += dt; t_stage += dt
+	if probe6 != "": _probe_tick()
+	if grip6 != "": _grip_tick(dt)
+	if lean_on and act != "cam" and act != "batt":
+		lean_on = false; create_tween().tween_property(_cam(), "position", Vector3.ZERO, 0.8).set_trans(Tween.TRANS_SINE)
 	if card_t > 0.0:
 		card_t -= dt
 		card.visible = true; player.move_enabled = false; player.look_enabled = false
@@ -670,6 +797,12 @@ func _mk_arm(left: bool) -> Node3D:
 				var o: Vector3 = (to_h * sk.get_bone_global_rest(bi)).origin
 				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
 			fb.append({"i": bi, "ax": (gb.inverse() * ax).normalized(), "thumb": f == "thumb", "j": j})
+	# the thumb also swings out of the palm's plane (to come down on what lies in the hand): about the fingers' axis, at its root
+	var tb: Dictionary = fb[12]
+	var tgb: Basis = (to_h * sk.get_bone_global_rest(tb.i)).basis.orthonormalized()
+	var zax := tgb.y.cross(Vector3.DOWN).normalized()   # (it lies along the fingers at rest: about their axis it would only roll)
+	if (Basis(zax, 0.5) * tgb.y).y > tgb.y.y: zax = -zax     # the way that takes its tip to the palm's side (−Y)
+	tb["ab"] = (tgb.inverse() * zax).normalized()
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	var cf := Node3D.new(); cf.name = "cuff"; h.add_child(cf)
 	_curl(h, 0.25)
@@ -721,15 +854,72 @@ func _mk_hand(left: bool) -> Node3D:
 	_curl(h, 0.25)
 	return h
 
+# what she holds: the thing's place in the hand [turn about the hand's Y (deg), place], and each finger's joints bent until they touch it
+# (15 joints: index, middle, ring, little, thumb, three each, then the thumb's swing out of the palm). Found and checked with
+# scripts/grip_lab.gd (--c6bench): her skin is nowhere more than 1.5 mm into the thing (flesh gives that much)
+const HOLDS := {
+	"phone": [15.0, Vector3(0.022, -0.0145, -0.100)],   # cradled along the hand, the thumb beside its edge (its whole face is the screen)
+	"cas": [60.0, Vector3(0.003, -0.017, -0.098)],      # across the fingers, the thumb on its lower corner (the label stays seen)
+	"pack": [-60.0, Vector3(-0.005, -0.021, -0.098)],
+	"case": [-15.0, Vector3(-0.020, -0.014, -0.100)],   # cradled, the thumb beside it (the lid must open)
+}
+const GRIPS := {
+	"phone": [-0.24, -0.22, -0.09, 0.18, -0.22, -0.12, 0.45, -0.22, -0.12, 0.93, -0.19, -0.12, -0.3, 0.15, 0.15, 0.2],
+	"cas": [-0.3, 0.74, 1.2, 0.24, -0.22, -0.09, 0.48, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, 0.08, 0.95, -0.02],
+	"pack": [-0.3, -0.22, 0.18, 0.18, -0.22, -0.12, 0.51, -0.22, -0.12, 1.02, -0.19, -0.12, 0.0, -0.1, 0.95, 0.04],
+	"case": [-0.3, -0.22, -0.12, 0.21, -0.22, -0.06, 0.48, -0.22, -0.12, 1.02, -0.22, -0.12, -0.3, 0.13, 0.15, 0.23],
+	# things that stand by themselves (the hand's place was brought onto them too: --c6fit)
+	"tri_l": [0.56, 0.91, 0.64, 0.59, 0.95, 0.66, 0.64, 1.01, 0.7, 0.64, 1.01, 0.7, 0.0, 0.03, 0.95, 0.64],
+	"tri_r2": [0.42, 0.72, 0.74, 0.54, 0.88, 0.62, 0.56, 0.91, 0.49, 0.56, 0.91, 0.64, 0.0, -0.07, 0.95, 0.46],
+	"tri_l2": [0.56, 0.91, 0.64, 0.59, 0.95, 0.66, 0.64, 1.01, 0.7, 0.64, 1.01, 0.7, 0.0, 0.03, 0.95, 0.64],
+	"cam_out": [0.37, 0.66, 0.47, 0.44, 0.76, 0.53, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, -0.1, 1.38],
+	"cam_batt": [-0.3, -0.22, -0.12, -0.3, -0.22, -0.12, -0.13, 0.0, -0.12, -0.13, 0.0, 0.03, 0.07, -0.01, -0.04, 0.3],
+	"lid": [-0.3, 1.1, 0.76, 0.35, 0.63, 0.45, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, 0.13, 1.03],
+}
+
+func _ang_set(h: Node3D, ang: Array):
+	var sk: Skeleton3D = h.get_meta("sk"); var fb: Array = h.get_meta("fb")
+	for k in fb.size():
+		var b = fb[k]
+		var q: Quaternion = sk.get_bone_rest(b.i).basis.get_rotation_quaternion()
+		if b.has("ab") and ang.size() > 15: q = q * Quaternion(b.ab, ang[15])
+		sk.set_bone_pose_rotation(b.i, q * Quaternion(b.ax, ang[k]))
+	h.set_meta("ang", ang)
+
+# close the fingers on a thing as found for it
+func _grip(h: Node3D, key: String, dur := 0.4):
+	if not h.has_meta("sk"): _curl(h, 0.3); return
+	var a0: Array = h.get_meta("ang"); var a1: Array = GRIPS[key]
+	create_tween().tween_method(func(k: float):
+		var a := []
+		for i in 16: a.append(lerpf(a0[i] if i < a0.size() else 0.0, a1[i], k))
+		_ang_set(h, a), 0.0, 1.0, maxf(dur, 0.01))
+
+func _held(key: String) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(HOLDS[key][0])), HOLDS[key][1])
+
+# where the hand must be for the thing to be where it was shown before (the hand at pos/deg with the thing at `was` in it)
+func _hold_xf(key: String, pos: Vector3, deg: Vector3, was: Vector3) -> Transform3D:
+	var old := Transform3D(Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)), EULER_ORDER_YXZ), pos) * Transform3D(Basis(), was)
+	return old * _held(key).affine_inverse()
+
+func _hold_to(h: Node3D, key: String, pos: Vector3, deg: Vector3, was: Vector3, dur := 0.6) -> Tween:
+	var x := _hold_xf(key, pos, deg, was)
+	h.visible = true
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(h, "position", x.origin, dur).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(h, "quaternion", x.basis.get_rotation_quaternion(), dur).set_trans(Tween.TRANS_SINE)
+	return tw
+
 # the fingers' curl: 0 flat, 1.3 a fist
 func _curl(h: Node3D, a: float, thumb := -1.0):
 	if h.has_meta("sk"):
-		var sk: Skeleton3D = h.get_meta("sk")
 		var t2 := a * 0.6 if thumb < 0.0 else thumb
 		h.set_meta("curl", a)
-		for b in h.get_meta("fb"):
-			var ang: float = (t2 * [0.30, 0.55, 0.40][b.j]) if b.thumb else (a * [0.80, 1.05, 0.70][b.j])
-			sk.set_bone_pose_rotation(b.i, sk.get_bone_rest(b.i).basis.get_rotation_quaternion() * Quaternion(b.ax, ang))
+		var ang := []
+		for b in h.get_meta("fb"): ang.append((t2 * [0.30, 0.55, 0.40][b.j]) if b.thumb else (a * [0.80, 1.05, 0.70][b.j]))
+		ang.append(0.0)
+		_ang_set(h, ang)
 		return
 	for k in h.get_meta("kn"): (k as Node3D).rotation.x = -a
 	for j in h.get_meta("jn"): (j as Node3D).rotation.x = -a * 1.15
@@ -741,7 +931,6 @@ func _curl_to(h: Node3D, a: float, dur := 0.4):
 	var a0: float = h.get_meta("curl") if h.has_meta("sk") else -((h.get_meta("kn")[0]) as Node3D).rotation.x
 	create_tween().tween_method(func(v: float): _curl(h, v), a0, a, dur)
 
-# a hand to a place before the eye (the camera's frame: x right, y up, -z ahead), turned by degrees (YXZ)
 func _hand_to(h: Node3D, pos: Vector3, deg: Vector3, dur := 0.6) -> Tween:
 	h.visible = true
 	var q := Quaternion(Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)), EULER_ORDER_YXZ))
@@ -749,6 +938,15 @@ func _hand_to(h: Node3D, pos: Vector3, deg: Vector3, dur := 0.6) -> Tween:
 	tw.tween_property(h, "position", pos, dur).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(h, "quaternion", q, dur).set_trans(Tween.TRANS_SINE)
 	return tw
+
+# onto a thing from off it (not through it): first to a point 5 cm off along the back of the hand, then down
+func _hand_onto(h: Node3D, pos: Vector3, deg: Vector3, dur := 0.7):
+	var b := Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)), EULER_ORDER_YXZ)
+	h.visible = true
+	var tw := create_tween()
+	tw.tween_property(h, "position", pos + b.y * 0.05, dur * 0.7).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(h, "quaternion", Quaternion(b), dur * 0.7).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(h, "position", pos, dur * 0.3).set_trans(Tween.TRANS_SINE)
 
 func _hand_away(h: Node3D, dur := 0.6):
 	var side := -1.0 if h == hand_l else 1.0
@@ -847,7 +1045,7 @@ func _props6():
 		tripod_h = bb.end.y
 		for mi in tripod.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 2
 		_tri_rig(bb)
-		tri_blood = MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.075; cy.bottom_radius = 0.07; cy.height = 0.16; tri_blood.mesh = cy
+		tri_blood = MeshInstance3D.new(); tri_blood.name = "nocol_blood"; var cy := CylinderMesh.new(); cy.top_radius = 0.075; cy.bottom_radius = 0.07; cy.height = 0.16; tri_blood.mesh = cy
 		var rm := StandardMaterial3D.new(); rm.albedo_color = Color(0.13, 0.008, 0.008, 0.92); rm.roughness = 0.25; rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		tri_blood.material_override = rm; tri_blood.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		tripod.add_child(tri_blood); tri_blood.position = Vector3(bb.get_center().x, tripod_h - 0.10, bb.get_center().z)
@@ -987,7 +1185,8 @@ func _tripod_take():
 			_tri_place(); tripod.transform = t0.interpolate_with(tripod.transform, k), 0.0, 1.0, 1.5).set_trans(Tween.TRANS_SINE)
 		create_tween().tween_property(self, "tri_close", 1.0, 1.5).set_trans(Tween.TRANS_SINE)
 		_turn_to(_cam().global_position + Basis(Vector3.UP, player.yaw) * Vector3(0, -0.35, -1.0), 1.5)
-		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.0, 0.02, 0.05), Vector3(25, -15, 0), 1.4); _curl(hand_l, 1.1)
+		_hand_to(hand_l, tri_head + tri_axis.normalized() * 0.30 + Vector3(0.001, 0.008, 0.045), Vector3(25, -15, 0), 1.4); _grip(hand_l, "tri_l", 1.4)
+		_fit_dev(hand_l, "tri_l", [tripod], 1.9, null, true, true, -9.0, true)
 		_after(1.7, func(): step = 1; _show_prompt("三脚.拭く")))
 
 func _show_prompt(key: String):
@@ -998,16 +1197,24 @@ func _tripod_tick(dt: float):
 	if step == 1:
 		# her cuff pulled over her hand, along the head and back (her own hand's shadow over it)
 		if _holding():
-			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.03, 0.025, 0.05), Vector3(25, 15, 0), 0.4); _curl(hand_r, 1.2); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 3.2, 1.25)
+			if not hand_r.visible or wipe <= 0.0: _hand_to(hand_r, tri_head + Vector3(0.03, 0.025, 0.05), Vector3(25, 15, 0), 0.4); _curl(hand_r, 0.3); (hand_r.get_node("cuff") as Node3D).position.z = -0.03; (hand_r.get_node("cuff") as Node3D).scale = Vector3(1.25, 3.2, 1.25)
+			if wipe <= 0.0:
+				for kk in 3: _fit_dev(hand_r, "tri_w%d" % kk, [tripod], 0.5 + 0.02 * kk, tri_head + tri_axis.normalized() * (0.07 * kk) + Vector3(0.0, 0.035, 0.05), true, false, -9.0, true)
 			wipe = minf(1.0, wipe + dt / 3.6)
-			if wipe > 0.1: hand_r.position = tri_head + tri_axis.normalized() * (0.07 + 0.07 * sin(t_now * 7.5)) + Vector3(0.0, 0.035, 0.05)
+			if wipe > 0.1:
+				# (the hand rides the head's shape along the stroke: found at three points with --c6fit)
+				var u := 1.0 + sin(t_now * 7.5)
+				var dn: Vector3 = Vector3(-0.0015, -0.0105, -0.0045).lerp(Vector3(-0.0025, -0.0195, -0.009), u) if u < 1.0 else Vector3(-0.0025, -0.0195, -0.009).lerp(Vector3(-0.002, -0.016, -0.007), u - 1.0)
+				hand_r.position = tri_head + tri_axis.normalized() * (0.07 * u) + Vector3(0.0, 0.035, 0.05) + dn
 			wipe_snd -= dt
 			if wipe_snd <= 0.0: wipe_snd = 0.55; Sound.one(self, "ch3_blanket", -20.0)
 			(tri_blood.material_override as StandardMaterial3D).albedo_color.a = 0.92 * (1.0 - wipe)
 			if wipe >= 1.0:
 				tri_blood.visible = false; step = 2; legs_n = 0
 				(hand_r.get_node("cuff") as Node3D).position.z = 0.04; (hand_r.get_node("cuff") as Node3D).scale = Vector3.ONE
-				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(0.0, 0.02, 0.05), Vector3(25, 15, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0, 0.02, 0.05), Vector3(25, -15, 0), 0.6)
+				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(-0.0025, -0.003, 0.0395), Vector3(25, 15, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0015, 0.008, 0.045), Vector3(25, -15, 0), 0.6)
+				_grip(hand_r, "tri_r2", 0.6); _grip(hand_l, "tri_l2", 0.6)
+				_fit_dev(hand_r, "tri_r2", [tripod], 0.8, null, true, true, -9.0, true); _fit_dev(hand_l, "tri_l2", [tripod], 0.85, null, true, true, -9.0, true)
 				_show_prompt("三脚.脚")
 var legs_n := 0
 
@@ -1074,11 +1281,13 @@ func _cam_out():
 	act = "cam"; step = 0; note_lb.text = ""
 	if ret_rows.is_empty(): _ret_open("カメラ.見る")
 	ret_hold = -1.0
+	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.9)
 	candle_off = Vector3(-0.17, -0.14, -0.36)     # held up to it
 	_after(1.0, func():
-		_curl(hand_r, 0.5)
-		_hand_to(hand_r, _in_rig(_cam_top()) + Vector3(0.02, -0.05, 0.09), Vector3(55, 10, 0), 0.7)
+		_grip(hand_r, "cam_out", 0.7)
+		_hand_onto(hand_r, _in_rig(_cam_top()) + Vector3(0.0185, -0.055, 0.0825), Vector3(55, 10, 0), 0.7)
+		_fit_dev(hand_r, "cam_out", [fixed_cam], 0.72, null, true, true, 0.3, true)
 		_after(0.7, func():
 			Sound.one(self, "tape_clunk", -8.0, fixed_cam.global_position)
 			cas2.visible = true
@@ -1091,8 +1300,8 @@ func _cam_out():
 				# onto her fingers, and down before her eye: nothing is written on it
 				var gt := cas2.global_transform
 				main.remove_child(cas2); hand_r.add_child(cas2); cas2.global_transform = gt
-				create_tween().tween_property(cas2, "transform", Transform3D(Basis(), Vector3(0, -0.034, -0.075)), 0.5)
-				_curl(hand_r, 0.35, 0.5); _hand_to(hand_r, Vector3(0.04, -0.12, -0.24), Vector3(62, 6, 180), 0.9)
+				create_tween().tween_property(cas2, "transform", _held("cas"), 0.5)
+				_grip(hand_r, "cas", 0.5); _hold_to(hand_r, "cas", Vector3(0.04, -0.12, -0.24), Vector3(62, 6, 180), Vector3(0, -0.034, -0.075), 0.9)
 				_after(1.6, func(): step = 1; _show_prompt("カメラ.入れる")))))
 
 func _cam_in():
@@ -1103,12 +1312,13 @@ func _cam_in():
 		cas2.visible = false
 		hand_r.remove_child(cas2); add_child(cas2)
 		cas1.get_parent().remove_child(cas1); hand_r.add_child(cas1); cas1.visible = true
-		cas1.transform = Transform3D(Basis(), Vector3(0, -0.034, -0.075))
+		cas1.transform = _held("cas"); _grip(hand_r, "cas", 0.05)
 		Sound.one(self, "ch3_blanket", -18.0)
 		# up into the candle's light, tilted to it: 「定点」, in her own hand
-		_hand_to(hand_r, Vector3(-0.01, -0.105, -0.215), Vector3(66, -12, 180), 0.9)
+		_hold_to(hand_r, "cas", Vector3(-0.01, -0.105, -0.215), Vector3(66, -12, 180), Vector3(0, -0.034, -0.075), 0.9)
 		_after(2.6, func():
 			_hand_to(hand_r, _in_rig(_cam_top()) + Vector3(0.02, -0.06, 0.10), Vector3(55, 10, 0), 0.9)
+			_fit_dev(hand_r, "cam_in", [fixed_cam], 0.88, null, false, false)
 			_after(0.9, func():
 				var gt := cas1.global_transform
 				hand_r.remove_child(cas1); main.add_child(cas1); cas1.global_transform = gt
@@ -1128,11 +1338,13 @@ func _cam_batt():
 	act = "batt"; note_lb.text = ""
 	if ret_rows.is_empty(): _ret_open("カメラ.見る")
 	ret_hold = -1.0
+	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.7)
 	candle_off = Vector3(-0.17, -0.14, -0.36)
 	_after(0.8, func():
-		_curl(hand_r, 0.6)
-		_hand_to(hand_r, _in_rig(fixed_cam.global_position) + Vector3(0.03, -0.06, 0.11), Vector3(50, 15, 0), 0.7)
+		_grip(hand_r, "cam_batt", 0.7)
+		_hand_onto(hand_r, _in_rig(fixed_cam.global_position) + Vector3(0.029, -0.0635, 0.106), Vector3(50, 15, 0), 0.7)
+		_fit_dev(hand_r, "cam_batt", [fixed_cam], 0.75, null, true, true, 0.3, true)
 		_after(0.8, func(): Sound.one(self, "lock", -10.0, fixed_cam.global_position))
 		_after(1.7, func(): Sound.one(self, "ch3_lock", -12.0, fixed_cam.global_position))
 		_after(2.2, func():
@@ -1296,9 +1508,9 @@ func _phone_in_hand():
 	if phone.get_parent() != hand_r:
 		var gt := phone.global_transform
 		phone.get_parent().remove_child(phone); hand_r.add_child(phone); phone.global_transform = gt
-	create_tween().tween_property(phone, "transform", Transform3D(Basis(), Vector3(0, -0.020, -0.082)), 0.7).set_trans(Tween.TRANS_SINE)
-	_curl(hand_r, 0.12, 0.5)
-	_hand_to(hand_r, PH_HOLD, PH_DEG, 0.9)
+	create_tween().tween_property(phone, "transform", _held("phone"), 0.7).set_trans(Tween.TRANS_SINE)
+	_grip(hand_r, "phone", 0.6)
+	_hold_to(hand_r, "phone", PH_HOLD, PH_DEG, Vector3(0, -0.020, -0.082), 0.9)
 	create_tween().tween_property(player, "pitch", -0.42, 0.9).set_trans(Tween.TRANS_SINE)
 
 func _phone_find():
@@ -1314,7 +1526,7 @@ func _phone_find():
 		_hand_to(hand_r, _in_rig(hips) + Vector3(0.0, 0.10, 0.10), Vector3(-25, 0, 0), 1.0)
 		_after(1.9, func():
 			phone.visible = true
-			phone.get_parent().remove_child(phone); hand_r.add_child(phone); phone.transform = Transform3D(Basis(), Vector3(0, -0.020, -0.082))
+			phone.get_parent().remove_child(phone); hand_r.add_child(phone); phone.transform = _held("phone"); _ang_set(hand_r, GRIPS["phone"])
 			_phone_in_hand()
 			_after(1.3, func(): step = 1; _show_prompt("スマホ.押す"))))
 
@@ -1366,9 +1578,9 @@ func _pack_take():
 	has_pack = true
 	Sound.one(self, "ch3_blanket", -14.0)
 	pack.get_parent().remove_child(pack); hand_l.add_child(pack); pack.visible = true
-	pack.transform = Transform3D(Basis(), Vector3(0, -0.024, -0.085))
-	hand_l.position = Vector3(-0.2, -0.6, -0.3); _curl(hand_l, 0.2)
-	_hand_to(hand_l, Vector3(-0.05, -0.125, -0.27), Vector3(62, -8, 180), 0.8)
+	pack.transform = _held("pack")
+	hand_l.position = Vector3(-0.2, -0.6, -0.3); _grip(hand_l, "pack", 0.05)
+	_hold_to(hand_l, "pack", Vector3(-0.05, -0.125, -0.27), Vector3(62, -8, 180), Vector3(0, -0.024, -0.085), 0.8)
 	_after(2.0, func():
 		_hand_away(hand_l, 0.7)
 		_after(0.7, func(): pack.visible = false; act = ""))
@@ -1448,7 +1660,7 @@ func _case6():
 	var lab := _box_mesh(Vector3(0.080, 0.0005, 0.030), Color(0.95, 0.94, 0.90), 0.9); case_lid.add_child(lab); lab.position = Vector3(-0.056, -0.0018, -0.008)
 	var t := _text3("上映用", 0.00034, Color(0.08, 0.10, 0.2)); case_lid.add_child(t)
 	t.position = Vector3(-0.056, -0.0023, -0.008); t.basis = Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, PI / 2.0)
-	hand_l.add_child(case6); case6.position = Vector3(0, -0.020, -0.090); case6.visible = false
+	hand_l.add_child(case6); case6.transform = _held("case"); case6.visible = false
 	for mi in main.S.env_node.find_children("tapebox*", "MeshInstance3D", true, false): box_env.append(mi)
 
 func _box_tick():
@@ -1466,17 +1678,18 @@ func _box_press():
 	_after(1.0, func():
 		for mi in box_env: (mi as Node3D).visible = false
 		case6.visible = true; case_lid.rotation.z = 0.0
-		hand_l.position = _in_rig(bp); hand_l.quaternion = Quaternion(Basis.from_euler(Vector3(deg_to_rad(10), 0, PI), EULER_ORDER_YXZ)); _curl(hand_l, 0.15, 0.4)
-		_hand_to(hand_l, Vector3(-0.03, -0.115, -0.25), Vector3(64, -6, 180), 1.0)
+		hand_l.transform = _hold_xf("case", _in_rig(bp), Vector3(10, 0, 180), Vector3(0, -0.020, -0.090)); _grip(hand_l, "case", 0.05)
+		_hold_to(hand_l, "case", Vector3(-0.03, -0.115, -0.25), Vector3(64, -6, 180), Vector3(0, -0.020, -0.090), 1.0)
 		create_tween().tween_property(player, "pitch", -0.5, 1.0).set_trans(Tween.TRANS_SINE)
 		_after(2.2, func():
 			# 夏希の字。her other hand lifts the lid
-			_curl(hand_r, 0.5)
-			_hand_to(hand_r, Vector3(0.08, -0.045, -0.235), Vector3(40, 30, -60), 0.6)
+			_grip(hand_r, "lid", 0.6)
+			_hand_to(hand_r, Vector3(0.0785, -0.0455, -0.235), Vector3(40, 30, -60), 0.6)
+			_fit_dev(hand_r, "lid", [case6], 0.65, null, true, true, -9.0, true)
 			_after(0.7, func():
 				Sound.one(self, "ch3_blanket", -16.0)
 				create_tween().tween_property(case_lid, "rotation:z", 2.45, 0.9).set_trans(Tween.TRANS_SINE)
-				_hand_to(hand_r, Vector3(0.17, -0.15, -0.24), Vector3(40, 30, -60), 0.9)
+				_hand_to(hand_r, Vector3(0.17, -0.15, -0.24), Vector3(40, 30, -60), 0.9); _curl_to(hand_r, 0.3, 0.6)
 				_after(2.4, func():
 					step = 1
 					_start(B("箱.あと")); box_talk = true))))
@@ -1489,7 +1702,7 @@ func _box_step():
 	_hand_away(hand_r, 0.6)
 	var bp: Vector3 = _target("box").pos
 	_after(0.9, func():
-		_hand_to(hand_l, _in_rig(bp), Vector3(10, 0, 180), 0.9)
+		_hold_to(hand_l, "case", _in_rig(bp), Vector3(10, 0, 180), Vector3(0, -0.020, -0.090), 0.9)
 		_after(0.9, func():
 			case6.visible = false
 			for mi in box_env: (mi as Node3D).visible = true
@@ -1545,9 +1758,12 @@ func _sleeve_tick(dt: float):
 		if on:
 			if wash <= 0.0:
 				_hand_to(hand_l, Vector3(0.16, -0.12, -0.40), Vector3(15, -55, 0), 0.5)
-				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27), Vector3(30, 35, 0), 0.5); _curl(hand_r, 0.45)
+				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27) + Vector3(-0.0105, -0.0315, -0.015), Vector3(30, 35, 0), 0.5); _curl(hand_r, 0.45)
+				for kk in 3: _fit_dev(hand_r, "wash%d" % kk, [hand_l], 0.6 + 0.02 * kk, Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * (kk - 1), true, false, -9.0, true)
 			wash = minf(1.0, wash + dt / 6.5)
-			if wash > 0.08: hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sin(t_now * 6.5)   # along her forearm and back
+			if wash > 0.08:   # along her forearm and back, on the sleeve (it thickens to the elbow: found at three points with --c6fit)
+				var sw := sin(t_now * 6.5)
+				hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sw + Vector3(-0.0105, -0.0315, -0.015) + Vector3(-0.00325, -0.010, -0.00475) * sw
 			sleeve_l.set_shader_parameter("wash", wash); sleeve_l.set_shader_parameter("wet", clampf(wash * 4.0, 0.0, 1.0))
 			# the water goes red, and then clear
 			var red := smoothstep(0.0, 0.22, wash) * (1.0 - smoothstep(0.5, 0.95, wash))
