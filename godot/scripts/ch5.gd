@@ -547,6 +547,10 @@ func _candle():
 	stick.material_override = wm; stick.position.y = 0.06; candle.add_child(stick)
 	var saucer := MeshInstance3D.new(); var sm := CylinderMesh.new(); sm.top_radius = 0.045; sm.bottom_radius = 0.04; sm.height = 0.01
 	saucer.mesh = sm; var sw := StandardMaterial3D.new(); sw.albedo_color = Color(0.85, 0.84, 0.8); saucer.material_override = sw; candle.add_child(saucer)
+	# its rim: the dark line of an enamel dish (in the print the pale saucer and the pale hand under it were one shape. 第6章, 2026-11-18)
+	var rim := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.0425; tm.outer_radius = 0.0475; tm.rings = 32; tm.ring_segments = 6
+	rim.mesh = tm; var rw := StandardMaterial3D.new(); rw.albedo_color = Color(0.05, 0.07, 0.16); rw.roughness = 0.5; rim.material_override = rw
+	rim.name = "nocol_rim"; rim.position.y = 0.0045; rim.scale = Vector3(1.0, 0.6, 1.0); candle.add_child(rim)
 	flame = Node3D.new(); flame.position.y = 0.125; candle.add_child(flame)
 	var f := MeshInstance3D.new(); var fm := SphereMesh.new(); fm.radius = 0.007; fm.height = 0.028
 	f.mesh = fm; f.position.y = 0.013

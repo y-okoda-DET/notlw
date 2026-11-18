@@ -189,7 +189,7 @@ func _candle_down(at: Vector3):
 	tw.tween_property(candle, "global_position", at, 0.7).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func():
 		if c_hand and not candle_held:
-			var h := c_hand; c_hand = null; _ang_set(h, HAND_OPEN); _hand_away(h, 0.4))
+			var h := c_hand; c_hand = null; _hand_layer(h, 2); _ang_set(h, HAND_OPEN); _hand_away(h, 0.4))
 
 # the hand under its saucer (user 2026-11-18: 「蝋燭の皿を下から持つようにしよう」): the palm up, the saucer on it, the
 # fingers round its rim. The hand on the side the candle is held; it goes with the candle (found with --c6bench)
@@ -202,8 +202,8 @@ func _candle_hand_tick(dt: float):
 	if candle_held and candle.visible:
 		var want: Node3D = hand_l if candle_off_now.x < 0.0 else hand_r
 		if want != c_hand and want != c_block:
-			if c_hand: var old := c_hand; c_hand = null; _ang_set(old, HAND_OPEN); _hand_away(old, 0.3)
-			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true
+			if c_hand: var old := c_hand; c_hand = null; _hand_layer(old, 2); _ang_set(old, HAND_OPEN); _hand_away(old, 0.3)
+			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true; _hand_layer(want, 4)
 	if c_hand == null: return
 	# in under it from her side, the fingers flat and the thumb lifted; then they close on its rim (from below, the thumb came up through the saucer)
 	if c_k < 1.0:
@@ -795,7 +795,7 @@ func _hands():
 	rig6.add_child(hand_l); rig6.add_child(hand_r)
 	hand_l.visible = false; hand_r.visible = false
 	fill6 = OmniLight3D.new(); fill6.light_color = Color(1.0, 0.82, 0.62); fill6.light_energy = 0.0; fill6.omni_range = 0.8; fill6.omni_attenuation = 1.6
-	fill6.shadow_enabled = false; fill6.light_specular = 0.1; fill6.position = Vector3(0.0, 0.06, 0.04); rig6.add_child(fill6)
+	fill6.shadow_enabled = false; fill6.light_specular = 0.1; fill6.position = Vector3(0.0, 0.06, 0.04); fill6.light_cull_mask = 0xFFFFF & ~4; rig6.add_child(fill6)
 	# the tripod is black metal on a dark floor: a light of its own (layer 2), or it is not seen in her hands at all
 	tri_fill = OmniLight3D.new(); tri_fill.light_color = Color(1.0, 0.84, 0.66); tri_fill.light_energy = 0.0; tri_fill.omni_range = 2.6; tri_fill.omni_attenuation = 0.8
 	tri_fill.shadow_enabled = false; tri_fill.light_cull_mask = 2; tri_fill.position = Vector3(0.0, 0.12, -0.05); rig6.add_child(tri_fill)
@@ -975,10 +975,15 @@ func _curl_to(h: Node3D, a: float, dur := 0.4):
 	var a0: float = h.get_meta("curl") if h.has_meta("sk") else -((h.get_meta("kn")[0]) as Node3D).rotation.x
 	create_tween().tween_method(func(v: float): _curl(h, v), a0, a, dur)
 
+# the hand under the candle is lit by the candle itself (the saucer's shadow on it), not by the fill that stands for the
+# candle on her other hand: in the print the lit hand and the saucer were one pale shape, and the saucer was not seen
+func _hand_layer(h: Node3D, v: int):
+	for mi in h.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers = v
+
 func _hand_claim(h: Node3D):
 	# a hand that is given something to do lets the candle go (and an older move of it stops)
 	if h == c_hand:
-		c_hand = null
+		c_hand = null; _hand_layer(h, 2)
 		if candle_held: c_block = h; print("CANDLEHAND taken from the candle: %s act=%s step=%d" % [h.name, act, step])
 	if h.has_meta("tw") and (h.get_meta("tw") as Tween).is_valid(): (h.get_meta("tw") as Tween).kill()
 
