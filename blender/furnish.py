@@ -84,15 +84,19 @@ def mats(M):
 def living(M):
     # the wood stove on the west wall, cold (it is summer), on a tiled hearth; the pipe goes out through the wall
     box('furn_hearth', .07, 2.85, 1.05, 3.95, 0, .035, M['hearth'], 1.2)
-    sx0, sx1, sy0, sy1 = .3, .78, 3.13, 3.67
-    box('furn_stove', sx0, sy0, sx1, sy1, .16, .74, M['iron'])
-    box('furn_stovetop', sx0 - .03, sy0 - .03, sx1 + .03, sy1 + .03, .74, .77, M['iron'])
-    legs('furn_stoveleg', sx0, sy0, sx1, sy1, .16, .05, M['iron'], inset=.01)
-    box('furn_stovedoor', sx1, sy0 + .08, sx1 + .015, sy1 - .08, .26, .62, M['plastic'])   # its glass, sooted
-    box('furn_stovehandle', sx1 + .015, sy1 - .14, sx1 + .04, sy1 - .11, .4, .5, M['steel'])
-    px, py = (sx0 + sx1) / 2, (sy0 + sy1) / 2
-    cyl('furn_pipe', px, py, .77, 1.72, .075, M['iron'])
-    p = prim('cylinder', 'furn_pipe', loc=((X(.06) + X(px)) / 2, Y(py), 1.72), rot=(0, math.pi / 2, 0), scale=(.075, .075, (px - .06) / 2 + .075), mat=M['iron'], vertices=16)
+    # 2026-11-18 the user's Tripo stove (front -Y in Blender, its pipe .21 behind its middle): door to the room (plan +x)
+    if tripo_prop('woodstove', (X(.62), Y(3.4), .035), math.pi / 2, .85, name='furn_stove'):
+        px, py, pr, pz = .44, 3.42, .06, .8
+    else:
+        sx0, sx1, sy0, sy1 = .3, .78, 3.13, 3.67
+        box('furn_stove', sx0, sy0, sx1, sy1, .16, .74, M['iron'])
+        box('furn_stovetop', sx0 - .03, sy0 - .03, sx1 + .03, sy1 + .03, .74, .77, M['iron'])
+        legs('furn_stoveleg', sx0, sy0, sx1, sy1, .16, .05, M['iron'], inset=.01)
+        box('furn_stovedoor', sx1, sy0 + .08, sx1 + .015, sy1 - .08, .26, .62, M['plastic'])   # its glass, sooted
+        box('furn_stovehandle', sx1 + .015, sy1 - .14, sx1 + .04, sy1 - .11, .4, .5, M['steel'])
+        px, py, pr, pz = (sx0 + sx1) / 2, (sy0 + sy1) / 2, .075, .77
+    cyl('furn_pipe', px, py, pz, 1.72, pr, M['iron'])
+    p = prim('cylinder', 'furn_pipe', loc=((X(.06) + X(px)) / 2, Y(py), 1.72), rot=(0, math.pi / 2, 0), scale=(pr, pr, (px - .06) / 2 + pr), mat=M['iron'], vertices=16)
     collide(.07, 2.85, 1.05, 3.95, 0, .9)
     # firewood basket beside it
     box('furn_basket', .15, 4.0, .6, 4.38, 0, .32, M['agari'])
@@ -206,6 +210,7 @@ def deer(M, x):
 
 # ---------------------------------------------------------------- 食堂 (plan x 0..4, y 4.6..8)
 def dining(M):
+    _CHAIR.clear()
     tx0, tx1, ty0, ty1 = 1.0, 3.0, 5.85, 6.85
     box('furn_table', tx0, ty0, tx1, ty1, .69, .74, M['walnut'])
     legs('furn_tableleg', tx0, ty0, tx1, ty1, .69, .07, M['walnut'], inset=.06)
@@ -227,9 +232,19 @@ def dining(M):
     cyl('furn_pendshade', 2.0, 6.35, 1.6, 1.78, .2, M['shade'], 24)
     lib.point('lamp_dining', (X(2.0), Y(6.35), 1.56), 50, k=2800, radius=.1)
 
+_CHAIR = []
 def chair(M, x, y, side):
     """side -1: the chair is on the table's front (plan -y) side, its back further out."""
     w = .42
+    # 2026-11-18 the user's Tripo chair (front -Y in Blender = plan +y): side -1 faces the table at plan +y
+    rz = 0.0 if side < 0 else math.pi
+    if _CHAIR:   # the later chairs share the first one's mesh and pictures (one import, not six)
+        o = _CHAIR[0].copy(); bpy.context.scene.collection.objects.link(o)
+        for c in _CHAIR[0].users_collection:
+            if c is not bpy.context.scene.collection: c.objects.link(o); bpy.context.scene.collection.objects.unlink(o); break
+        o.name = 'furn_chair'; o.rotation_euler = (0, 0, rz); o.location = (X(x), Y(y), 0); return
+    o = tripo_prop('chair', (X(x), Y(y), 0), rz, .9, name='furn_chair')
+    if o: _CHAIR.append(o); return
     box('furn_chairseat', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .47, M['oak'], 1.25)
     legs('furn_chairleg', x - w / 2, y - w / 2, x + w / 2, y + w / 2, .43, .035, M['oak'], inset=.02)
     by = y + side * (w / 2 - .02)
@@ -246,10 +261,15 @@ def kitchen(M):
     # south run along the study wall, a tabletop gas stove on it, cupboards over
     sx0, sx1, sy0, sy1 = 6.6, 9.3, 3.67, 4.27
     counter(M, sx0, sy0, sx1, sy1, 's')
-    box('furn_gas', 7.55, 3.75, 8.15, 4.17, .86, .97, M['steel'])
-    for gx in (7.7, 8.0):
-        cyl('furn_burner', gx, 3.98, .97, .985, .06, M['plastic'], 14)
-    cyl('furn_pot', 7.7, 3.98, .985, 1.15, .13, M['steel'], 20)
+    # 2026-11-18 the user's Tripo two-burner (front -Y in Blender = plan +y, toward the kitchen); it came 1 m wide: to .6 x .42 x .17
+    if tripo_prop('gasstove', (X(7.85), Y(3.96), .86), 0.0, (.61, .48, .5), name='furn_gas'):
+        gz = 1.03
+    else:
+        box('furn_gas', 7.55, 3.75, 8.15, 4.17, .86, .97, M['steel'])
+        for gx in (7.7, 8.0):
+            cyl('furn_burner', gx, 3.98, .97, .985, .06, M['plastic'], 14)
+        gz = .985
+    cyl('furn_pot', 7.7, 3.98, gz, gz + .165, .13, M['steel'], 20)
     box('furn_upper', sx0, 3.67, sx1, 4.0, 1.5, 2.2, M['cabinet'])
     # fridge in the corner, short of the back door
     # its doors face into the kitchen, not into the end of the counter (ユーザー 2026-11-14「冷蔵庫、ドアがキッチン台に向かっている。

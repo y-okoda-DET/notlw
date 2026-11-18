@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import bpy
 from mathutils import Vector
 
-TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000, 'hoodie': 12000, 'futon': 12000, 'sleepbag': 14000, 'sleepsack': 8000, 'projector': 14000, 'switch': 8000, 'fridge': 12000, 'vcr': 10000, 'police_body': 16000, 'police_car': 30000, 'cord_reel': 8000}
-SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024, 'hoodie': 1024, 'futon': 1024, 'sleepbag': 1024, 'sleepsack': 1024, 'projector': 1024, 'switch': 512, 'fridge': 1024, 'vcr': 1024, 'police_body': 1024, 'police_car': 1024, 'cord_reel': 512}
+TARGET = {'car': 60000, 'deer': 24000, 'fox': 20000, 'pheasant': 20000, 'kettle': 14000, 'vest': 20000, 'boots': 20000, 'zabuton': 6000, 'blanket': 10000, 'hide': 12000, 'hoodie': 12000, 'futon': 12000, 'sleepbag': 14000, 'sleepsack': 8000, 'projector': 14000, 'switch': 8000, 'fridge': 12000, 'vcr': 10000, 'police_body': 16000, 'police_car': 30000, 'cord_reel': 8000, 'woodstove': 12000, 'gasstove': 8000, 'chair': 6000, 'washer': 6000, 'makeupkit': 10000, 'bathtub': 8000}
+SIZE = {'car': 2048, 'deer': 1024, 'fox': 1024, 'pheasant': 1024, 'kettle': 1024, 'vest': 1024, 'boots': 1024, 'zabuton': 512, 'blanket': 1024, 'hide': 1024, 'hoodie': 1024, 'futon': 1024, 'sleepbag': 1024, 'sleepsack': 1024, 'projector': 1024, 'switch': 512, 'fridge': 1024, 'vcr': 1024, 'police_body': 1024, 'police_car': 1024, 'cord_reel': 512, 'woodstove': 1024, 'gasstove': 1024, 'chair': 512, 'washer': 512, 'makeupkit': 1024, 'bathtub': 1024}
 SRC = f'{P.WORK}/tripo'
 CUT = {'fox': .066, 'projector': .12}   # projector: the cable's end hanging under the body (the table has its own cable)
 FRONT = {'switch': .025}   # the switch's own lever (in front of its face, model -Y) cut off: the game's lever moves (story.gd _changeover_lever)

@@ -147,6 +147,7 @@ func _from_fall():
 	for i in 3: await get_tree().process_frame
 	if fall_mio == Vector3.INF: return
 	player.global_position = Vector3(fall_mio.x, 0.0, fall_mio.z); player.velocity = Vector3.ZERO
+	print("CH5 mio from the fall %s" % [_plan_of(player)])
 	var c := _nat_chest(); var a := [fall_mio.x + 4.8, fall_mio.z + 6.3]
 	_look_from(a, [c.x + 4.8, c.z + 6.3], 1.52, 0.2)
 

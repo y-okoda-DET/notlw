@@ -477,6 +477,9 @@ func _do(what: String):
 			main.walk_to("taiga", TAIGA_DOWN, func():
 				_hide("taiga")
 				_bar_shut())
+		"cam_stop":   # 2026-11-18 the tape ran out: the clunk on the rail and the red lamp out (第6章 opens on the same sound)
+			Sound.one(self, "tape_clunk", -4.0, fixed_cam.global_position if fixed_cam else player.global_position)
+			_rec3(false)
 		"camera_go":
 			script_q.clear(); mode = FREE
 			get_tree().create_timer(0.2).timeout.connect(func(): _begin("tape"))
@@ -562,7 +565,7 @@ func _tape_tick():
 func _swap_tape():
 	note_lb.text = ""
 	Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
-	_rec3(false)
+	_rec3(false)   # already out since cam_stop (the tape ran out); on again once the new one is in
 	get_tree().create_timer(1.4).timeout.connect(func(): _rec3(true))
 	stage = "tape_done"
 	_start(B("零時.替えた"))
