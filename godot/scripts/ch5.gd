@@ -345,6 +345,20 @@ func _tripod():
 		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		(mi as MeshInstance3D).extra_cull_margin = 2.0
 	if main.lights.has("rec_light"): (main.lights.rec_light as Light3D).visible = false
+	# the three leg locks came out of the house's file 1.5 m above the head (seen in 第6章, where she holds it up: three
+	# small things in the air, and the tripod measured 2.28 m for 1.44). Each back on its collar, on the outside
+	var cols: Array = []
+	for mi in parts:
+		if String(mi.name).begins_with("tpd_collar"): cols.append(mi)
+	for mi in parts:
+		if not String(mi.name).begins_with("tpd_lock") or cols.is_empty(): continue
+		var lc: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		var best: Vector3 = lc
+		for c in cols:   # tpd_lock_001 is tpd_collar_001's (where they came out, the nearest collar was the same one for all three)
+			if String(c.name).trim_prefix("tpd_collar") == String(mi.name).trim_prefix("tpd_lock"):
+				best = ((c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb()).get_center()
+		var out := Vector3(best.x - tripod.global_position.x, 0.0, best.z - tripod.global_position.z).normalized()
+		(mi as Node3D).global_position += best + out * 0.018 - lc
 	# on its side on the boards, its head toward her
 	# on the boards where it fell from her hands: its feet by hers, its head toward Natsuki's, along the hall's west side
 	tripod.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(8.0)) * Basis(Vector3.RIGHT, deg_to_rad(-87.0)), gp(TRIPOD_AT[0], TRIPOD_AT[1], 0.06))
@@ -534,6 +548,10 @@ func _candle():
 	stick.material_override = wm; stick.position.y = 0.06; candle.add_child(stick)
 	var saucer := MeshInstance3D.new(); var sm := CylinderMesh.new(); sm.top_radius = 0.045; sm.bottom_radius = 0.04; sm.height = 0.01
 	saucer.mesh = sm; var sw := StandardMaterial3D.new(); sw.albedo_color = Color(0.85, 0.84, 0.8); saucer.material_override = sw; candle.add_child(saucer)
+	# its rim: the dark line of an enamel dish (in the print the pale saucer and the pale hand under it were one shape. 第6章, 2026-11-18)
+	var rim := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.0425; tm.outer_radius = 0.0475; tm.rings = 32; tm.ring_segments = 6
+	rim.mesh = tm; var rw := StandardMaterial3D.new(); rw.albedo_color = Color(0.05, 0.07, 0.16); rw.roughness = 0.5; rim.material_override = rw
+	rim.name = "nocol_rim"; rim.position.y = 0.0045; rim.scale = Vector3(1.0, 0.6, 1.0); candle.add_child(rim)
 	flame = Node3D.new(); flame.position.y = 0.125; candle.add_child(flame)
 	var f := MeshInstance3D.new(); var fm := SphereMesh.new(); fm.radius = 0.007; fm.height = 0.028
 	f.mesh = fm; f.position.y = 0.013
@@ -1228,7 +1246,7 @@ func _end_card():
 	get_tree().create_timer(5.0 if demo5 else 8.0).timeout.connect(func():
 		if demo5: print("DEMO ch5 t=%.1f fails=%d" % [t_now, DEMO_FAILS]); DEMO_HOUSE = true
 		if demo5 and "--ch5only" in OS.get_cmdline_user_args(): print("DEMO DONE ch5"); get_tree().quit(); return
-		main.to_chapter("ch11"))
+		main.to_chapter("ch6" if ResourceLoader.exists("res://scripts/ch6.gd") else "ch11"))   # 第5章の終わり → 第6章「片づけ」
 
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
