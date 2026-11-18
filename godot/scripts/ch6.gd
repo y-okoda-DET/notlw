@@ -197,7 +197,7 @@ var c_hand: Node3D = null
 var c_block: Node3D = null       # a hand that was given something else while it held the candle
 var c_k := 0.0
 const CANDLE_IN_HAND := Vector3(0.0, -0.0245, -0.098)
-const HAND_OPEN := [-0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.35, -0.10, -0.10, 1.0]
+const HAND_OPEN := [-0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.35, -0.10, -0.10, 0.0]   # flat, the thumb out to the side in the palm's plane: it goes in under the saucer whole
 func _candle_hand_tick(dt: float):
 	if candle_held and candle.visible:
 		var want: Node3D = hand_l if candle_off_now.x < 0.0 else hand_r
@@ -205,16 +205,21 @@ func _candle_hand_tick(dt: float):
 			if c_hand: var old := c_hand; c_hand = null; _ang_set(old, HAND_OPEN); _hand_away(old, 0.3)
 			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true
 	if c_hand == null: return
-	# up to it from under, open; then the fingers close on its rim (closed, the thumb came up through the saucer)
+	# in under it from her side, the fingers flat and the thumb lifted; then they close on its rim (from below, the thumb came up through the saucer)
 	if c_k < 1.0:
 		c_k = minf(1.0, c_k + dt / 0.45)
 		var ck := smoothstep(0.55, 1.0, c_k); var a := []
-		for i in 16: a.append(lerpf(HAND_OPEN[i], GRIPS["candle"][i], ck))
+		var g: Array = GRIPS["candle_r" if c_hand == hand_r else "candle"]
+		for i in 16: a.append(lerpf(HAND_OPEN[i], g[i], ck))
 		_ang_set(c_hand, a)
+	else: _ang_set(c_hand, GRIPS["candle_r" if c_hand == hand_r else "candle"])   # (what the hand did last left its fingers as they were)
 	var in_hand := Transform3D(Basis(Vector3.FORWARD, PI), Vector3(CANDLE_IN_HAND.x * (-1.0 if c_hand == hand_r else 1.0), CANDLE_IN_HAND.y, CANDLE_IN_HAND.z))
 	var yb := Basis(Vector3.UP, player.yaw)
 	c_hand.visible = true
-	c_hand.global_transform = Transform3D(yb, candle.global_position + yb * Vector3(0.0, -0.09, 0.0) * (1.0 - smoothstep(0.0, 0.6, c_k))) * in_hand.affine_inverse()
+	# (her forearm comes in from her side, not from her eye: from her eye it hid the saucer it holds)
+	var deg := lerpf(35.0, 62.0, smoothstep(-0.30, -0.18, candle_off_now.y))   # held up before her, her elbow is out: across, and the saucer's near rim is clear of her hand
+	var turn := Basis(Vector3.UP, deg_to_rad(deg if c_hand == hand_r else -deg))
+	c_hand.global_transform = Transform3D(yb * turn, candle.global_position + yb * turn * Vector3(0.0, 0.0, 0.11) * (1.0 - smoothstep(0.0, 0.6, c_k))) * in_hand.affine_inverse()
 
 func _candle_up():
 	candle_held = true; c_block = null
@@ -583,7 +588,6 @@ func _process(dt):
 		dn6.set_process(act == ""); dn6.set_process_unhandled_input(act == "")
 		if act != "": dn6.label.text = ""
 	if probe6 != "": _probe_tick()
-	if grip6 != "": _grip_tick(dt)
 	if lean_on and act != "cam" and act != "batt":
 		lean_on = false; create_tween().tween_property(_cam(), "position", Vector3.ZERO, 0.8).set_trans(Tween.TRANS_SINE)
 	if card_t > 0.0:
@@ -596,6 +600,7 @@ func _process(dt):
 	if mode == TALK: _talk_tick(dt)
 	_candle_tick(dt)
 	_candle_hand_tick(dt)
+	if grip6 != "": _grip_tick(dt)   # (check only; after the hands and the candle are where this frame draws them)
 	_wind_tick(dt)
 	_gen_tick(dt)
 	_blanket_tick(dt)
@@ -908,7 +913,8 @@ const GRIPS := {
 	"tri_l2": [0.56, 0.91, 0.64, 0.59, 0.95, 0.66, 0.64, 1.01, 0.7, 0.64, 1.01, 0.7, 0.0, 0.03, 0.95, 0.64],
 	"cam_out": [0.37, 0.66, 0.47, 0.44, 0.76, 0.53, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, -0.1, 1.38],
 	"cam_batt": [-0.3, -0.22, -0.12, -0.3, -0.22, -0.12, -0.13, 0.0, -0.12, -0.13, 0.0, 0.03, 0.07, -0.01, -0.04, 0.3],
-	"candle": [-0.2, -0.09, -0.04, -0.01, 0.16, 0.13, 0.18, 0.41, 0.09, 0.18, 0.41, 0.3, 0.0, -0.07, -0.08, 0.22],
+	"candle": [-0.2, -0.09, -0.04, -0.01, 0.16, 0.13, 0.18, 0.41, 0.24, 0.18, 0.41, 0.3, 0.0, -0.1, -0.08, 0.28],
+	"candle_r": [-0.18, -0.06, -0.02, 0.01, 0.19, 0.15, 0.23, 0.47, 0.04, 0.23, 0.47, 0.34, 0.0, -0.1, -0.08, 0.35],
 	"wash": [0.52, 0.85, 0.59, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.61, 0.98, 0.68, 0.0, -0.1, -0.1, -0.22],
 	"lid": [-0.3, 1.1, 0.76, 0.35, 0.63, 0.45, 0.54, 0.88, 0.62, 0.54, 0.88, 0.62, 0.0, -0.1, 0.13, 1.03],
 }
@@ -1362,7 +1368,7 @@ func _cam_out():
 	ret_hold = -1.0
 	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.9)
-	candle_off = Vector3(-0.17, -0.20, -0.36)     # held up to it
+	candle_off = Vector3(-0.10, -0.14, -0.30)     # held up to it
 	_after(1.0, func():
 		_grip(hand_r, "cam_out", 0.7)
 		_hand_onto(hand_r, _in_rig(_cam_top()) + Vector3(0.0185, -0.055, 0.0825), Vector3(55, 10, 0), 0.7)
@@ -1419,7 +1425,7 @@ func _cam_batt():
 	ret_hold = -1.0
 	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.7)
-	candle_off = Vector3(-0.17, -0.20, -0.36)
+	candle_off = Vector3(-0.10, -0.14, -0.30)
 	_after(0.8, func():
 		_grip(hand_r, "cam_batt", 0.7)
 		_hand_onto(hand_r, _in_rig(fixed_cam.global_position) + Vector3(0.029, -0.0635, 0.106), Vector3(50, 15, 0), 0.7)
