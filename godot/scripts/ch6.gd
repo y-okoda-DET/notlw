@@ -189,26 +189,32 @@ func _candle_down(at: Vector3):
 	tw.tween_property(candle, "global_position", at, 0.7).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func():
 		if c_hand and not candle_held:
-			var h := c_hand; c_hand = null; _hand_away(h, 0.4))
+			var h := c_hand; c_hand = null; _ang_set(h, HAND_OPEN); _hand_away(h, 0.4))
 
 # the hand under its saucer (user 2026-11-18: 「蝋燭の皿を下から持つようにしよう」): the palm up, the saucer on it, the
 # fingers round its rim. The hand on the side the candle is held; it goes with the candle (found with --c6bench)
 var c_hand: Node3D = null
 var c_block: Node3D = null       # a hand that was given something else while it held the candle
 var c_k := 0.0
-const CANDLE_IN_HAND := Vector3(0.0, -0.0235, -0.098)
+const CANDLE_IN_HAND := Vector3(0.0, -0.0245, -0.098)
+const HAND_OPEN := [-0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.30, -0.22, -0.12, -0.35, -0.10, -0.10, 1.0]
 func _candle_hand_tick(dt: float):
 	if candle_held and candle.visible:
 		var want: Node3D = hand_l if candle_off_now.x < 0.0 else hand_r
 		if want != c_hand and want != c_block:
-			if c_hand: var old := c_hand; c_hand = null; _hand_away(old, 0.3)
-			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true; _grip(want, "candle", 0.3)
+			if c_hand: var old := c_hand; c_hand = null; _ang_set(old, HAND_OPEN); _hand_away(old, 0.3)
+			_hand_claim(want); c_hand = want; c_k = 0.0; want.visible = true
 	if c_hand == null: return
-	c_k = minf(1.0, c_k + dt / 0.3)
+	# up to it from under, open; then the fingers close on its rim (closed, the thumb came up through the saucer)
+	if c_k < 1.0:
+		c_k = minf(1.0, c_k + dt / 0.45)
+		var ck := smoothstep(0.55, 1.0, c_k); var a := []
+		for i in 16: a.append(lerpf(HAND_OPEN[i], GRIPS["candle"][i], ck))
+		_ang_set(c_hand, a)
 	var in_hand := Transform3D(Basis(Vector3.FORWARD, PI), Vector3(CANDLE_IN_HAND.x * (-1.0 if c_hand == hand_r else 1.0), CANDLE_IN_HAND.y, CANDLE_IN_HAND.z))
 	var yb := Basis(Vector3.UP, player.yaw)
 	c_hand.visible = true
-	c_hand.global_transform = Transform3D(yb, candle.global_position + yb * Vector3(0.0, -0.10, 0.08) * (1.0 - smoothstep(0.0, 1.0, c_k))) * in_hand.affine_inverse()
+	c_hand.global_transform = Transform3D(yb, candle.global_position + yb * Vector3(0.0, -0.09, 0.0) * (1.0 - smoothstep(0.0, 0.6, c_k))) * in_hand.affine_inverse()
 
 func _candle_up():
 	candle_held = true; c_block = null
@@ -571,6 +577,11 @@ func _probe_tick():
 # ---------------------------------------------------------------- the clock
 func _process(dt):
 	t_now += dt; t_stage += dt
+	# while her hands are at a thing, a door in front of her is not offered (E was both: the tripod was held toward a door)
+	var dn6 = main.get_node_or_null("Doors")
+	if dn6 and dn6.is_processing() != (act == ""):
+		dn6.set_process(act == ""); dn6.set_process_unhandled_input(act == "")
+		if act != "": dn6.label.text = ""
 	if probe6 != "": _probe_tick()
 	if grip6 != "": _grip_tick(dt)
 	if lean_on and act != "cam" and act != "batt":
@@ -1351,7 +1362,7 @@ func _cam_out():
 	ret_hold = -1.0
 	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.9)
-	candle_off = Vector3(-0.17, -0.14, -0.36)     # held up to it
+	candle_off = Vector3(-0.17, -0.20, -0.36)     # held up to it
 	_after(1.0, func():
 		_grip(hand_r, "cam_out", 0.7)
 		_hand_onto(hand_r, _in_rig(_cam_top()) + Vector3(0.0185, -0.055, 0.0825), Vector3(55, 10, 0), 0.7)
@@ -1408,7 +1419,7 @@ func _cam_batt():
 	ret_hold = -1.0
 	_step_near(fixed_cam.global_position)
 	_turn_to(fixed_cam.global_position + Vector3(0, -0.12, 0), 0.7)
-	candle_off = Vector3(-0.17, -0.14, -0.36)
+	candle_off = Vector3(-0.17, -0.20, -0.36)
 	_after(0.8, func():
 		_grip(hand_r, "cam_batt", 0.7)
 		_hand_onto(hand_r, _in_rig(fixed_cam.global_position) + Vector3(0.029, -0.0635, 0.106), Vector3(50, 15, 0), 0.7)
@@ -1870,12 +1881,12 @@ func _sleeve_tick(dt: float):
 		if on:
 			if wash <= 0.0:
 				_hand_to(hand_l, Vector3(0.16, -0.12, -0.40), Vector3(15, -55, 0), 0.5)
-				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27) + Vector3(-0.012, -0.036, -0.017), Vector3(30, 35, 0), 0.5); _grip(hand_r, "wash", 0.45)   # laid over the forearm, the fingers round it, the thumb beside
+				_hand_to(hand_r, Vector3(0.10, -0.09, -0.27) + Vector3(-0.0117, -0.0351, -0.0166), Vector3(30, 35, 0), 0.5); _grip(hand_r, "wash", 0.45)   # laid over the forearm, the fingers round it, the thumb beside
 				for kk in 3: _fit_dev(hand_r, "wash%d" % kk, [hand_l], 0.6 + 0.02 * kk, Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * (kk - 1), true, false, -9.0, true)
 			wash = minf(1.0, wash + dt / 6.5)
 			if wash > 0.08:   # along her forearm and back, on the sleeve (it thickens to the elbow: found at three points with --c6fit)
 				var sw := sin(t_now * 6.5)
-				hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sw + Vector3(-0.012, -0.036, -0.017) + Vector3(-0.00325, -0.010, -0.00475) * sw
+				hand_r.position = Vector3(0.10, -0.09, -0.27) + Vector3(-0.82, 0.0, 0.57) * 0.03 * sw + Vector3(-0.0117, -0.0351, -0.0166) + Vector3(-0.00325, -0.010, -0.00475) * sw
 			sleeve_l.set_shader_parameter("wash", wash); sleeve_l.set_shader_parameter("wet", clampf(wash * 4.0, 0.0, 1.0))
 			# the water goes red, and then clear
 			var red := smoothstep(0.0, 0.22, wash) * (1.0 - smoothstep(0.5, 0.95, wash))
