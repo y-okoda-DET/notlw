@@ -17,7 +17,8 @@ const STAIR := [[5.5, 5.7, F2], [5.5, 2.55, 0.0], [4.75, 2.2, 0.0]]
 const TRIPOD := [4.35, 1.6]                    # the big camera's tripod at the stair's foot (main.gd _tripod_clear)
 const TAKE_AT := [4.75, 2.2]                   # where he stands with it (ch3.gd)
 const MIO_WAIT := [4.95, 5.05]                 # at the cellar door, her back to the hall
-const MIO_TALK := [4.1, 3.55]                 # where she stops before him
+const MIO_SIT := [4.9, 1.62]                  # 2026-11-19（ユーザー「一番気になるのはこの人」）：立たせず、第3章で扉の番をしていた上がり框に座らせる（ch3.gd SIT_AT）。扉を向いた背中を、桐生が後ろの上から撮る
+const SIT_DROP := 0.36                        # 座った澪の腰の骨は体から 0.44 の高さ（--ch8probe）。框に腰が来るように体を下げ、床から下は毛布が隠す
 const CELLAR_DOOR := [5.5, 5.62]
 const OUT_AT := [5.0, -0.95]
 const EYE := 1.66                              # Kiryu's eye (Mio's is 1.52)
@@ -50,6 +51,7 @@ var clock := 2.0 * 3600.0      # the camera's clock, seconds of the day
 var clock_run := true
 var cam_h := EYE               # the eye's height now (the camera's once he has it)
 var zoom := 0.0                # 0 wide .. 1 tele
+var zoom_want := -1.0          # the operator's own zoom (the car: in on her, thighs up); -1 leaves it to the player
 var zoom_v := 0.0
 var cam_light: OmniLight3D
 var light_want := 0.0
@@ -250,6 +252,8 @@ func _load_natsuki():
 		cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); main.add_child(col)
 		main.S["natsuki_col"] = col
 	main.set_stand("natsuki", "talk/idle", 0.0)
+	# 夏希の体には当たらない：車の横で話したあと、通しが彼女の立っていた所で止まった（2026-11-19）。先を歩く人なので、当たりは要らない
+	for cs2 in (main.S["natsuki_col"] as Node).find_children("*", "CollisionShape3D", true, false): (cs2 as CollisionShape3D).disabled = true
 	for mi in inst.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).extra_cull_margin = 1.0
 	# her phone held up for a signal: a cold light at her raised hand
 	nat_phone = OmniLight3D.new(); nat_phone.light_color = Color(0.74, 0.86, 1.0); nat_phone.light_energy = 0.0
@@ -281,7 +285,7 @@ func _load_mio():
 		(ap as AnimationPlayer).add_animation_library("t20", lib)
 		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"):
 			var src: AnimationLibrary = load("res://assets/dusk/mio_talk.res"); var tl := AnimationLibrary.new()
-			for cn in ["idle", "think"]:
+			for cn in ["idle", "sit_idle"]:
 				if src.has_animation(cn): tl.add_animation(cn, src.get_animation(cn))
 			(ap as AnimationPlayer).add_animation_library("talk", tl)
 	main._walk_anims("mio", inst)
@@ -289,40 +293,53 @@ func _load_mio():
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/ch7.json"))
 		if j is Dictionary and j.has("walk"): main.WALKJ["mio"] = j.walk
 	var col := StaticBody3D.new(); var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new()
-	cy.radius = 0.2; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); main.add_child(col)
+	cy.radius = 0.16; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); main.add_child(col)
 	main.S["mio_col"] = col
-	main.set_stand("mio", "talk/idle", 0.0)
+	main.set_stand("mio", "talk/sit_idle", 0.0)
 	mio_shake = Shake.new(); sk.add_child(mio_shake); mio_shake.setup()
 	_blanket()
-	_put("mio", MIO_WAIT, _face(MIO_WAIT, CELLAR_DOOR))
+	_put("mio", MIO_SIT, _face(MIO_SIT, [MIO_SIT[0], 0.0]), -SIT_DROP)
 
 # the blanket round her shoulders (ch3: she sat at the door wrapped in it, and got up with it on). A shell that hangs from the
 # shoulders to the thighs, closed at the front where her hands hold it from inside; the checks follow the folds
 func _blanket():
 	var rig: Node3D = main._rig_of("mio")
 	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var NU := 56; var NV := 22
-	# rings from the collar down: [height, half width (x), half depth (z), z offset]
-	# 澪の骨（--ch8probe）：首 1.17、鎖骨 1.11、肩 1.09、手 0.71、腰 0.73
-	var rings := [[1.215, 0.075, 0.08, -0.005], [1.185, 0.115, 0.098, -0.005], [1.14, 0.195, 0.118, -0.01], [1.07, 0.232, 0.14, 0.0],
-		[0.95, 0.246, 0.16, 0.01], [0.80, 0.252, 0.168, 0.012], [0.67, 0.262, 0.172, 0.01], [0.56, 0.272, 0.178, 0.01]]
+	var NU := 64; var NV := 30
+	# 座った体にかけた毛布：襟から肩へ広がり、後ろは框の床（体から見て高さ SIT_DROP）に落ちて溜まる。前は膝を越えて土間まで。
+	# 高さは体（rig）から。座った澪の骨（--ch8probe）：頭 0.95、首 0.87、肩 0.78、腰 0.44
+	var FL := SIT_DROP + 0.012; var FLF := SIT_DROP - 0.17
+	var ss := [0.0, 0.08, 0.2, 0.36, 0.55, 0.74, 0.9, 1.0]
+	var hb := [0.875, 0.85, 0.805, 0.74, 0.65, 0.55, 0.45, FL]             # the back's fall
+	var rxs := [0.07, 0.12, 0.205, 0.245, 0.275, 0.305, 0.345, 0.39]
+	var rzb := [0.075, 0.1, 0.125, 0.16, 0.2, 0.245, 0.3, 0.36]
+	var rzf := [0.075, 0.1, 0.135, 0.2, 0.33, 0.43, 0.45, 0.43]          # the front: over her knees
+	var hf := [0.875, 0.85, 0.805, 0.75, 0.69, 0.56, 0.38, FLF]
+	var at := func(arr: Array, v: float) -> float:
+		for i in arr.size() - 1:
+			if v <= ss[i + 1]:
+				var k: float = (v - ss[i]) / (ss[i + 1] - ss[i]); k = k * k * (3.0 - 2.0 * k)
+				return lerpf(arr[i], arr[i + 1], k)
+		return arr[-1]
 	var P := []
 	for iv in NV + 1:
-		var f := float(iv) / NV * (rings.size() - 1); var i0 := mini(int(f), rings.size() - 2); var k := f - i0
-		k = k * k * (3.0 - 2.0 * k)
-		var h: float = lerpf(rings[i0][0], rings[i0 + 1][0], k); var rx: float = lerpf(rings[i0][1], rings[i0 + 1][1], k)
-		var rz: float = lerpf(rings[i0][2], rings[i0 + 1][2], k); var oz: float = lerpf(rings[i0][3], rings[i0 + 1][3], k)
-		var down := clampf((1.14 - h) / 0.5, 0.0, 1.0)
+		var v := float(iv) / NV
 		for iu in NU + 1:
 			var th := float(iu) / NU * TAU            # 0 at the front (+z), round by her left
-			var fold := 0.011 * sin(th * 9.0 + h * 5.0) + 0.006 * sin(th * 17.0 - h * 9.0)
-			var hem := 0.03 * down * down * sin(th * 5.0 + 1.3)
-			# the front: one edge over the other, bunched where her fists hold it at the breastbone
-			var front := exp(-pow(wrapf(th, -PI, PI) / 0.5, 2.0))
-			var fist := front * 0.05 * exp(-pow((h - 1.0) / 0.09, 2.0))
-			var lap := 0.012 * signf(wrapf(th, -PI, PI)) * exp(-pow(wrapf(th, -PI, PI) / 0.12, 2.0)) * down
-			var r := 1.0 + (fold * down + hem) / maxf(rx, 0.05)
-			P.append(Vector3(sin(th) * rx * r, h - 0.02 * front * down, cos(th) * (rz * r + fist + lap) + oz))
+			var c := cos(th)
+			var fw := smoothstep(-0.25, 0.55, c)       # how much of the front this is
+			var h: float = lerpf(at.call(hb, v), at.call(hf, v), fw)
+			var rx: float = at.call(rxs, v); var rz: float = lerpf(at.call(rzb, v), at.call(rzf, v), fw)
+			var down := smoothstep(0.15, 0.75, v)
+			# folds that hang from the shoulders and open toward the floor; the hem lies in waves where it pools
+			var fold := (0.016 * sin(th * 7.0 + 0.6) + 0.009 * sin(th * 13.0 + v * 4.0) + 0.006 * sin(th * 23.0 - v * 7.0)) * down
+			var pool := smoothstep(0.82, 1.0, v) * (0.035 + 0.03 * sin(th * 5.0 + 1.1) + 0.02 * sin(th * 11.0))
+			# her left shoulder a little lower: it has slipped
+			var slip := -0.022 * maxf(sin(th), 0.0) * (1.0 - smoothstep(0.3, 0.7, v))
+			# held shut at the breastbone from inside
+			var fist := fw * 0.04 * exp(-pow((v - 0.3) / 0.1, 2.0))
+			var r := 1.0 + (fold + pool) / maxf(rx, 0.06)
+			P.append(Vector3(sin(th) * rx * r, h + slip + 0.012 * sin(th * 9.0) * smoothstep(0.9, 1.0, v), c * (rz * r + fist)))
 	var W := NU + 1
 	for iv in NV + 1:
 		for iu in NU + 1:
@@ -330,7 +347,7 @@ func _blanket():
 			var du: Vector3 = P[iv * W + (iu + 1) % NU] - P[iv * W + (iu - 1 + NU) % NU]
 			var dv: Vector3 = P[mini(iv + 1, NV) * W + iu] - P[maxi(iv - 1, 0) * W + iu]
 			st.set_normal(du.cross(dv).normalized() * -1.0)
-			st.set_uv(Vector2(float(iu) / NU * 9.0, float(iv) / NV * 4.6))
+			st.set_uv(Vector2(float(iu) / NU * 7.0, float(iv) / NV * 3.4))
 			st.add_vertex(a)
 	for iv in NV:
 		for iu in NU:
@@ -420,6 +437,7 @@ func _car():
 		var b: AABB = mi.global_transform * mi.get_aabb()
 		bb = b if i == 0 else bb.merge(b)
 	car_at = bb.get_center(); car_r = maxf(bb.size.x, bb.size.z) * 0.5
+	_car_level(cars)
 	# her phone inside: a faint cold light in the car (ch3.gd _car_glow)
 	var gl := OmniLight3D.new(); gl.name = "car_glow"; gl.light_color = Color(0.78, 0.86, 1.0); gl.light_energy = 0.9
 	gl.omni_range = 1.4; gl.omni_attenuation = 1.2; gl.shadow_enabled = false
@@ -432,6 +450,43 @@ func _car():
 	door_gap = OmniLight3D.new(); door_gap.name = "door_gap"; door_gap.light_color = Color(1.0, 0.7, 0.38); door_gap.light_energy = 0.0
 	door_gap.omni_range = 1.7; door_gap.omni_attenuation = 1.4; door_gap.shadow_enabled = false; door_gap.light_specular = 0.0
 	add_child(door_gap); door_gap.global_position = gp(5.0, -0.12, -0.12)
+
+# 車は平らに置いてあり、私道は下っている：坂の上側の車輪が地面に沈んで見えた（2026-11-19 ユーザー「車が沈んでる感じ」）。
+# この章の間だけ、車の四隅の外の地面から坂の傾きを取り、車をその傾きに寝かせて、いちばん低い所が地面に載るまで持ち上げる。
+# （家の書き出しの側で直すのが本筋：入口のスレッドに伝える。第0章・第3章の外でも同じはず）
+func _car_level(cars: Array):
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var body := cars[0] as MeshInstance3D
+	for c in cars:
+		if (c as MeshInstance3D).get_aabb().get_volume() > body.get_aabb().get_volume(): body = c
+	var la := body.get_aabb(); var gt := body.global_transform
+	# the long axis of the body, on the ground
+	var axes := [gt.basis.x * la.size.x, gt.basis.y * la.size.y, gt.basis.z * la.size.z]
+	var flat := axes.filter(func(a: Vector3): return absf(a.normalized().y) < 0.5)
+	if flat.size() < 2: return
+	flat.sort_custom(func(a: Vector3, b: Vector3): return a.length() > b.length())
+	var fwd: Vector3 = (flat[0] as Vector3); var half_l := fwd.length() * 0.5; fwd.y = 0.0; fwd = fwd.normalized()
+	var side: Vector3 = fwd.cross(Vector3.UP).normalized(); var half_w: float = (flat[1] as Vector3).length() * 0.5
+	var c0 := car_at
+	var gy := func(v: Vector3) -> float: return _ground(v.x + 4.8, v.z + 6.3)
+	# the ground just outside the body, front and back, left and right
+	var gf: float = (gy.call(c0 + fwd * half_l * 0.75 + side * (half_w + 0.35)) + gy.call(c0 + fwd * half_l * 0.75 - side * (half_w + 0.35))) * 0.5
+	var gb: float = (gy.call(c0 - fwd * half_l * 0.75 + side * (half_w + 0.35)) + gy.call(c0 - fwd * half_l * 0.75 - side * (half_w + 0.35))) * 0.5
+	var gl: float = (gy.call(c0 + side * (half_w + 0.35) + fwd * half_l * 0.6) + gy.call(c0 + side * (half_w + 0.35) - fwd * half_l * 0.6)) * 0.5
+	var gr: float = (gy.call(c0 - side * (half_w + 0.35) + fwd * half_l * 0.6) + gy.call(c0 - side * (half_w + 0.35) - fwd * half_l * 0.6)) * 0.5
+	var pitch := atan2(gf - gb, half_l * 1.5); var roll := atan2(gl - gr, (half_w + 0.35) * 2.0)
+	var rot := Basis(side, -pitch) * Basis(fwd, roll)
+	# bottom of the car before: the lowest point of all its meshes
+	var low := 1e9
+	for c in cars:
+		var b: AABB = (c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb(); low = minf(low, b.position.y)
+	var gc := (gf + gb) * 0.5
+	var lift := gc - 0.015 - low
+	var X := Transform3D(Basis.IDENTITY, Vector3(c0.x, low, c0.z) + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -Vector3(c0.x, low, c0.z))
+	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
+	car_at = X * car_at
+	print("CH8 car level: pitch %.1f roll %.1f lift %.2f (ground f %.2f b %.2f, low %.2f)" % [rad_to_deg(pitch), rad_to_deg(roll), lift, gf, gb, low])
 
 # ---------------------------------------------------------------- the finder (the whole chapter is its picture)
 class Finder8 extends Control:
@@ -614,7 +669,7 @@ func _place():
 	match start8:
 		"take": _stand_at(TAKE_AT, 150.0, -20.0, 0.0)
 		"rec":
-			_stand_at(TAKE_AT, 180.0, -21.0, 0.0); _take_now(true); _put("mio", MIO_TALK, _face(MIO_TALK, TAKE_AT)); script_q.clear(); mode = FREE
+			_stand_at(TAKE_AT, 180.0, -21.0, 0.0); _take_now(true); script_q.clear(); mode = FREE
 		"out", "car", "knock", "road", "corner", "sky":
 			_stand_at(OUT_AT, 0.0, -3.0); _take_now(true); _set_rec_now(); cam_h = EYE; _hide("mio")
 
@@ -651,13 +706,11 @@ func _take_now(quick := false):
 	_show("mio")
 	if quick: return
 	# his eyes on the camera in his hands; her feet come into the bottom of the picture; he tilts up, and stops at her mouth
-	_turn_to(PI, deg_to_rad(-52.0), 0.6)
-	if _has("mio"):
-		main.walk_to("mio", [[4.3, 4.6, 0.0], [MIO_TALK[0], MIO_TALK[1], 0.0]], func():
-			_turn_to(_yaw_to(gp(MIO_TALK[0], MIO_TALK[1], 1.2)), _talk_pitch(), 1.6)
-			_after(1.6, func(): hall_framed = true)
-			_after(1.2, func(): _start(B("八.廊下"))), _face(MIO_TALK, TAKE_AT))
-	else: _after(1.5, func(): _turn_to(PI, _talk_pitch(), 1.2); _start(B("八.廊下")))
+	# his eyes on the camera in his hands; then the picture comes up onto her back: she sits at the step, the door before her
+	var hd := gp(MIO_SIT[0], MIO_SIT[1], 0.62)
+	_turn_to(_yaw_to(hd), deg_to_rad(-58.0), 0.6)
+	_after(0.9, func(): _turn_to(_yaw_to(hd), deg_to_rad(-43.0), 1.8))
+	_after(2.6, func(): _start(B("八.廊下")))
 
 # the picture's top edge at her mouth (the interview cuts its listener at the chest, the chin, the mouth: the same grammar)
 func _talk_pitch() -> float:
@@ -694,8 +747,9 @@ func _do(what: String):
 		"car_door":
 			_one("car_door", -6.0, car_at)
 			_natsuki_out()
+			_after(3.0, func(): if stage == "car": zoom_want = 0.5)
 		"to_knock":
-			stage = "to_knock"; t_stage = 0.0; player.look_enabled = true
+			stage = "to_knock"; t_stage = 0.0; player.look_enabled = true; zoom_want = 0.0
 			clock = 2.0 * 3600.0 + 29.0 * 60.0 + 30.0
 			if _has("natsuki"): main.walk_to("natsuki", _way([[5.9, -4.6], [5.75, -2.9], [5.72, -1.05]]), Callable(), _face([5.72, -1.05], [5.0, 0.0]))
 		"knock":
@@ -786,8 +840,9 @@ func _natsuki_out():
 func _frame8(k: String, h: float, dt: float):
 	if not _has(k) or not (main.S[k + "_node"] as Node3D).visible: return
 	var to: Vector3 = main._rig_of(k).global_position + Vector3(0, h, 0) - _cam().global_position
-	var yaw := atan2(-to.x, -to.z); var pitch := atan2(to.y, Vector2(to.x, to.z).length()) - deg_to_rad(5.0)
+	var yaw := atan2(-to.x, -to.z); var pitch := atan2(to.y, Vector2(to.x, to.z).length()) - deg_to_rad(_cam().fov * 0.07)
 	var kk := 1.0 - exp(-dt * 2.2)
+	if "--ch8trace" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 24 == 0: print("C8FRAME yaw %.1f want %.1f pitch %.1f want %.1f to %s auto %d" % [rad_to_deg(player.yaw), rad_to_deg(yaw), rad_to_deg(player.pitch), rad_to_deg(pitch), to, player.auto_path.size()])
 	player.yaw = lerp_angle(player.yaw, yaw, kk); player.pitch = lerp_angle(player.pitch, pitch, kk)
 
 # plan points [x, y] with the ground's height under each
@@ -1045,7 +1100,6 @@ func _process(dt):
 	# the view he may not turn: in the hall after the take he does not look back at her (her face is not in this chapter)
 	if yaw_lock: player.yaw = clampf(wrapf(player.yaw, -PI, PI), -1.75, 1.75)
 	# 澪の顔はこの章の画に入れない：廊下で向き合っている間、画の上の縁は口元より上へ行かない（自動の通しの向き直しにも勝つ）
-	if hall_framed and stage in ["hall", "rec_wait", "flash", "rec"]: player.pitch = minf(player.pitch, _talk_pitch())
 	_zoom_tick(dt)
 	_light_tick(dt)
 	_door_tick(dt)
@@ -1075,7 +1129,13 @@ func _process(dt):
 				pass
 			"edge":
 				_edge_tick(dt)
-	if stage == "car": _frame8("natsuki", 1.36, dt)
+	if stage == "car":
+		_frame8("natsuki", 1.3, dt)
+		# 話している間は話す動き、聞いている間は立ち姿（立ったままの棒立ちに見えた：2026-11-19 ユーザー）
+		if _has("natsuki") and not main.walkers.has("natsuki"):
+			var nap: AnimationPlayer = (main.S.natsuki_node as Node).find_children("*", "AnimationPlayer", true, false)[0]
+			var want := "talk/talk_a" if (mode == TALK and String(cur.get("who", "")) == "夏希") else "talk/idle"
+			if nap.has_animation(want) and nap.current_animation != want: nap.play(want, 0.5)
 	if stage == "fall": _fall_tick(dt)
 	if stage == "sky": _sky_tick(dt)
 	if stage == "lapse": _sky_tick(dt)
@@ -1096,7 +1156,9 @@ func _zoom_tick(dt: float):
 	if Input.is_key_pressed(KEY_F): z -= 1.0
 	if z != 0.0 and stage != "hall": zoom_v = z * 0.55
 	if absf(zoom_v) > 0.001:
-		zoom = clampf(zoom + zoom_v * dt, 0.0, 1.0); zoom_show = 2.0
+		zoom = clampf(zoom + zoom_v * dt, 0.0, 1.0); zoom_show = 2.0; zoom_want = -1.0
+	elif zoom_want >= 0.0 and absf(zoom - zoom_want) > 0.002:
+		zoom = move_toward(zoom, zoom_want, dt * 0.3); zoom_show = 1.2
 	zoom_show = maxf(0.0, zoom_show - dt)
 	_cam().fov = lerpf(FOV_WIDE, FOV_TELE, zoom * zoom * (3.0 - 2.0 * zoom) * 0.0 + zoom)
 	player.mouse_sens = lerpf(0.0022, 0.0009, zoom)
@@ -1223,8 +1285,12 @@ func _demo_look(at: Vector3):
 	player.yaw = atan2(-to.x, -to.z); player.pitch = asin(clampf(to.normalized().y, -1.0, 1.0))
 
 func _demo8_tick(dt: float):
+	if "--ch8trace" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 48 == 0 and stage == "road":
+		for i in player.get_slide_collision_count():
+			var kc: KinematicCollision3D = player.get_slide_collision(i)
+			print("C8HIT ", kc.get_collider(), " ", (kc.get_collider() as Node).get_path() if kc.get_collider() is Node else "", " n=", kc.get_normal(), " at=", kc.get_position() + Vector3(4.8, 0, 6.3))
 	if "--ch8trace" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 24 == 0:
-		print("C8TRACE %s plan(%.2f, %.2f) y=%.2f mode=%d prog=%.1f pitch=%.1f tp=%.1f hf=%s camy=%.2f fov=%.0f" % [stage, _plan()[0], _plan()[1], player.global_position.y, mode, _road_progress(), rad_to_deg(player.pitch), rad_to_deg(_talk_pitch()), hall_framed, _cam().global_position.y, _cam().fov])
+		print("C8TRACE %s plan(%.2f, %.2f) y=%.2f mode=%d prog=%.1f pitch=%.1f nat=%s goal=%s vel=%.2f" % [stage, _plan()[0], _plan()[1], player.global_position.y, mode, _road_progress(), rad_to_deg(player.pitch), _plan_of("natsuki") if _has("natsuki") else [], demo_goal, player.velocity.length()])
 	demo_wait -= dt
 	if demo_wait > 0.0: return
 	match stage:
@@ -1240,7 +1306,7 @@ func _demo8_tick(dt: float):
 		"to_door":
 			if mode != FREE or t_stage < 2.0: return
 			if _near_door(1.2): player.auto_path = []; demo_goal = []; demo_route = []; _demo_look(gp(DOOR[0], DOOR[1], 1.3)); demo_wait = 1.0; _press8()
-			elif demo_goal.is_empty(): _demo_go([[5.0, 1.0]])
+			elif demo_goal.is_empty(): _demo_go([[5.42, 1.85], [5.38, 0.95], [5.05, 0.6]])
 			else: _demo_there(0.3)
 		"leaving":
 			if demo_goal.is_empty(): _demo_go([[5.0, -0.4], [5.0, -1.2]])
@@ -1250,7 +1316,7 @@ func _demo8_tick(dt: float):
 			if demo_goal.is_empty(): _demo_go([[5.0, -2.4], [5.4, -4.2]])
 			else: _demo_there(0.4)
 		"car":
-			if _has("natsuki"): _demo_look(main._rig_of("natsuki").global_position + Vector3(0, 1.35, 0))
+			pass   # _frame8 keeps her in the picture
 		"to_knock", "door":
 			if mode != FREE: return
 			if not (_near_door(1.3) and _plan()[1] < -0.3):

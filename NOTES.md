@@ -594,3 +594,6 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - snap.gd は撮らない間 `get_viewport().disable_3d = true` にする。自分で画を保存する道具（`--ch8portrait=`）は、先に false に戻す（戻さないと一面の灰色）。
 - 画面つき（xvfb）は、ファインダーを点けてからは実時間の半分以下の速さになる。通し1回に20分ほど。止まったように見えても動いている（SNAPCLK を見る）。
 - `_finder` は story.gd に同じ名前の関数があり、引数を変えて上書きできない（Parse Error）。場面の側は別の名前（`_fin8`）にする。
+- 澪の座る動き（mio_talk の sit_idle）は、腰の骨が体（rig）から 0.44 の高さ。框に座らせるには体を 0.36 下げる（ch8.gd SIT_DROP）。床から下の脚は毛布で隠す。
+- 私道の車（ext_car*）は平らに置いてあり、坂の上側の車輪が地面に沈む。ch8.gd `_car_level()` は章の間だけ傾けて持ち上げる（pitch -3.9°、roll -2.0°、+0.18 m）。outside_geo.py の側で直せば、ほかの章の外でも直る。
+- 長い回しの前に `godot --headless --check-only -s res://ov_ch8.gd` で読み込みの誤りを見る（型の推論の誤り1つで20分の回しが空になった）。
