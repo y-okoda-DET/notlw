@@ -221,6 +221,27 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             h1 = C.bone_head(rig, f'{f}_01_r'); tip = C.bone_tail(rig, f'{f}_03_r'); a_ = tip - h1; b_ = Vector(T) - h1
             if a_.cross(b_).length < 1e-7: break
             C.rot_world(rig, f'{f}_01_r', a_.cross(b_).normalized(), math.degrees(a_.angle(b_)))
+    def aim_finger_pip(f, T):
+        """2026-11-19（ユーザー「指の第二関節から第三関節にかけては手の甲と平行に」）：付け根（第三関節）はほとんど曲げず
+        （0〜PMC°）、第二・第一関節の曲げだけで指先を T に届かせる。軸は曲げる前の付け根の骨から一つだけ取る（curl と同じ）"""
+        palm = palm_now(); bones = [rig.pose.bones[f'{f}_{j}_r'] for j in ('01', '02', '03')]
+        q0 = [b.matrix_basis.copy() for b in bones]
+        ax = (C.bone_tail(rig, f'{f}_01_r') - C.bone_head(rig, f'{f}_01_r')).normalized().cross(palm)
+        if ax.length < 1e-6: return
+        ax = ax.normalized(); best = (1e9, None); mmax = float(_os_.environ.get('PMC', '15'))
+        def put(m, a, b):
+            for bb, q in zip(bones, q0): bb.matrix_basis = q
+            bpy.context.view_layer.update()
+            for j, dg in zip(('01', '02', '03'), (m, a, b)):
+                if dg: C.rot_world(rig, f'{f}_{j}_r', ax, dg)
+        fix = _os_.environ.get('PIX', '85,60') if f == 'index' else None   # 人差し指は曲げを決め、手首の位置で届かせる
+        if fix: a_, b_ = (float(x) for x in fix.split(',')); put(0, a_, b_); print('pip', f, 'fixed', a_, b_); return
+        for m in (0, mmax / 2, mmax):
+            for a in range(40, 111, 5):
+                for b in (35, 50, 65, 80):
+                    put(m, a, b); e = (C.bone_tail(rig, f'{f}_03_r') - Vector(T)).length
+                    if e < best[0]: best = (e, (m, a, b))
+        put(*best[1]); print('pip', f, best[1], round(best[0] * 1000, 1), 'mm')
     FIST = (50, 95, 65)   # less at the knuckle: a deep first bend caves the back of the hand in at the knuckles
     def solve(wrist, fd, pn, aims, curls, main, its=6):
         """aims: finger -> (target, flex); curls: finger -> amount of a loose fist; the wrist moves until `main` reaches its target"""
@@ -234,6 +255,7 @@ elif HANDS in ('pinch', 'stroke', 'write'):
                 if fl is None: continue
                 if f == 'thumb':
                     aim_thumb(T, flex=(0,) + tuple(fl), bend_first=(HANDS == 'pinch' and _os_.environ.get('PTB', '1') == '1'))
+                elif HANDS == 'pinch' and _os_.environ.get('PPIP', '1') == '1': aim_finger_pip(f, T)
                 else: aim_finger(f, T, fl)
             tip = C.finger_tips(rig, 'r')[main]; err = Vector(aims[main][0]) - tip; best = min(best, (err.length, w.copy()), key=lambda t: t[0]); print('  err', tuple(round(x,3) for x in err), 'wrist want', tuple(round(x,3) for x in w), 'got', tuple(round(x,3) for x in C.bone_head(rig,'hand_r'))); w = w + err * (0.5 if it > 3 else 1.0)
             print('solve', HANDS, it, 'err mm', round(err.length * 1000, 1), {f: round((Vector(aims[f][0]) - C.finger_tips(rig, 'r')[f]).length * 1000, 1) for f in aims})
@@ -243,7 +265,7 @@ elif HANDS in ('pinch', 'stroke', 'write'):
         # photo 2: from above, the back of the hand toward her; fingers bent down onto the far long edge, thumb on the near one
         import os as _os
         FO = float(_os.environ.get('PFO', '0.042'))   # how far past the tape's far face the index tip's bone ends (the pad is ~7 mm thick)
-        farI = TC - NN * FO + U * 0.006 + Vector((0, 0, -0.004))
+        farI = TC - NN * FO + U * 0.006 + Vector((0, 0, float(_os.environ.get('PFZ', '0.004'))))
         near = TC + NN * 0.034 + U * 0.004 + Vector((0, 0, -0.003))
         import os as _os
         fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.25,-1,-0.12').split(','))).normalized()
