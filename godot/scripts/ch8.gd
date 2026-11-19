@@ -519,6 +519,34 @@ func _car_level(cars: Array):
 	var X := Transform3D(Basis.IDENTITY, c0 + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -c0)
 	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
 	car_at = X * car_at
+	# 車の下の影：夜で太陽の影が無く、白い車体が明るい地面にじかに接して「埋まって」見えた（ユーザー 2026-11-19 21時
+	# 「ファインダー越しで見ると沈んで見える」）。車の下の地面だけを暗くして、車体と地面の間に暗い帯を作る
+	var gy := 0.0
+	for r in rows: gy += (float(r[3]) - a * float(r[0]) - b * float(r[1])) * 0.25
+	var dl := half_l * 2.0 + 0.8; var dw := half_w * 2.0 + 0.8; var NX := 20; var NZ := 10
+	var sp: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state; var vs := PackedVector3Array(); var cs := PackedColorArray()
+	for iz in NZ + 1:
+		for ix in NX + 1:
+			var fu := float(ix) / NX - 0.5; var fv := float(iz) / NZ - 0.5
+			# 車の当たりの箱の中（下）から撃つ：上から撃つと屋根に当たる
+			var wp2: Vector3 = c0 + fwd * (fu * dl) + side * (fv * dw) + Vector3(0, gy + a * fu * dl + b * fv * dw, 0)
+			var rq2 := PhysicsRayQueryParameters3D.create(wp2 + Vector3(0, 0.2, 0), wp2 - Vector3(0, 2.0, 0)); rq2.exclude = ex
+			var h2: Dictionary = sp.intersect_ray(rq2)
+			if not h2.is_empty(): wp2 = h2.position
+			vs.append(wp2 + Vector3(0, 0.025, 0))
+			var e: float = minf((0.5 - absf(fu)) * dl, (0.5 - absf(fv)) * dw)
+			cs.append(Color(0, 0, 0, 0.9 * smoothstep(0.0, 0.45, e)))
+	var idx := PackedInt32Array()
+	for iz in NZ:
+		for ix in NX:
+			var i0 := iz * (NX + 1) + ix
+			idx.append_array([i0, i0 + 1, i0 + NX + 1, i0 + 1, i0 + NX + 2, i0 + NX + 1])
+	var arr := []; arr.resize(Mesh.ARRAY_MAX); arr[Mesh.ARRAY_VERTEX] = vs; arr[Mesh.ARRAY_COLOR] = cs; arr[Mesh.ARRAY_INDEX] = idx
+	var am := ArrayMesh.new(); am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.vertex_color_use_as_albedo = true
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.disable_fog = true
+	var shm := MeshInstance3D.new(); shm.name = "car_shadow"; shm.mesh = am; shm.material_override = sm; shm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(shm); shm.global_transform = Transform3D.IDENTITY
 	print("CH8 car level: lift %.3f pitch %.1f roll %.1f" % [lift, rad_to_deg(atan(a)), rad_to_deg(atan(b))])
 	for r in rows:
 		var after: float = r[2] + lift + a * r[0] + b * r[1]
