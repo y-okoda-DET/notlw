@@ -224,6 +224,7 @@ func _place_for(st: String):
 
 # 一時 (2026-11-18 レビュー5): where they are while the clock stands: Makoto in the kitchen with the candle, Kiryu on the
 # landing upstairs taping its window, Taiga behind the barred door (a voice only)
+const KR_HALL := [4.35, 4.15]           # 試作176 A14: Kiryu in the hall at 0:30, a step off Mio (4.6, 5.1), before he goes up
 const MK_ONE := [6.9, 6.2]
 const KR_ONE := [4.9, 7.5]
 const CELLAR_DOOR := [5.5, 5.62]
@@ -513,8 +514,19 @@ func _do(what: String):
 				tw.tween_property(player, "yaw", y0 + 0.07, 0.16).set_trans(Tween.TRANS_SINE)
 				tw.tween_property(player, "yaw", y0 - 0.07, 0.2).set_trans(Tween.TRANS_SINE)
 			tw.tween_property(player, "yaw", y0, 0.16)
-		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the lantern up the stair, a roll of tape in his hand
-			main.walk_to("kiryu", [[1.6, 0.95, 0.0], [2.7, 0.95, 0.0], [2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
+		"kiryu_come":   # 試作176 A14: from the lantern into the hall, where Mio will see him when he speaks
+			main.walk_to("kiryu", [[1.6, 0.95, 0.0], [2.7, 0.95, 0.0], [2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [KR_HALL[0], KR_HALL[1], 0.0]], Callable(), _face(KR_HALL, [4.6, 5.1]))
+		"kiryu_look":   # she turns to him (he is there, or nearly: the talk before took longer than his walk)
+			talk_with = "kiryu"
+			var kr := _rig("kiryu")
+			if kr:
+				var to: Vector3 = (kr.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
+				var tw := create_tween(); tw.set_parallel(true)
+				tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)
+				tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
+		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the hall up the stair, a roll of tape in his hand
+			talk_with = ""
+			main.walk_to("kiryu", [[4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
 		"kiryu_rec":
 			_kiryu_tally()
 		"kiryu_out":
@@ -627,7 +639,9 @@ const MK_WAY := {
 	"g3": [[1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [6.6, 6.8]],
 	"g4": [[7.4, 6.6], [7.9, 6.3], [8.95, 6.0]],
 	"g5": [[8.85, 4.9]],
-	"front": [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.55, 1.8]],
+	# 試作176 A13（ユーザー「ここ歩くとき、真琴が三脚をすり抜けてくる」）: the genkan's tripod stands at plan (4.35, 1.6) with its legs
+	# .45 out; she ended at 4.55, 1.8, in them. Now down the hall's right side to the door's side of it, .6 m off the column
+	"front": [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.4, 2.9], [4.8, 2.5], [4.95, 2.15]],
 }
 var mk_at := ""        # the gap (or "front") she stands at, "" while she walks
 var mk_going := ""

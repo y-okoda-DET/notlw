@@ -518,16 +518,31 @@ def generator(M):
             for n in m.node_tree.nodes:
                 if n.type == 'TEX_IMAGE' and n.image and 'diff' in n.image.name: n.image = im
                 elif n.type == 'TEX_IMAGE' and n.image and 'nor' in n.image.name: n.image = nr
+        # 試作176 A6（ユーザー「発電機のテープが浮いているように見える」）: the tapes stood on a flat face at x - .285 that the model
+        # does not have everywhere (its frame is open; the panel is set back): each is laid on the model where a ray along its
+        # normal meets it, and flat to that face
+        bpy.context.view_layer.update()
+        def on_gen(at, normal):
+            nz = V3(normal).normalized(); mw = g.matrix_world; inv = mw.inverted()
+            o0 = inv @ (V3(at) + nz * .3); d0 = (inv.to_3x3() @ -nz).normalized()
+            ok, loc, nrm, _i = g.ray_cast(o0, d0, distance=.6)
+            if not ok: print('GEN TAPE no hit', at); return at, normal
+            hit = mw @ loc; hn = (mw.inverted().transposed().to_3x3() @ nrm).normalized()
+            if hn.dot(nz) < .6: hn = nz
+            print('GEN TAPE %s moved %.3f m' % (tuple(round(c, 3) for c in at), (hit - V3(at)).length))
+            return tuple(hit), tuple(hn)
+        def gtape(n, at, normal, w, **kw):
+            a, nn = on_gen(at, normal); return tape(M, n, a, nn, w, **kw)
         # the owner's old tape on the panel: how to start it
-        tape(M, 'gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
+        gtape('gen', (X(gx - .285), Y(gy - .12), GEN_Z + .47), (-1, 0, 0), .2)
         # 試作97: and a word on tape by each control (the same places as story.gd _gen_items)
         # 試作98: half as long again and more (ユーザー「テープの字は見えない」: 7-9 cm read as specks from where she stands)
         # 2026-11-14: half as long again (18-20 cm), black marker, an arrow to each (lived2_tex.py)
-        tape(M, 'gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .65), (-1, 0, 0), .17)
-        tape(M, 'gen_sw', (X(gx - .285), Y(gy - .12), ZB + .65), (-1, 0, 0), .2)
-        tape(M, 'gen_choke', (X(gx - .285), Y(gy + .03), ZB + .36), (-1, 0, 0), .2)
-        tape(M, 'gen_pull', (X(gx), Y(gy - .435), ZB + .53), (0, -1, 0), .17)
-        tape(M, 'gen_gauge', (X(gx - .05), Y(gy + .1), ZB + .71), (-1, 0, .6), .17)
+        gtape('gen_fuel', (X(gx - .285), Y(gy + .19), ZB + .65), (-1, 0, 0), .17)
+        gtape('gen_sw', (X(gx - .285), Y(gy - .12), ZB + .65), (-1, 0, 0), .2)
+        gtape('gen_choke', (X(gx - .285), Y(gy + .03), ZB + .36), (-1, 0, 0), .2)
+        gtape('gen_pull', (X(gx), Y(gy - .435), ZB + .53), (0, -1, 0), .17)
+        gtape('gen_gauge', (X(gx - .05), Y(gy + .1), ZB + .71), (-1, 0, .6), .17)
     collide(gx - .32, gy - .45, gx + .32, gy + .45, ZB, ZB + .65)
     # the exhaust hose: a flexible metal duct from the engine's side, up the wall and out of the small window
     ex, ey, ez = GEN_EXHAUST

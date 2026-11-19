@@ -5,7 +5,7 @@
 ##   「……冷たい」。三脚を一度見て、「……風。どこから」。
 ## 勝手口：真琴について台所へ。裂けたテープ、低い所の血の手形。真琴が一つずつ数え直し、「ゾンビなんて、いない」。
 ##   そのあとで手形に手を重ねる。ろうそくを澪に渡し、「来ないで」と地下へ。
-## 四時十分：澪はろうそくを持って一階を回り、0時半に貼ったテープを貼った順にはがす（ch3.gd の SEAL_ORDER）。
+## 四時十分：澪はろうそくを持って一階を回り、0時半に貼ったテープを、どこからでもはがす（試作176。前は貼った順）。
 ##   はがすたびに風の音が戻り、炎が傾く。下からの音と声は、はがした数で進む（何もしないで90秒でも一段）。
 ##   勝手口・玄関・地下の扉は、近づけば Ｅ が出るが、澪はどれもしない。勝手口だけ、数える沈黙。
 ## 終わり：廊下。夏希の肩の毛布が、勝手口からの風で揺れる。章の問いが戻る。
@@ -38,6 +38,7 @@ const MK_THINK := [8.6, 5.6]          # two steps in, where she puts it together
 # (2026-11-17: it was on the hinge side's jamb, y 4.42, where the jamb's face runs along the light: it printed as black
 # streaks. The door opens outward on hinges at y 4.40; its opening runs to y 5.25)
 const HAND_AT := [9.865, 5.42, 0.45]
+const MK_GEN := [8.45, 6.3]            # 試作176: Makoto at the generator in the cellar (its panel faces west at x 9.45)
 const MK_HAND := [9.5, 5.85]          # where Makoto goes down on her knee to lay her hand on it (Mio at the door sees both)
 const IDLE_STEP := 90.0               # nothing done for this long: the cellar goes on one step
 # the cellar's steps, by the tapes peeled: 1 → 地下.一, 3 → 地下.三, 4 → 地下.四, 5 → 地下.五
@@ -93,6 +94,7 @@ func _ready():
 	_natsuki()
 	_borrow_clips()
 	_lookers()
+	_makoto_look()
 	main.phones(false)
 	main.TALK = {}
 	_tripod()
@@ -169,6 +171,8 @@ func _place_for(st: String):
 			_look_from([MK_THINK[0] + 0.3, MK_THINK[1] - 0.5], [7.4, 7.6])
 			_blanket_on()
 			_gen_loud()
+			_put("makoto", MK_GEN, _face(MK_GEN, [9.45, 6.3]), ZBASE); main.set_stand("makoto", _kneel_anim(), 0.0)
+			main.phones(true, ["makoto"])
 			if st == "end":
 				for gq in gaps: _peel(gq, true)
 				below_i = BELOW.size()
@@ -193,6 +197,8 @@ func _doors():
 				var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb(); bb = a if f else bb.merge(a); f = false
 			print("CH5 door_back pivot %s rest %.2f open %.2f leaf %s" % [_plan_of(s.pivot), float(s.rest), float(s.open), bb])
 		if s.key == "door_cellar" and s.is_open: dn.toggle(k)
+	if start_at in ["peel", "end"] and not _sixth():   # (checking from the tape: Makoto is already down)
+		_cellar_ajar(); _cellar_lock("……先に、テープ。" if start_at == "peel" else "下りませんでした。真琴ちゃんが、来ないでって。")
 	# 試作127（ユーザー「一度勝手口から外に出て…家の中に戻れなくなった」）: the door stands ajar, but she never goes out (rule 1):
 	# an unseen wall in the doorway. The door's look and 「［Ｅ　外に出る］」→ the silence stay as they were (they go by where she looks)
 	var sb := StaticBody3D.new(); sb.name = "back_doorway"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
@@ -229,6 +235,27 @@ func _borrow_clips():
 				print("CH5 borrowed %s/%s %s -> %s" % [c[0], c[1], String(src.get_animation(c[1]).track_get_path(0)), mine])
 
 # she left the cellar's top door standing a little open behind her (wide, it lies across the way to the kitchen)
+# 試作176 A18（ユーザー「テープを剥がす前に、地下であれこれあるとプレイヤーは地下に向かいたくなる。いけないようにすればいいか」）:
+# once Makoto has gone down, the cellar door does not open for Mio: first the tape, and after it she does not go down
+# 試作176 A17（ユーザー「真琴の顔の歪み、これ」、第5章の勝手口）: she has no reflector here, and turned to Mio by 60° in three
+# bones (spine 40%, neck 25%, head 35%): 21° in the head over the neck's 15° twisted her jaw and cheek. The turn is spread
+# down four bones, the head's share the least, and stops at 45° (the eyes do the rest)
+func _makoto_look():
+	if not looks.has("makoto"): return
+	var lm: Look = looks.makoto
+	lm.props = []; lm.carry = -1
+	lm.chain = [["spine_02", 0.3], ["spine_03", 0.3], ["neck_01", 0.25], ["head", 0.15]]; lm.max_yaw = 0.8
+	var sk: Skeleton3D = lm.get_skeleton()
+	var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
+	lm.setup(fwd.normalized())
+
+func _sixth() -> bool: return false   # ch6.gd rides on this stage: its doors are its own
+
+func _cellar_lock(say: String):
+	if not dn: return
+	for k in dn.doors.keys():
+		if dn.doors[k].key == "door_cellar": dn.doors[k].locked = say
+
 func _cellar_ajar():
 	if not dn: return
 	for k in dn.doors.keys():
@@ -382,7 +409,9 @@ func _tripod():
 # the crew's lantern under the handrail camera, as 第4章 hung it (fps.gd _lantern)
 func _lantern():
 	var src: Light3D = main.lights.get("lantern_stair")
-	var from := Vector3.ZERO
+	# 試作176 A20（ユーザー「ランタンが浮いている」、第6章の二階）: the house of 4:30 has no lantern_stair light; from was the origin,
+	# and the copy went up by the whole of "to", into the room over the genkan. Where the plans put it (times.py CREW, the light's place)
+	var from := gp(5.75, 4.56, 2.05)
 	if src: from = src.global_position
 	var to := gp(FPS.LANTERN_AT[0], FPS.LANTERN_AT[1], FPS.LANTERN_AT[2] + 0.154)
 	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -391,6 +420,7 @@ func _lantern():
 		var c := mi.duplicate() as MeshInstance3D
 		c.name = "d_" + nm; mi.get_parent().add_child(c)
 		c.global_transform = (mi as MeshInstance3D).global_transform.translated(to - from)
+		(mi as MeshInstance3D).visible = false   # one lantern: she moved it
 		c.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.30
@@ -982,9 +1012,12 @@ func _do(what: String):
 			talk_with = ""
 			main.walk_to("makoto", [[5.8, 6.2, 0.0], [5.5, 5.9, 0.0]], func():
 				if dn: dn.open_key("door_cellar")
+				_cellar_lock("……先に、テープ。")
 				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)
-				main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 3.6, ZBASE * (5.55 - 3.6) / 2.9]], func():
-					_hide("makoto"); main.phones(false, ["makoto"])))
+				# 試作176 A18（ユーザー「真琴は下に行っているはずなのに、誰も居ない」）: she goes on down to the generator and
+				# kneels at its panel (Taiga's way at 20:00, story.gd TAIGA_PATH), her phone's light on it
+				main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 2.6, ZBASE], [5.5, 2.15, ZBASE], [6.8, 2.2, ZBASE], [8.2, 4.6, ZBASE], [MK_GEN[0], MK_GEN[1], ZBASE]], func():
+					main.set_stand("makoto", _kneel_anim(), 0.4), _face(MK_GEN, [9.45, 6.3])))
 			_blanket_on()
 			get_tree().create_timer(1.5).timeout.connect(func(): _begin("peel"))
 		"gen_loud":
@@ -1128,11 +1161,8 @@ func _press_peel():
 	match look_k:
 		"tape":
 			var gq := _near_tape()
-			var want := _next_key()
 			idle_t = 0.0
-			if gq.key != want:
-				_start(B("はがす.ちがう", _gap(want).name))
-				return
+			# 試作175 A19（ユーザー「剥がす順番はどこからでもよくない？」）: whichever she looks at comes off
 			_peel(gq)
 			peeled_n += 1
 			var q: Array = []
@@ -1140,6 +1170,7 @@ func _press_peel():
 			elif peeled_n == 1: q = B("はがす.一つ目")
 			if peeled_n == 5:
 				q.append_array(B("はがす.五つ目"))
+				_cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")
 				stage = "done"; end_wait = 0.0
 			if not q.is_empty(): _start(q)
 			while below_i < BELOW.size() and int(BELOW[below_i][0]) <= peeled_n: _below_step()
@@ -1264,7 +1295,7 @@ func _demo_script() -> Array:
 	st.append(["wait_stage", "follow"]); st.append(["wait_free"])
 	st.append(["walk", [[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.75, 6.42], [8.1, 6.2], [8.7, 5.4], [BACK_STAND[0], BACK_STAND[1]]]])
 	st.append(["wait_stage", "peel"]); st.append(["wait_free"])
-	# one wrong first (the kitchen's own window, unless it is the first in her order), then her order
+	# the kitchen's own window first (any order is taken, 試作176), then the rest
 	var routes := {
 		"g1": [[6.6, 6.42], [5.75, 6.42], [5.5, 5.9], [5.0, 5.9], [4.8, 5.7], [4.8, 4.4], [4.1, 3.7], [3.6, 3.7], [2.7, 2.8], [2.7, 0.8], [2.6, 0.7]],
 		"g2": [[2.6, 3.5], [0.7, 5.4], [0.7, 6.0], [0.5, 6.2]],
@@ -1329,6 +1360,7 @@ func _demo_tick(dt):
 			if mode == FREE: _press_peel(); done = true
 		"tape":
 			var gq := _gap(s[1])
+			if gq.peeled and s.size() < 3: ds += 1; dwait = 0.0; return   # taken off already (any order)
 			var cam2: Camera3D = player.get_node("Head/Camera")
 			var to2: Vector3 = (gq.at as Vector3) - cam2.global_position
 			var k2 := 1.0 - exp(-dt * 6.0)

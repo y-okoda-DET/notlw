@@ -213,7 +213,9 @@ const LANTERN_AT := [4.97, 3.50, 1.40]     # plan x, y; z its foot: hung on the 
 var lantern: OmniLight3D
 func _lantern():
 	var src: Light3D = main.lights.get("lantern_stair")
-	var from := Vector3.ZERO
+	# 試作176 A20（ユーザー「ランタンが浮いている」、第6章の二階）: the house of 4:30 has no lantern_stair light; from was the origin,
+	# and the copy went up by the whole of "to", into the room over the genkan. Where the plans put it (times.py CREW, the light's place)
+	var from := gp(5.75, 4.56, 2.05)
 	if src: from = src.global_position
 	var to := gp(LANTERN_AT[0], LANTERN_AT[1], LANTERN_AT[2] + 0.154)
 	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -222,6 +224,7 @@ func _lantern():
 		var c := mi.duplicate() as MeshInstance3D
 		c.name = "d_" + nm; mi.get_parent().add_child(c)
 		c.global_transform = (mi as MeshInstance3D).global_transform.translated(to - from)
+		(mi as MeshInstance3D).visible = false   # one lantern: she moved it
 		c.gi_mode = GeometryInstance3D.GI_MODE_DISABLED   # 試作125: see the tripod above
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.30
@@ -436,6 +439,7 @@ func _process(dt):
 	if tape: return
 	mio_shadow.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z)
 	mio_shadow.rotation.y = player.yaw
+	_feet(dt)
 	_rise(dt)
 	_look_at_things()
 	_grab_mio(dt)
@@ -958,6 +962,24 @@ func _grab_nat(dt: float):
 		reach.w = 0.0; nstate = "stand"; ni = _np().size(); grab_t = -1.0
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, 0.12), p)
 
+# 試作176 A16（ユーザー「歩いて勝手口の方へ向かうと、夏希がすり抜けていく。足がすくんで動けなかった、とかにする？」）:
+# until she has caught Mio's sleeve, Mio's feet do not move (she can look round, and take the tripod up). The first
+# time the player tries to walk, she says so, once. A blow before the grab (she reels) frees them too
+var feet_free := false
+var feet_told := 0               # 0 not yet, 1 wanted (a line is still being typed), 2 said
+func _feet(_dt: float):
+	if feet_free: return
+	if mio_g.is_empty() and (grab_done or nstate in ["reel", "down"] or clock >= QUIET_AT):
+		feet_free = true; player.move_enabled = true; return
+	player.move_enabled = false
+	var tried := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) \
+		or Input.is_action_pressed("ui_up") or Input.is_action_pressed("ui_down") or Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right")
+	if feet_told == 0 and (tried or "--tryfeet" in OS.get_cmdline_user_args() and clock > 3.0): feet_told = 1
+	var typing: bool = cur.has("text") and typed < String(cur.text).length()
+	if feet_told == 1 and not typing and mio_g.is_empty():
+		feet_told = 2; var e: Dictionary = B("四.足")[0]; _say(e.who, e.text, true)
+var grab_done := false
+
 func _grab_mio(dt: float):
 	if mio_g.is_empty(): return
 	mio_g.t += dt
@@ -993,7 +1015,7 @@ func _grab_mio(dt: float):
 	player.yaw = yaw; player.pitch = pit
 	if g >= 1.9:
 		player.move_enabled = true; player.look_enabled = true
-		mio_g = {}
+		mio_g = {}; grab_done = true
 
 # the tripod, hit and rocking on its feet (only while it stands)
 func _wobble(dt: float):

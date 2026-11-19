@@ -37,6 +37,13 @@ var talk_now := ""                 # whose mouth moves while a conversation runs
 var story_talking := false
 var door_scene := false            # 段階1: 第2章 23:00, the door (scripts/door.gd)
 
+# 試作175（ユーザー、序章「三脚にのめり込んでいる」）: the fresnel's C-stand stood in the hall where Natsuki falls at 3:30
+# (blender/stage.py FRESNEL, half a metre from her): her body went through its legs in 第4章, 第5章, 第6章 and 序章. From 3:30
+# on it is not in the hall (the light was dead from the outage; nothing says who moved it)
+const FRESNEL_AT := [-0.1, 2.9]
+func _stand_gone() -> bool:
+	return TIME in ["t0330", "t0430"]
+
 static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
 
@@ -166,6 +173,10 @@ func _ready():
 	if ARGS.has("minicam"): _minicam_dbg()
 	if SCENE == "house":
 		_house_state(); _lights_house()
+		if _stand_gone():
+			for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+				for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "csarm", "cscol", "csleg"]:
+					if String(mi.name).begins_with(pre): mi.visible = false
 		if play == "ch1": _lights_dusk(["reflector_bounce", "taiga_fill", "taiga_rim"])
 		if play == "door": _phone_lights(); lights["blue"] = lights.get("blue_door"); if lights.blue == null: lights.erase("blue")
 		_window_glass(); _wear(); _house_cheaper()
@@ -613,7 +624,11 @@ func _house_state():
 			if m == null: continue
 			var d := m.duplicate() as StandardMaterial3D
 			if lit.has(key): d.emission_enabled = true; d.emission_energy_multiplier = max(d.emission_energy_multiplier, 2.0)
-			else: d.emission_enabled = false
+			else:
+				d.emission_enabled = false
+				# 試作176 A5（ユーザー「ライトもついているみたい」、20時）: at night a dead lamp's white glass in a phone's torch read as a
+				# bulb that was on (as the cellar's did before the generator: generator()). Its glass is grey when it is out
+				if TIME != "dusk" and TIME != "t0430" and key.begins_with("lamp_"): d.albedo_color = d.albedo_color * Color(0.3, 0.3, 0.3, 1.0)
 			mi.set_surface_override_material(i, d)
 	for mi in S.env_node.find_children("ext_sky*", "MeshInstance3D", true, false):
 		var m := mi.get_active_material(0) as StandardMaterial3D
@@ -716,6 +731,7 @@ func _colliders():
 			else:
 				_box(b.c, b.s)
 		for o in S.props:
+			if SCENE == "house" and _stand_gone() and absf(float(o[0]) - FRESNEL_AT[0]) < 0.05 and absf(float(o[1]) - FRESNEL_AT[1]) < 0.05: continue
 			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 			cy.radius = o[2]; cy.height = 2.0; c2.shape = cy; s2.add_child(c2); add_child(s2)
 			s2.global_position = b2g([o[0], o[1], 1.0])
@@ -1331,6 +1347,13 @@ func power_cut(dark := true):
 	if SCENE == "house":   # 試作97: 第1章 in the whole house: the key light and every lamp of the house
 		for k in lights:
 			if lights[k] is Light3D and (k == "fresnel_key" or String(k).begins_with("lamp_")): lights[k].visible = false
+		# 試作176 A5（ユーザー「絵も、これだと停電になっていることがわからない（明るくて。ライトもついているみたいだし）」）: the
+		# lamps' shades kept glowing after their lights went (their emission is the time's, _house_state): they go dark with them
+		for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
+			if not String(mi.name).substr(10).begins_with("lamp_"): continue
+			for i in range(mi.get_surface_override_material_count()):
+				var m := mi.get_surface_override_material(i) as StandardMaterial3D
+				if m: m.emission_enabled = false
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
 	# 試作89 (ユーザー「そこで、電気が消えたんです。のところ、真っ暗になるのがよくない？」): the eye goes black with the lights,
 	# through her testimony line and the chapter card; it opens again, slowly, as chapter 2 begins (power_eyes_open)
@@ -1427,6 +1450,10 @@ func _t20_people():
 		phones(false, ["kiryu"])
 		place_person("kiryu", T20.kiryu.pos, 0.0)
 		set_stand("kiryu", "talk/idle", 0.0)
+	# 試作176 A7（ユーザー「普通に立たせよう」、20時）: Taiga's 20:00 pose stood him with his feet wide apart at the hall's end. He
+	# stands as the others do (his talk stand; the torch in his hand stays)
+	if S.has("taiga_node") and T20.has("taiga"):
+		set_stand("taiga", "talk/idle", 0.0)
 
 # 試作97: in the dark they hold the phone's torch down on the floor ahead of their feet, not out at the others: straight
 # out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
