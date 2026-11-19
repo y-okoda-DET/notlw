@@ -176,12 +176,7 @@ func _load_mio():
 				m3.set_surface_override_material(i, d)
 	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
 	for ap in inst.find_children("*", "AnimationPlayer", true, false):
-		var names: PackedStringArray = (ap as AnimationPlayer).get_animation_list()
-		var lib := AnimationLibrary.new()
-		if names.size() > 0:
-			var an: Animation = (ap as AnimationPlayer).get_animation(names[0]).duplicate()
-			an.loop_mode = Animation.LOOP_LINEAR; lib.add_animation("loop", an)
-		(ap as AnimationPlayer).add_animation_library("t20", lib)
+		# (試作231: no "t20/loop" for her: she stands in "talk/idle" from the start, and every clip on one player counts. See NO_WALK7)
 		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"): (ap as AnimationPlayer).add_animation_library("talk", _few(load("res://assets/dusk/mio_talk.res"), MIO_USE))
 	main._walk_anims("mio", inst)
 	if FileAccess.file_exists("res://assets/dusk/ch7.json"):
@@ -358,7 +353,7 @@ func _c7_libs():
 				var lib: AnimationLibrary = load(p)
 				var few := _few(lib, C7_USE[k])
 				var mix := _sit_mix(lib, "drink")
-				if mix != null: few.add_animation("sit_drink", mix)
+				if mix != null and k in NO_WALK7: few.add_animation("sit_drink", mix)   # only the two on the sofa drink (_party_tick)
 				(ap as AnimationPlayer).add_animation_library("c7", few)
 
 # Godot 4.4.1 crashes (signal 11, with a window; never headless) when one AnimationPlayer holds many animations: main.gd's

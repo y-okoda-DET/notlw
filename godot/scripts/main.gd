@@ -1541,7 +1541,7 @@ func _walk_anims(k: String, inst: Node):
 	var lib := AnimationLibrary.new()
 	for nm in src.get_animation_list():
 		var clip := String(nm).get_slice("_rig_", 1)
-		if clip == "": continue
+		if clip == "" or clip.ends_with("_rig"): continue   # (試作231: Mio's glb gave a "mio_rig" too: one more clip on her player for nothing)
 		var an: Animation = src.get_animation(nm).duplicate()
 		an.loop_mode = Animation.LOOP_LINEAR if clip in ["walk", "up", "down"] else Animation.LOOP_NONE
 		lib.add_animation(clip, an)
