@@ -56,6 +56,11 @@ var rcam: Camera3D
 var look_cam: Camera3D
 var off_t := -1.0
 var seat_x := 0.0
+# 2026-11-19（ユーザー「いずれにしてもカメラ横に振ったバージョンが見たい」）: --d11pan. After the set goes off the picture
+# leaves her eyes: a camera on a tripod at her right, on the dead glass, pans across to her
+var pan := false
+var pan_cam: Camera3D
+const PAN_AT := Vector3(0.95, 0.70, 0.30)
 const MIO_LAYER := 128         # her body: the mirror and the last cut see it, her own eyes do not
 const SCR_LAYER := 4           # the glass itself: the mirror does not see it
 
@@ -67,6 +72,7 @@ func _ready():
 	load_story("ch11")
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--d11refl="): refl = a.substr(10)
+		if a == "--d11pan": pan = true
 	if refl == "c": seat_x = 0.17
 	for e in _flow("テープ.流れ"): e[0] = float(e[0]) + NIGHT_AT; LINES.append(e)
 	_room()
@@ -294,6 +300,16 @@ func _back_light():
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
 	look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 	look_cam.cull_mask = 0xFFFFF & ~(2 | SCR_LAYER)
+	pan_cam = Camera3D.new(); pan_cam.fov = float(_arg("d11panfov", "38")); main.add_child(pan_cam)
+	pan_cam.cull_mask = 0xFFFFF   # it sees the set from outside, and her
+	pan_cam.global_transform = Transform3D(Basis(), ROOM + PAN_AT)
+
+func _pan_yaw(k: float) -> float:
+	# from the dead glass to her face
+	var a := ROOM + Vector3(TV_C.x - 0.02, TV_C.y, 0.10) - pan_cam.global_position
+	var b := ROOM + Vector3(seat_x, EYE.y - 0.03, EYE.z) - pan_cam.global_position
+	var ya := atan2(-a.x, -a.z); var yb := atan2(-b.x, -b.z)
+	return lerp_angle(ya, yb, k)
 
 func _arg(k: String, dflt: String) -> String:
 	for a in OS.get_cmdline_user_args():
@@ -335,7 +351,7 @@ func _room_tick(dt: float):
 		off_t += dt
 		scr_mat.set_shader_parameter("off_t", off_t)
 		scr_mat.set_shader_parameter("rk", float(_arg("d11rk", "1.4" if refl == "a" else ("1.5" if refl == "c" else "1.1"))))
-		_mirror_cam(cam.global_position)
+		_mirror_cam(get_viewport().get_camera_3d().global_position if not pan else cam.global_position)
 		rvp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	knob.rotation.z = (trk - 0.5) * 4.4
 	player.look_enabled = not on_knob and st != ENDED
@@ -370,6 +386,10 @@ func _room_tick(dt: float):
 				var k := 1.0 - exp(-dt * 1.1)
 				player.yaw = lerp_angle(player.yaw, 0.0, k); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), k)
 				cam.fov = lerp(cam.fov, 34.0, k)
+			if pan and end_t2 > 9.5:
+				if not pan_cam.current: pan_cam.current = true; print("STORY ch11 pan cam")
+				var pk := smoothstep(11.5, 16.0, end_t2)
+				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
 			if refl == "d" and end_t2 > 12.0 and not look_cam.current:
 				look_cam.current = true; print("STORY ch11 her face")
 			if end_t2 > 22.0 and not has_meta("endstill"):
