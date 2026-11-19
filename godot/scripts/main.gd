@@ -56,6 +56,13 @@ func _house_pack():
 	var fs := [OS.get_executable_path().get_base_dir() + "/RULES_house.pck"]
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--housepack="): fs.push_front(a.substr(12))
+	# 試作231: the interview room (証言 一〜三) is a third pack, RULES_iv.pck, beside the house's (the body's zip was 521MiB)
+	var ivs := [OS.get_executable_path().get_base_dir() + "/RULES_iv.pck"]
+	for f in fs: ivs.push_front(String(f).get_base_dir() + "/RULES_iv.pck")
+	for f in ivs:
+		if FileAccess.file_exists(f):
+			ProjectSettings.load_resource_pack(f, false)
+			break
 	for f in fs:
 		if FileAccess.file_exists(f):
 			ProjectSettings.load_resource_pack(f, false)
