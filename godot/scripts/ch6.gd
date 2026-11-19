@@ -2183,7 +2183,7 @@ func _end6():
 	_after(t + 5.0, func():
 		if demo6: print("DEMO ch6 t=%.1f fails=%d batt=%s uptape=%s" % [t_now, DEMO_FAILS, done6.has("batt"), done6.has("uptape")]); DEMO_HOUSE = true
 		if demo6 and "--ch6only" in OS.get_cmdline_user_args(): print("DEMO DONE ch6"); get_tree().quit(); return
-		main.to_chapter("ch11"))   # 証言 一の部屋がまだ無い
+		main.next_chapter("ch6"))   # 後半の並び（scripts/order.gd）：証言 一へ
 
 # ================================================================ check stills, a part's playthrough (--ch6at=)
 func _jump6(s: String):

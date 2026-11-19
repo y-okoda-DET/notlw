@@ -4,6 +4,7 @@
 ## Unattended recording: godot --path . --write-movie out.png --fixed-fps 24 -- --record=walk
 extends Node3D
 const Type = preload("res://scripts/type.gd")
+const Order = preload("res://scripts/order.gd")   # 後半の並び（2026-11-19）
 
 var CARD_TIME := 3.2
 const LOOP := 20.0
@@ -116,6 +117,10 @@ func _ready():
 		if a == "--ch2": ARGS["ch2"] = true   # 試作91: the house at 20:00 as 第2章 has it (the people; the story too unless checking)
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
+	# 証言と、まだ無い章の仮のカードを直に開く（--play=i1|i2|i3|ch8。開発と確認用。scripts/order.gd）
+	if NEXT_PLAY == "" and SCENES_RUN == 1 and Order.direct(String(ARGS.get("play", ""))):
+		set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
+		Order.start.call_deferred(self, String(ARGS.play)); return
 	var start: bool = SCENE == "" and SCENES_RUN == 1   # ステップ E: the game itself begins (not N, not a reload)
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
 	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
@@ -1239,7 +1244,9 @@ func _shot_tick() -> float:
 static var DEV_STATE := ""   # story.gd _state() to jump to once the chapter is up (第2章 = 第1章's "card2")
 const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
 	["第2章　21時・22時", "h21", ""], ["第2章　23時の扉", "door", ""], ["第3章　零時〜2時", "ch3", ""],
-	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["第11章　再生", "ch11", ""]]
+	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["証言 一", "i1", ""], ["2時　監督", "ch8", ""], ["証言 二", "i2", ""],
+	["去年の夏", "ch7", ""], ["証言 三", "i3", ""], ["第11章　再生", "ch11", ""]]   # 後半の並び：scripts/order.gd
+const CHAPTER_KEYS := "1234567890ABCDEF"
 var chap_menu: CanvasLayer = null
 func _input(e):
 	if not (e is InputEventKey and e.pressed and not e.echo): return
@@ -1250,18 +1257,19 @@ func _input(e):
 		var bg := ColorRect.new(); bg.color = Color(0.06, 0.07, 0.07, 0.86); bg.set_anchors_preset(Control.PRESET_FULL_RECT); chap_menu.add_child(bg)
 		var lb := Label.new(); lb.add_theme_font_override("font", Type.say()); lb.add_theme_font_size_override("font_size", 26)
 		var t := "章を選んで始める（開発用）　数字キーで選ぶ／F5・Esc で閉じる\n\n"
-		for i in CHAPTERS.size(): t += "%d　%s\n" % [i + 1, CHAPTERS[i][0]]
+		for i in CHAPTERS.size(): t += "%s　%s\n" % [CHAPTER_KEYS[i], CHAPTERS[i][0]]
 		lb.text = t; lb.position = Vector2(80, 70); chap_menu.add_child(lb)
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return
 	if chap_menu == null: return
 	get_viewport().set_input_as_handled()
 	if e.keycode == KEY_ESCAPE: chap_menu.queue_free(); chap_menu = null; return
-	var n: int = e.keycode - KEY_1
+	var n: int = CHAPTER_KEYS.find(OS.get_keycode_string(e.keycode))
 	if n < 0 or n >= CHAPTERS.size(): return
 	var c: Array = CHAPTERS[n]
 	DEV_STATE = c[2]
 	if c[1] == "door": to_night(true)
+	elif c[1] in Order.LATE_ORDER and c[1] != "ch6": Order.start(self, c[1])   # 証言・まだ無い章は仮のカード（order.gd）
 	else: to_chapter(c[1])
 
 func _unhandled_input(e):
@@ -1821,6 +1829,11 @@ func _door_set():
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
 const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch11": "t0330"}
+# 後半の章の終わり：並び（scripts/order.gd の LATE_ORDER）の次へ。まだ無い章は仮のカード
+func next_chapter(cur: String):
+	_save_settings()
+	Order.go(self, cur)
+
 func to_chapter(p: String):
 	_save_settings()
 	_cover()

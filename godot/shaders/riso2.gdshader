@@ -22,7 +22,8 @@ uniform vec3 ink_b = vec3(1.0, 0.424, 0.184);
 uniform float exposure = 1.0;
 uniform float scan_target = 0.42;   // mean luminance the scan aims for
 uniform float scan_strength = 0.0; // 0 = fixed exposure per scene (the printer's setting), 1 = follow the frame
-uniform float look = 0.0;          // 試作94: 0 = the print as it was (夕方), 1 = the night print (coverage_night, dodge)
+uniform float look = 0.0;          // 試作94: 0 = the print as it was (夕方), 1 = the night print (coverage_night, dodge), 2 = the day print (証言の部屋, 2026-11-19)
+uniform float flat_ink = 0.0;      // 証言 三: the flattened room - no screen, three flat inks (paper / blue / teal), like a cut-out background
 uniform float dodge = 0.45;        // night print: how far each part of the sheet is exposed for what is in it (0 = one exposure)
 uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
 uniform float dodge_max = 1.8;
@@ -96,7 +97,7 @@ vec2 coverage_night(vec3 c, vec3 cw) {
 }
 // the printer dodges: the gain of this part of the sheet, from a very soft copy of the frame (no halo at an edge)
 float dodge_gain(vec2 uv, float g) {
-	if (look < 0.5 || dodge <= 0.0) return g;
+	if (look < 0.5 || look > 1.5 || dodge <= 0.0) return g;
 	vec2 o = vec2(0.045, 0.08);
 	float m = luma(textureLod(screen_tex, uv, 6.0).rgb) * 2.0;
 	m += luma(textureLod(screen_tex, uv + vec2(o.x, 0.0), 6.0).rgb) + luma(textureLod(screen_tex, uv - vec2(o.x, 0.0), 6.0).rgb);
@@ -106,7 +107,16 @@ float dodge_gain(vec2 uv, float g) {
 }
 vec2 cover(vec2 uv, float g) {
 	float gl = dodge_gain(uv, g);
-	vec3 c = scan((textureLod(screen_tex, uv, 1.0).rgb * 0.5 + textureLod(screen_tex, uv, 0.0).rgb * 0.5) * gl);
+	vec3 raw = textureLod(screen_tex, uv, 1.0).rgb * 0.5 + textureLod(screen_tex, uv, 0.0).rgb * 0.5;
+	vec3 c = scan(raw * gl);
+	if (look > 1.5) {
+		// the day print (blender/interview/iv/riso.py day=True, ユーザー OK 2026-11-15): only the shoji's white is paper;
+		// a pale shadow (the leaves on the shoji) gets a light screen, the walls' mid-tones stay near white, the darks go solid
+		vec2 cv = coverage(c);
+		float d = 1.0 - clamp(luma(raw * gl), 0.0, 1.0);
+		cv.x = 0.30 * smoothstep(0.06, 0.28, d) + 0.70 * smoothstep(0.38, 0.92, d);
+		return cv;
+	}
 	if (look < 0.5) return coverage(c);
 	return coverage_night(c, scan(textureLod(screen_tex, uv, 5.0).rgb * gl));
 }
@@ -134,6 +144,11 @@ void fragment() {
 		float g2 = (hash(floor((px + mis) / max(cell * 0.5, 1.0)) + frame * 23.77 + 5.0) - 0.5) * 0.16;
 		float A = step(1.0 - dots(px, 15.0, cell) + g1, cov.x) * step(0.02, cov.x);
 		float B = step(1.0 - dots(px + mis, 75.0, cell * 1.05) + g2, covb) * step(0.02, covb);
+		if (flat_ink > 0.5) {   // flat: solid where dark, an even light tint where there is any ink, paper elsewhere
+			float ta = step(1.0 - dots(px, 15.0, cell), 0.42), tb = step(1.0 - dots(px + mis, 75.0, cell * 1.05), 0.30);
+			A = cov.x > 0.55 ? 1.0 : (cov.x > 0.03 ? ta : 0.0);
+			B = covb > 0.6 ? 1.0 : (covb > 0.25 ? tb : 0.0);
+		}
 		// ink density: slow, soft, only noticeable in solids
 		float da = 0.93 + 0.07 * vnoise(px / (420.0 * k) + vec2(3.0, 0.0));
 		float db = 0.93 + 0.07 * vnoise(px / (420.0 * k) + vec2(11.0, 7.0));
