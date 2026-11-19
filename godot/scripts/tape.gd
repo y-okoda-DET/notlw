@@ -49,7 +49,7 @@ var demo11 := false
 #             b  the door at her left: half her face, as it is (真顔)
 #             c  as b, and she sits a little to the right: her face at the glass's edge, cut by the mask
 #             d  ユーザーの元の案：the set off, the picture cuts to her face from the set's side
-var refl := "a"   # 試作220 のすすめ（ユーザーが選ぶまで）
+var refl := "e"   # 2026-11-19 ユーザーの流れ（e）
 var mio_n: Node3D
 var rvp: SubViewport
 var rcam: Camera3D
@@ -64,6 +64,22 @@ var pan := false
 # 一気に黒味」）: --d11refl=e. The light of b; her eyes rise slowly to the dead glass, she is in it; the picture from the set's
 # side dissolves in over it; a few seconds; black at once
 var face_vp: SubViewport
+const CREDITS_AT := 25.5      # the face for six seconds, then black at once
+const CREDITS_LEN := 60.0     # 仮のエンドロール、1分
+var credits: Label
+var credits_y0 := 0.0
+# the end roll: no picture, the names going up over black, and the one music from outside the story (決定事項 2026-11-13:
+# 「音楽の冗談」をエンドロールで加工なしで流す。sound/credits_joke.ogg = the user's Menuetto, its first minute)
+const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\n\n(placeholder)"
+func _credits():
+	var cl := CanvasLayer.new(); cl.layer = 23; add_child(cl)
+	credits = Label.new(); credits.text = CREDITS_TEXT; credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	credits.add_theme_font_override("font", Type.card()); credits.add_theme_font_size_override("font_size", 30)
+	credits.add_theme_color_override("font_color", Color(0.86, 0.85, 0.80))
+	var vs := get_viewport().get_visible_rect().size
+	credits.size = Vector2(vs.x, 0); credits.position = Vector2(0, vs.y); cl.add_child(credits)
+	credits.reset_size(); credits.size.x = vs.x; credits_y0 = vs.y
+	Sound.one(self, "credits_joke", -3.0)
 var face_tr: TextureRect
 var pan_cam: Camera3D
 const PAN_AT := Vector3(0.95, 0.70, 0.30)
@@ -185,7 +201,7 @@ func _room():
 		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
 		t.scale = Vector3(k, k, k)
 		var c := bb.get_center() * k
-		t.global_position = ROOM + Vector3(-c.x, 0.355 - bb.position.y * k, 0.103 + float(_arg("d11tvrec", "0.07")) - (bb.end.z * k))
+		t.global_position = ROOM + Vector3(-c.x + float(_arg("d11tvx", "-0.02")), 0.355 - bb.position.y * k, 0.103 + float(_arg("d11tvrec", "0.07")) - (bb.end.z * k))
 		print("M220 tv aabb ", bb, " k ", k)
 		tv_glass = Vector2(0.96, 0.93)
 		if "--d11dbg" in OS.get_cmdline_user_args():   # a look at the set from above her right shoulder, lit
@@ -439,12 +455,16 @@ func _room_tick(dt: float):
 				var pk := smoothstep(11.5, 16.0, end_t2)
 				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
 			if refl == "e":
-				if end_t2 > 15.0: face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-				face_tr.modulate.a = smoothstep(15.5, 17.5, end_t2)
-				if end_t2 > 21.5 and black2.color.a < 1.0: black2.color.a = 1.0; print("STORY ch11 black (e)")
+				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
+				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）
+				if end_t2 > 16.0: face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				face_tr.modulate.a = smoothstep(16.5, 19.5, end_t2)
+				if end_t2 > CREDITS_AT and black2.color.a < 1.0:
+					black2.color.a = 1.0; print("STORY ch11 black (e)"); _credits()
+				if credits: credits.position.y = lerp(credits_y0, -credits.size.y, clampf((end_t2 - CREDITS_AT) / CREDITS_LEN, 0.0, 1.0))
 			if refl == "d" and end_t2 > 10.0 and not look_cam.current:
 				look_cam.current = true; print("STORY ch11 her face")
-			if end_t2 > 22.0 and not has_meta("endstill"):
+			if end_t2 > (CREDITS_AT + CREDITS_LEN if refl == "e" else 22.0) and (refl == "e" or not has_meta("endstill")):
 				st = BLACK; black2.color.a = 1.0
 				print("STORY ch11 black room_t=%.1f heard %d/%d" % [room_t, heard_clear, heard_all])
 		BLACK:
