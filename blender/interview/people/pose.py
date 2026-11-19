@@ -165,6 +165,7 @@ if HANDS == 'table':
 # ---- the other hand frames (photos 2-4): the right hand changes, the left stays on the notebook
 elif HANDS in ('pinch', 'stroke', 'write'):
     from mathutils import Matrix
+    import os as _os_
     side = 'r'
     def palm_now():
         R = (rig.matrix_world @ rig.pose.bones['hand_r'].matrix).to_3x3().normalized(); return (R @ HAXES['r'][1]).normalized()
@@ -182,12 +183,25 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             if b.name.endswith('_r') and any(b.name.startswith(p) for p in ('upperarm', 'lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')):
                 b.rotation_quaternion = (1, 0, 0, 0); b.scale = (1, 1, 1); b.location = (0, 0, 0); b.rotation_euler = (0, 0, 0)
         bpy.context.view_layer.update()
-    def aim_thumb(T, flex=(0, 8, 10)):
-        h1 = C.bone_head(rig, 'thumb_01_r'); t3 = C.bone_tail(rig, 'thumb_03_r'); a_ = t3 - h1; b_ = Vector(T) - h1
-        if a_.cross(b_).length > 1e-6: C.rot_world(rig, 'thumb_01_r', a_.cross(b_).normalized(), math.degrees(a_.angle(b_)))
-        palm = palm_now()
-        for jn, dg in zip(('01', '02', '03'), flex):
-            if dg: C.rot_world(rig, f'thumb_{jn}_r', (C.bone_tail(rig, f'thumb_{jn}_r') - C.bone_head(rig, f'thumb_{jn}_r')).normalized().cross(palm).normalized(), dg)
+    def aim_thumb(T, flex=(0, 8, 10), bend_first=False):
+        def aim_():
+            for _ in range(3 if bend_first else 1):
+                h1 = C.bone_head(rig, 'thumb_01_r'); t3 = C.bone_tail(rig, 'thumb_03_r'); a_ = t3 - h1; b_ = Vector(T) - h1
+                if a_.cross(b_).length > 1e-6: C.rot_world(rig, 'thumb_01_r', a_.cross(b_).normalized(), math.degrees(a_.angle(b_)))
+        def bend_():
+            palm = palm_now()
+            for jn, dg in zip(('01', '02', '03'), flex):
+                if dg: C.rot_world(rig, f'thumb_{jn}_r', (C.bone_tail(rig, f'thumb_{jn}_r') - C.bone_head(rig, f'thumb_{jn}_r')).normalized().cross(palm).normalized(), dg)
+        # bend_first (つまむ、2026-11-19): the thumb is longer than the way from its base to the tape's near edge, so it
+        # bends at its joints first and then swings to the edge; aimed first, its tip went past the edge into the table
+        if bend_first:
+            # CCD over the three thumb bones from a bent start: the tip reaches the edge without leaving the joints straight
+            bend_()
+            for _ in range(12):
+                for jn in ('03', '02', '01'):
+                    b = f'thumb_{jn}_r'; h = C.bone_head(rig, b); t3 = C.bone_tail(rig, 'thumb_03_r'); a_ = t3 - h; b_ = Vector(T) - h
+                    if a_.cross(b_).length > 1e-7: C.rot_world(rig, b, a_.cross(b_).normalized(), min(25.0, math.degrees(a_.angle(b_))))
+        else: aim_(); bend_()
     def aim_finger(f, T, flex=(30, 25)):
         palm = palm_now()
         for jn, dg in zip(('02', '03'), flex):
@@ -209,7 +223,7 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             for f, (T, fl) in aims.items():
                 if fl is None: continue
                 if f == 'thumb':
-                    aim_thumb(T, flex=(0,) + tuple(fl))
+                    aim_thumb(T, flex=(0,) + tuple(fl), bend_first=(HANDS == 'pinch' and _os_.environ.get('PTB', '1') == '1'))
                 else: aim_finger(f, T, fl)
             tip = C.finger_tips(rig, 'r')[main]; err = Vector(aims[main][0]) - tip; best = min(best, (err.length, w.copy()), key=lambda t: t[0]); print('  err', tuple(round(x,3) for x in err), 'wrist want', tuple(round(x,3) for x in w), 'got', tuple(round(x,3) for x in C.bone_head(rig,'hand_r'))); w = w + err * (0.5 if it > 3 else 1.0)
             print('solve', HANDS, it, 'err mm', round(err.length * 1000, 1), {f: round((Vector(aims[f][0]) - C.finger_tips(rig, 'r')[f]).length * 1000, 1) for f in aims})
@@ -220,12 +234,16 @@ elif HANDS in ('pinch', 'stroke', 'write'):
         farI = TC - NN * 0.034 + U * 0.006 + Vector((0, 0, -0.004))
         near = TC + NN * 0.034 + U * 0.004 + Vector((0, 0, -0.003))
         import os as _os
-        fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.45,-0.7,-0.55').split(','))).normalized()
+        fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.35,-0.9,-0.25').split(','))).normalized()
         pnp = Vector((0.0, 0.58, -0.8)); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
-        near = near + U * float(_os.environ.get('PTU', '0.012'))
-        solve((-0.13, 0.52, 0.43), fdp, pnp,
-              {'index': (farI, (55, 40)), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), (55, 40)), 'thumb': (near, (8, 10))},
-              {'ring': .8, 'pinky': .9}, 'index', its=10)
+        near = near + U * float(_os.environ.get('PTU', '0.035')) + Vector((0, float(_os.environ.get('PTY', '0.006')), float(_os.environ.get('PTZ', '0'))))
+        _f = lambda k, d: tuple(float(x) for x in _os.environ.get(k, d).split(','))
+        # 2026-11-19（ユーザー「2だけ形が明らかにモノっぽさ感が強い」）：手首を下げて手を寝かせ（PW0・PFD）、親指は曲げてから
+        # テープの手前の縁へ（PTU・PTY）、薬指と小指は手のひらに軽く握り込む（PRP。前は机にめり込んでいた）
+        FX = _f('PFX', '60,45'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '30,30'); W0 = _f('PW0', '-0.14,0.56,0.385')
+        solve(W0, fdp, pnp,
+              {'index': (farI, FX), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
+              {'ring': RP[0], 'pinky': RP[1]}, 'index', its=10)
     elif HANDS == 'stroke':
         # photo 3: the pad of the index on the label, the other fingers closed in, thumb along the middle finger
         T = TC + Vector((0.004, 0.006, 0.007))

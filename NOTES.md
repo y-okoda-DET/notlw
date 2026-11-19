@@ -554,3 +554,6 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 確かめ方：`bash godot/check/interview.sh <pck> run N`（自動の通し）、`shots N`（実際の速さで画に）、`stills`、`order`（並び）。overlay を作り直すので、2つ同時に回さない。
 - 聞き手と澪の手（*_hands_baked）は、昼の刷りで紙の白に飛んで指が見えなくなる。場面の中で手の色だけ 0.75 倍にした（interview.gd HAND_K、試すときは --handk=）。
 - 第6章の終わりだけを回すには `--scene=house --time=t0430 --nocard --gi=baked --lite=t --play=ch6 --demo --ch6at=end`（--scene=house が無いと第0章からの通しになり、8分かかって DEMO FAIL が並ぶ）。
+- 聞き手のつまむ手（2026-11-19、ユーザー「2だけ形が明らかにモノっぽさ感が強い」）：親指が、付け根からテープの手前の縁までより長いので、狙ってから曲げると先が縁を越えて机にめり込んでいた。pose.py の pinch は、曲げてから3本の骨で先を縁に寄せる（aim_thumb の bend_first、CCD）。薬指と小指も机にめり込んでいたので手のひらへ握り込む。手首は低く、手は寝かせる。
+- pose.py の入力（WORK/kikite/kikite_rest.blend）は、ほかのスレッドの作業場所にしか無かった。形の付いた blend から作り直せる：骨の形を全部戻して、骨の親の大きさ 1.052 だけは残す（$WORK/mkrest.py と同じ手順。大きさを落とすと 4〜5cm ずれる）。いまの seiza.blend は pose.py の table と 5cm 合わない（あとから手で直した形）。つまむ以外は作り直していない。
+- 手続きの肌の凹凸（しわ・筋・血管）は、色だけ焼くと消える。export_godot.bake_object(normal=True) で法線の画像も焼く（pose2glb.py の人物だけ。家の書き出しは変えていない）。ただ昼の刷りの中ではほとんど見えない。効くのは形。
