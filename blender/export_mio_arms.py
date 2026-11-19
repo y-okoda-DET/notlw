@@ -11,12 +11,13 @@ from mathutils import Vector, Matrix
 import chars as C
 
 OUT = f'{P.RULES}/props'
+WHO = os.environ.get('WHO', 'mio')   # 第7章：WHO=yota で陽太の腕（props/yota_arm_l|r.glb）
 KEEP = ('lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')
 TEX = 2048
 
 def run(side):
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    rig, body = C.make_tripo('mio')
+    rig, body = C.make_tripo(WHO)
     for o in list(bpy.data.objects):
         if o not in (rig, body): bpy.data.objects.remove(o)
     bpy.context.view_layer.update()
@@ -59,11 +60,11 @@ def run(side):
     bpy.context.view_layer.update()
     for img in bpy.data.images:
         if img.size[0] > TEX: img.scale(TEX, TEX * img.size[1] // img.size[0])
-    rig.name = f'mio_arm_{side}'; body.name = f'mio_arm_{side}_mesh'
+    rig.name = f'{WHO}_arm_{side}'; body.name = f'{WHO}_arm_{side}_mesh'
     print('ARM', side, 'verts', len(body.data.vertices), 'bones', len(rig.data.bones), 'forearm', round((w - elbow).length, 3),
           'hand', round((tip - w).length, 3), 'images', [(i.name, tuple(i.size)) for i in bpy.data.images])
     bpy.ops.object.select_all(action='DESELECT'); rig.select_set(True); body.select_set(True)
-    bpy.ops.export_scene.gltf(filepath=f'{OUT}/mio_arm_{side}.glb', export_format='GLB', use_selection=True, export_apply=False,
+    bpy.ops.export_scene.gltf(filepath=f'{OUT}/{WHO}_arm_{side}.glb', export_format='GLB', use_selection=True, export_apply=False,
                               export_animations=False, export_yup=True, export_image_format='JPEG', export_jpeg_quality=90,
                               export_def_bones=False, export_skins=True)
 

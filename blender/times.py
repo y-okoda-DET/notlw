@@ -186,6 +186,9 @@ def lights(t):
         # 去年の夏、二時: the porch lamp is what he steers by through the trees; in the living room only the stand lamp
         # (the two who are still up); the lobby bulb is off, the door's sidelight shows the living room's light across the hall
         L.append(_g(lib.point('lamp_living', P_LIVING, 90, k=2700, radius=.1), kind='omni', e=2.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        # the kitchen's light left on low, as people leave one for whoever comes down for water: the lit window at the back
+        # that he turns to (企画書「裏の窓」; 画像 F)
+        L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 28, k=2900, radius=.08), kind='omni', e=.75, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(porch()); L.append(moon(.12))
     elif t == 't20':
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
