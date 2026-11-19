@@ -104,14 +104,21 @@ python3 - "$SPLIT" <<'PY'
 import sys, glob, re
 split = sys.argv[1] == '1'
 p = 'export_presets.cfg'; s = open(p).read()
-s = re.sub(r'\n\[preset\.1\].*', '', s, flags=re.S).rstrip('\n') + '\n'
-s = re.sub(r'exclude_filter="[^"]*"', 'exclude_filter="scripts/dbg*.gd' + (', assets/house/*' if split else '') + '"', s, count=1)
+s = re.sub(r'\n\[preset\.[12]\].*', '', s, flags=re.S).rstrip('\n') + '\n'
+s = re.sub(r'exclude_filter="[^"]*"', 'exclude_filter="scripts/dbg*.gd' + (', assets/house/*, assets/interview/*' if split else '') + '"', s, count=1)
 if split:
     files = sorted({f[:-7] for f in glob.glob('assets/house/**/*.import', recursive=True)} | set(glob.glob('assets/house/**/*.res', recursive=True)))
     s += ('\n[preset.1]\n\nname="House"\nplatform="Windows Desktop"\nrunnable=false\ndedicated_server=false\ncustom_features=""\n'
           'export_filter="resources"\nexport_files=PackedStringArray(' + ', '.join('"res://%s"' % f for f in files) + ')\n'
           'include_filter="assets/house/*.json"\nexclude_filter=""\nexport_path=""\nencryption_include_filters=""\nencryption_exclude_filters=""\n'
           'encrypt_pck=false\nencrypt_directory=false\n\n[preset.1.options]\n\ntexture_format/s3tc_bptc=true\ntexture_format/etc2_astc=false\n'
+          'binary_format/architecture="x86_64"\n')
+    # 試作231: the interview room (証言 一〜三, assets/interview) is a third pack, RULES_iv.pck (main.gd _house_pack): with it the body's zip was 521MiB
+    iv = sorted({f[:-7] for f in glob.glob('assets/interview/**/*.import', recursive=True)} | set(glob.glob('assets/interview/**/*.res', recursive=True)))
+    s += ('\n[preset.2]\n\nname="Interview"\nplatform="Windows Desktop"\nrunnable=false\ndedicated_server=false\ncustom_features=""\n'
+          'export_filter="resources"\nexport_files=PackedStringArray(' + ', '.join('"res://%s"' % f for f in iv) + ')\n'
+          'include_filter="assets/interview/*.json"\nexclude_filter=""\nexport_path=""\nencryption_include_filters=""\nencryption_exclude_filters=""\n'
+          'encrypt_pck=false\nencrypt_directory=false\n\n[preset.2.options]\n\ntexture_format/s3tc_bptc=true\ntexture_format/etc2_astc=false\n'
           'binary_format/architecture="x86_64"\n')
 open(p, 'w').write(s)
 PY
@@ -120,6 +127,8 @@ $G --headless --path . --export-release "Windows Desktop" $D/RULES.exe > $W/expo
 if [ -n "$SPLIT" ]; then
   $G --headless --path . --export-pack "House" $D/RULES_house.pck >> $W/export${N}w.log 2>&1
   [ -f $D/RULES_house.pck ] || { echo EXPORT_HOUSE_FAIL >> $L; exit 1; }
+  $G --headless --path . --export-pack "Interview" $D/RULES_iv.pck >> $W/export${N}w.log 2>&1
+  [ -f $D/RULES_iv.pck ] || { echo EXPORT_IV_FAIL >> $L; exit 1; }
 fi
 if [ -n "$FAST" ]; then
   echo "FAST（確認用。配布しない。zip なし）" >> $L
@@ -127,11 +136,13 @@ else
   [ -d $RULES/fonts/LICENSES ] && cp -r $RULES/fonts/LICENSES $D/フォントのライセンス   # OFL の本文（フォントのスレッド、2026-11-11）
   if [ -f $BUILD/hajimeni$N.txt ]; then cp $BUILD/hajimeni$N.txt $D/はじめに.txt; else echo "NO_HAJIMENI (zip にはじめにが入っていない)" >> $L; fi
   # zip も2つ：本体（RULES.exe・RULES.pck・はじめに）と家（RULES_house.pck）。同じフォルダに展開してもらう
-  cd $BUILD && rm -f RULES_proto$N.zip RULES_proto${N}_house.zip
-  zip -qr RULES_proto$N.zip RULES_proto$N -x "RULES_proto$N/RULES_house.pck"
+  # 試作231 から3つ目：証言の部屋（RULES_iv.pck）
+  cd $BUILD && rm -f RULES_proto$N.zip RULES_proto${N}_house.zip RULES_proto${N}_iv.zip
+  zip -qr RULES_proto$N.zip RULES_proto$N -x "RULES_proto$N/RULES_house.pck" "RULES_proto$N/RULES_iv.pck"
   [ -f $D/RULES_house.pck ] && zip -qr RULES_proto${N}_house.zip RULES_proto$N/RULES_house.pck
+  [ -f $D/RULES_iv.pck ] && zip -qr RULES_proto${N}_iv.zip RULES_proto$N/RULES_iv.pck
   ls -la $D $BUILD/RULES_proto$N*.zip >> $L
-  for z in $BUILD/RULES_proto$N.zip $BUILD/RULES_proto${N}_house.zip; do
+  for z in $BUILD/RULES_proto$N.zip $BUILD/RULES_proto${N}_house.zip $BUILD/RULES_proto${N}_iv.zip; do
     [ -f $z ] || continue; S=$(stat -c %s $z); [ $S -gt 419430400 ] && echo "ZIP_OVER_400MiB $z $S" >> $L
   done
 fi
