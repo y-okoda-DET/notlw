@@ -548,7 +548,7 @@ func _place_dusk():
 # 2026-11-19（ユーザー「ここ陽太を映す必要はある？」）: no face in the car's window (a flat picture read as a sticker on
 # the glass). The make-up is in his hands: blood and latex wounds on them (export_mio_arms.py WHO=yota, makeup()), and the
 # chapter opens on them held up, backs to him, in the low sun
-const LOOK_HANDS := [Vector3(-0.12, -0.05, -0.33), Vector3(80, -10, 12), Vector3(0.11, -0.08, -0.35), Vector3(76, 12, -16)]
+const LOOK_HANDS := [Vector3(-0.11, -0.04, -0.29), Vector3(80, -10, 12), Vector3(0.10, -0.06, -0.31), Vector3(76, 12, -16)]
 func _look_hands(on: bool):
 	if on:
 		_hand_to(hand_l, LOOK_HANDS[0], LOOK_HANDS[1], 0.9); _hand_to(hand_r, LOOK_HANDS[2], LOOK_HANDS[3], 1.1)
@@ -867,6 +867,12 @@ func _mk_arm(left: bool) -> Node3D:
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6; m.layers = 2 | 16   # (not layer 1: door_sky7 burnt the arms to paper in the doorway)
+		if path.contains("yota"):
+			var tm := Transform3D(); var nd: Node3D = m
+			while nd != h: tm = nd.transform * tm; nd = nd.get_parent()
+			for si in m.mesh.get_surface_count():
+				var bm := m.get_active_material(si) as BaseMaterial3D
+				if bm: m.set_surface_override_material(si, _blood_mat(left, tm, bm))
 	var fb := []
 	var to_h := Transform3D(); var nd2: Node3D = sk
 	while nd2 != h: to_h = nd2.transform * to_h; nd2 = nd2.get_parent()
@@ -883,6 +889,66 @@ func _mk_arm(left: bool) -> Node3D:
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	_curl(h, 0.25)
 	return h
+
+# 2026-11-19（ユーザー「いまは汚れにしか見えないね、血に見せたい」）: the make-up's blood, laid on the hand's shape and not
+# on its texture (it replaces the arm's material: an overlay material did not draw on the skinned arm) (Tripo's atlas cuts the hand into dozens of crumbs: blood painted there came out as mottled grime).
+# In the arm's own frame (wrist at the origin, the fingers to -Z, the back of the hand to +Y): the fingers coated nearly
+# whole, thinning toward the wrist; runs down the hand toward the wrist (he held them up); a wet shine. The red is
+# saturated and mid-bright so the print takes it on the orange plate alone (a dark red goes blue and teal: dirt)
+const BLOOD_SH := """
+shader_type spatial;
+render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+uniform float seed = 0.0;
+uniform mat4 to_hand;
+uniform float dbg = 0.0;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+uniform vec4 albedo_col : source_color = vec4(1.0);
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
+uniform float use_normal = 0.0;                                     // the mesh's space to the arm's (the wrist's) frame
+varying vec3 p;
+float h1(vec3 q) { return fract(sin(dot(q, vec3(12.9898, 78.233, 37.719)) + seed) * 43758.5453); }
+float n3(vec3 q) {
+	vec3 i = floor(q); vec3 f = fract(q); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(mix(h1(i), h1(i + vec3(1,0,0)), f.x), mix(h1(i + vec3(0,1,0)), h1(i + vec3(1,1,0)), f.x), f.y),
+	           mix(mix(h1(i + vec3(0,0,1)), h1(i + vec3(1,0,1)), f.x), mix(h1(i + vec3(0,1,1)), h1(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float fbm(vec3 q) { return 0.55 * n3(q) + 0.3 * n3(q * 2.1) + 0.15 * n3(q * 4.3); }
+void vertex() { p = (to_hand * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float along = clamp(-p.z / 0.15, -1.0, 1.2);          // 0 at the wrist, 1 at the fingertips
+	float hand = smoothstep(-0.05, 0.08, along);          // the sleeve and the forearm stay clean, but for runs
+	// the coat: thick on the fingers and the knuckles, broken patches on the back, little at the wrist
+	float f = fbm(p * 38.0);
+	float coat = smoothstep(0.62 - 0.30 * along, 0.66 - 0.30 * along, f) * hand;
+	// runs toward the wrist (+Z): thin lines in the cross-section, each starting somewhere on the hand and of its own length
+	float cx = p.x * 110.0 + (p.y > 0.0 ? 0.0 : 37.0);
+	float id = floor(cx); float fx = fract(cx);
+	float r = h1(vec3(id, 3.1, 7.7));
+	float start = mix(0.25, 0.85, h1(vec3(id, 5.3, 1.1))); float len = mix(0.15, 0.6, h1(vec3(id, 9.2, 4.4)));
+	float t = (start - along) / len;                      // 0 at its top, 1 at its end
+	float wid = mix(0.34, 0.12, clamp(t, 0.0, 1.0));
+	float run = step(0.55, r) * step(0.0, t) * step(t, 1.0) * smoothstep(wid, wid * 0.4, abs(fx - 0.5));
+	float bead = step(0.55, r) * smoothstep(0.09, 0.03, length(vec2((fx - 0.5) / 110.0, (along - (start - len)) * 0.15)) * 110.0 / 5.0);
+	float a = clamp(max(max(coat, run), bead), 0.0, 1.0);
+	vec3 base = texture(albedo_tex, UV).rgb * albedo_col.rgb;
+	if (use_normal > 0.5) NORMAL_MAP = texture(normal_tex, UV).rgb;
+	float wet = smoothstep(0.7, 0.85, fbm(p * 70.0 + 3.0));
+	vec3 blood = mix(vec3(0.15, 0.003, 0.002), vec3(0.26, 0.005, 0.003), wet);   // linear (sRGB about 0.42 and 0.55 red)
+	a *= 0.97;
+	ALBEDO = mix(base, blood, a);
+	if (dbg > 0.5) ALBEDO = vec3(fract(p.x * 20.0), fract(-p.z * 6.67), step(0.0, p.y));
+	ROUGHNESS = mix(0.8, mix(0.35, 0.12, wet), a);
+	SPECULAR = mix(0.5, 0.6, a);
+}
+"""
+var blood_sh: Shader
+func _blood_mat(left: bool, to_hand: Transform3D, base: BaseMaterial3D) -> ShaderMaterial:
+	if blood_sh == null: blood_sh = Shader.new(); blood_sh.code = BLOOD_SH
+	var m := ShaderMaterial.new(); m.shader = blood_sh; m.set_shader_parameter("seed", 1.7 if left else 4.3); m.set_shader_parameter("to_hand", to_hand)
+	m.set_shader_parameter("albedo_tex", base.albedo_texture); m.set_shader_parameter("albedo_col", base.albedo_color)
+	m.set_shader_parameter("normal_tex", base.normal_texture); m.set_shader_parameter("use_normal", 1.0 if base.normal_enabled and base.normal_texture else 0.0)
+	if "--c7blooddbg" in OS.get_cmdline_user_args(): m.set_shader_parameter("dbg", 1.0)   # the arm's frame in colours (with --print=0)
+	return m
 
 # the fingers' curl: 0 flat, 1.3 a fist
 func _curl(h: Node3D, a: float):

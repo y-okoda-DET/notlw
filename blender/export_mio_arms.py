@@ -16,7 +16,9 @@ KEEP = ('lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')
 TEX = 2048
 
 def makeup(body, side):
-    """第7章（2026-11-19、ユーザー「ここ陽太を映す必要はある？」）：陽太の特殊メイクは、車の窓の顔ではなく手で見せる。
+    """使っていない（2026-11-19）：Tripo の手のテクスチャは細かい切れ端に分かれていて、描いた血がまだらの汚れにしか見えなかった。
+    血は godot/shaders/blood.gdshader で手の形に沿って乗せる。以下は元の説明。
+    第7章（2026-11-19、ユーザー「ここ陽太を映す必要はある？」）：陽太の特殊メイクは、車の窓の顔ではなく手で見せる。
     手の肌（手と指の骨に付いた、肌色の面）に、血糊（乾いた暗い赤と、新しい赤のたれ）とラテックスの傷（甲に、白っぽい縁と
     暗い裂け目）を、テクスチャの上に描く。袖（パーカー）には少しの染みだけ。"""
     import numpy as np
@@ -35,6 +37,9 @@ def makeup(body, side):
     nm = body.matrix_world.to_3x3()
     skin = Image.new('L', (W, H)); back = Image.new('L', (W, H)); cloth = Image.new('L', (W, H))
     ds, db, dc = ImageDraw.Draw(skin), ImageDraw.Draw(back), ImageDraw.Draw(cloth)
+    faces = []
+    along = Image.new('L', (W, H)); da = ImageDraw.Draw(along)   # 0 at the wrist .. 255 at the fingertips (the hand's frame: +Y)
+    mw = body.matrix_world
     for poly in body.data.polygons:
         pts = [(uv[li].uv.x * W, (1 - uv[li].uv.y) * H) for li in poly.loop_indices]
         cx = int(sum(p[0] for p in pts) / len(pts)) % W; cy = int(sum(p[1] for p in pts) / len(pts)) % H
@@ -42,9 +47,20 @@ def makeup(body, side):
         is_skin = r > .45 and r > g * 1.05 and g > b
         if is_skin and sum(1 for v in poly.vertices if v in handv) * 2 >= len(poly.vertices):
             ds.polygon(pts, fill=255)
+            yy = (mw @ poly.center).y; da.polygon(pts, fill=int(max(0, min(1, yy / .17)) * 255))
+            if len(poly.vertices) >= 3:
+                li = list(poly.loop_indices)[:3]
+                P3 = [mw @ body.data.vertices[body.data.loops[l].vertex_index].co for l in li]
+                U = [Vector((uv[l].uv.x * W, (1 - uv[l].uv.y) * H)) for l in li]
+                e1, e2 = U[1] - U[0], U[2] - U[0]; f1, f2 = P3[1].y - P3[0].y, P3[2].y - P3[0].y
+                det = e1.x * e2.y - e1.y * e2.x
+                if abs(det) > 1e-6:
+                    g = Vector(((f1 * e2.y - f2 * e1.y) / det, (f2 * e1.x - f1 * e2.x) / det))   # d(y)/d(uv px)
+                    if g.length > 0: faces.append((Vector((sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))), g.normalized(), yy, g.length))
             if (nm @ poly.normal).normalized().z > .35: db.polygon(pts, fill=255)   # the hand's frame: the back of the hand is +Z
         elif not is_skin: dc.polygon(pts, fill=255)
     skin = skin.filter(ImageFilter.MaxFilter(5)); back = back.filter(ImageFilter.MaxFilter(3))
+    T = np.asarray(along.filter(ImageFilter.MaxFilter(5)), np.float32) / 255
     S = np.asarray(skin, np.float32) / 255; B = np.asarray(back, np.float32) / 255; Cm = np.asarray(cloth, np.float32) / 255
     rng = np.random.default_rng(11 if side == 'l' else 23)
     def blobs(scale, thr, soft):
@@ -52,17 +68,48 @@ def makeup(body, side):
         im = Image.fromarray((n * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC).filter(ImageFilter.GaussianBlur(scale * .35))
         a = np.asarray(im, np.float32) / 255
         return np.clip((a - thr) / soft, 0, 1)
-    dried = blobs(W // 48, .56, .08) * S                    # dried blood, dark and broad
-    fresh = blobs(W // 140, .64, .05) * S                   # fresh, smaller and brighter
-    grime = blobs(W // 40, .45, .3) * S * .2               # the whole hand dirtied a little
-    spots = blobs(W // 260, .80, .04) * Cm * .5              # a few stains on the cuffs
+    # 2026-11-19（ユーザー「いまは汚れにしか見えないね、血に見せたい」）: in the print a dark red is inked blue and teal, which
+    # reads as dirt. Blood has to be the print's red: a saturated, mid-bright red goes to the orange plate alone, and the pale
+    # skin round it to paper. Hard edges, a few drops thrown round each patch, a brighter wet core: blood, not grime
+    # dipped in it: the fingers coated nearly whole, the back of the hand in smears, the wrist only a few drops
+    field = blobs(W // 56, 0.0, 1.0)
+    smear = np.clip((field - (.70 - .42 * T)) / .03, 0, 1) * S
+    core = blobs(W // 56, .66, .03) * S                    # brighter, wetter spots in them
+    run = blobs(W // 150, .66, .02) * S                    # small runs and spots
+    drops = np.zeros((H, W), np.float32)
+    ys, xs = np.nonzero((S > .5) & (smear > .5))
+    if len(xs):
+        dimg = Image.new('L', (W, H)); dd = ImageDraw.Draw(dimg)
+        for _ in range(min(400, len(xs) // 6 + 40)):
+            i = rng.integers(len(xs)); r = W * rng.uniform(.0012, .0035)
+            cx, cy = xs[i] + rng.normal(0, W * .012), ys[i] + rng.normal(0, W * .012)
+            dd.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
+        drops = np.asarray(dimg, np.float32) / 255 * S
+    # runs: from the fingers and the back of the hand down toward the wrist (he held them up), each a thin tapering line
+    # in the texture along the face's own direction of "down the hand", a round bead at its end
+    rimg = Image.new('L', (W, H)); rd = ImageDraw.Draw(rimg)
+    src = [f for f in faces if f[2] > .03]
+    for _ in range(min(70, len(src))):
+        c, g, yy, k = src[rng.integers(len(src))]
+        Lm = rng.uniform(.015, .05) / max(k, 1e-6)           # metres down the hand, in texture pixels
+        Lm = min(Lm, W * .05)
+        wd = W * rng.uniform(.0015, .0030)
+        n = 8
+        for j in range(n):
+            a0, a1 = j / n, (j + 1) / n
+            p0, p1 = c - g * Lm * a0, c - g * Lm * a1
+            rd.line((p0.x, p0.y, p1.x, p1.y), fill=255, width=max(1, int(wd * (1.0 - .45 * a0))))
+        e = c - g * Lm; r = wd * .9
+        rd.ellipse((e.x - r, e.y - r, e.x + r, e.y + r), fill=255)
+    runs = np.asarray(rimg, np.float32) / 255 * S
+    smear = smear * np.clip((T - .35) / .3, 0, 1)            # patches on the fingers and knuckles; lower down, only runs
+    spots = blobs(W // 260, .80, .04) * Cm * .6             # a few on the cuffs
     rgb = px[..., :3]
     def lay(a, col):
         a = a[..., None]; return rgb * (1 - a) + np.array(col, np.float32) * a
-    rgb = lay(grime, (.38, .26, .22))
-    rgb = lay(dried * .85, (.30, .04, .03))
-    rgb = lay(fresh * .9, (.42, .02, .02))
-    rgb = lay(spots, (.28, .06, .05))
+    rgb = lay(np.maximum(np.maximum(smear, drops), runs) * .95, (.62, .05, .04))
+    rgb = lay(np.maximum(core * smear, run) * .9, (.80, .08, .05))
+    rgb = lay(spots, (.62, .06, .05))
     # latex wounds on the back of the hand: a pale raised rim, a dark gash in it
     ys, xs = np.nonzero(B > .5)
     if len(xs):
@@ -126,7 +173,7 @@ def run(side):
     bpy.context.view_layer.update()
     for img in bpy.data.images:
         if img.size[0] > TEX: img.scale(TEX, TEX * img.size[1] // img.size[0])
-    if WHO == 'yota': makeup(body, side)
+    if os.environ.get('MAKEUP_TEX'): makeup(body, side)   # (not used: see godot/shaders/blood.gdshader)
     rig.name = f'{WHO}_arm_{side}'; body.name = f'{WHO}_arm_{side}_mesh'
     print('ARM', side, 'verts', len(body.data.vertices), 'bones', len(rig.data.bones), 'forearm', round((w - elbow).length, 3),
           'hand', round((tip - w).length, 3), 'images', [(i.name, tuple(i.size)) for i in bpy.data.images])
