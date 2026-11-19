@@ -6,7 +6,8 @@
 ##   雨　　：家の20時〜3時半（嵐）。窓越し（高い音は切り出しのときに落としてある）
 ##   雷　　：嵐のあいだ、ときどき1つ（35〜80秒おき）
 ##   発電機：地下の発電機の位置から（main.gen_on、第2章では綱を引く・咳・かかる＝story.gd の gen）。上の階では遠い唸り
-##   停電　：第1章の明かりが落ちるとき、ブレーカーの「パチッ」
+##   停電　：第1章の明かりが落ちるとき、ブレーカーの「パチッ」と、家のうなり（冷蔵庫・電灯）が落ちる音（試作176）
+##   夕方　：第1章の外の音（風・虫・遠い鳥）と家のうなり（make_amb_sounds.py、試作176）
 ##   足音　：澪の一歩ごと（player.gd の step_phase）。靴下の小さい音、ときどききしむ。階段はきしむ音
 ##   ノック：玄関の扉が揺れたら（main.gd の knocks、ch0.gd の knock は扉を数ミリ動かす）1回ずつ
 ##   ラジオ：手に持って点いているとき。3局（音楽594・ニュース1017・外国語1350）、近いとこもって唸り、合うと雑音が引く。ダイヤルは回す速さで擦れて刻む（cut_radio.py）
@@ -98,6 +99,11 @@ func setup(m):
 		if r and main.get("ch2_house"): r.set("volume_db", -40.0); rain_in = 0.0
 	gen_was = _gen_running()
 	lit_was = _lit()
+	# 試作176 A4（ユーザー「一章、環境音があってもいいかもね」）: the evening outside (wind in the cedars, insects, a far bird),
+	# and the house's own hum (the fridge, the lamps) while its power is on. A5: the hum goes with the power (_process)
+	if main.TIME == "dusk" or main.SCENE == "dusk":
+		_loop("dusk_amb", -21.0)
+		if lit_was: _loop("house_hum", -27.0)
 	if main.player: step_was = int(floor(main.player.step_phase)); y_was = main.player.global_position.y
 
 # 第1章's lights (the key through the window, the lamps): the power cut puts them out (main.power_cut)
@@ -168,7 +174,10 @@ func _process(dt):
 		gen_was = on
 	# the power cut (第1章): the breaker
 	var lit := _lit()
-	if lit_was and not lit: one(self, "breaker", -4.0)
+	# 試作176 A5（ユーザー「停電になった瞬間、停電になったことが分かる音を入れたい」）: the breaker louder, and the hum falls away
+	if lit_was and not lit:
+		one(self, "breaker", 0.0); one(self, "power_down", -9.0)
+		_stop("house_hum")
 	lit_was = lit
 	# thunder now and then while the storm lasts
 	if storm:

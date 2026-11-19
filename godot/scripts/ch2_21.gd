@@ -21,11 +21,13 @@ const SIT_Z := 0.0                              # how far the sitters' root is l
 # standing: what each does while another speaks, and while speaking
 const LISTEN := {"makoto": "talk/think", "natsuki": "talk/idle", "kiryu": "talk/idle", "taiga": "talk/idle"}
 const SPEAK := {"makoto": "talk/talk_c", "natsuki": "talk/talk_a", "kiryu": "talk/talk_d", "taiga": "talk/talk_b"}
-const MIO21 := [3.45, 3.25]                    # by the living room's door, looking in
+# 試作176 A10（ユーザー「夏希が歩く道を開けておいてあげたいので、澪の立ち位置を変えましょう」）: at 3.45, 3.25 she stood 0.2 m off
+# Natsuki's way to the hall (NAT_CAM_ROUTE 2.7, 2.8 -> 3.6, 3.7); by the north wall, 0.45 m off it, still looking in
+const MIO21 := [3.0, 3.72]
 const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
 const MIO22 := [4.55, 2.75]
 const NAT_DOOR := [4.95, 0.55, 0.0]                 # inside the front door, where she stops and turns to Mio
-const NAT_OUT := [[5.0, 0.0, 0.0], [5.1, -0.9, 0.0], [6.7, -1.15, 0.0]]   # 試作125 (ユーザー「扉が閉まる前に夏希が消える」): out and to the right along the porch, behind the wall, before she is put away
+const NAT_OUT := [[5.15, 0.55, 0.0], [5.05, -0.6, 0.0], [6.2, -1.1, 0.0], [6.7, -1.15, 0.0]]   # 試作176 A11（ユーザー「扉開けて出ていくアニメーションが変」）: from where the door left her, straight out through the open side as Kiryu goes in 第3章 (ch3 _kiryu_out); she cut across from 5.47, 1.22 to the hinge side   # 試作125 (ユーザー「扉が閉まる前に夏希が消える」): out and to the right along the porch, behind the wall, before she is put away
 
 var part := 21
 var card: Control
@@ -297,6 +299,10 @@ func _natsuki_cam():
 				for mi in main.S.env_node.find_children("furn_proj*", "MeshInstance3D", true, false):
 					var pb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
 					proj = Vector3(pb.get_center().x + 0.32, pb.end.y, pb.get_center().z)
+				# 試作176 A10（ユーザー「カメラが浮いている。机に置こうか」）: beside the projector it hung at the projector's top
+				# height; it sits on the low table (furnish.py furn_ltable, top .40 m)
+				for mi in main.S.env_node.find_children("furn_ltable*", "MeshInstance3D", true, false):
+					if proj != Vector3.INF: proj.y = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).end.y
 				if proj != Vector3.INF:
 					var lo := INF
 					for c in cam_parts: lo = minf(lo, ((c[0] as MeshInstance3D).global_transform * (c[0] as MeshInstance3D).get_aabb()).position.y)

@@ -37,6 +37,13 @@ var talk_now := ""                 # whose mouth moves while a conversation runs
 var story_talking := false
 var door_scene := false            # 段階1: 第2章 23:00, the door (scripts/door.gd)
 
+# 試作175（ユーザー、序章「三脚にのめり込んでいる」）: the fresnel's C-stand stood in the hall where Natsuki falls at 3:30
+# (blender/stage.py FRESNEL, half a metre from her): her body went through its legs in 第4章, 第5章, 第6章 and 序章. From 3:30
+# on it is not in the hall (the light was dead from the outage; nothing says who moved it)
+const FRESNEL_AT := [-0.1, 2.9]
+func _stand_gone() -> bool:
+	return TIME in ["t0330", "t0430"]
+
 static func b2g(v) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
 
@@ -93,7 +100,10 @@ func _ready():
 		if a == "--weardbg": ARGS["weardbg"] = true    # the wear decals in red (where they land)
 		if a == "--minicam": ARGS["minicam"] = true    # check stills: 澪の小さなカメラ, the old boxes and the new model side by side
 		if a.begins_with("--refl="): ARGS["refl"] = a.substr(7)   # 試作125: the reflector bounce scale (check shots)
+		if a == "--stairold": ARGS["stairold"] = true   # 試作176: the stair pace as before (to compare)
 		if a == "--leak": ARGS["leak"] = true   # 試作125: the lamps past the shadow budget light through walls as before (to compare)
+		if a == "--sbdbg": ARGS["sbdbg"] = true
+		if a == "--duskleak": ARGS["duskleak"] = true   # 試作175 A3: at dusk a lamp past the shadow budget lights where the eye sees it, as before (to compare)
 		if a == "--skyshadow": ARGS["skyshadow"] = true   # 試作125: the night sky's shadow as before (to compare)
 		if a.begins_with("--fogk="): ARGS["fogk"] = a.substr(7)
 		if a.begins_with("--fresfog="): ARGS["fresfog"] = a.substr(10)
@@ -166,6 +176,10 @@ func _ready():
 	if ARGS.has("minicam"): _minicam_dbg()
 	if SCENE == "house":
 		_house_state(); _lights_house()
+		if _stand_gone():
+			for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
+				for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "csarm", "cscol", "csleg"]:
+					if String(mi.name).begins_with(pre): mi.visible = false
 		if play == "ch1": _lights_dusk(["reflector_bounce", "taiga_fill", "taiga_rim"])
 		if play == "door": _phone_lights(); lights["blue"] = lights.get("blue_door"); if lights.blue == null: lights.erase("blue")
 		_window_glass(); _wear(); _house_cheaper()
@@ -454,7 +468,11 @@ func _gi():
 	for k in ["fres", "blue", "sky"]:
 		if lights.has(k): lights[k].light_indirect_energy = 2.0
 	_lightmap()
-	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", "voxel"), 1))
+	# 2026-11-19（全体レビュー、ユーザーが試作175 で G を回して撮った4通り）: at night VoxelGI washed the house to one blue or white
+	# and SDFGI to orange; the baked bounce keeps the lamps paper and orange and the rest sunk in blue, the shapes read. The night
+	# house starts on 焼き込み at every quality (G still steps through them)
+	var gi_def: String = "baked" if SCENE == "house" and NIGHT_PRINT.has(TIME) else "voxel"
+	_set_gi({"baked": 0, "voxel": 1, "sdfgi": 2, "none": 3}.get(ARGS.get("gi", gi_def), 1))
 
 # modes: 0 baked bounce (Blender lightmap)  1 VoxelGI  2 SDFGI  3 none
 const GI_NAMES := ["焼き込み", "VoxelGI", "SDFGI", "なし"]
@@ -613,7 +631,11 @@ func _house_state():
 			if m == null: continue
 			var d := m.duplicate() as StandardMaterial3D
 			if lit.has(key): d.emission_enabled = true; d.emission_energy_multiplier = max(d.emission_energy_multiplier, 2.0)
-			else: d.emission_enabled = false
+			else:
+				d.emission_enabled = false
+				# 試作176 A5（ユーザー「ライトもついているみたい」、20時）: at night a dead lamp's white glass in a phone's torch read as a
+				# bulb that was on (as the cellar's did before the generator: generator()). Its glass is grey when it is out
+				if TIME != "dusk" and TIME != "t0430" and key.begins_with("lamp_"): d.albedo_color = d.albedo_color * Color(0.3, 0.3, 0.3, 1.0)
 			mi.set_surface_override_material(i, d)
 	for mi in S.env_node.find_children("ext_sky*", "MeshInstance3D", true, false):
 		var m := mi.get_active_material(0) as StandardMaterial3D
@@ -716,6 +738,7 @@ func _colliders():
 			else:
 				_box(b.c, b.s)
 		for o in S.props:
+			if SCENE == "house" and _stand_gone() and absf(float(o[0]) - FRESNEL_AT[0]) < 0.05 and absf(float(o[1]) - FRESNEL_AT[1]) < 0.05: continue
 			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 			cy.radius = o[2]; cy.height = 2.0; c2.shape = cy; s2.add_child(c2); add_child(s2)
 			s2.global_position = b2g([o[0], o[1], 1.0])
@@ -813,7 +836,6 @@ func _set_print(on: bool):
 
 func _save_settings():
 	SET["cam"] = player.cam_mode
-	SET["gi"] = gi_mode
 	SET["ht"] = ht_mode
 	SET["print"] = print_on
 	SET["q"] = quality_high
@@ -821,7 +843,7 @@ func _save_settings():
 func _restore_settings():
 	trees_far(TREE_FAR_HIGH)
 	if SET.has("cam"): player.cam_mode = SET.cam
-	if SET.has("gi"): _set_gi(SET.gi)
+	if SET.has("gi"): _set_gi(SET.gi)   # only when the player chose with G (each time of night starts on its own default)
 	if SET.has("ht"): _set_ht(SET.ht)
 	if SET.has("print"): _set_print(SET.print)
 	if SET.has("q") and not SET.q: _quality(false)
@@ -1280,7 +1302,7 @@ func _unhandled_input(e):
 				_quality(not quality_high); _status("q")
 				if perf and is_instance_valid(perf): perf.user_chose(quality_high)
 			KEY_G:
-				_set_gi((gi_mode + 1) % 4); _status("gi")
+				_set_gi((gi_mode + 1) % 4); SET["gi"] = gi_mode; _status("gi")
 			KEY_MINUS, KEY_EQUAL:
 				if PRINT_V == 2:
 					PRINT_EXP[SCENE] = clamp(PRINT_EXP[SCENE] * (0.85 if e.keycode == KEY_MINUS else 1.0 / 0.85), 0.5, 8.0)
@@ -1331,6 +1353,13 @@ func power_cut(dark := true):
 	if SCENE == "house":   # 試作97: 第1章 in the whole house: the key light and every lamp of the house
 		for k in lights:
 			if lights[k] is Light3D and (k == "fresnel_key" or String(k).begins_with("lamp_")): lights[k].visible = false
+		# 試作176 A5（ユーザー「絵も、これだと停電になっていることがわからない（明るくて。ライトもついているみたいだし）」）: the
+		# lamps' shades kept glowing after their lights went (their emission is the time's, _house_state): they go dark with them
+		for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
+			if not String(mi.name).substr(10).begins_with("lamp_"): continue
+			for i in range(mi.get_surface_override_material_count()):
+				var m := mi.get_surface_override_material(i) as StandardMaterial3D
+				if m: m.emission_enabled = false
 	for mm in lm_mats: mm.set_shader_parameter("bounce", float(ARGS.get("lme", str(S.get("lme", 1.5)))) * 0.45 if gi_mode == 0 else 0.0)
 	# 試作89 (ユーザー「そこで、電気が消えたんです。のところ、真っ暗になるのがよくない？」): the eye goes black with the lights,
 	# through her testimony line and the chapter card; it opens again, slowly, as chapter 2 begins (power_eyes_open)
@@ -1427,6 +1456,10 @@ func _t20_people():
 		phones(false, ["kiryu"])
 		place_person("kiryu", T20.kiryu.pos, 0.0)
 		set_stand("kiryu", "talk/idle", 0.0)
+	# 試作176 A7（ユーザー「普通に立たせよう」、20時）: Taiga's 20:00 pose stood him with his feet wide apart at the hall's end. He
+	# stands as the others do (his talk stand; the torch in his hand stays)
+	if S.has("taiga_node") and T20.has("taiga"):
+		set_stand("taiga", "talk/idle", 0.0)
 
 # 試作97: in the dark they hold the phone's torch down on the floor ahead of their feet, not out at the others: straight
 # out from the chest it lit Natsuki and Makoto white from behind Taiga (ユーザー「白く飛びすぎ」)
@@ -1624,6 +1657,10 @@ func _walk_tick(dt: float):
 		var J: Dictionary = WALKJ.get(k, {}).get(mode, {})
 		var v: float = float(J.get("speed", 1.0))
 		if mode != "walk": v = 0.5 / float(J.get("dur", 1.0)) * 0.95   # a cycle is two treads of the house's stairs (25 cm and 23 cm deep): the feet land on them
+		# 試作176 A12（ユーザー「階段を昇る、下りるモーションが変になっている」）: the clip carries her 0.36-0.47 m a cycle, the way
+		# carried her 0.475: a planted foot slid on up the tread by the difference (8 cm a cycle, a fifth of a stride). The way
+		# goes at the clip's own pace, so the foot on a tread stays on it
+		if mode != "walk" and float(J.get("fwd", 0.0)) > 0.1 and not ARGS.has("stairold"): v = float(J.fwd) / float(J.get("dur", 1.0))
 		var step := v * dt
 		if step >= hz:
 			p = w.pts[w.i]; w.i += 1
@@ -1924,6 +1961,19 @@ func _shadow_budget(dt: float):
 		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
 		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
 	cand.sort_custom(func(a, b): return a[0] < b[0])
+	# 試作175 A3（ユーザー「場所によって、明るさが変わってしまっている」、第1章 夕方、127・166 に続いて3度目）: at (4.45, 5.2) the
+	# living room's lamp was past the budget but in sight through the door, so it kept its light without its shadow and lit
+	# the hall through the walls (brightness 95); a step on (5.5) it went out of sight and out (45). At dusk the daylight
+	# is the light: a lamp past the budget is out whether seen or not, and the lamps in sight take the shadows first
+	var dusk_cut: bool = TIME == "dusk" and not ARGS.has("duskleak")
+	var space0 := get_world_3d().direct_space_state
+	if dusk_cut and space0:
+		for c in cand:
+			var lc: Light3D = c[1]
+			var to0 := lc.global_position + (e - lc.global_position).normalized() * minf(0.4, e.distance_to(lc.global_position) * 0.5)
+			var q0 := PhysicsRayQueryParameters3D.create(e, to0); q0.collide_with_areas = false
+			if not space0.intersect_ray(q0).is_empty(): c[0] += 1000.0
+		cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
 	# a lamp the eye cannot see (the house's walls between, by a ray) is put out (its cull mask) until it is near again;
@@ -1934,12 +1984,20 @@ func _shadow_budget(dt: float):
 		l.shadow_enabled = i < shadow_n
 		if not l.has_meta("mask"): l.set_meta("mask", l.light_cull_mask)
 		var on := true
-		if i >= shadow_n and space:
+		if i >= shadow_n and dusk_cut: on = false
+		elif i >= shadow_n and space:
 			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
 			var q := PhysicsRayQueryParameters3D.create(e, to)
 			q.collide_with_areas = false
 			on = space.intersect_ray(q).is_empty()
 		l.light_cull_mask = int(l.get_meta("mask")) if on else 0
+	if ARGS.has("sbdbg"):
+		var nm := {}
+		for k in lights: nm[lights[k]] = k
+		var row := []
+		for c in cand: row.append("%s%s%s" % [nm.get(c[1], "?"), "*" if c[1].shadow_enabled else "", "" if c[1].light_cull_mask != 0 else "-"])
+		var txt := " ".join(row)
+		if txt != String(get_meta("sbdbg_last", "")): set_meta("sbdbg_last", txt); print("SB ", e, " ", txt)
 
 # 2026-11-14（ユーザー「4章以降が重い」、重さの記録：第1章も最低で重い）: the cedar wood round the clearing is 1793 trees, about
 # 15 million triangles, every one drawn in every frame (Godot does not know the near ones hide the far). Beyond this many

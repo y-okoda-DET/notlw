@@ -9,6 +9,7 @@
 ## 結び：発電機が止まり、車が来て、ノック、澪が自分の手で扉を開ける（序章の続き。ch0.gd の車と警察官を、ここに同じ形で持つ）。
 extends "res://scripts/ch5.gd"
 
+func _sixth() -> bool: return true
 const SIT6 := [4.42, 3.42]            # ch0.gd SIT_AT: where the game's first picture finds her
 const SIT_EYE6 := 0.86
 const STAND_EYE6 := 1.52
@@ -98,6 +99,8 @@ func _ready():
 	_hands()
 	_props6()
 	_targets6()
+	_body_shadow()
+	_board(); has_board = true   # 試作175 B4: Kiryu's board from 第1章, its margin keeps what is left of the first three (Tab)
 	_air_bus()
 	demo6 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo5 = false; demo_on = demo6
@@ -424,6 +427,15 @@ func _look_press(k: String, block: String):
 	if k == "makeup" and done6.has("lid"): _start(B(b).filter(func(e): return not e.has("do")).slice(0, 1) + B(b).slice(2)); return
 	_start(B(b))
 
+func _full_hands_at() -> bool:
+	var cam := _cam()
+	for k in ["nat", "cam", "box", "sink", "bag_m"]:
+		var t := _target(k)
+		if t.is_empty(): continue
+		var to: Vector3 = (t.pos as Vector3) - cam.global_position
+		if to.length() < float(t.reach) and (-cam.global_basis.z).angle_to(to) < deg_to_rad(float(t.deg)): return true
+	return false
+
 func _pick_target() -> Dictionary:
 	var cam := _cam()
 	var best := {}; var ba := 99.0
@@ -580,8 +592,25 @@ func _probe_tick():
 	if not probe_cam.current: probe_cam.make_current()
 
 # ---------------------------------------------------------------- the clock
+# 試作176 A21（ユーザー「影、手だけが写る」）: her hands threw a shadow and nothing else. 第4章's body for the lantern and the
+# candle to throw (fps.gd _mio_shadow: a column, the shoulders and a head that only cast), lower as her eye is (sitting)
+var body_sh: Node3D
+func _body_shadow():
+	body_sh = Node3D.new(); body_sh.name = "MioShadow"; main.add_child(body_sh)
+	var mat := StandardMaterial3D.new()
+	for spec in [[CapsuleMesh.new(), Vector3(0, 0.70, 0), Vector3(0.36, 1.40, 0.24)], [SphereMesh.new(), Vector3(0, 1.50, 0), Vector3(0.21, 0.24, 0.22)], [CapsuleMesh.new(), Vector3(0, 1.26, 0), Vector3(0.44, 0.30, 0.22)]]:
+		var mi := MeshInstance3D.new(); mi.mesh = spec[0]; mi.material_override = mat
+		if mi.mesh is CapsuleMesh: (mi.mesh as CapsuleMesh).radius = 0.5; (mi.mesh as CapsuleMesh).height = 1.0 if spec[2].y < 0.5 else 2.0
+		mi.position = spec[1]; mi.scale = spec[2] if not (mi.mesh is CapsuleMesh) else Vector3(spec[2].x, spec[2].y / (1.0 if spec[2].y < 0.5 else 2.0), spec[2].z)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		body_sh.add_child(mi)
+
 func _process(dt):
 	t_now += dt; t_stage += dt
+	if body_sh:
+		body_sh.global_position = player.global_position; body_sh.rotation.y = player.yaw
+		body_sh.scale = Vector3(1.0, clampf(player.eye_height / 1.52, 0.5, 1.0), 1.0)
 	# while her hands are at a thing, a door in front of her is not offered (E was both: the tripod was held toward a door)
 	var dn6 = main.get_node_or_null("Doors")
 	if dn6 and dn6.is_processing() != (act == ""):
@@ -610,6 +639,7 @@ func _process(dt):
 	_flow_tick(dt)
 	_act_tick(dt)
 	_end_tick6(dt)
+	_board6_tick()
 	main.talk_now = ""
 	main.story_talking = (mode == TALK)
 	player.move_enabled = mode == FREE and act == "" and stage == "free"
@@ -621,6 +651,9 @@ func _process(dt):
 	if mode == FREE and act == "" and stage == "free":
 		tgt = _pick_target()
 		note_lb.text = String((tgt.name as Callable).call()) if not tgt.is_empty() else ""
+		# 試作175（ユーザー「夏希を選択できなかった」）: with the tripod in her arms nothing else could be taken, and nothing
+		# said so. Looking at what her hands would need, she is told they are full (the bag is the one place it goes)
+		if tgt.is_empty() and carrying and _full_hands_at(): note_lb.text = T("［両手がふさがっている］")
 	elif act == "" and stage != "end5": note_lb.text = ""
 	if demo6: _demo6_tick(dt)
 
@@ -677,6 +710,7 @@ func _do(what: String):
 
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["fin"]: return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_TAB: board_up = not board_up; return
 	if e is InputEventKey and e.pressed and not e.echo:
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_W, KEY_UP]: _move_choice(-1); return
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1); return
@@ -1140,7 +1174,7 @@ func _targets6():
 	if tripod:
 		_add_target("tripod", gp(TRIPOD_AT[0], TRIPOD_AT[1] + 0.5, 0.1), 2.4, 30.0, func(): return not done6.has("tripod") and not carrying,
 			func(): return _prompt("三脚.拾う"), _tripod_take)
-	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 2.2, 30.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
+	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 3.2, 34.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
 	_add_target("cam", fixed_cam.global_position, 2.3, 22.0, func(): return not carrying and not (done6.has("cam") and done6.has("batt")),
 		func(): return "［%s］" % T("カメラ") if not looked.has("cam") else _prompt("カメラ.出す") if not done6.has("cam") else _prompt("カメラ.電池"), _cam_press)
 	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and (phone_st in [0, 1] or (phone_st == 2 and has_pack)),
@@ -2357,3 +2391,17 @@ func _demo6_tick(dt: float):
 func _dfail6(what: String):
 	DEMO_FAILS += 1
 	print("DEMO FAIL ch6: %s t=%.1f" % [what, t_now])
+
+
+# 試作175 B4（ユーザー「6章をどう進めるか」）: in the board's margin (Tab), which of the first three is still as it was. Nothing on the
+# screen itself; only the names, never what is to be done with them
+func _board6_tick():
+	if board_layer == null: return
+	board_layer.visible = board_up and has_board and stage == "free"
+	if not board_layer.visible: return
+	_place_board()
+	var left: Array = []
+	if not done6.has("tripod"): left.append(T("三脚"))
+	if not (done6.has("cam") and done6.has("batt")): left.append(T("定点のカメラ"))
+	if not done6.has("phone"): left.append(T("夏希"))
+	board_note.text = ("— " + "、".join(left)) if not left.is_empty() else ""
