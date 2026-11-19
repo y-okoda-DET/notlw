@@ -100,6 +100,7 @@ func _ready():
 	_props6()
 	_targets6()
 	_body_shadow()
+	_board(); has_board = true   # 試作175 B4: Kiryu's board from 第1章, its margin keeps what is left of the first three (Tab)
 	_air_bus()
 	demo6 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo5 = false; demo_on = demo6
@@ -638,6 +639,7 @@ func _process(dt):
 	_flow_tick(dt)
 	_act_tick(dt)
 	_end_tick6(dt)
+	_board6_tick()
 	main.talk_now = ""
 	main.story_talking = (mode == TALK)
 	player.move_enabled = mode == FREE and act == "" and stage == "free"
@@ -708,6 +710,7 @@ func _do(what: String):
 
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["fin"]: return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_TAB: board_up = not board_up; return
 	if e is InputEventKey and e.pressed and not e.echo:
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_W, KEY_UP]: _move_choice(-1); return
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1); return
@@ -2388,3 +2391,17 @@ func _demo6_tick(dt: float):
 func _dfail6(what: String):
 	DEMO_FAILS += 1
 	print("DEMO FAIL ch6: %s t=%.1f" % [what, t_now])
+
+
+# 試作175 B4（ユーザー「6章をどう進めるか」）: in the board's margin (Tab), which of the first three is still as it was. Nothing on the
+# screen itself; only the names, never what is to be done with them
+func _board6_tick():
+	if board_layer == null: return
+	board_layer.visible = board_up and has_board and stage == "free"
+	if not board_layer.visible: return
+	_place_board()
+	var left: Array = []
+	if not done6.has("tripod"): left.append(T("三脚"))
+	if not (done6.has("cam") and done6.has("batt")): left.append(T("定点のカメラ"))
+	if not done6.has("phone"): left.append(T("夏希"))
+	board_note.text = ("— " + "、".join(left)) if not left.is_empty() else ""
