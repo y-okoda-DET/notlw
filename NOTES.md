@@ -539,3 +539,16 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 一人称で手に物を載せて見せるとき、腕が目の側から来ると手首と手のひらが物を隠す。腕は横から（_candle_hand_tick の turn。掲げたとき 62°、下げているとき 35°。ひじが肩から 0.36m を超えない範囲）。
 - --c6grip の測りは、手と蝋燭をその枠の位置に置いたあとで（_process の頭で測ると、歩いている間は1枠ぶんずれて 5〜10mm の入り込みに見える）。
 - 手の親指には三つ目の動き（人差し指から離して手のひらの面の中で開く。GRIPS の17番目、fb[12] の "rad"）がある。物を手に横向きに握って親指をそのふちに沿わせるとき（スマホ：rad 1.2）。16個の握りはそのまま使える。--c6bench の "thumb" は5つ目に rad を書ける。
+
+## 2026-11-19 証言 一〜三（scripts/interview.gd、order.gd）で分かったこと
+- 家を読み込まない別の場面へ移るとき：.tscn を足すと「pck に重ねる」確認（overlay.sh）で古いスクリプトを読むので、場面はコードで作る（order.gd _to_node：Node にスクリプトと変数を付けて PackedScene.pack → change_scene_to_packed）。家へ戻るときは main.tscn を名指しせず、ProjectSettings の application/run/main_scene（重ねる確認では boot.tscn）。
+- 自分で作った関数に wrap という名前は付けられない（GDScript の組み込み）。wrap_ja にした。
+- 画面なし（--headless）で `await RenderingServer.frame_post_draw` は戻ってこない。画面を画像に取る所は、headless のときは飛ばして process_frame を待つ。
+- シェーダーの関数に TEXTURE（sampler）を引数で渡せない。ループを fragment の中に書く。
+- 昼の障子：裏から光る紙（backlight＋emission）は影を受けない。葉の影は、木のメッシュを障子の一枚ごとに平たく写して、枠の中だけに切るシェーダー（blend_mul）で重ねた（紙から 4mm 手前。2mm では奥行きが足りず縞になる）。障子は2枚が別の奥行きにあるので、一枚ずつ。
+- 机の漆の照り：ReflectionProbe と SSR では出なかった（llvmpipe、紙が HDR で飽和）。机の天板だけを照らす灯り（cull mask 8、specular 9）を1つ足した。
+- Tripo の人物は片面の材質のままだと、えり・すその裏が白く抜ける。材質を両面にし、specular を 0 に（カーディガンに硬い白い点が出る）。
+- 昼の刷り（riso2 の look 2）：夜の持ち上げ（dodge）を使わない。字の下の影（type.gd Soft.k）はこの場面だけ 2.2 倍。選んでいない行の字は、夜の章の濃さ（0.42）では紙の白の上で読めないので 0.74。
+- Blender のカメラ → Godot：位置 (x, z, -y)。レンズのずらし（shift_y）は frustum カメラの offset（size = near×36/レンズ、KEEP_WIDTH）。cuts.json は 12 コマ／秒。
+- 台本に文を足したら `python3 godot/lang/extract.py` と `python3 godot/fonts/make_subset.py`（字が抜けると□になる）。text.csv とフォントはほかのブランチとぶつかるので、入口で取り込んだあとにもう一度回す。
+- 確かめ方：`bash godot/check/interview.sh <pck> run N`（自動の通し）、`shots N`（実際の速さで画に）、`stills`、`order`（並び）。overlay を作り直すので、2つ同時に回さない。
