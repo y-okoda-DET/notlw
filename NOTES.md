@@ -598,3 +598,5 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 澪の座る動き（mio_talk の sit_idle）は、腰の骨が体（rig）から 0.44 の高さ。框に座らせるには体を 0.36 下げる（ch8.gd SIT_DROP）。床から下の脚は毛布で隠す。
 - 私道の車（ext_car*）は平らに置いてあり、坂の上側の車輪が地面に沈む。ch8.gd `_car_level()` は章の間だけ傾けて持ち上げる（pitch -3.9°、roll -2.0°、+0.18 m）。outside_geo.py の側で直せば、ほかの章の外でも直る。
 - 長い回しの前に `godot --headless --check-only -s res://ov_ch8.gd` で読み込みの誤りを見る（型の推論の誤り1つで20分の回しが空になった）。
+- 画面つきの Godot は1本で約 5GB。家の焼き込み（Blender 5.4GB）と一緒に2本動かすと、メモリ不足で焼き込みが殺される。焼いている間は1本だけ。
+- glb の中のテクスチャは、Godot が取り込みで横に jpg として取り出す（props/<名前>_..._basecolor.jpg）。その jpg がすでにあると、glb を書き直しても古い jpg が使われる。glb を書き直したら取り出した jpg と .import を消してから取り込む（第7章の陽太の腕で、描いた血糊が出なかった）。
