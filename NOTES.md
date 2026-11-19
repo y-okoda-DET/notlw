@@ -552,3 +552,5 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - Blender のカメラ → Godot：位置 (x, z, -y)。レンズのずらし（shift_y）は frustum カメラの offset（size = near×36/レンズ、KEEP_WIDTH）。cuts.json は 12 コマ／秒。
 - 台本に文を足したら `python3 godot/lang/extract.py` と `python3 godot/fonts/make_subset.py`（字が抜けると□になる）。text.csv とフォントはほかのブランチとぶつかるので、入口で取り込んだあとにもう一度回す。
 - 確かめ方：`bash godot/check/interview.sh <pck> run N`（自動の通し）、`shots N`（実際の速さで画に）、`stills`、`order`（並び）。overlay を作り直すので、2つ同時に回さない。
+- 聞き手と澪の手（*_hands_baked）は、昼の刷りで紙の白に飛んで指が見えなくなる。場面の中で手の色だけ 0.75 倍にした（interview.gd HAND_K、試すときは --handk=）。
+- 第6章の終わりだけを回すには `--scene=house --time=t0430 --nocard --gi=baked --lite=t --play=ch6 --demo --ch6at=end`（--scene=house が無いと第0章からの通しになり、8分かかって DEMO FAIL が並ぶ）。

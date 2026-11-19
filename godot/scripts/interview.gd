@@ -22,6 +22,7 @@ const TEAL := Color(0.06, 0.36, 0.46)     # the window's type: where both inks o
 const REC_TIME := "01:14:08"             # the recorder's display = every save's time (決定事項 2026-11-15, カット C)
 const CARD_SEC := 3.2
 const AMBIENT := 0.5
+static var HAND_K := 0.75           # --handk= for trying
 const SUN_DIR := Vector3(0.4, -0.45, 1.0)   # the way the sun goes (blender/interview/build.py: (0.4, -1.0, -0.45))
 
 @export var which := 1
@@ -81,6 +82,7 @@ func _ready():
 	demo = "--demo" in args or "--demoslow" in args; only = "--ivonly" in args
 	demo_k = 40.0 if "--demo" in args else 1.0
 	for a in args:
+		if a.begins_with("--handk="): HAND_K = float(a.substr(8))
 		if a.begins_with("--ivslip="): demo_slip = a.substr(9)
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	font = Type.say()
@@ -216,6 +218,7 @@ func _two_sided(n: Node):
 			var mat := m.get_active_material(i)
 			if mat is BaseMaterial3D:
 				var m2: BaseMaterial3D = mat.duplicate(); m2.cull_mode = BaseMaterial3D.CULL_DISABLED
+				if "hands" in String(mat.resource_name): m2.albedo_color = Color(HAND_K, HAND_K, HAND_K)   # the hands' skin is paper-white in the day print without this: no fingers
 				m.set_surface_override_material(i, m2)
 
 func _lights():
