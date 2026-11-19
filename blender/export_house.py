@@ -83,6 +83,7 @@ def set_time(t, M):
         if o.name.startswith('gencord'): o.hide_render = not st['cord']
         if o.name.startswith('crew_') or (o.name.startswith('lampshade_') and o.name[len('lampshade_'):].split('.')[0] in TM.CREW_KEYS):
             o.hide_render = not st.get('crew', True)
+        if o.name.startswith(TM.GEAR): o.hide_render = not st.get('gear', True)   # 第7章（去年の夏）: none of tonight's film gear
     bpy.data.objects['door_pivot'].rotation_euler.z = math.radians(st['front'])
     L = TM.lights(t)
     lit = {o.name for o in L}
