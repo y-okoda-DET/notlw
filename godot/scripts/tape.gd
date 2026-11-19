@@ -390,7 +390,7 @@ func _room_tick(dt: float):
 				if not pan_cam.current: pan_cam.current = true; print("STORY ch11 pan cam")
 				var pk := smoothstep(11.5, 16.0, end_t2)
 				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
-			if refl == "d" and end_t2 > 12.0 and not look_cam.current:
+			if refl == "d" and end_t2 > 10.0 and not look_cam.current:
 				look_cam.current = true; print("STORY ch11 her face")
 			if end_t2 > 22.0 and not has_meta("endstill"):
 				st = BLACK; black2.color.a = 1.0
