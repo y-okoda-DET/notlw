@@ -15,6 +15,72 @@ WHO = os.environ.get('WHO', 'mio')   # 第7章：WHO=yota で陽太の腕（prop
 KEEP = ('lowerarm', 'hand', 'thumb', 'index', 'middle', 'ring', 'pinky')
 TEX = 2048
 
+def makeup(body, side):
+    """第7章（2026-11-19、ユーザー「ここ陽太を映す必要はある？」）：陽太の特殊メイクは、車の窓の顔ではなく手で見せる。
+    手の肌（手と指の骨に付いた、肌色の面）に、血糊（乾いた暗い赤と、新しい赤のたれ）とラテックスの傷（甲に、白っぽい縁と
+    暗い裂け目）を、テクスチャの上に描く。袖（パーカー）には少しの染みだけ。"""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter
+    img = None
+    for m in body.data.materials:
+        for n in (m.node_tree.nodes if m and m.use_nodes else []):
+            if n.type == 'TEX_IMAGE' and n.image and 'basecolor' in n.image.name.lower(): img = n.image
+    if img is None: print('MAKEUP no image'); return
+    W, H = img.size
+    px = np.array(img.pixels[:], np.float32).reshape(H, W, 4)[::-1].copy()   # top row first
+    gi = {g.index: g.name for g in body.vertex_groups}
+    handv = set(v.index for v in body.data.vertices
+                if sum(g.weight for g in v.groups if not gi[g.group].startswith('lowerarm')) > .5)
+    uv = body.data.uv_layers.active.data
+    nm = body.matrix_world.to_3x3()
+    skin = Image.new('L', (W, H)); back = Image.new('L', (W, H)); cloth = Image.new('L', (W, H))
+    ds, db, dc = ImageDraw.Draw(skin), ImageDraw.Draw(back), ImageDraw.Draw(cloth)
+    for poly in body.data.polygons:
+        pts = [(uv[li].uv.x * W, (1 - uv[li].uv.y) * H) for li in poly.loop_indices]
+        cx = int(sum(p[0] for p in pts) / len(pts)) % W; cy = int(sum(p[1] for p in pts) / len(pts)) % H
+        r, g, b = px[cy, cx, :3]
+        is_skin = r > .45 and r > g * 1.05 and g > b
+        if is_skin and sum(1 for v in poly.vertices if v in handv) * 2 >= len(poly.vertices):
+            ds.polygon(pts, fill=255)
+            if (nm @ poly.normal).normalized().z > .35: db.polygon(pts, fill=255)   # the hand's frame: the back of the hand is +Z
+        elif not is_skin: dc.polygon(pts, fill=255)
+    skin = skin.filter(ImageFilter.MaxFilter(5)); back = back.filter(ImageFilter.MaxFilter(3))
+    S = np.asarray(skin, np.float32) / 255; B = np.asarray(back, np.float32) / 255; Cm = np.asarray(cloth, np.float32) / 255
+    rng = np.random.default_rng(11 if side == 'l' else 23)
+    def blobs(scale, thr, soft):
+        n = rng.random((max(2, H // scale), max(2, W // scale))).astype(np.float32)
+        im = Image.fromarray((n * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC).filter(ImageFilter.GaussianBlur(scale * .35))
+        a = np.asarray(im, np.float32) / 255
+        return np.clip((a - thr) / soft, 0, 1)
+    dried = blobs(W // 48, .56, .08) * S                    # dried blood, dark and broad
+    fresh = blobs(W // 140, .64, .05) * S                   # fresh, smaller and brighter
+    grime = blobs(W // 40, .45, .3) * S * .2               # the whole hand dirtied a little
+    spots = blobs(W // 260, .80, .04) * Cm * .5              # a few stains on the cuffs
+    rgb = px[..., :3]
+    def lay(a, col):
+        a = a[..., None]; return rgb * (1 - a) + np.array(col, np.float32) * a
+    rgb = lay(grime, (.38, .26, .22))
+    rgb = lay(dried * .85, (.30, .04, .03))
+    rgb = lay(fresh * .9, (.42, .02, .02))
+    rgb = lay(spots, (.28, .06, .05))
+    # latex wounds on the back of the hand: a pale raised rim, a dark gash in it
+    ys, xs = np.nonzero(B > .5)
+    if len(xs):
+        wound = Image.new('L', (W, H)); gash = Image.new('L', (W, H)); dw, dg = ImageDraw.Draw(wound), ImageDraw.Draw(gash)
+        for k in range(2):
+            i = rng.integers(len(xs)); cx, cy = int(xs[i]), int(ys[i])
+            rx, ry = W * rng.uniform(.016, .024), W * rng.uniform(.008, .012)
+            dw.ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=255)
+            dg.line((cx - rx * .8, cy - ry * .2, cx + rx * .8, cy + ry * .2), fill=255, width=max(2, int(ry * .6)))
+        wa = np.asarray(wound.filter(ImageFilter.GaussianBlur(W * .002)), np.float32) / 255 * B
+        ga = np.asarray(gash.filter(ImageFilter.GaussianBlur(W * .001)), np.float32) / 255 * B
+        rgb = lay(wa * .8, (.80, .68, .58))
+        rgb = lay(ga, (.20, .02, .02))
+    px[..., :3] = np.clip(rgb, 0, 1)
+    img.pixels[:] = px[::-1].ravel()
+    img.pack()
+    print('MAKEUP', side, img.name, 'skin %.3f back %.3f' % (S.mean(), B.mean()))
+
 def run(side):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     rig, body = C.make_tripo(WHO)
@@ -60,6 +126,7 @@ def run(side):
     bpy.context.view_layer.update()
     for img in bpy.data.images:
         if img.size[0] > TEX: img.scale(TEX, TEX * img.size[1] // img.size[0])
+    if WHO == 'yota': makeup(body, side)
     rig.name = f'{WHO}_arm_{side}'; body.name = f'{WHO}_arm_{side}_mesh'
     print('ARM', side, 'verts', len(body.data.vertices), 'bones', len(rig.data.bones), 'forearm', round((w - elbow).length, 3),
           'hand', round((tip - w).length, 3), 'images', [(i.name, tuple(i.size)) for i in bpy.data.images])
