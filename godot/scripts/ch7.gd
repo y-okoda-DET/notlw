@@ -13,9 +13,7 @@ const Sound = preload("res://scripts/sound.gd")
 const DOOR := [5.0, 0.0]
 const PORCH_Z := -0.02                          # the porch's boards against the hall's floor
 const CAR_STAND := [4.84, -8.14]                # beside the car, at its window
-const CAR_LOOK := [5.6, -7.9, 0.13]            # the front door's window glass (z from the hall's floor)
-const CAR_N := [-0.95, -0.32]                   # the glass's normal, out of the car (plan)
-const CAR_EYE := 0.95                           # he stoops to the window
+const CAR_FACE := [2.95, -0.55]                 # beside the car he faces the living room's window (WIN_AT)
 const WIN_X0 := 0.5                             # the living room's two south windows (from outside)
 const WIN_X1 := 3.6
 const WIN_AT := [2.95, -0.55]                    # where the unattended run stands to slap it
@@ -80,7 +78,6 @@ var conte_layer: CanvasLayer
 var conte_rows: Array = []
 var conte_done := [false, false, false]
 var conte_up := false
-var mirror: MeshInstance3D
 var loops7 := {}
 var said_light := false
 var said_moon := false
@@ -536,7 +533,6 @@ func _ready_dusk():
 		_put(k, SEATS[k], _face(SEATS[k], [1.0, SEATS[k][1]])); main.set_stand(k, SIT[k], 0.0)
 	_put("natsuki", STAND7.natsuki, _face(STAND7.natsuki, TABLE)); _nat_cam_up(true)
 	_put("mio", STAND7.mio, _face(STAND7.mio, TABLE))
-	_mirror()
 	_loop7("c7_higurashi", -14.0)
 	call_deferred("_place_dusk")
 
@@ -544,66 +540,25 @@ func _place_dusk():
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_porch_ramp()
-	_stand_at(CAR_STAND, CAR_LOOK, 0.0)
-	player.eye_height = CAR_EYE; player.get_node("Head").position.y = CAR_EYE
-	var eye := Vector3(player.global_position.x, player.global_position.y + CAR_EYE, player.global_position.z)
-	var to := gp(CAR_LOOK[0], CAR_LOOK[1], CAR_LOOK[2]) - eye
-	player.pitch = asin(clampf(to.normalized().y, -1.0, 1.0))
-	if mirror: _mirror_place()
+	_stand_at(CAR_STAND, CAR_FACE, 0.0)
+	player.eye_height = EYE; player.get_node("Head").position.y = EYE
+	player.pitch = deg_to_rad(-12.0)
 	if "--ch7trace" in OS.get_cmdline_user_args(): print("C7ME ", _plan(), " y=", player.global_position.y, " eye=", player.eye_height, " cam=", _cam().global_position)
 
-# his own face in the car's window, the make-up on (画像 E). A reflection in a pane is half the size of what it shows
-# and sits on the glass straight before the eye: a picture on the pane, moving as his head does
-func _mirror():
-	var p := "res://props/yota_mirror.png"
-	if not ResourceLoader.exists(p): return
-	mirror = MeshInstance3D.new()
-	var q := QuadMesh.new(); q.size = Vector2(0.36, 0.36); mirror.mesh = q
-	# (props/make_yota_mirror.py: the cut-out as it was read as a sticker on the glass. Soft, toned to the glass, its edge melted)
-	var soft := "res://props/yota_mirror_soft.png"; var shp := "res://props/yota_mirror_shade.png"
-	var m := StandardMaterial3D.new(); m.albedo_texture = load(soft if ResourceLoader.exists(soft) else p); m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(1.0, 1.0, 1.0, 0.0)
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED; m.no_depth_test = true; m.render_priority = 3
-	mirror.material_override = m; mirror.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	main.add_child(mirror)
-	# the pane behind his head is dark with his own shadow (he stands between it and the sky): without it the white make-up was
-	# the print's bare paper on the lit seats, and nothing read
-	var sh := MeshInstance3D.new(); var q2 := QuadMesh.new(); q2.size = Vector2(0.56, 0.56); sh.mesh = q2
-	var m2 := StandardMaterial3D.new(); m2.albedo_texture = load(shp if ResourceLoader.exists(shp) else p); m2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m2.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
-	m2.cull_mode = BaseMaterial3D.CULL_DISABLED; m2.no_depth_test = true; m2.render_priority = 2
-	sh.material_override = m2; sh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; sh.name = "shade"; sh.position = Vector3(0, -0.02, -0.002)
-	mirror.add_child(sh)
-
-func _mirror_place():
-	var eye: Vector3 = _cam().global_position
-	var g0 := gp(CAR_LOOK[0], CAR_LOOK[1], CAR_LOOK[2])
-	var n := Vector3(CAR_N[0], 0.0, CAR_N[1]).normalized()
-	var d := (eye - g0).dot(n)
-	var foot := eye - n * d
-	foot.y = clampf(foot.y - 0.03, g0.y - 0.06, g0.y + 0.06)   # the pane is only so tall: the head keeps inside it
-	mirror.global_position = foot + n * 0.02
-	mirror.global_basis = Basis.looking_at(-n, Vector3.UP)
-
-func _mirror_tick(dt: float):
-	if mirror == null: return
-	var m := mirror.material_override as StandardMaterial3D
-	var want := 0.0
-	if stage in ["mirror", "to_window"] or "--ch7mirror" in OS.get_cmdline_user_args():
-		_mirror_place()
-		var eye: Vector3 = _cam().global_position
-		var d := (eye - mirror.global_position).length()
-		var along := absf((eye - gp(CAR_LOOK[0], CAR_LOOK[1], CAR_LOOK[2])).dot(Vector3(-CAR_N[1], 0.0, CAR_N[0]).normalized()))
-		want = clampf((1.7 - d) / 0.7, 0.0, 1.0) * clampf((0.42 - along) / 0.15, 0.0, 1.0) * 0.78
-		if "--ch7mirror" in OS.get_cmdline_user_args(): want = 1.0
-	m.albedo_color.a = move_toward(m.albedo_color.a, want, dt * 1.2)
-	((mirror.get_node("shade") as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(0.02, 0.06, 0.1, m.albedo_color.a * 0.6)
-	mirror.visible = m.albedo_color.a > 0.005
-	# he straightens up as he leaves the car
-	if stage == "to_window" and player.eye_height < EYE - 0.01:
-		var away := Vector2(_plan()[0] - CAR_STAND[0], _plan()[1] - CAR_STAND[1]).length()
-		var h := lerpf(CAR_EYE, EYE, clampf(away / 0.8, 0.0, 1.0))
-		if h > player.eye_height: player.eye_height = h; player.get_node("Head").position.y = h
+# 2026-11-19（ユーザー「ここ陽太を映す必要はある？」）: no face in the car's window (a flat picture read as a sticker on
+# the glass). The make-up is in his hands: blood and latex wounds on them (export_mio_arms.py WHO=yota, makeup()), and the
+# chapter opens on them held up, backs to him, in the low sun
+const LOOK_HANDS := [Vector3(-0.11, -0.04, -0.29), Vector3(80, -10, 12), Vector3(0.10, -0.06, -0.31), Vector3(76, 12, -16)]
+func _look_hands(on: bool):
+	if on:
+		_hand_to(hand_l, LOOK_HANDS[0], LOOK_HANDS[1], 0.9); _hand_to(hand_r, LOOK_HANDS[2], LOOK_HANDS[3], 1.1)
+		_curl_to(hand_l, 0.35, 0.9); _curl_to(hand_r, 0.2, 1.1)
+		# he turns the right one over once, slowly, as if checking the work
+		_after(2.6, func():
+			if stage == "hands": _hand_to(hand_r, LOOK_HANDS[2] + Vector3(0.02, 0.02, 0), LOOK_HANDS[3] + Vector3(0, 0, -55), 1.2))
+	else:
+		_hand_away(hand_l, 0.6); _hand_away(hand_r, 0.7)
+		create_tween().tween_property(player, "pitch", deg_to_rad(-4.0), 0.8).set_trans(Tween.TRANS_SINE)
 
 func _begin(st: String):
 	stage = st; t_stage = 0.0
@@ -614,9 +569,10 @@ func _begin(st: String):
 			if L.visible and L.light_energy > 0.0 and absf(L.global_position.x + 4.8 - 5.0) < 1.5 and absf(L.global_position.z + 6.3) < 2.5: print("C7LIGHT ", L.name, " ", L.get_class(), " plan=(%.2f, %.2f, %.2f) e=%.2f mask=%d" % [L.global_position.x + 4.8, L.global_position.z + 6.3, L.global_position.y, L.light_energy, L.light_cull_mask], " doorsky=", main.lights.get("doorsky") == L)
 		if main.door_pivot: print("C7DOOR rot=%.3f closed=%.3f" % [main.door_pivot.rotation.y, door_closed])
 	match st:
-		"mirror":
+		"hands":
 			_start(B("七.夕方"))
 		"to_window":
+			_look_hands(false)
 			_set_mission(String(D.lines("七.夕方")[-1]).substr(1))
 		"to_door":
 			if _has("natsuki"): main.walk_to("natsuki", [[2.9, 3.2, 0.0], [3.55, 3.75, 0.0], [HALL_NAT[0], HALL_NAT[1], 0.0]], Callable(), _face(HALL_NAT, DOOR))
@@ -761,8 +717,8 @@ func _door_end():
 func _do(what: String):
 	print("STORY ch7 do %s t=%.1f" % [what, t_now])
 	match what:
-		"mirror":
-			pass
+		"hands":
+			_look_hands(true)
 		"window_slap":
 			_slap()
 			_once7("mio", ["talk/react", "talk/startle"], "talk/idle")
@@ -911,6 +867,12 @@ func _mk_arm(left: bool) -> Node3D:
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6; m.layers = 2 | 16   # (not layer 1: door_sky7 burnt the arms to paper in the doorway)
+		if path.contains("yota"):
+			var tm := Transform3D(); var nd: Node3D = m
+			while nd != h: tm = nd.transform * tm; nd = nd.get_parent()
+			for si in m.mesh.get_surface_count():
+				var bm := m.get_active_material(si) as BaseMaterial3D
+				if bm: m.set_surface_override_material(si, _blood_mat(left, tm, bm))
 	var fb := []
 	var to_h := Transform3D(); var nd2: Node3D = sk
 	while nd2 != h: to_h = nd2.transform * to_h; nd2 = nd2.get_parent()
@@ -927,6 +889,66 @@ func _mk_arm(left: bool) -> Node3D:
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	_curl(h, 0.25)
 	return h
+
+# 2026-11-19（ユーザー「いまは汚れにしか見えないね、血に見せたい」）: the make-up's blood, laid on the hand's shape and not
+# on its texture (it replaces the arm's material: an overlay material did not draw on the skinned arm) (Tripo's atlas cuts the hand into dozens of crumbs: blood painted there came out as mottled grime).
+# In the arm's own frame (wrist at the origin, the fingers to -Z, the back of the hand to +Y): the fingers coated nearly
+# whole, thinning toward the wrist; runs down the hand toward the wrist (he held them up); a wet shine. The red is
+# saturated and mid-bright so the print takes it on the orange plate alone (a dark red goes blue and teal: dirt)
+const BLOOD_SH := """
+shader_type spatial;
+render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+uniform float seed = 0.0;
+uniform mat4 to_hand;
+uniform float dbg = 0.0;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+uniform vec4 albedo_col : source_color = vec4(1.0);
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
+uniform float use_normal = 0.0;                                     // the mesh's space to the arm's (the wrist's) frame
+varying vec3 p;
+float h1(vec3 q) { return fract(sin(dot(q, vec3(12.9898, 78.233, 37.719)) + seed) * 43758.5453); }
+float n3(vec3 q) {
+	vec3 i = floor(q); vec3 f = fract(q); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(mix(h1(i), h1(i + vec3(1,0,0)), f.x), mix(h1(i + vec3(0,1,0)), h1(i + vec3(1,1,0)), f.x), f.y),
+	           mix(mix(h1(i + vec3(0,0,1)), h1(i + vec3(1,0,1)), f.x), mix(h1(i + vec3(0,1,1)), h1(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float fbm(vec3 q) { return 0.55 * n3(q) + 0.3 * n3(q * 2.1) + 0.15 * n3(q * 4.3); }
+void vertex() { p = (to_hand * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	float along = clamp(-p.z / 0.15, -1.0, 1.2);          // 0 at the wrist, 1 at the fingertips
+	float hand = smoothstep(-0.05, 0.08, along);          // the sleeve and the forearm stay clean, but for runs
+	// the coat: thick on the fingers and the knuckles, broken patches on the back, little at the wrist
+	float f = fbm(p * 38.0);
+	float coat = smoothstep(0.62 - 0.30 * along, 0.66 - 0.30 * along, f) * hand;
+	// runs toward the wrist (+Z): thin lines in the cross-section, each starting somewhere on the hand and of its own length
+	float cx = p.x * 110.0 + (p.y > 0.0 ? 0.0 : 37.0);
+	float id = floor(cx); float fx = fract(cx);
+	float r = h1(vec3(id, 3.1, 7.7));
+	float start = mix(0.25, 0.85, h1(vec3(id, 5.3, 1.1))); float len = mix(0.15, 0.6, h1(vec3(id, 9.2, 4.4)));
+	float t = (start - along) / len;                      // 0 at its top, 1 at its end
+	float wid = mix(0.34, 0.12, clamp(t, 0.0, 1.0));
+	float run = step(0.55, r) * step(0.0, t) * step(t, 1.0) * smoothstep(wid, wid * 0.4, abs(fx - 0.5));
+	float bead = step(0.55, r) * smoothstep(0.09, 0.03, length(vec2((fx - 0.5) / 110.0, (along - (start - len)) * 0.15)) * 110.0 / 5.0);
+	float a = clamp(max(max(coat, run), bead), 0.0, 1.0);
+	vec3 base = texture(albedo_tex, UV).rgb * albedo_col.rgb;
+	if (use_normal > 0.5) NORMAL_MAP = texture(normal_tex, UV).rgb;
+	float wet = smoothstep(0.7, 0.85, fbm(p * 70.0 + 3.0));
+	vec3 blood = mix(vec3(0.15, 0.003, 0.002), vec3(0.26, 0.005, 0.003), wet);   // linear (sRGB about 0.42 and 0.55 red)
+	a *= 0.97;
+	ALBEDO = mix(base, blood, a);
+	if (dbg > 0.5) ALBEDO = vec3(fract(p.x * 20.0), fract(-p.z * 6.67), step(0.0, p.y));
+	ROUGHNESS = mix(0.8, mix(0.35, 0.12, wet), a);
+	SPECULAR = mix(0.5, 0.6, a);
+}
+"""
+var blood_sh: Shader
+func _blood_mat(left: bool, to_hand: Transform3D, base: BaseMaterial3D) -> ShaderMaterial:
+	if blood_sh == null: blood_sh = Shader.new(); blood_sh.code = BLOOD_SH
+	var m := ShaderMaterial.new(); m.shader = blood_sh; m.set_shader_parameter("seed", 1.7 if left else 4.3); m.set_shader_parameter("to_hand", to_hand)
+	m.set_shader_parameter("albedo_tex", base.albedo_texture); m.set_shader_parameter("albedo_col", base.albedo_color)
+	m.set_shader_parameter("normal_tex", base.normal_texture); m.set_shader_parameter("use_normal", 1.0 if base.normal_enabled and base.normal_texture else 0.0)
+	if "--c7blooddbg" in OS.get_cmdline_user_args(): m.set_shader_parameter("dbg", 1.0)   # the arm's frame in colours (with --print=0)
+	return m
 
 # the fingers' curl: 0 flat, 1.3 a fist
 func _curl(h: Node3D, a: float):
@@ -1137,7 +1159,7 @@ func _process(dt):
 					conte_done[0] = true; _begin("to_door"); _set_mission("扉を叩く")
 					_put("natsuki", HALL_NAT, _face(HALL_NAT, DOOR)); _put("mio", HALL_MIO, _face(HALL_MIO, DOOR), -0.18)
 					main.walkers.erase("natsuki"); main.walkers.erase("mio")
-				_: _begin("mirror")
+				_: _begin("hands")
 		return
 	if mode == TALK: _talk_tick(dt)
 	_update_looks()
@@ -1147,7 +1169,6 @@ func _process(dt):
 	main.talk_now = wk if mode == TALK and cur.has("who") and typed < float(String(cur.get("text", "")).length()) else ""
 	main.story_talking = (mode == TALK)
 	player.move_enabled = mode == FREE and stage in ["to_window", "to_door", "party", "outside", "climb", "door2", "to_back"]
-	_mirror_tick(dt)
 	_gait_tick(dt)
 	_party_tick(dt)
 	# main.gd's stand-in for the sky in the open doorway (lights.doorsky) is a spot just outside the door, aimed in: with the
@@ -1178,7 +1199,7 @@ func _process(dt):
 	tgt7 = ""
 	if mode == FREE:
 		match stage:
-			"mirror":
+			"hands":
 				if t_stage > 0.5: _begin("to_window")
 			"to_window":
 				if _at_window(): note = String(D.lines("七.窓")[0])
