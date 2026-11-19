@@ -199,7 +199,7 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             bend_()
             for _ in range(12):
                 # 回す骨は PTC。03 を回すと第一関節が 120° 以上折れていた（2026-11-19）
-                for jn in tuple(_os_.environ.get('PTC', '01').split(',')):
+                for jn in tuple(_os_.environ.get('PTC', '02,01').split(',')):
                     b = f'thumb_{jn}_r'; h = C.bone_head(rig, b); t3 = C.bone_tail(rig, 'thumb_03_r'); a_ = t3 - h; b_ = Vector(T) - h
                     if a_.cross(b_).length > 1e-7: C.rot_world(rig, b, a_.cross(b_).normalized(), min(25.0, math.degrees(a_.angle(b_))))
                     if jn != '01':   # 関節の曲がりすぎを戻す（親指の付け根の次 40°、第一関節 35°。2026-11-19）
@@ -234,12 +234,13 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             bpy.context.view_layer.update()
             for j, dg in zip(('01', '02', '03'), (m, a, b)):
                 if dg: C.rot_world(rig, f'{f}_{j}_r', ax, dg)
-        fix = _os_.environ.get('PIX', '85,60') if f == 'index' else None   # 人差し指は曲げを決め、手首の位置で届かせる
+        fix = _os_.environ.get('PIX', '65,15') if f == 'index' else None   # 人差し指は曲げを決め、手首の位置で届かせる
         if fix: a_, b_ = (float(x) for x in fix.split(',')); put(0, a_, b_); print('pip', f, 'fixed', a_, b_); return
-        for m in (0, mmax / 2, mmax):
-            for a in range(40, 111, 5):
-                for b in (35, 50, 65, 80):
-                    put(m, a, b); e = (C.bone_tail(rig, f'{f}_03_r') - Vector(T)).length
+        for m in (-10, 0, mmax / 2, mmax):
+            for a in range(*(int(x) for x in _os_.environ.get('PPR', '25,81,5').split(','))):
+                for b in tuple(float(x) for x in _os_.environ.get('PDIP', '15,25,35').split(',')):   # 第一関節は浅く（写真：中節が縁の面に沿って下り、先だけ少し曲がる）
+                    put(m, a, b); tp = C.bone_tail(rig, f'{f}_03_r'); dd = tp - TC; inb = max(0.0, min(0.0475 + 0.006 - abs(dd.dot(U)), 0.03125 + 0.006 - abs(dd.dot(NN)), TT + 0.006 - tp.z))
+                    e = (tp - Vector(T)).length + 5 * max(0.0, 0.335 - tp.z) + 5 * inb   # 机やテープに入る形は選ばない
                     if e < best[0]: best = (e, (m, a, b))
         put(*best[1]); print('pip', f, best[1], round(best[0] * 1000, 1), 'mm')
     FIST = (50, 95, 65)   # less at the knuckle: a deep first bend caves the back of the hand in at the knuckles
@@ -264,21 +265,22 @@ elif HANDS in ('pinch', 'stroke', 'write'):
     if HANDS == 'pinch':
         # photo 2: from above, the back of the hand toward her; fingers bent down onto the far long edge, thumb on the near one
         import os as _os
-        FO = float(_os.environ.get('PFO', '0.042'))   # how far past the tape's far face the index tip's bone ends (the pad is ~7 mm thick)
-        farI = TC - NN * FO + U * 0.006 + Vector((0, 0, float(_os.environ.get('PFZ', '0.004'))))
+        FO = float(_os.environ.get('PFO', '0.040'))   # how far past the tape's far face the index tip's bone ends (the pad is ~7 mm thick)
+        farI = TC - NN * FO + U * 0.006 + Vector((0, 0, float(_os.environ.get('PFZ', '-0.008'))))
         near = TC + NN * 0.034 + U * 0.004 + Vector((0, 0, -0.003))
         import os as _os
         fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.25,-1,-0.12').split(','))).normalized()
         pnp = Vector(tuple(float(x) for x in _os.environ.get('PPN', '0,0.1,-1').split(','))); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
-        near = near + U * float(_os.environ.get('PTU', '0.08')) + Vector((0, float(_os.environ.get('PTY', '-0.015')), float(_os.environ.get('PTZ', '0'))))
+        near = near + U * float(_os.environ.get('PTU', '0.05')) + Vector((0, float(_os.environ.get('PTY', '0.012')), float(_os.environ.get('PTZ', '0.002'))))
         _f = lambda k, d: tuple(float(x) for x in _os.environ.get(k, d).split(','))
         # 2026-11-19（ユーザー「2だけ形が明らかにモノっぽさ感が強い」、そのあとユーザーの写真3枚 /mnt/project-files/インタビュー/手のお手本/2b_*）：
         # 手のひらをテープの真上に寝かせ（PPN＝下向き、PFD＝ほぼ水平）、4本の指をみな奥の縁にかける（PRA。薬指と小指も）。
         # 親指は伸ばしたまま手前の縁に添え、先は角の先まで（PTF 小さく、PTU・PTY。曲げは付け根 PTC=01 だけで向ける）。指の腹は約7mm あるので、骨の先は奥の面から 4.2cm（PFO）
-        FX = _f('PFX', '70,55'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '10,15'); W0 = _f('PW0', '-0.12,0.52,0.39')
+        FX = _f('PFX', '70,55'); SP = float(_os.environ.get('PSP', '1.2')); RO = float(_os.environ.get('PRO', '0.3')); RN = float(_os.environ.get('PRN', '0.002'));   # 指の間隔の倍率
+        RP = _f('PRP', '.9,.95'); TF = _f('PTF', '10,15'); W0 = _f('PW0', '-0.12,0.52,0.39')
         solve(W0, fdp, pnp,
-              dict({'index': (farI, FX), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
-                   **({'ring': (farI - U * 0.036 + Vector((0, 0.006, 0.006)), FX), 'pinky': (farI - U * 0.050 + Vector((0, 0.014, 0.012)), FX)}
+              dict({'index': (farI, FX), 'middle': (farI - U * 0.019 * SP + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
+                   **({'ring': (farI - U * 0.036 * SP + Vector((0, 0.006 * RO, 0.006)) - NN * RN, FX), 'pinky': (farI - U * 0.050 * SP + Vector((0, 0.014 * RO, 0.012)) - NN * RN, FX)}
                       if _os.environ.get('PRA', '1') == '1' else {})),
               {} if _os.environ.get('PRA', '1') == '1' else {'ring': RP[0], 'pinky': RP[1]}, 'index', its=10)
     elif HANDS == 'stroke':
