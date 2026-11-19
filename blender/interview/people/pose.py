@@ -231,19 +231,24 @@ elif HANDS in ('pinch', 'stroke', 'write'):
     TT = 0.345; TC = Vector((-0.10, 0.43, TT)); a14 = math.radians(14); U = Vector((math.cos(a14), math.sin(a14), 0)); NN = Vector((-math.sin(a14), math.cos(a14), 0))
     if HANDS == 'pinch':
         # photo 2: from above, the back of the hand toward her; fingers bent down onto the far long edge, thumb on the near one
-        farI = TC - NN * 0.034 + U * 0.006 + Vector((0, 0, -0.004))
+        import os as _os
+        FO = float(_os.environ.get('PFO', '0.042'))   # how far past the tape's far face the index tip's bone ends (the pad is ~7 mm thick)
+        farI = TC - NN * FO + U * 0.006 + Vector((0, 0, -0.004))
         near = TC + NN * 0.034 + U * 0.004 + Vector((0, 0, -0.003))
         import os as _os
-        fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.35,-0.9,-0.25').split(','))).normalized()
-        pnp = Vector((0.0, 0.58, -0.8)); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
-        near = near + U * float(_os.environ.get('PTU', '0.035')) + Vector((0, float(_os.environ.get('PTY', '0.006')), float(_os.environ.get('PTZ', '0'))))
+        fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.25,-1,-0.12').split(','))).normalized()
+        pnp = Vector(tuple(float(x) for x in _os.environ.get('PPN', '0,0.1,-1').split(','))); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
+        near = near + U * float(_os.environ.get('PTU', '0.045')) + Vector((0, float(_os.environ.get('PTY', '0.008')), float(_os.environ.get('PTZ', '0'))))
         _f = lambda k, d: tuple(float(x) for x in _os.environ.get(k, d).split(','))
-        # 2026-11-19（ユーザー「2だけ形が明らかにモノっぽさ感が強い」）：手首を下げて手を寝かせ（PW0・PFD）、親指は曲げてから
-        # テープの手前の縁へ（PTU・PTY）、薬指と小指は手のひらに軽く握り込む（PRP。前は机にめり込んでいた）
-        FX = _f('PFX', '60,45'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '30,30'); W0 = _f('PW0', '-0.14,0.56,0.385')
+        # 2026-11-19（ユーザー「2だけ形が明らかにモノっぽさ感が強い」、そのあとユーザーの写真3枚 /mnt/project-files/インタビュー/手のお手本/2b_*）：
+        # 手のひらをテープの真上に寝かせ（PPN＝下向き、PFD＝ほぼ水平）、4本の指をみな奥の縁にかける（PRA。薬指と小指も）。
+        # 親指は伸ばしたまま手前の縁に添える（PTF 小さく、PTU・PTY）。指の腹は約7mm あるので、骨の先は奥の面から 4.2cm（PFO）
+        FX = _f('PFX', '70,55'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '5,10'); W0 = _f('PW0', '-0.12,0.52,0.39')
         solve(W0, fdp, pnp,
-              {'index': (farI, FX), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
-              {'ring': RP[0], 'pinky': RP[1]}, 'index', its=10)
+              dict({'index': (farI, FX), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
+                   **({'ring': (farI - U * 0.036 + Vector((0, 0.006, 0.006)), FX), 'pinky': (farI - U * 0.050 + Vector((0, 0.014, 0.012)), FX)}
+                      if _os.environ.get('PRA', '1') == '1' else {})),
+              {} if _os.environ.get('PRA', '1') == '1' else {'ring': RP[0], 'pinky': RP[1]}, 'index', its=10)
     elif HANDS == 'stroke':
         # photo 3: the pad of the index on the label, the other fingers closed in, thumb along the middle finger
         T = TC + Vector((0.004, 0.006, 0.007))
