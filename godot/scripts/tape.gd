@@ -56,6 +56,7 @@ var rcam: Camera3D
 var look_cam: Camera3D
 var off_t := -1.0
 var seat_x := 0.0
+var tv_glass := Vector2(1.0, 1.0)
 # 2026-11-19（ユーザー「いずれにしてもカメラ横に振ったバージョンが見たい」）: --d11pan. After the set goes off the picture
 # leaves her eyes: a camera on a tripod at her right, on the dead glass, pans across to her
 var pan := false
@@ -168,7 +169,31 @@ func _room():
 	# the television: a grey tube set, the glass a little back in its face
 	var tv := Vector3(TV_C.x, TV_C.y, -0.10)
 	_tvbox(tv + Vector3(0, -0.02, -0.02), Vector3(0.60, 0.50, 0.44), Color(0.20, 0.20, 0.21), 0.6)
-	_tvbox(tv + Vector3(0, 0.0, 0.196), Vector3(0.50, 0.385, 0.012), Color(0.05, 0.05, 0.055), 0.4)    # the mask round the glass
+	var mask := _tvbox(tv + Vector3(0, 0.0, 0.196), Vector3(0.50, 0.385, 0.012), Color(0.05, 0.05, 0.055), 0.4)    # the mask round the glass
+	# 2026-11-19（ユーザー「テレビの箱がカクカクしてるのがチープ」）: the user's Tripo set (godot/props/crt_tv.glb, tripo/prep_props.py
+	# crt_tv; 画像生成とTripo_7回目). Turned to her, sized so its own glass is our screen (SCR), its glass just behind ours
+	if ResourceLoader.exists("res://props/crt_tv.glb") and not "--boxtv" in OS.get_cmdline_user_args():
+		var body := get_meta("tvbody") as MeshInstance3D if has_meta("tvbody") else null
+		for n in main.get_children():
+			if n is MeshInstance3D and (n as MeshInstance3D).layers == 2: (n as MeshInstance3D).visible = false
+		var t: Node3D = (load("res://props/crt_tv.glb") as PackedScene).instantiate(); main.add_child(t)
+		t.rotation.y = deg_to_rad(float(_arg("d11tvyaw", "-82")))
+		var bb := AABB(); var first := true
+		for g in t.find_children("*", "MeshInstance3D", true, false):
+			var m := g as MeshInstance3D; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.layers = 2
+			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
+		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
+		t.scale = Vector3(k, k, k)
+		var c := bb.get_center() * k
+		t.global_position = ROOM + Vector3(-c.x, 0.355 - bb.position.y * k, 0.103 + float(_arg("d11tvrec", "0.07")) - (bb.end.z * k))
+		print("M220 tv aabb ", bb, " k ", k)
+		tv_glass = Vector2(0.96, 0.93)
+		if "--d11dbg" in OS.get_cmdline_user_args():   # a look at the set from above her right shoulder, lit
+			var dc := Camera3D.new(); dc.fov = 50.0; main.add_child(dc)
+			dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0.9, 1.0, 1.1)).looking_at(ROOM + Vector3(0, 0.6, 0), Vector3.UP); dc.call_deferred("make_current")
+			if "--d11dbgf" in OS.get_cmdline_user_args():   # straight on, orthographic: to measure the glass against the body
+				dc.projection = Camera3D.PROJECTION_ORTHOGONAL; dc.size = 0.8; dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0, 0.6, 1.5))
+			var dl := OmniLight3D.new(); dl.light_energy = 3.0; dl.omni_range = 5.0; main.add_child(dl); dl.global_position = ROOM + Vector3(0.6, 1.4, 1.2)
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen
@@ -185,8 +210,16 @@ uniform float on = 0.0;       // 0 dark glass, 1 the tape, 2 the deck's blank bl
 uniform sampler2D refl_tex : source_color, filter_linear, repeat_disable;   // the room in the glass (rcam, mirrored)
 uniform float rk = 0.0;       // how much of it the glass gives back
 uniform float off_t = 0.0;    // seconds since the set went off
+uniform float bulge = 0.0;   // the tube's face is a dome (the Tripo set's own glass)
+void vertex() { vec2 n = UV * 2.0 - 1.0; VERTEX.z += bulge * (1.0 - 0.8 * n.x * n.x) * (1.0 - 0.8 * n.y * n.y); }
+uniform vec2 glass = vec2(1.0, 1.0);   // the set's own glass, as a part of the quad (the Tripo set's opening is a little lower than 4:3)
 float h(float x) { return fract(sin(x * 91.17) * 43758.5453); }
 void fragment() {
+	{	// the glass's rounded corners: outside it, the set's own bezel shows
+		vec2 q = abs(UV - 0.5) * 2.0 - (glass - vec2(0.09, 0.12));
+		if (length(max(q, 0.0)) > 0.09 && glass.y < 0.999) discard;
+		if (abs(UV.y - 0.5) * 2.0 > glass.y) discard;
+	}
 	vec2 uv = UV;
 	float ln = floor(uv.y * 240.0);
 	// off its track the heads read between two fields: bands of lines sheared sideways roll up the picture, the bands
@@ -239,11 +272,14 @@ func _screen():
 	stamp = mk.call("AM 3:29:54", Vector2(566, 34), 32)
 	osd = mk.call("再生", Vector2(44, 34), 32)
 	osd_trk = mk.call("", Vector2(44, 78), 32)
-	var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = SCR; q.mesh = qm
+	var q := MeshInstance3D.new(); var qm := PlaneMesh.new(); qm.size = SCR; qm.orientation = PlaneMesh.FACE_Z; qm.subdivide_width = 16; qm.subdivide_depth = 12; q.mesh = qm
 	var sh := Shader.new(); sh.code = SCREEN_SHADER
 	scr_mat = ShaderMaterial.new(); scr_mat.shader = sh
 	scr_mat.set_shader_parameter("tex", vp.get_texture())
+	scr_mat.set_shader_parameter("glass", tv_glass)
+	if tv_glass.y < 0.999: scr_mat.set_shader_parameter("bulge", float(_arg("d11bulge", "0.05")))
 	q.material_override = scr_mat; q.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; q.layers = SCR_LAYER
+	if "--d11dbgf" in OS.get_cmdline_user_args(): q.visible = false
 	main.add_child(q); q.global_position = ROOM + Vector3(TV_C.x, TV_C.y, 0.103)
 	tcam.cull_mask &= ~MIO_LAYER
 	# 試作220：the glass as a mirror. A camera at her eye reflected through the glass, looking back out through it
@@ -521,6 +557,7 @@ func _unhandled_input(e):
 # stills: the tape at t seconds
 func _tape_jump(t: float):
 	_play()
+	player.pitch = deg_to_rad(-7.0)   # 試作220：the chapter starts looking down at the deck; a still of the tape is of the picture
 	trk = float(get_meta("trk", _target_trk(t)))
 	var placed_n := false
 	var place = func():
