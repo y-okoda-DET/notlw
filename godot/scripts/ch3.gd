@@ -224,7 +224,7 @@ func _place_for(st: String):
 
 # 一時 (2026-11-18 レビュー5): where they are while the clock stands: Makoto in the kitchen with the candle, Kiryu on the
 # landing upstairs taping its window, Taiga behind the barred door (a voice only)
-const KR_HALL := [4.35, 4.15]           # 試作176 A14: Kiryu in the hall at 0:30, a step off Mio (4.6, 5.1), before he goes up
+const KR_HALL := [4.35, 3.7]           # 試作176 A14: Kiryu in the hall at 0:30, a step off Mio (4.6, 5.1), before he goes up
 const MK_ONE := [6.9, 6.2]
 const KR_ONE := [4.9, 7.5]
 const CELLAR_DOOR := [5.5, 5.62]
