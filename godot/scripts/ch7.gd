@@ -109,6 +109,10 @@ func _ready():
 	for e in main.torches:
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	_last_year()
+	# the porch lamp's globe is closed round its light (like the cellar bulb, main.gd's list): with its shadow the lamp lit
+	# nothing but the fog, and the door right under it was ink (2026-11-19, door2)
+	for mi in main.S.env_node.find_children("lampshade_lamp_porch*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_load_mio()
 	_lookers()
 	if _has("mio"):
@@ -637,6 +641,7 @@ func _ready_night():
 		var at: Array = CHAIRS7[k] if party_seated.has(k) else STAND7[k]
 		if party_seated.has(k): sit7[k] = _anim7(k, ["c7/sit_idle", "talk/sit_idle", "talk/sit_a"])
 		_put(k, at, _face(at, TABLE)); main.set_stand(k, sit7[k] if party_seated.has(k) else "talk/idle", 0.0)
+	_party_light()
 	player.global_position = gp(PARTY_ME[0], PARTY_ME[1], 0.0)
 	var to := Vector3(TABLE[0] - PARTY_ME[0], 0.0, TABLE[1] - PARTY_ME[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-8.0)
@@ -646,6 +651,19 @@ func _ready_night():
 	drunk = 0.35
 	if start7 == "out": call_deferred("_go_out_now")
 	else: _begin("party")
+
+# The room is lit (the mains), but the night print leaves the four as flat ink: the walls carry the baked light, people only
+# what a lamp throws on them straight, and the stand lamp is behind the sofa. The lit ceiling's share for people alone
+# (their meshes also on layer 32; Mio's are on 8, see door_sky7): faces read round the table, the room's print stays
+var party7: OmniLight3D
+func _party_light():
+	for k in ["kiryu", "taiga", "natsuki"]:
+		if not _has(k): continue
+		for mi in (main.S[k + "_node"] as Node).find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers |= 32
+	party7 = OmniLight3D.new(); party7.light_color = Color(1.0, 0.86, 0.68); party7.light_energy = 0.9
+	party7.omni_range = 4.2; party7.omni_attenuation = 0.8; party7.shadow_enabled = false; party7.light_specular = 0.05
+	party7.light_cull_mask = 32 | 8; party7.light_bake_mode = Light3D.BAKE_DISABLED
+	main.add_child(party7); party7.global_position = gp(TABLE[0] + 0.3, TABLE[1] + 0.1, 2.05)
 
 func _talk_target() -> String:
 	if stage != "party" or mode != FREE: return ""
