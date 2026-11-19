@@ -189,9 +189,9 @@ func _ready():
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
-	if play in ["ch0", "h21", "ch3", "ch5", "ch6"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card; ステップ F: 第3章・第5章・第6章
+	if play in ["ch0", "h21", "ch3", "ch5", "ch6", "ch8"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card; ステップ F: 第3章・第5章・第6章
 		CARD_TIME = 0.0
-		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch5.gd") if play == "ch5" else load("res://scripts/ch6.gd") if play == "ch6" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
+		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch5.gd") if play == "ch5" else load("res://scripts/ch6.gd") if play == "ch6" else load("res://scripts/ch8.gd") if play == "ch8" else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
 	if "--q0" in OS.get_cmdline_user_args():   # 試作125: checking as the player's machine runs it (perf.gd 最低)
 		_quality(false); get_viewport().scaling_3d_scale = 0.5; shadow_n = 2; trees_far(40.0)
 		if env: env.volumetric_fog_enabled = false
@@ -965,7 +965,7 @@ var cover_frames := 0
 # ---------------------------------------------------------------- the kitchen's wall clock (2026-11-17 夜、ユーザー「背景の時計、時刻を正確に」)
 # Its hands were the model's own, stopped; now they are drawn here and go: the scene's hour, then on in real seconds.
 # A chapter sets the hour when its story moves on (clock_at). blender/lived.py leaves the model's hands out.
-const CLOCK_OF_PLAY := {"ch0": [5, 0], "ch1": [17, 30], "h21": [21, 0], "door": [23, 0], "ch3": [0, 0], "ch4": [3, 30], "ch5": [4, 0], "ch11": [3, 30]}
+const CLOCK_OF_PLAY := {"ch0": [5, 0], "ch1": [17, 30], "h21": [21, 0], "door": [23, 0], "ch3": [0, 0], "ch4": [3, 30], "ch5": [4, 0], "ch8": [2, 0], "ch11": [3, 30]}
 const CLOCK_OF_TIME := {"dusk": [17, 30], "t20": [20, 0], "t23": [23, 0], "t02": [2, 0], "t0330": [3, 30], "t0430": [4, 30]}
 var clock_sec := -1.0
 var clock_hands := []      # [hour, minute, second] pivots
@@ -1239,7 +1239,7 @@ func _shot_tick() -> float:
 static var DEV_STATE := ""   # story.gd _state() to jump to once the chapter is up (第2章 = 第1章's "card2")
 const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
 	["第2章　21時・22時", "h21", ""], ["第2章　23時の扉", "door", ""], ["第3章　零時〜2時", "ch3", ""],
-	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["第11章　再生", "ch11", ""]]
+	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["監督　2時", "ch8", ""], ["第11章　再生", "ch11", ""]]
 var chap_menu: CanvasLayer = null
 func _input(e):
 	if not (e is InputEventKey and e.pressed and not e.echo): return
@@ -1820,7 +1820,7 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
-const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch11": "t0330"}
+const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch8": "t02", "ch11": "t0330"}
 func to_chapter(p: String):
 	_save_settings()
 	_cover()
