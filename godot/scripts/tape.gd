@@ -59,6 +59,11 @@ var seat_x := 0.0
 # 2026-11-19（ユーザー「いずれにしてもカメラ横に振ったバージョンが見たい」）: --d11pan. After the set goes off the picture
 # leaves her eyes: a camera on a tripod at her right, on the dead glass, pans across to her
 var pan := false
+# 2026-11-19（ユーザー案「デッキから上にゆっくりパン→テレビに映り込む澪→ディゾルブでテレビ側からのカメラで澪を捉える→数秒写して
+# 一気に黒味」）: --d11refl=e. The light of b; her eyes rise slowly to the dead glass, she is in it; the picture from the set's
+# side dissolves in over it; a few seconds; black at once
+var face_vp: SubViewport
+var face_tr: TextureRect
 var pan_cam: Camera3D
 const PAN_AT := Vector3(0.95, 0.70, 0.30)
 const MIO_LAYER := 128         # her body: the mirror and the last cut see it, her own eyes do not
@@ -300,6 +305,13 @@ func _back_light():
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
 	look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 	look_cam.cull_mask = 0xFFFFF & ~(2 | SCR_LAYER)
+	if refl == "e":   # the set's-side picture, drawn apart and laid over the view as it dissolves in (under the print)
+		face_vp = SubViewport.new(); face_vp.size = get_viewport().get_visible_rect().size; face_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		add_child(face_vp); main.remove_child(look_cam); face_vp.add_child(look_cam); look_cam.current = true
+		look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
+		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
 	pan_cam = Camera3D.new(); pan_cam.fov = float(_arg("d11panfov", "38")); main.add_child(pan_cam)
 	pan_cam.cull_mask = 0xFFFFF   # it sees the set from outside, and her
 	pan_cam.global_transform = Transform3D(Basis(), ROOM + PAN_AT)
@@ -383,13 +395,17 @@ func _room_tick(dt: float):
 				cam.fov = lerp(cam.fov, 17.0, k * 0.7)
 			if end_t2 > 8.0 and off_t < 0.0: off_t = 0.0; print("STORY ch11 set off")
 			if end_t2 > 9.5:
-				var k := 1.0 - exp(-dt * 1.1)
+				var k := 1.0 - exp(-dt * (0.55 if refl == "e" else 1.1))   # e: slowly
 				player.yaw = lerp_angle(player.yaw, 0.0, k); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), k)
 				cam.fov = lerp(cam.fov, 34.0, k)
 			if pan and end_t2 > 9.5:
 				if not pan_cam.current: pan_cam.current = true; print("STORY ch11 pan cam")
 				var pk := smoothstep(11.5, 16.0, end_t2)
 				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
+			if refl == "e":
+				if end_t2 > 15.0: face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				face_tr.modulate.a = smoothstep(15.5, 17.5, end_t2)
+				if end_t2 > 21.5 and black2.color.a < 1.0: black2.color.a = 1.0; print("STORY ch11 black (e)")
 			if refl == "d" and end_t2 > 10.0 and not look_cam.current:
 				look_cam.current = true; print("STORY ch11 her face")
 			if end_t2 > 22.0 and not has_meta("endstill"):
