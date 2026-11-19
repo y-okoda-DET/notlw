@@ -1475,6 +1475,14 @@ func _house_ready():
 	_changeover_lever()
 	items = {}
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
+	# 試作176 A9（ユーザー「2章でも調べられるオブジェクトがある状態にしたい」）: as in 第3章 and 第6章, a thing looked at and E is
+	# one line of Mio's (story/ch2_20.txt 【20時.見る.＊】). The same things as 第1章's, where they are at 20:00, and the fridge
+	var look = func(key: String, p: Vector3, r: float, name: String): items[key] = {"pos": p, "r": r, "kind": "look", "name": name}
+	look.call("h_fres", g([-0.10, 2.90, 1.95]), 0.22, "照明")
+	look.call("h_cam", g([-0.45, 4.70, 1.36]), 0.16, "桐生のカメラ")
+	look.call("h_tape", g([0.35, 4.10, 0.0]), 0.16, "床のテープ")
+	look.call("h_shoes", g([0.30, 5.55, -0.12]), 0.35, "靴")
+	look.call("h_fridge", g([4.55, 2.3, 1.1]), 0.35, "冷蔵庫")
 	main.TALK = {}
 	main.generator(false)
 	if main.env: main.env.tonemap_exposure = 0.0
@@ -1687,6 +1695,8 @@ func _gen_flicker():
 		tw.tween_method(func(x): l.set_meta("e", e * x), 0.2, 1.0, 0.8)
 
 func _house_conv(key: String, n: int) -> Array:
+	var looks := {"h_fres": "照明", "h_cam": "桐生のカメラ", "h_tape": "床のテープ", "h_shoes": "靴", "h_fridge": "冷蔵庫"}
+	if looks.has(key): return B("20時.見る." + looks[key])
 	match key:
 		"kiryu":
 			if hs == 5: return B("20時.桐生.板")
@@ -1841,8 +1851,25 @@ func _boards_start():
 	talk_with = "taiga"
 	# 試作125 (ユーザー「ここの大河、足が変だから普通に立っているように」): he stood in the 20:00 pose (a step half taken)
 	if main.S.has("taiga_node"): main.set_stand("taiga", "talk/idle", 0.0)
-	main.carry_boards("taiga", true)
-	script_q.append_array(B("板.始まり"))
+	# 試作176 A8（ユーザー「ずっと大河を見てると、パッと切り替わって急に木を持っているのが気持ち悪い」）: the planks came into his
+	# hands where he stood. He goes down the cellar stair for them, out of her sight, and comes up with them (as she says he did)
+	if not main.S.has("taiga_node") or ARGS_HAS_NOWALK():
+		main.carry_boards("taiga", true); script_q.append_array(B("板.始まり")); return
+	var rig: Node3D = main._rig_of("taiga")
+	var here := [rig.global_position.x + 4.8, rig.global_position.z + 6.3, 0.0]
+	var down := [[5.2, 5.95, 0.0], [5.5, 5.8, 0.0], [5.5, 5.6, 0.0], [5.5, 3.6, ZB * (5.6 - 3.6) / 3.0]]
+	var up := [[5.5, 5.6, 0.0], [5.5, 5.8, 0.0], [5.2, 5.95, 0.0], here]
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_key("door_cellar")
+	taiga_moving = true
+	main.walk_to("taiga", down, func():
+		main.carry_boards("taiga", true)
+		main.walk_to("taiga", up, func():
+			taiga_moving = false
+			if mode == FREE: _start(B("板.始まり"))
+			else: script_q.append_array(B("板.始まり")), PI))
+
+func ARGS_HAS_NOWALK() -> bool: return "--boardsnow" in OS.get_cmdline_user_args()   # stills: the planks in his hands at once
 
 func _board_use(key: String):
 	talk_with = ""
