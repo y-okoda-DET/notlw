@@ -1064,6 +1064,9 @@ func _watch():
 	watch.set_meta("digits", holder)
 	for mi in watch.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers = 2 | 16; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_watch_set()
+	# 2026-11-19（ユーザー「ここの黒いのはとって」）: on the wrist the whole time it was a black block in every shot of the hands.
+	# It is there only when he looks at it (右クリック)
+	watch.visible = false
 
 func _watch_set():
 	if watch == null: return
@@ -1095,7 +1098,7 @@ func _watch_show(on: bool):
 	if watch == null or watch_up == on: return
 	watch_up = on
 	if on:
-		_watch_set()
+		_watch_set(); watch.visible = true
 		_curl(hand_l, 0.9)
 		_hand_to(hand_l, WATCH_POS, WATCH_DEG, 0.45)
 		# in the dark he presses the light: the face goes green
@@ -1105,6 +1108,7 @@ func _watch_show(on: bool):
 	else:
 		seg_mat.emission_energy_multiplier = 0.0
 		_hand_away(hand_l)
+		_after(0.5, func(): if not watch_up: watch.visible = false)
 
 func _clock_tick(dt: float):
 	sec7 += dt
