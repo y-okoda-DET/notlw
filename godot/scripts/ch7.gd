@@ -352,6 +352,8 @@ func _c7_libs():
 		var p := "res://assets/dusk/%s_c7.res" % k
 		if not _has(k) or not ResourceLoader.exists(p): continue
 		for ap in (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false):
+			# 試作230（取り込んだ版）：大河の player が14本になり、21時半の始まりで毎回落ちた（画面なしでも）。この章で歩かない2人は歩きの5本を外す
+			if k in NO_WALK7 and (ap as AnimationPlayer).has_animation_library("walk"): (ap as AnimationPlayer).remove_animation_library("walk")
 			if not (ap as AnimationPlayer).has_animation_library("c7"):
 				var lib: AnimationLibrary = load(p)
 				var few := _few(lib, C7_USE[k])
@@ -363,6 +365,7 @@ func _c7_libs():
 # TALK_CLIPS note (14 crashed every time, five or fewer never). With all ten of Mio's and all nine of the party's it crashed
 # at the start of this chapter. So: only the ones this chapter plays, in a new library
 const MIO_USE := ["idle", "sit_idle", "sit_laugh", "startle", "react"]
+const NO_WALK7 := ["kiryu", "taiga"]   # (_c7_libs) they sit or stand where they are put all chapter: no walk_to
 const C7_USE := {"kiryu": ["sit_idle", "sit_laugh"], "taiga": ["sit_idle", "sit_laugh", "point"], "natsuki": ["sit_idle", "sit_laugh"]}
 func _few(src: AnimationLibrary, names: Array) -> AnimationLibrary:
 	var lib := AnimationLibrary.new()
