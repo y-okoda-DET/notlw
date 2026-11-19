@@ -468,25 +468,61 @@ func _car_level(cars: Array):
 	flat.sort_custom(func(a: Vector3, b: Vector3): return a.length() > b.length())
 	var fwd: Vector3 = (flat[0] as Vector3); var half_l := fwd.length() * 0.5; fwd.y = 0.0; fwd = fwd.normalized()
 	var side: Vector3 = fwd.cross(Vector3.UP).normalized(); var half_w: float = (flat[1] as Vector3).length() * 0.5
-	var c0 := car_at
-	var gy := func(v: Vector3) -> float: return _ground(v.x + 4.8, v.z + 6.3)
-	# the ground just outside the body, front and back, left and right
-	var gf: float = (gy.call(c0 + fwd * half_l * 0.75 + side * (half_w + 0.35)) + gy.call(c0 + fwd * half_l * 0.75 - side * (half_w + 0.35))) * 0.5
-	var gb: float = (gy.call(c0 - fwd * half_l * 0.75 + side * (half_w + 0.35)) + gy.call(c0 - fwd * half_l * 0.75 - side * (half_w + 0.35))) * 0.5
-	var gl: float = (gy.call(c0 + side * (half_w + 0.35) + fwd * half_l * 0.6) + gy.call(c0 + side * (half_w + 0.35) - fwd * half_l * 0.6)) * 0.5
-	var gr: float = (gy.call(c0 - side * (half_w + 0.35) + fwd * half_l * 0.6) + gy.call(c0 - side * (half_w + 0.35) - fwd * half_l * 0.6)) * 0.5
-	var pitch := atan2(gf - gb, half_l * 1.5); var roll := atan2(gl - gr, (half_w + 0.35) * 2.0)
-	var rot := Basis(side, -pitch) * Basis(fwd, roll)
-	# bottom of the car before: the lowest point of all its meshes
-	var low := 1e9
+	var c0 := Vector3(car_at.x, 0.0, car_at.z)
+	# 2026-11-19 夜（ユーザー「まだタイヤがのめり込んでるように見える」）：車の外の地面でなく、四つの車輪それぞれの底と、
+	# その真下の地面を測って合わせる。車輪の底＝車の前後左右の四半分ごとの、いちばん低い頂点
+	var low := [1e9, 1e9, 1e9, 1e9]; var sum := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]; var cnt := [0, 0, 0, 0]
+	var pts: Array = []
 	for c in cars:
-		var b: AABB = (c as MeshInstance3D).global_transform * (c as MeshInstance3D).get_aabb(); low = minf(low, b.position.y)
-	var gc := (gf + gb) * 0.5
-	var lift := gc - 0.015 - low
-	var X := Transform3D(Basis.IDENTITY, Vector3(c0.x, low, c0.z) + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -Vector3(c0.x, low, c0.z))
+		var mi := c as MeshInstance3D
+		if mi.mesh == null: continue
+		var tf := mi.global_transform
+		for v in mi.mesh.get_faces():
+			var w: Vector3 = tf * v; var d := w - c0
+			pts.append(Vector3(d.dot(fwd), w.y, d.dot(side)))
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k]: low[k] = q.y
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k] + 0.03: sum[k] += Vector2(q.x, q.z); cnt[k] += 1
+	# the ground under each wheel (not the car's own collision)
+	var ex: Array = [player.get_rid()]
+	for sb in main.S.env_node.find_children("*", "StaticBody3D", true, false):
+		if String(sb.name).begins_with("ext_car") or String(sb.get_parent().name).begins_with("ext_car"): ex.append((sb as StaticBody3D).get_rid())
+	var rows := []
+	for k in 4:
+		if cnt[k] == 0: return
+		var uv: Vector2 = sum[k] / float(cnt[k]); var wp: Vector3 = c0 + fwd * uv.x + side * uv.y
+		var rq := PhysicsRayQueryParameters3D.create(Vector3(wp.x, low[k] + 1.2, wp.z), Vector3(wp.x, low[k] - 3.0, wp.z)); rq.exclude = ex
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
+		if hit.is_empty(): return
+		rows.append([uv.x, uv.y, low[k], float(hit.position.y)])
+	# lift + a*u + b*v = ground - wheel, by least squares over the four wheels (a plane has three numbers: the fourth wheel
+	# takes what is left, as a real car's springs do)
+	var su := 0.0; var sv := 0.0; var suu := 0.0; var svv := 0.0; var suv := 0.0; var sd := 0.0; var sud := 0.0; var svd := 0.0
+	for r in rows:
+		var d: float = r[3] - 0.012 - r[2]
+		su += r[0]; sv += r[1]; suu += r[0] * r[0]; svv += r[1] * r[1]; suv += r[0] * r[1]; sd += d; sud += r[0] * d; svd += r[1] * d
+	var A := Basis(Vector3(4.0, su, sv), Vector3(su, suu, suv), Vector3(sv, suv, svv))
+	if absf(A.determinant()) < 1e-6: return
+	var sol: Vector3 = A.inverse() * Vector3(sd, sud, svd)
+	var lift := sol.x; var a := sol.y; var b := sol.z
+	var f2 := (fwd + Vector3.UP * a).normalized(); var s2 := (side + Vector3.UP * b).normalized()
+	var u2 := s2.cross(f2).normalized()
+	if u2.y < 0.0: u2 = -u2
+	s2 = f2.cross(u2).normalized() * signf(f2.cross(u2).dot(side))
+	var B0 := Basis(fwd, Vector3.UP, side); var B1 := Basis(f2, u2, s2)
+	var rot := B1 * B0.inverse()
+	var X := Transform3D(Basis.IDENTITY, c0 + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -c0)
 	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
 	car_at = X * car_at
-	print("CH8 car level: pitch %.1f roll %.1f lift %.2f (ground f %.2f b %.2f, low %.2f)" % [rad_to_deg(pitch), rad_to_deg(roll), lift, gf, gb, low])
+	print("CH8 car level: lift %.3f pitch %.1f roll %.1f" % [lift, rad_to_deg(atan(a)), rad_to_deg(atan(b))])
+	for r in rows:
+		var after: float = r[2] + lift + a * r[0] + b * r[1]
+		print("CH8 wheel (%.2f, %.2f): bottom %.3f ground %.3f -> bottom %.3f (%.3f %s the ground)" % [r[0], r[1], r[2], r[3], after, absf(after - r[3]), "under" if after < r[3] else "over"])
 
 # ---------------------------------------------------------------- the finder (the whole chapter is its picture)
 class Finder8 extends Control:
