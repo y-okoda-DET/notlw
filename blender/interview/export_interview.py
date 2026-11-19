@@ -76,6 +76,7 @@ def main():
                         'hold＝そのコマを何コマ伸ばすか。blur＝横の流し（px／1920）。sway＝葉の揺れの位相（0〜1）。roll＝度。'
                         'post＝slip（橙の版だけ (-26,14)px／1080 ずれる）、flat（平たくなる。前の slip から約2秒で溶かす。手引きを見る）。'),
               open(f'{OUT}/cuts.json', 'w'), ensure_ascii=False, indent=1)
+    shutil.copy(f'{HERE}/cameras.json', OUT)   # 据えたカメラ（＞cam。scripts/interview.gd）
     for f in os.listdir(TRIPO):
         if f.endswith('.glb') and not f.startswith('recorder'): shutil.copy(f'{TRIPO}/{f}', OUT)
     for f in os.listdir(f'{P.ASSETS}/interview'):

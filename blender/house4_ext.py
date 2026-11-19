@@ -188,6 +188,13 @@ def porches(M):
     o = prim('cube', 'ext_porchroof', loc=((x0 + x1) / 2, (y0 + y1 + .2) / 2, (zt + zb) / 2 + .12), rot=(-ang, 0, 0),
              scale=((x1 - x0) / 2 + .2, (y1 - y0 + .2) / 2 / math.cos(ang), .04), mat=M['ext_felt'])
     slates_on(o, 'ext_slateP', M, 35, 0)
+    # the porch lamp (第7章「去年の夏」: what Yota steers by at two; unlit on the night of the storm): a bare globe on a
+    # round base under the porch roof, over the top step. Its light is times.py's lamp_porch (P_PORCH)
+    if M.get('bulb'):
+        px, py = H4.X(5.0), H4.Y(-.72)
+        prim('cylinder', 'ext_porchlampbase', loc=(px, py, 2.335), scale=(.055, .055, .02), mat=tm, vertices=16)
+        gl = prim('uv_sphere', 'lampshade_lamp_porch', loc=(px, py, 2.25), scale=(.07, .07, .075), mat=M['bulb'].copy(), segments=16, ring_count=10)
+        gl.visible_shadow = False
     for k, (zz, dy) in enumerate(((GZ + (zd - GZ) * 2 / 3, .3), (GZ + (zd - GZ) / 3, .6))):
         o = prim('cube', 'ext_step', loc=((x0 + x1) / 2, y1 + dy - .15, (GZ - .1 + zz) / 2), scale=(.75, .15, (zz - GZ + .1) / 2), mat=M['ext_found']); lib.uv_box(o, 1.0)
     # back porch: plan x 10..11.4, y 3.9..5.9, deck at the floor (0), posts down the slope, a stair down to the north

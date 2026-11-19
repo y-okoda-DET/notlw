@@ -4,9 +4,10 @@
 - 書式：話者の名前が知らない名前でないか、＞ の動きが story.gd の _do か door.gd にあるか、選択肢に返事があるか"""
 import glob, os, re, sys
 G = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WHO = {'澪', '桐生', '夏希', '真琴', '大河', 'ラジオ', '警察官'}
+WHO = {'澪', '桐生', '夏希', '真琴', '大河', 'ラジオ', '警察官', '陽太'}
 blocks, bad = {}, []
 for p in sorted(glob.glob(G + '/story/*.txt')):
+    if os.path.basename(p) == 'interview.txt': continue   # 証言 一〜三は別の書式（scripts/interview.gd が読む。check/interview.sh run で確かめる）
     key = None
     for n, raw in enumerate(open(p, encoding='utf-8'), 1):
         s = raw.strip()

@@ -42,6 +42,49 @@ var tswings := 0
 var held_since := -1.0
 var black2: ColorRect
 var demo11 := false
+# 2026-11-19 試作220（「第11章のラストショットを試す」）：the last shot. Before E the screen is never dark glass: she is
+# looking down at the deck, and the set, if she looks up, is on the deck's blue. After the tape her eyes go down to the
+# two keys; the set goes off; her eyes come back up to the dead glass, and in it, faint, is she.
+#   --d11refl=a  the door behind her: in the glass she is a shape against the light, no face
+#             b  the door at her left: half her face, as it is (真顔)
+#             c  as b, and she sits a little to the right: her face at the glass's edge, cut by the mask
+#             d  ユーザーの元の案：the set off, the picture cuts to her face from the set's side
+var refl := "e"   # 2026-11-19 ユーザーの流れ（e）
+var mio_n: Node3D
+var rvp: SubViewport
+var rcam: Camera3D
+var look_cam: Camera3D
+var off_t := -1.0
+var seat_x := 0.0
+var tv_glass := Vector2(1.0, 1.0)
+# 2026-11-19（ユーザー「いずれにしてもカメラ横に振ったバージョンが見たい」）: --d11pan. After the set goes off the picture
+# leaves her eyes: a camera on a tripod at her right, on the dead glass, pans across to her
+var pan := false
+# 2026-11-19（ユーザー案「デッキから上にゆっくりパン→テレビに映り込む澪→ディゾルブでテレビ側からのカメラで澪を捉える→数秒写して
+# 一気に黒味」）: --d11refl=e. The light of b; her eyes rise slowly to the dead glass, she is in it; the picture from the set's
+# side dissolves in over it; a few seconds; black at once
+var face_vp: SubViewport
+const CREDITS_AT := 25.5      # the face for six seconds, then black at once
+const CREDITS_LEN := 60.0     # 仮のエンドロール、1分
+var credits: Label
+var credits_y0 := 0.0
+# the end roll: no picture, the names going up over black, and the one music from outside the story (決定事項 2026-11-13:
+# 「音楽の冗談」をエンドロールで加工なしで流す。sound/credits_joke.ogg = the user's Menuetto, its first minute)
+const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\n\n(placeholder)"
+func _credits():
+	var cl := CanvasLayer.new(); cl.layer = 23; add_child(cl)
+	credits = Label.new(); credits.text = CREDITS_TEXT; credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	credits.add_theme_font_override("font", Type.card()); credits.add_theme_font_size_override("font_size", 30)
+	credits.add_theme_color_override("font_color", Color(0.86, 0.85, 0.80))
+	var vs := get_viewport().get_visible_rect().size
+	credits.size = Vector2(vs.x, 0); credits.position = Vector2(0, vs.y); cl.add_child(credits)
+	credits.reset_size(); credits.size.x = vs.x; credits_y0 = vs.y
+	Sound.one(self, "credits_joke", -3.0)
+var face_tr: TextureRect
+var pan_cam: Camera3D
+const PAN_AT := Vector3(0.95, 0.70, 0.30)
+const MIO_LAYER := 128         # her body: the mirror and the last cut see it, her own eyes do not
+const SCR_LAYER := 4           # the glass itself: the mirror does not see it
 
 func _init():
 	tape = true
@@ -49,9 +92,15 @@ func _init():
 func _ready():
 	super._ready()
 	load_story("ch11")
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--d11refl="): refl = a.substr(10)
+		if a == "--d11pan": pan = true
+	if refl == "c": seat_x = 0.17
 	for e in _flow("テープ.流れ"): e[0] = float(e[0]) + NIGHT_AT; LINES.append(e)
 	_room()
 	_screen()
+	_mio_body()
+	_back_light()
 	var c: Array = D.lines("十一.カード")
 	card11 = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
 	black2 = ColorRect.new(); black2.color = Color(0, 0, 0, 0); black2.set_anchors_preset(Control.PRESET_FULL_RECT); black2.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -59,9 +108,10 @@ func _ready():
 	# she sits; she does not walk in this chapter
 	player.fly = true; player.collision_layer = 0; player.collision_mask = 0; player.move_enabled = false
 	player.eye_height = EYE.y
-	player.global_position = ROOM + Vector3(EYE.x, 0.0, EYE.z)
-	player.yaw = 0.0; player.pitch = deg_to_rad(-7.0)
+	player.global_position = ROOM + Vector3(EYE.x + seat_x, 0.0, EYE.z)
+	player.yaw = 0.0; player.pitch = deg_to_rad(-38.0)   # 試作220：she starts looking down at the deck; the screen is above the frame
 	(player.get_node("Head/Camera") as Camera3D).fov = 34.0
+	(player.get_node("Head/Camera") as Camera3D).cull_mask &= ~MIO_LAYER
 	_foot.call_deferred("マウス 見る　Ｅ 再生　右クリック（押したまま） つまみに手を置く　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	# the hall waits as it was at the tape's first frame
 	clock = NIGHT_AT
@@ -78,6 +128,7 @@ func _ready():
 			var bg := ColorRect.new(); bg.color = Color.BLACK; bg.set_anchors_preset(Control.PRESET_FULL_RECT); bg.show_behind_parent = true; tr.add_child(bg)
 		if a.begins_with("--d11gain="): (tcam.attributes as CameraAttributesPractical).exposure_multiplier = float(a.substr(10))
 		if a == "--d11end": card11_t = 0.0; call_deferred("_end_tape"); set_meta("endstill", true)
+		if a.begins_with("--d11endat="): card11_t = 0.0; set_meta("endat", float(a.substr(11))); call_deferred("_end_tape"); set_meta("endstill", true)   # stills: this many seconds after the tape
 
 # ================================================================ the room
 func _box(at: Vector3, size: Vector3, col: Color, rough := 0.8) -> MeshInstance3D:
@@ -134,12 +185,36 @@ func _room():
 	# the television: a grey tube set, the glass a little back in its face
 	var tv := Vector3(TV_C.x, TV_C.y, -0.10)
 	_tvbox(tv + Vector3(0, -0.02, -0.02), Vector3(0.60, 0.50, 0.44), Color(0.20, 0.20, 0.21), 0.6)
-	_tvbox(tv + Vector3(0, 0.0, 0.196), Vector3(0.50, 0.385, 0.012), Color(0.05, 0.05, 0.055), 0.4)    # the mask round the glass
+	var mask := _tvbox(tv + Vector3(0, 0.0, 0.196), Vector3(0.50, 0.385, 0.012), Color(0.05, 0.05, 0.055), 0.4)    # the mask round the glass
+	# 2026-11-19（ユーザー「テレビの箱がカクカクしてるのがチープ」）: the user's Tripo set (godot/props/crt_tv.glb, tripo/prep_props.py
+	# crt_tv; 画像生成とTripo_7回目). Turned to her, sized so its own glass is our screen (SCR), its glass just behind ours
+	if ResourceLoader.exists("res://props/crt_tv.glb") and not "--boxtv" in OS.get_cmdline_user_args():
+		var body := get_meta("tvbody") as MeshInstance3D if has_meta("tvbody") else null
+		for n in main.get_children():
+			if n is MeshInstance3D and (n as MeshInstance3D).layers == 2: (n as MeshInstance3D).visible = false
+		var t: Node3D = (load("res://props/crt_tv.glb") as PackedScene).instantiate(); main.add_child(t)
+		t.rotation.y = deg_to_rad(float(_arg("d11tvyaw", "-82")))
+		var bb := AABB(); var first := true
+		for g in t.find_children("*", "MeshInstance3D", true, false):
+			var m := g as MeshInstance3D; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.layers = 2
+			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
+		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
+		t.scale = Vector3(k, k, k)
+		var c := bb.get_center() * k
+		t.global_position = ROOM + Vector3(-c.x + float(_arg("d11tvx", "-0.02")), 0.355 - bb.position.y * k, 0.103 + float(_arg("d11tvrec", "0.07")) - (bb.end.z * k))
+		print("M220 tv aabb ", bb, " k ", k)
+		tv_glass = Vector2(0.96, 0.93)
+		if "--d11dbg" in OS.get_cmdline_user_args():   # a look at the set from above her right shoulder, lit
+			var dc := Camera3D.new(); dc.fov = 50.0; main.add_child(dc)
+			dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0.9, 1.0, 1.1)).looking_at(ROOM + Vector3(0, 0.6, 0), Vector3.UP); dc.call_deferred("make_current")
+			if "--d11dbgf" in OS.get_cmdline_user_args():   # straight on, orthographic: to measure the glass against the body
+				dc.projection = Camera3D.PROJECTION_ORTHOGONAL; dc.size = 0.8; dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0, 0.6, 1.5))
+			var dl := OmniLight3D.new(); dl.light_energy = 3.0; dl.omni_range = 5.0; main.add_child(dl); dl.global_position = ROOM + Vector3(0.6, 1.4, 1.2)
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen
 	glow = OmniLight3D.new(); glow.light_color = Color(0.72, 0.82, 1.0); glow.light_energy = 0.05
-	glow.omni_range = 3.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = true; glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.2; glow.light_cull_mask = 1
+	glow.omni_range = 3.2; glow.omni_attenuation = 1.3; glow.shadow_enabled = true; glow.light_volumetric_fog_energy = 0.0; glow.light_specular = 0.2; glow.light_cull_mask = 1 | MIO_LAYER
 	glow.set_meta("own_shadow", true); main.add_child(glow); glow.global_position = ROOM + tv + Vector3(0, 0.0, 0.50)
 
 const SCREEN_SHADER := """shader_type spatial;
@@ -147,9 +222,20 @@ render_mode unshaded;
 uniform sampler2D tex : source_color, filter_linear, repeat_disable;
 uniform float err = 0.0;      // the tracking: 0 right .. 1 lost
 uniform float tm = 0.0;
-uniform float on = 0.0;       // 0 dark glass, 1 the tape, 2 after the tape (the deck's blank blue)
+uniform float on = 0.0;       // 0 dark glass, 1 the tape, 2 the deck's blank blue (before E and after the tape), 3 the set off
+uniform sampler2D refl_tex : source_color, filter_linear, repeat_disable;   // the room in the glass (rcam, mirrored)
+uniform float rk = 0.0;       // how much of it the glass gives back
+uniform float off_t = 0.0;    // seconds since the set went off
+uniform float bulge = 0.0;   // the tube's face is a dome (the Tripo set's own glass)
+void vertex() { vec2 n = UV * 2.0 - 1.0; VERTEX.z += bulge * (1.0 - 0.8 * n.x * n.x) * (1.0 - 0.8 * n.y * n.y); }
+uniform vec2 glass = vec2(1.0, 1.0);   // the set's own glass, as a part of the quad (the Tripo set's opening is a little lower than 4:3)
 float h(float x) { return fract(sin(x * 91.17) * 43758.5453); }
 void fragment() {
+	{	// the glass's rounded corners: outside it, the set's own bezel shows
+		vec2 q = abs(UV - 0.5) * 2.0 - (glass - vec2(0.09, 0.12));
+		if (length(max(q, 0.0)) > 0.09 && glass.y < 0.999) discard;
+		if (abs(UV.y - 0.5) * 2.0 > glass.y) discard;
+	}
 	vec2 uv = UV;
 	float ln = floor(uv.y * 240.0);
 	// off its track the heads read between two fields: bands of lines sheared sideways roll up the picture, the bands
@@ -167,6 +253,18 @@ void fragment() {
 	c = mix(c, vec3(dot(c, vec3(0.3, 0.6, 0.1))) * 1.15 + 0.06, band * err);      // in the band the colour goes and the black lifts
 	if (on < 0.5) c = vec3(0.012, 0.014, 0.018);
 	if (on > 1.5) c = vec3(0.10, 0.16, 0.42);
+	if (on > 2.5) {
+		// the dead glass: dark grey, and the room in it; a tube's face bulges, so it holds a wider room, smaller at the edges
+		vec2 d = UV - 0.5;
+		vec2 ru = 0.5 + d / 1.35 * (0.8 + 0.9 * dot(d, d));
+		vec3 r = texture(refl_tex, vec2(1.0 - ru.x, ru.y)).rgb;
+		float edge = 1.0 - smoothstep(0.30, 0.62, length(d * vec2(1.0, 1.25)));
+		c = vec3(0.018, 0.020, 0.022) + rk * r * (0.55 + 0.45 * edge);
+		// going off: the picture falls to a line, the line to a point, the point fades
+		float ln = exp(-pow((UV.y - 0.5) / max(0.004, 0.5 * (1.0 - off_t / 0.12)), 2.0)) * step(off_t, 0.12);
+		float pt = exp(-dot(d, d) / 0.0009) * (1.0 - smoothstep(0.12, 1.4, off_t)) * step(0.12, off_t);
+		c += vec3(0.8, 0.85, 0.9) * (ln + pt);
+	}
 	ALBEDO = c;
 }"""
 
@@ -190,12 +288,97 @@ func _screen():
 	stamp = mk.call("AM 3:29:54", Vector2(566, 34), 32)
 	osd = mk.call("再生", Vector2(44, 34), 32)
 	osd_trk = mk.call("", Vector2(44, 78), 32)
-	var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = SCR; q.mesh = qm
+	var q := MeshInstance3D.new(); var qm := PlaneMesh.new(); qm.size = SCR; qm.orientation = PlaneMesh.FACE_Z; qm.subdivide_width = 16; qm.subdivide_depth = 12; q.mesh = qm
 	var sh := Shader.new(); sh.code = SCREEN_SHADER
 	scr_mat = ShaderMaterial.new(); scr_mat.shader = sh
 	scr_mat.set_shader_parameter("tex", vp.get_texture())
-	q.material_override = scr_mat; q.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	scr_mat.set_shader_parameter("glass", tv_glass)
+	if tv_glass.y < 0.999: scr_mat.set_shader_parameter("bulge", float(_arg("d11bulge", "0.05")))
+	q.material_override = scr_mat; q.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; q.layers = SCR_LAYER
+	if "--d11dbgf" in OS.get_cmdline_user_args(): q.visible = false
 	main.add_child(q); q.global_position = ROOM + Vector3(TV_C.x, TV_C.y, 0.103)
+	tcam.cull_mask &= ~MIO_LAYER
+	# 試作220：the glass as a mirror. A camera at her eye reflected through the glass, looking back out through it
+	rvp = SubViewport.new(); rvp.size = Vector2i(640, 480); rvp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	rvp.msaa_3d = Viewport.MSAA_2X; add_child(rvp)
+	rcam = Camera3D.new(); rcam.projection = Camera3D.PROJECTION_FRUSTUM; rcam.cull_mask = 0xFFFFF & ~(2 | SCR_LAYER)
+	rcam.far = 8.0; rvp.add_child(rcam)
+	scr_mat.set_shader_parameter("refl_tex", rvp.get_texture())
+
+# where the mirror camera stands for an eye at e (the glass is the plane z = 0.103 in the room, facing +z)
+func _mirror_cam(e: Vector3):
+	var gz := ROOM.z + 0.103
+	var m := Vector3(e.x, e.y, 2.0 * gz - e.z)
+	rcam.global_transform = Transform3D(Basis(Vector3.UP, PI), m)     # it looks along +z, out of the glass
+	var dist := gz - m.z
+	var c := ROOM + Vector3(TV_C.x, TV_C.y, 0.103)
+	rcam.keep_aspect = Camera3D.KEEP_HEIGHT
+	rcam.near = dist; rcam.size = SCR.y * 1.35
+	rcam.frustum_offset = Vector2(-(c.x - m.x), c.y - m.y) * 1.0
+
+# her body for the glass: the seated Mio of the interview (tripo/interview/mio_seiza.glb), turned to the set, her eyes at the
+# camera's place (the model's eyes: x 0, y 1.465, z 0.17 in its own room, facing +z)
+func _mio_body():
+	var path := "res://props/mio_seiza.glb"
+	if not ResourceLoader.exists(path): print("M220 no mio body"); return
+	mio_n = (load(path) as PackedScene).instantiate(); main.add_child(mio_n)
+	# the glb's own nodes carry turns and offsets: measure her where she lands, turn her to the set, then put her eyes at the camera
+	mio_n.global_transform = Transform3D(Basis(), ROOM)
+	var hb := _mio_box("mio_head"); var nb := _mio_box("mio_hands")
+	if nb.get_center().z > hb.get_center().z:     # she faces +z: turn her about her own head
+		var hc := hb.get_center()
+		mio_n.global_transform = Transform3D(Basis(Vector3.UP, PI), hc + Basis(Vector3.UP, PI) * (ROOM - hc))
+		hb = _mio_box("mio_head")
+	var eye := Vector3(hb.get_center().x, hb.position.y + hb.size.y * float(_arg("d11eyeh", "0.55")), hb.position.z + 0.03)
+	mio_n.global_position += ROOM + Vector3(EYE.x + seat_x, EYE.y, EYE.z) - eye
+	for mi in mio_n.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).layers = MIO_LAYER; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	print("M220 mio head ", _mio_box("mio_head"), " hands ", _mio_box("mio_hands"), " body ", _mio_box("mio_body"))
+
+func _mio_box(n: String) -> AABB:
+	var mi := mio_n.find_child(n, true, false) as MeshInstance3D
+	return mi.global_transform * mi.get_aabb() if mi else AABB(mio_n.global_position, Vector3.ZERO)
+
+# the one other light in the room: a door left ajar on a lit passage (behind her in a, at her left in b–d)
+var pass_light: OmniLight3D
+func _back_light():
+	var at := Vector3(-0.45, 0.0, 2.54) if refl == "a" else Vector3(-1.94, 0.0, 1.05)
+	var sz := Vector3(0.07, 1.95, 0.02) if refl == "a" else Vector3(0.02, 1.95, 0.07)
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = sz; mi.mesh = bm
+	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(1.0, 0.86, 0.66)
+	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; main.add_child(mi)
+	mi.global_position = ROOM + at + Vector3(0, sz.y * 0.5, 0)
+	pass_light = OmniLight3D.new(); pass_light.light_color = Color(1.0, 0.84, 0.62)
+	pass_light.light_energy = float(_arg("d11door", "0.8" if refl == "a" else "0.35")); pass_light.omni_range = 4.5; pass_light.omni_attenuation = 1.2
+	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
+	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
+	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
+	# the last cut of d: from the set's side, at her face
+	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
+	look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+	look_cam.cull_mask = 0xFFFFF & ~(2 | SCR_LAYER)
+	if refl == "e":   # the set's-side picture, drawn apart and laid over the view as it dissolves in (under the print)
+		face_vp = SubViewport.new(); face_vp.size = get_viewport().get_visible_rect().size; face_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		add_child(face_vp); main.remove_child(look_cam); face_vp.add_child(look_cam); look_cam.current = true
+		look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
+		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
+	pan_cam = Camera3D.new(); pan_cam.fov = float(_arg("d11panfov", "38")); main.add_child(pan_cam)
+	pan_cam.cull_mask = 0xFFFFF   # it sees the set from outside, and her
+	pan_cam.global_transform = Transform3D(Basis(), ROOM + PAN_AT)
+
+func _pan_yaw(k: float) -> float:
+	# from the dead glass to her face
+	var a := ROOM + Vector3(TV_C.x - 0.02, TV_C.y, 0.10) - pan_cam.global_position
+	var b := ROOM + Vector3(seat_x, EYE.y - 0.03, EYE.z) - pan_cam.global_position
+	var ya := atan2(-a.x, -a.z); var yb := atan2(-b.x, -b.z)
+	return lerp_angle(ya, yb, k)
+
+func _arg(k: String, dflt: String) -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--%s=" % k): return a.substr(k.length() + 3)
+	return dflt
 
 # ================================================================ time
 func _target_trk(t: float) -> float:
@@ -225,15 +408,22 @@ func _room_tick(dt: float):
 	var e := _err()
 	scr_mat.set_shader_parameter("tm", room_t)
 	scr_mat.set_shader_parameter("err", e)
-	scr_mat.set_shader_parameter("on", 0.0 if st == ROOM_WAIT else (1.0 if st == PLAYING else 2.0))
-	glow.light_energy = 0.05 if st == ROOM_WAIT else (0.55 if st == PLAYING else 0.8)
+	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
+	scr_mat.set_shader_parameter("on", 1.0 if st == PLAYING else (3.0 if off_t >= 0.0 else 2.0))
+	glow.light_energy = 0.55 if st == PLAYING else (0.0 if off_t > 0.12 else 0.8)
+	if off_t >= 0.0:
+		off_t += dt
+		scr_mat.set_shader_parameter("off_t", off_t)
+		scr_mat.set_shader_parameter("rk", float(_arg("d11rk", "1.4" if refl == "a" else ("1.5" if refl == "c" else "1.1"))))
+		_mirror_cam(get_viewport().get_camera_3d().global_position if not pan else cam.global_position)
+		rvp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	knob.rotation.z = (trk - 0.5) * 4.4
 	player.look_enabled = not on_knob and st != ENDED
 	match st:
 		ROOM_WAIT:
 			note_lb.text = T(String(B("十一.部屋")[0].note)) if at_deck else ""
 			if demo11 and room_t > 3.0:
-				player.pitch = lerp(player.pitch, deg_to_rad(-34.0), 1.0 - exp(-dt * 3.0))
+				player.pitch = lerp(player.pitch, deg_to_rad(-38.0), 1.0 - exp(-dt * 3.0))
 				if at_deck and room_t > 5.0: _play()
 		PLAYING:
 			var G: Array = B("テープ.案内")
@@ -250,12 +440,31 @@ func _room_tick(dt: float):
 		ENDED:
 			end_t2 += dt
 			note_lb.text = ""
-			# her eyes go down to the deck's two keys; then nothing
-			if end_t2 > 2.0:
+			# her eyes go down to the deck's two keys; the set goes off; her eyes come back up to the glass (試作220)
+			if end_t2 > 2.0 and end_t2 < 9.5:
 				var k := 1.0 - exp(-dt * 1.6)
 				player.yaw = lerp_angle(player.yaw, deg_to_rad(-8.5), k); player.pitch = lerp(player.pitch, deg_to_rad(-36.5), k)
 				cam.fov = lerp(cam.fov, 17.0, k * 0.7)
-			if end_t2 > 9.0 and not has_meta("endstill"):
+			if end_t2 > 8.0 and off_t < 0.0: off_t = 0.0; print("STORY ch11 set off")
+			if end_t2 > 9.5:
+				var k := 1.0 - exp(-dt * (0.55 if refl == "e" else 1.1))   # e: slowly
+				player.yaw = lerp_angle(player.yaw, 0.0, k); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), k)
+				cam.fov = lerp(cam.fov, 34.0, k)
+			if pan and end_t2 > 9.5:
+				if not pan_cam.current: pan_cam.current = true; print("STORY ch11 pan cam")
+				var pk := smoothstep(11.5, 16.0, end_t2)
+				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
+			if refl == "e":
+				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
+				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）
+				if end_t2 > 16.0: face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				face_tr.modulate.a = smoothstep(16.5, 19.5, end_t2)
+				if end_t2 > CREDITS_AT and black2.color.a < 1.0:
+					black2.color.a = 1.0; print("STORY ch11 black (e)"); _credits()
+				if credits: credits.position.y = lerp(credits_y0, -credits.size.y, clampf((end_t2 - CREDITS_AT) / CREDITS_LEN, 0.0, 1.0))
+			if refl == "d" and end_t2 > 10.0 and not look_cam.current:
+				look_cam.current = true; print("STORY ch11 her face")
+			if end_t2 > (CREDITS_AT + CREDITS_LEN if refl == "e" else 22.0) and (refl == "e" or not has_meta("endstill")):
 				st = BLACK; black2.color.a = 1.0
 				print("STORY ch11 black room_t=%.1f heard %d/%d" % [room_t, heard_clear, heard_all])
 		BLACK:
@@ -271,7 +480,7 @@ func _play():
 
 func _end_tape():
 	_tape_close()
-	st = ENDED; end_t2 = 0.0
+	st = ENDED; end_t2 = float(get_meta("endat", 0.0))
 	_clear_page(); cur = {}
 	print("STORY ch11 tape end t=%.1f" % tape_t)
 
@@ -368,6 +577,7 @@ func _unhandled_input(e):
 # stills: the tape at t seconds
 func _tape_jump(t: float):
 	_play()
+	player.pitch = deg_to_rad(-7.0)   # 試作220：the chapter starts looking down at the deck; a still of the tape is of the picture
 	trk = float(get_meta("trk", _target_trk(t)))
 	var placed_n := false
 	var place = func():
