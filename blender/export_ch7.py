@@ -23,7 +23,51 @@ OUT = f'{P.RULES}/assets/dusk'
 SRC = W.SRC
 # 話す側の動き：export_talk.py の名前のまま。届いたら足す物（無ければ飛ばす）：驚く、笑う
 TALK = {'idle': 'Standing_Idle.fbx', 'talk_a': 'Talking_A.fbx', 'think': 'Thinking.fbx', 'sit_a': 'Sitting_Talking_A.fbx', 'sit_b': 'Sitting_Talking_B.fbx',
-        'startle': 'Surprised.fbx', 'laugh': 'Laughing.fbx'}
+        'startle': 'Surprised.fbx', 'react': 'Reacting.fbx', 'laugh': 'Laughing.fbx',
+        'sit_idle': 'Sitting_Idle.fbx', 'sit_laugh': 'Sitting_Laughing.fbx'}
+# 2026-11-19 ユーザーの Mixamo 4：飲み会の4人（桐生・大河・夏希）にこの章だけの動きを足す。export_talk.py（4人の talk.glb、全章が使う）は
+# 触らず、<名前>_c7.glb に別に書く（Godot では check/ch7_lib.gd が <名前>_c7.res にし、ch7.gd が "c7" の名前で足す）。
+#   PEOPLE=1 python3 export_ch7.py
+PEOPLE = {'sit_idle': 'Sitting_Idle.fbx', 'sit_laugh': 'Sitting_Laughing.fbx', 'sit': 'Sitting.fbx', 'drink': 'Drinking.fbx',
+          'point': 'Angry_Point.fbx', 'startle': 'Surprised.fbx', 'react': 'Reacting.fbx', 'laugh': 'Laughing.fbx'}
+
+def people():
+    import export_t20 as T20
+    clips = {k: TK.read_clip(f'{SRC}/{v}') for k, v in PEOPLE.items() if os.path.exists(f'{SRC}/{v}')}
+    for k, c in clips.items(): print('CLIP', k, 'frames', len(c['frames']), 'fps', c['fps'], flush=True)
+    hip_ref = W.read_clip(f'{SRC}/Walking_1.fbx')['hip0'].z
+    rigs = T20.build()
+    for o in bpy.data.objects:
+        if o.type == 'MESH':
+            for md in o.modifiers: md.show_viewport = False
+    out = {}
+    for key, rig in rigs.items():
+        if key not in ('kiryu', 'taiga', 'natsuki'): continue
+        C.reset_pose(rig); bpy.context.view_layer.update()
+        k_size = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).z / hip_ref
+        acts = {}
+        for name, clip in clips.items():
+            align = {}
+            for b, ob in TK.ARMS.items():
+                ours = (TK.rot_of(rig.matrix_world @ rig.data.bones[ob].matrix_local) @ Vector((0, 1, 0))).normalized()
+                align[b] = ours.rotation_difference(clip['rest_dir'][b])
+            act, dur = TK.bake(rig, name, clip, k_size, align)
+            acts[name] = act; out.setdefault(key, {})[name] = {'anim': act.name, 'dur': dur}
+            print('BAKED', key, name, 'dur %.2f' % dur, flush=True)
+        rig.animation_data.action = acts[next(iter(acts))]
+        me = bpy.data.meshes.new(f'{key}_c7stub'); me.from_pydata([(0, 0, 0), (.001, 0, 0), (0, .001, 0)], [], [(0, 1, 2)])
+        stub = bpy.data.objects.new(f'{key}_c7stub', me); bpy.context.scene.collection.objects.link(stub)
+        stub.parent = rig; vg = stub.vertex_groups.new(name='pelvis'); vg.add([0, 1, 2], 1.0, 'REPLACE')
+        md = stub.modifiers.new('arm', 'ARMATURE'); md.object = rig
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in (rig, stub): o.select_set(True)
+        bpy.ops.export_scene.gltf(filepath=f'{OUT}/{key}_c7.glb', export_format='GLB', use_selection=True, export_apply=True,
+                                  export_animations=True, export_animation_mode='ACTIONS', export_yup=True,
+                                  export_force_sampling=True, export_def_bones=False)
+        rig.animation_data.action = None
+        for a in acts.values(): bpy.data.actions.remove(a)
+    json.dump(out, open(f'{OUT}/ch7_people.json', 'w'), indent=1)
+    print('EXPORTED ch7 people')
 
 def pose_idle(rig, t):
     kl = lambda v: C.local(rig, v)
@@ -41,6 +85,7 @@ def pose_walk(key, rig, t):
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
+    if os.environ.get('PEOPLE'): people(); sys.exit(0)
     W.T.pose = pose_walk
     only = os.environ.get('CLIPS')
     walk = {k: W.read_clip(f'{SRC}/{v[0]}') for k, v in W.CLIPS.items()}

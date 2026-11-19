@@ -105,6 +105,7 @@ func _ready():
 	main.TALK = {}
 	main.phones(false)
 	_natsuki_cam()
+	_c7_libs()
 	for e in main.torches:
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	_last_year()
@@ -342,6 +343,84 @@ func _one(name: String, db := 0.0, at = null):
 	if "--nosound" in OS.get_cmdline_user_args(): return
 	Sound.one(self, name, db, at)
 
+# 2026-11-19 ユーザーの Mixamo 4：この章だけの動き（export_ch7.py PEOPLE=1 → <名前>_c7.res）。"c7/sit_idle" "c7/sit_laugh" "c7/drink"
+# "c7/point" ほか。無い人・無い動きは、前からある動き（talk/sit_a・sit_b）のまま
+func _c7_libs():
+	for k in ["kiryu", "taiga", "natsuki"]:
+		var p := "res://assets/dusk/%s_c7.res" % k
+		if not _has(k) or not ResourceLoader.exists(p): continue
+		for ap in (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false):
+			if not (ap as AnimationPlayer).has_animation_library("c7"):
+				var lib: AnimationLibrary = (load(p) as AnimationLibrary).duplicate()
+				_sit_mix(lib, "drink")
+				(ap as AnimationPlayer).add_animation_library("c7", lib)
+
+# Mixamo's Drinking stands. For a man on the sofa: its arms, back and head on the sitting clip's hips and legs ("sit_drink")
+func _sit_mix(lib: AnimationLibrary, clip: String):
+	if not lib.has_animation(clip) or not lib.has_animation("sit_idle"): return
+	# (a new Animation, sampled: taking keys out of the imported one crashed Godot 4.4.1)
+	var up: Animation = lib.get_animation(clip); var sit: Animation = lib.get_animation("sit_idle")
+	var mix := Animation.new(); mix.length = up.length; mix.loop_mode = Animation.LOOP_NONE
+	var n := int(ceil(up.length * 24.0))
+	for i in up.get_track_count():
+		var ty := up.track_get_type(i)
+		if ty != Animation.TYPE_ROTATION_3D and ty != Animation.TYPE_POSITION_3D: continue
+		var path := String(up.track_get_path(i)); var low := false
+		for w in ["pelvis", "thigh", "calf", "foot", "ball"]:
+			if path.contains(w): low = true
+		var src := up; var si := i
+		if low:
+			si = sit.find_track(up.track_get_path(i), ty); src = sit
+			if si < 0: continue
+		var t := mix.add_track(ty); mix.track_set_path(t, up.track_get_path(i))
+		for f in (1 if low else n + 1):
+			var tm := minf(float(f) / 24.0, src.length)
+			if ty == Animation.TYPE_ROTATION_3D: mix.rotation_track_insert_key(t, tm, src.rotation_track_interpolate(si, tm))
+			else: mix.position_track_insert_key(t, tm, src.position_track_interpolate(si, tm))
+	lib.add_animation("sit_" + clip, mix)
+
+func _ap(k: String) -> AnimationPlayer:
+	if not _has(k): return null
+	return (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false)[0]
+
+func _anim7(k: String, names: Array) -> String:
+	var ap := _ap(k)
+	if ap == null: return ""
+	for n in names:
+		if ap.has_animation(n): return n
+	return ""
+
+# one movement, then back to how he sat or stood
+var busy7 := {}
+func _once7(k: String, names: Array, back: String, hold := 0.0):
+	var a := _anim7(k, names)
+	if a == "" or busy7.has(k): return
+	var ap := _ap(k)
+	var dur: float = ap.get_animation(a).length if hold <= 0.0 else hold
+	busy7[k] = true
+	main.set_stand(k, a, 0.3)
+	_after(maxf(0.4, dur - 0.3), func():
+		busy7.erase(k)
+		if _has(k) and back != "": main.set_stand(k, back, 0.45))
+
+# the party goes on round him: now and then somebody laughs, Kiryu drinks
+var amb_t := 5.0
+var sit7 := {}
+func _party_tick(dt: float):
+	if stage != "party": return
+	amb_t -= dt
+	if amb_t > 0.0: return
+	amb_t = randf_range(5.0, 9.0)
+	var who: Array = []
+	for k in sit7:
+		if k != talk_with and not busy7.has(k): who.append(k)
+	if who.is_empty(): return
+	var k: String = who[randi() % who.size()]
+	if k in ["kiryu", "taiga"] and randf() < 0.5 and _anim7(k, ["c7/sit_drink"]) != "": _once7(k, ["c7/sit_drink"], sit7[k])
+	else:
+		_once7(k, ["c7/sit_laugh", "talk/sit_laugh"], sit7[k], 3.6)
+		_one("c7_chuckle", -16.0, main._rig_of(k).global_position + Vector3(0, 1.0, 0))
+
 # Natsuki shoots hand-held (七.夏希「手持ちで撮れてた」): the small camcorder (props/minicam.glb, story.gd _fixed_cam's model) where
 # her phone is in 2026, in the hand that the 20:00 stand holds up. At the party it lies on the low table
 var nat_cam: Node3D
@@ -538,11 +617,13 @@ func _begin(st: String):
 func _ready_night():
 	hour = 21; minute = 30
 	for k in SEATS:
-		_put(k, SEATS[k], _face(SEATS[k], [1.0, SEATS[k][1]])); main.set_stand(k, SIT[k], 0.0)
+		sit7[k] = _anim7(k, ["c7/sit_idle", SIT[k]])
+		_put(k, SEATS[k], _face(SEATS[k], [1.0, SEATS[k][1]])); main.set_stand(k, sit7[k], 0.0)
 	_party_chairs()
 	for k in CHAIRS7:
 		var at: Array = CHAIRS7[k] if party_seated.has(k) else STAND7[k]
-		_put(k, at, _face(at, TABLE)); main.set_stand(k, "talk/sit_a" if party_seated.has(k) else "talk/idle", 0.0)
+		if party_seated.has(k): sit7[k] = _anim7(k, ["c7/sit_idle", "talk/sit_idle", "talk/sit_a"])
+		_put(k, at, _face(at, TABLE)); main.set_stand(k, sit7[k] if party_seated.has(k) else "talk/idle", 0.0)
 	player.global_position = gp(PARTY_ME[0], PARTY_ME[1], 0.0)
 	var to := Vector3(TABLE[0] - PARTY_ME[0], 0.0, TABLE[1] - PARTY_ME[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-8.0)
@@ -651,6 +732,7 @@ func _do(what: String):
 			pass
 		"window_slap":
 			_slap()
+			_once7("mio", ["talk/react", "talk/startle"], "talk/idle")
 			look_all = true
 			if _has("taiga"):
 				var rig: Node3D = main._rig_of("taiga"); var p0 := rig.global_position
@@ -690,6 +772,7 @@ func _do(what: String):
 			talk_with = "mio"
 		"lunge":
 			_lunge()
+			_once7("mio", ["talk/startle", "talk/react"], "talk/idle")
 			conte_done[1] = true; _conte_fill()
 		"fade_out":
 			stage = "fade"; script_q.clear(); mode = FREE
@@ -701,6 +784,16 @@ func _do(what: String):
 				_next_part("ch7n"))
 		"night":
 			pass
+		"point":
+			# Taiga is up off the sofa and jabs a finger at him; when Kiryu stops them he sinks back. (The clip stands at the
+			# rig's own place, which for a sitting man is the seat: he comes forward of it as he rises)
+			if _anim7("taiga", ["c7/point"]) != "" and not busy7.has("taiga"):
+				var rig: Node3D = main._rig_of("taiga"); var p0 := rig.global_position
+				_once7("taiga", ["c7/point"], sit7.get("taiga", SIT.taiga), 3.4)
+				var tw := create_tween()
+				tw.tween_property(rig, "global_position", p0 + Vector3(-0.42, 0, 0), 0.45).set_trans(Tween.TRANS_SINE)
+				tw.tween_interval(2.5)
+				tw.tween_property(rig, "global_position", p0, 0.6).set_trans(Tween.TRANS_SINE)
 		"go_out":
 			_go_out_now()
 		"outside":
@@ -1023,6 +1116,7 @@ func _process(dt):
 	player.move_enabled = mode == FREE and stage in ["to_window", "to_door", "party", "outside", "climb", "door2", "to_back"]
 	_mirror_tick(dt)
 	_gait_tick(dt)
+	_party_tick(dt)
 	# main.gd's stand-in for the sky in the open doorway (lights.doorsky) is a spot just outside the door, aimed in: with the
 	# door shut it burnt a white disc on the door's outside. It comes with the door's opening
 	if door_sky7 == null and main.door_pivot and not door_sky_looked:

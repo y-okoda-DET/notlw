@@ -551,3 +551,9 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 窓を叩く手：どこに立っていても、叩く瞬間に体を窓に正対させ、近いほうの窓の中央±22cm、ガラスから 54cm に寄せる（_slap）。斜めに立つと片手が窓のあいだの壁に乗った。
 - 夏希の手持ちカメラは、2026年のスマホ（nphone）と同じ骨に props/minicam.glb を付け、20:00 の立ち方（t20/loop、スマホを構えた腕）を使う。
 - 絵コンテの紙（ui/make_conte7.py）は、土台1枚と、同じ大きさの透明な重ね3枚（済の印2つ、書き足しのコマ3）。画面では重ねの表示を切り替えるだけ。
+- 4人のこの章だけの動きは、export_talk.py（全章が使う talk.glb）を触らずに `PEOPLE=1 python3 blender/export_ch7.py` で <名前>_c7.glb に書き、check/ch7_lib.gd が <名前>_c7.res にする。ch7.gd が "c7" の名前で足す（c7/sit_idle、c7/sit_laugh、c7/drink、c7/point ほか）。一度きりの動きは _once7（終わったら元の座り方・立ち方に戻す）。
+- Mixamo の Drinking・Angry Point・Surprised・Reacting・Laughing は立った動き（腰の高さ 1.0）、Sitting 系は腰 0.6。座った人に立った動きをそのまま掛けると、体の置き場所（＝座面）に立つのでソファにめり込む。飲むのは、腕・背・頭だけを Drinking から、腰と脚を sit_idle の最初の形から取った動きをその場で作る（_sit_mix → c7/sit_drink）。指をさす大河は、立ち上がりながら体を 42cm 前へ出す。
+- 取り込んだ動き（glb の Animation）から鍵を抜く（track_remove_key）と Godot 4.4.1 が落ちる（signal 11）。新しい Animation を作り、*_track_interpolate で 1/24 秒ごとに写す。
+- 自動の通しの道（player.auto_path）は「決まった速さで先を走る点」を体がまっすぐ追う。遅れると点が何本も先の区間に行き、角を切って土手や車に当たる。区間を1本ずつ渡す（_demo_leg）。story.gd が話者へ向く 2.2 秒の道で上書きして消すこともあるので、消えていたら同じ区間を渡し直す。
+- 外の見えない壁は間取りの x=15.0 にもある（東）。その外に人を置くと一歩も動けない（is_on_wall、壁の向き (1,0,0)）。2時に目を覚ます場所は 14.2。
+- build.sh を裏で走らせるときの上限は2時間。家の6〜8時刻を空のキャッシュから焼くと超える（1時刻 4〜16分）。止まったら同じコマンド（SCENES=house）をもう一度走らせれば、済んだ時刻はキャッシュから使われる。
