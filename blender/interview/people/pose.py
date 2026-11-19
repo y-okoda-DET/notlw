@@ -198,14 +198,24 @@ elif HANDS in ('pinch', 'stroke', 'write'):
             # CCD over the three thumb bones from a bent start: the tip reaches the edge without leaving the joints straight
             bend_()
             for _ in range(12):
-                for jn in ('03', '02', '01'):
+                # 回す骨は PTC。03 を回すと第一関節が 120° 以上折れていた（2026-11-19）
+                for jn in tuple(_os_.environ.get('PTC', '01').split(',')):
                     b = f'thumb_{jn}_r'; h = C.bone_head(rig, b); t3 = C.bone_tail(rig, 'thumb_03_r'); a_ = t3 - h; b_ = Vector(T) - h
                     if a_.cross(b_).length > 1e-7: C.rot_world(rig, b, a_.cross(b_).normalized(), min(25.0, math.degrees(a_.angle(b_))))
+                    if jn != '01':   # 関節の曲がりすぎを戻す（親指の付け根の次 40°、第一関節 35°。2026-11-19）
+                        pb = f"thumb_{'01' if jn == '02' else '02'}_r"; pa = (C.bone_tail(rig, pb) - C.bone_head(rig, pb)).normalized()
+                        ca = (C.bone_tail(rig, b) - C.bone_head(rig, b)).normalized(); lim = {'02': 40.0, '03': 35.0}[jn]
+                        if math.degrees(pa.angle(ca)) > lim and pa.cross(ca).length > 1e-7:
+                            C.rot_world(rig, b, pa.cross(ca).normalized(), lim - math.degrees(pa.angle(ca)))
         else: aim_(); bend_()
     def aim_finger(f, T, flex=(30, 25)):
-        palm = palm_now()
+        palm = palm_now(); ax0 = None
         for jn, dg in zip(('02', '03'), flex):
             b = f'{f}_{jn}_r'; d_ = (C.bone_tail(rig, b) - C.bone_head(rig, b)).normalized(); ax = d_.cross(palm)
+            # 2026-11-19（ユーザー「指の第一関節の曲がる方向が逆」）：第二関節を大きく曲げると、指先の骨が手のひらの向きを
+            # 越えて ax が裏返り、第一関節が反り返っていた。第二関節の軸と逆を向いたら返す
+            if ax0 is not None and ax.dot(ax0) < 0: ax = -ax
+            if ax.length > 1e-6 and ax0 is None: ax0 = ax.copy()
             if ax.length > 1e-6 and dg: C.rot_world(rig, b, ax.normalized(), dg)
         for _ in range(3):
             h1 = C.bone_head(rig, f'{f}_01_r'); tip = C.bone_tail(rig, f'{f}_03_r'); a_ = tip - h1; b_ = Vector(T) - h1
@@ -238,12 +248,12 @@ elif HANDS in ('pinch', 'stroke', 'write'):
         import os as _os
         fdp = Vector(tuple(float(x) for x in _os.environ.get('PFD', '0.25,-1,-0.12').split(','))).normalized()
         pnp = Vector(tuple(float(x) for x in _os.environ.get('PPN', '0,0.1,-1').split(','))); pnp = (pnp - fdp * pnp.dot(fdp)).normalized()
-        near = near + U * float(_os.environ.get('PTU', '0.045')) + Vector((0, float(_os.environ.get('PTY', '0.008')), float(_os.environ.get('PTZ', '0'))))
+        near = near + U * float(_os.environ.get('PTU', '0.08')) + Vector((0, float(_os.environ.get('PTY', '-0.015')), float(_os.environ.get('PTZ', '0'))))
         _f = lambda k, d: tuple(float(x) for x in _os.environ.get(k, d).split(','))
         # 2026-11-19（ユーザー「2だけ形が明らかにモノっぽさ感が強い」、そのあとユーザーの写真3枚 /mnt/project-files/インタビュー/手のお手本/2b_*）：
         # 手のひらをテープの真上に寝かせ（PPN＝下向き、PFD＝ほぼ水平）、4本の指をみな奥の縁にかける（PRA。薬指と小指も）。
-        # 親指は伸ばしたまま手前の縁に添える（PTF 小さく、PTU・PTY）。指の腹は約7mm あるので、骨の先は奥の面から 4.2cm（PFO）
-        FX = _f('PFX', '70,55'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '5,10'); W0 = _f('PW0', '-0.12,0.52,0.39')
+        # 親指は伸ばしたまま手前の縁に添え、先は角の先まで（PTF 小さく、PTU・PTY。曲げは付け根 PTC=01 だけで向ける）。指の腹は約7mm あるので、骨の先は奥の面から 4.2cm（PFO）
+        FX = _f('PFX', '70,55'); RP = _f('PRP', '.9,.95'); TF = _f('PTF', '10,15'); W0 = _f('PW0', '-0.12,0.52,0.39')
         solve(W0, fdp, pnp,
               dict({'index': (farI, FX), 'middle': (farI - U * 0.019 + Vector((0, 0.002, 0)), FX), 'thumb': (near, TF)},
                    **({'ring': (farI - U * 0.036 + Vector((0, 0.006, 0.006)), FX), 'pinky': (farI - U * 0.050 + Vector((0, 0.014, 0.012)), FX)}
