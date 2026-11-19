@@ -51,8 +51,10 @@ var clock_run := true
 var cam_h := EYE               # the eye's height now (the camera's once he has it)
 var zoom := 0.0                # 0 wide .. 1 tele
 var zoom_v := 0.0
-var cam_light: SpotLight3D
+var cam_light: OmniLight3D
 var light_want := 0.0
+var car_dome: OmniLight3D
+var door_gap: OmniLight3D
 var bolt8: DirectionalLight3D
 var bolt_e := 0.0
 var bolt_next := -1.0
@@ -85,6 +87,7 @@ var loops8 := {}
 var car_at := Vector3.ZERO     # the car's middle (Godot)
 var car_r := 2.2
 var yaw_lock := false
+var hall_framed := false
 var free_look_after := 0.0
 
 # a small turn of the head from side to side (she shakes her head: the chin, the hair and the blanket's collar move)
@@ -421,6 +424,14 @@ func _car():
 	var gl := OmniLight3D.new(); gl.name = "car_glow"; gl.light_color = Color(0.78, 0.86, 1.0); gl.light_energy = 0.9
 	gl.omni_range = 1.4; gl.omni_attenuation = 1.2; gl.shadow_enabled = false
 	add_child(gl); gl.global_position = car_at + Vector3(0, 0.15, 0)
+	# the cabin's lamp while her door is open: the one warm light out here
+	car_dome = OmniLight3D.new(); car_dome.name = "car_dome"; car_dome.light_color = Color(1.0, 0.74, 0.42); car_dome.light_energy = 0.0
+	car_dome.omni_range = 7.0; car_dome.omni_attenuation = 1.0; car_dome.shadow_enabled = false; car_dome.light_specular = 0.2
+	add_child(car_dome); car_dome.global_position = car_at + Vector3(0, 0.75, 0)   # _natsuki_out moves it to her open door
+	# the house's light under its own front door, seen from outside while he knocks (第3章の扉の下の隙間、FRONT_GAP)
+	door_gap = OmniLight3D.new(); door_gap.name = "door_gap"; door_gap.light_color = Color(1.0, 0.7, 0.38); door_gap.light_energy = 0.0
+	door_gap.omni_range = 1.7; door_gap.omni_attenuation = 1.4; door_gap.shadow_enabled = false; door_gap.light_specular = 0.0
+	add_child(door_gap); door_gap.global_position = gp(5.0, -0.12, -0.12)
 
 # ---------------------------------------------------------------- the finder (the whole chapter is its picture)
 class Finder8 extends Control:
@@ -505,12 +516,14 @@ func _fin8(on: bool):
 
 # ---------------------------------------------------------------- light: the camera's lamp, the lightning
 func _lights8():
-	cam_light = SpotLight3D.new(); cam_light.name = "cam_light"
-	cam_light.light_color = Color(1.0, 0.78, 0.5)        # a small tungsten video light: the print's orange plate
-	cam_light.light_energy = 0.0; cam_light.spot_range = 9.0; cam_light.spot_angle = 34.0
-	cam_light.spot_attenuation = 1.3; cam_light.spot_angle_attenuation = 0.7     # broad and soft: not a torch's disc
-	cam_light.shadow_enabled = true; cam_light.light_specular = 0.25; cam_light.light_volumetric_fog_energy = 1.2
-	_cam().add_child(cam_light); cam_light.position = Vector3(0.05, 0.11, -0.05)
+	# 2026-11-19：カメラのライト（暖色のスポット）はやめた。闇に丸い光が一つ、は「懐中電灯一灯」（使わない記号）と同じ画になる。
+	# 代わりに、カメラが暗い所で感度を上げたぶん：向きも縁も影もない、近くだけの冷たい明るさ（青の版）。
+	# オレンジの版は、画の中にある灯り（車の室内灯、扉の下から漏れる家の灯り）から。
+	cam_light = OmniLight3D.new(); cam_light.name = "cam_gain"
+	cam_light.light_color = Color(0.72, 0.82, 1.0)
+	cam_light.light_energy = 0.0; cam_light.omni_range = 16.0; cam_light.omni_attenuation = 0.7
+	cam_light.shadow_enabled = false; cam_light.light_specular = 0.0; cam_light.light_volumetric_fog_energy = 0.0
+	_cam().add_child(cam_light); cam_light.position = Vector3(0.0, 0.6, 0.4)
 	bolt8 = DirectionalLight3D.new(); bolt8.name = "bolt8"; bolt8.light_color = Color(0.86, 0.9, 1.0); bolt8.light_energy = 0.0
 	bolt8.shadow_enabled = true; bolt8.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; bolt8.directional_shadow_max_distance = 45.0
 	bolt8.light_volumetric_fog_energy = 0.3; bolt8.light_specular = 0.2
@@ -560,10 +573,9 @@ void vertex() {
 	vec3 up = normalize(vec3(-wind.x / sp, 1.0, -wind.z / sp));
 	vec3 wp = o + right * VERTEX.x * (1.0 + d * 0.12) + up * VERTEX.y;
 	POSITION = PROJECTION_MATRIX * (VIEW_MATRIX * vec4(wp, 1.0));
-	float beam = pow(max(dot(normalize(to), cam_fwd), 0.0), 5.0);
-	bright = (lit * beam * 1.6 * exp(-d / 3.2) + 0.012 + flash * 0.5) * amount * smoothstep(0.25, 0.9, d);
+		bright = (lit * 0.22 * exp(-d / 5.0) + 0.012 + flash * 0.5) * amount * smoothstep(0.25, 0.9, d);
 }
-void fragment() { ALBEDO = mix(vec3(0.55, 0.62, 0.75), vec3(1.0, 0.82, 0.6), clamp(bright * 2.0, 0.0, 1.0)) * bright; }
+void fragment() { ALBEDO = vec3(0.6, 0.68, 0.8) * bright; }
 """ % [RAIN_H, RAIN_BOX * 0.5, RAIN_BOX, RAIN_BOX * 0.5]
 	rain_mat = ShaderMaterial.new(); rain_mat.shader = sh
 	rain8 = MultiMeshInstance3D.new(); rain8.multimesh = mm; rain8.material_override = rain_mat
@@ -643,6 +655,7 @@ func _take_now(quick := false):
 	if _has("mio"):
 		main.walk_to("mio", [[4.3, 4.6, 0.0], [MIO_TALK[0], MIO_TALK[1], 0.0]], func():
 			_turn_to(_yaw_to(gp(MIO_TALK[0], MIO_TALK[1], 1.2)), _talk_pitch(), 1.6)
+			_after(1.6, func(): hall_framed = true)
 			_after(1.2, func(): _start(B("八.廊下"))), _face(MIO_TALK, TAKE_AT))
 	else: _after(1.5, func(): _turn_to(PI, _talk_pitch(), 1.2); _start(B("八.廊下")))
 
@@ -763,6 +776,7 @@ func _natsuki_out():
 	# she stops where he says to: two and a half metres off, a little to one side of the line to the car (the car stays in the picture behind her)
 	var p0 := c + side * 1.25; var p1 := c + side * 1.2 - away * (car_r + 0.4); var p2 := me + away * 2.6 + side * 0.45
 	var pl := func(v: Vector3) -> Array: return [v.x + 4.8, v.z + 6.3]
+	if car_dome: car_dome.global_position = c + side * 0.95 + Vector3(0, car_at.y + 0.5, 0)
 	_show("natsuki")
 	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
 	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), Callable(), _face(pl.call(p2), _plan()))
@@ -908,7 +922,6 @@ func _fall_tick(dt: float):
 	(finder8 as Finder8).glitch = (0.35 + 0.65 * absf(sin(k * 19.0))) * (1.0 - k) if k < 1.0 else 0.0
 	if fall_t > dur + 0.01 and stage == "fall":
 		_one("tripod_bump", -6.0)
-		cam_light.shadow_enabled = false
 		light_want = 0.35   # the lamp's glass is cracked: a little of it left, on the rain over the lens
 		batt = 1
 		clock = 2.0 * 3600.0 + 41.0 * 60.0 + 20.0
@@ -1031,6 +1044,8 @@ func _process(dt):
 		player.eye_height = cam_h
 	# the view he may not turn: in the hall after the take he does not look back at her (her face is not in this chapter)
 	if yaw_lock: player.yaw = clampf(wrapf(player.yaw, -PI, PI), -1.75, 1.75)
+	# 澪の顔はこの章の画に入れない：廊下で向き合っている間、画の上の縁は口元より上へ行かない（自動の通しの向き直しにも勝つ）
+	if hall_framed and stage in ["hall", "rec_wait", "flash", "rec"]: player.pitch = minf(player.pitch, _talk_pitch())
 	_zoom_tick(dt)
 	_light_tick(dt)
 	_door_tick(dt)
@@ -1089,8 +1104,11 @@ func _zoom_tick(dt: float):
 func _light_tick(dt: float):
 	var out := _outside() and fin_on
 	if stage in ["to_car", "car", "to_knock", "door", "road", "corner", "edge", "out", "leaving"] and out: light_want = 1.0
-	elif stage in ["top", "hall", "rec_wait", "flash", "rec", "to_door", "opening"]: light_want = 0.0
-	cam_light.light_energy = move_toward(cam_light.light_energy, 2.6 * light_want, dt * 6.0)
+	elif stage == "top": light_want = 0.0
+	elif stage in ["taking", "hall", "rec_wait", "flash", "rec", "to_door", "opening"]: light_want = 0.4
+	cam_light.light_energy = move_toward(cam_light.light_energy, 0.55 * light_want, dt * 2.0)
+	if car_dome: car_dome.light_energy = move_toward(car_dome.light_energy, 3.0 if stage == "car" else 0.0, dt * 4.0)
+	if door_gap: door_gap.light_energy = move_toward(door_gap.light_energy, 2.2 if stage in ["out", "to_knock", "door"] else 0.0, dt * 2.0)
 	bolt8.light_energy = bolt_e
 	_night8(dt, out or stage in ["fall", "sky", "lapse"])
 	rain_on = move_toward(rain_on, 1.0 if (out or stage in ["sky"]) else (rain_on if stage == "lapse" else 0.0), dt * 2.0)
@@ -1099,7 +1117,7 @@ func _light_tick(dt: float):
 		var cam := _cam()
 		rain_mat.set_shader_parameter("cam_pos", cam.global_position)
 		rain_mat.set_shader_parameter("cam_fwd", -cam.global_basis.z)
-		rain_mat.set_shader_parameter("lit", cam_light.light_energy / 2.6)
+		rain_mat.set_shader_parameter("lit", cam_light.light_energy / 0.55)
 		rain_mat.set_shader_parameter("flash", clampf(bolt_e / 5.0, 0.0, 1.0))
 		rain_mat.set_shader_parameter("amount", rain_on)
 	if loops8.has("rain_out") and stage not in ["lapse", "end"]:
@@ -1206,7 +1224,7 @@ func _demo_look(at: Vector3):
 
 func _demo8_tick(dt: float):
 	if "--ch8trace" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 24 == 0:
-		print("C8TRACE %s plan(%.2f, %.2f) y=%.2f mode=%d prog=%.1f" % [stage, _plan()[0], _plan()[1], player.global_position.y, mode, _road_progress()])
+		print("C8TRACE %s plan(%.2f, %.2f) y=%.2f mode=%d prog=%.1f pitch=%.1f tp=%.1f hf=%s camy=%.2f fov=%.0f" % [stage, _plan()[0], _plan()[1], player.global_position.y, mode, _road_progress(), rad_to_deg(player.pitch), rad_to_deg(_talk_pitch()), hall_framed, _cam().global_position.y, _cam().fov])
 	demo_wait -= dt
 	if demo_wait > 0.0: return
 	match stage:
