@@ -17,7 +17,7 @@ const STAIR := [[5.5, 5.7, F2], [5.5, 2.55, 0.0], [4.75, 2.2, 0.0]]
 const TRIPOD := [4.35, 1.6]                    # the big camera's tripod at the stair's foot (main.gd _tripod_clear)
 const TAKE_AT := [4.75, 2.2]                   # where he stands with it (ch3.gd)
 const MIO_WAIT := [4.95, 5.05]                 # at the cellar door, her back to the hall
-const MIO_TALK := [4.62, 3.85]                 # where she stops before him
+const MIO_TALK := [4.1, 3.55]                 # where she stops before him
 const CELLAR_DOOR := [5.5, 5.62]
 const OUT_AT := [5.0, -0.95]
 const EYE := 1.66                              # Kiryu's eye (Mio's is 1.52)
@@ -44,6 +44,7 @@ var door_tw: Tween
 var finder8: Control
 var fin_on := false            # the picture is the camera's
 var rec8 := false
+var rec_c0 := 7200.0           # the clock when he pressed: the counter is the clock less this (the clock jumps with the chapter's cuts, and the tape ran through them)
 var rec_t := 0.0               # the tape's counter
 var clock := 2.0 * 3600.0      # the camera's clock, seconds of the day
 var clock_run := true
@@ -114,7 +115,7 @@ func _ready():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--ch8at="): start8 = a.substr(8)
 		if a == "--ch8probe": call_deferred("_probe")
-		if a.begins_with("--ch8portrait="): call_deferred("_portrait", a.substr(15))
+		if a.begins_with("--ch8portrait="): call_deferred("_portrait", a.substr(14))
 	main.TALK = {}
 	main.phones(false)
 	for e in main.torches:
@@ -457,7 +458,7 @@ class Finder8 extends Control:
 		elif st.rec8: draw_string(fnt, Vector2(x0 + 26 * u, y0 + 46 * u), "● REC", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.35, 0.15))
 		else: draw_string(fnt, Vector2(x0 + 26 * u, y0 + 46 * u), "STBY", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, lc)
 		# the tape's counter (from where he pressed) top right; the clock bottom left
-		var tc := "0:%02d:%02d" % [int(st.rec_t / 60.0) % 60, int(st.rec_t) % 60]
+		var tc := "%d:%02d:%02d" % [int(st.rec_t / 3600.0), int(st.rec_t / 60.0) % 60, int(st.rec_t) % 60]
 		draw_string(fnt, Vector2(x0 + w - 230 * u, y0 + 46 * u), tc, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, lc)
 		var ck: float = st.clock
 		var hh := int(ck / 3600.0) % 24; var mm := int(ck / 60.0) % 60
@@ -495,6 +496,7 @@ func _finder8():
 	var f := Finder8.new(); f.st = self; f.fnt = Type.cam(); f.u = u
 	f.set_anchors_preset(Control.PRESET_FULL_RECT); f.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(f); finder8 = f
+	if "--ch8nofin" in OS.get_cmdline_user_args(): layer.visible = false   # 確認用：ファインダーの枠なしで見る
 
 func _fin8(on: bool):
 	fin_on = on
@@ -534,7 +536,7 @@ const RAIN_N := 900
 const RAIN_BOX := 12.0
 const RAIN_H := 8.0
 func _rain8():
-	var q := QuadMesh.new(); q.size = Vector2(0.007, 0.55)
+	var q := QuadMesh.new(); q.size = Vector2(0.0035, 0.3)
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = q; mm.instance_count = RAIN_N
 	var rng := RandomNumberGenerator.new(); rng.seed = 8
 	for i in RAIN_N:
@@ -556,7 +558,7 @@ void vertex() {
 	vec3 to = o - cam_pos; float d = length(to);
 	vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), to));
 	vec3 up = normalize(vec3(-wind.x / sp, 1.0, -wind.z / sp));
-	vec3 wp = o + right * VERTEX.x * (1.0 + d * 0.35) + up * VERTEX.y;
+	vec3 wp = o + right * VERTEX.x * (1.0 + d * 0.12) + up * VERTEX.y;
 	POSITION = PROJECTION_MATRIX * (VIEW_MATRIX * vec4(wp, 1.0));
 	float beam = pow(max(dot(normalize(to), cam_fwd), 0.0), 5.0);
 	bright = (lit * beam * 1.6 * exp(-d / 3.2) + 0.012 + flash * 0.5) * amount * smoothstep(0.25, 0.9, d);
@@ -568,6 +570,23 @@ void fragment() { ALBEDO = mix(vec3(0.55, 0.62, 0.75), vec3(1.0, 0.82, 0.6), cla
 	rain8.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; rain8.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	rain8.custom_aabb = AABB(Vector3(-500, -100, -500), Vector3(1000, 200, 1000))
 	main.add_child(rain8); rain8.visible = false
+
+# 外は夜の2時：遠くは闇に沈み、カメラのライトの届く所だけが見える。稲妻の一瞬だけ、谷まで見える。
+# （本体の夜の外は、家の中から窓越しに見るための明るさ。そのまま歩くと昼のように見えた：2026-11-19 の確認画）
+var night_k := 0.0; var dawn := 0.0; var fog0 := []
+func _night8(dt: float, on: bool):
+	var e: Environment = main.env
+	if e == null: return
+	if fog0.is_empty(): fog0 = [e.fog_density, e.fog_light_color, e.fog_light_energy, e.fog_sky_affect]
+	night_k = move_toward(night_k, 1.0 if on else 0.0, dt * 1.2)
+	if night_k <= 0.0 and not on:
+		e.fog_density = fog0[0]; e.fog_light_color = fog0[1]; e.fog_light_energy = fog0[2]; e.fog_sky_affect = fog0[3]; return
+	var fl := clampf(bolt_e / 5.0, 0.0, 1.0)
+	var dark := Color(0.012, 0.02, 0.035).lerp(Color(0.2, 0.27, 0.36), dawn)
+	e.fog_light_color = (fog0[1] as Color).lerp(dark.lerp(Color(0.34, 0.4, 0.5), fl), night_k)
+	e.fog_light_energy = lerpf(fog0[2], 1.0, night_k)
+	e.fog_density = lerpf(fog0[0], lerpf(0.075, 0.012, maxf(fl, dawn)), night_k)
+	e.fog_sky_affect = lerpf(fog0[3], 1.0, night_k)
 
 func _outside() -> bool:
 	var p := _plan()
@@ -622,7 +641,7 @@ func _take_now(quick := false):
 	# his eyes on the camera in his hands; her feet come into the bottom of the picture; he tilts up, and stops at her mouth
 	_turn_to(PI, deg_to_rad(-52.0), 0.6)
 	if _has("mio"):
-		main.walk_to("mio", [[MIO_TALK[0] + 0.1, 4.5, 0.0], [MIO_TALK[0], MIO_TALK[1], 0.0]], func():
+		main.walk_to("mio", [[4.3, 4.6, 0.0], [MIO_TALK[0], MIO_TALK[1], 0.0]], func():
 			_turn_to(_yaw_to(gp(MIO_TALK[0], MIO_TALK[1], 1.2)), _talk_pitch(), 1.6)
 			_after(1.2, func(): _start(B("八.廊下"))), _face(MIO_TALK, TAKE_AT))
 	else: _after(1.5, func(): _turn_to(PI, _talk_pitch(), 1.2); _start(B("八.廊下")))
@@ -637,7 +656,7 @@ func _talk_pitch() -> float:
 	return atan2(mouth - CHEST, maxf(d, 0.5)) - half
 
 func _set_rec_now():
-	rec8 = true; rec_t = 0.0
+	rec8 = true; rec_t = 0.0; rec_c0 = clock
 
 # ================================================================ what the lines set off
 func _do(what: String):
@@ -663,7 +682,7 @@ func _do(what: String):
 			_one("car_door", -6.0, car_at)
 			_natsuki_out()
 		"to_knock":
-			stage = "to_knock"; t_stage = 0.0
+			stage = "to_knock"; t_stage = 0.0; player.look_enabled = true
 			clock = 2.0 * 3600.0 + 29.0 * 60.0 + 30.0
 			if _has("natsuki"): main.walk_to("natsuki", _way([[5.9, -4.6], [5.75, -2.9], [5.72, -1.05]]), Callable(), _face([5.72, -1.05], [5.0, 0.0]))
 		"knock":
@@ -741,12 +760,21 @@ func _natsuki_out():
 	# she gets out on the far side and comes round the back of the car, and stops when he says so
 	var me := Vector3(player.global_position.x, 0, player.global_position.z); var c := Vector3(car_at.x, 0, car_at.z)
 	var away := (c - me).normalized(); var side := away.cross(Vector3.UP)
-	var p0 := c + side * 1.25; var p1 := c + side * 1.2 - away * (car_r + 0.5); var p2 := c - away * (car_r + 1.0) - side * 0.2
+	# she stops where he says to: two and a half metres off, a little to one side of the line to the car (the car stays in the picture behind her)
+	var p0 := c + side * 1.25; var p1 := c + side * 1.2 - away * (car_r + 0.4); var p2 := me + away * 2.6 + side * 0.45
 	var pl := func(v: Vector3) -> Array: return [v.x + 4.8, v.z + 6.3]
 	_show("natsuki")
 	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
 	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), Callable(), _face(pl.call(p2), _plan()))
 	talk_with = "natsuki"
+
+# the operator keeps her in the picture: her face a little above the middle
+func _frame8(k: String, h: float, dt: float):
+	if not _has(k) or not (main.S[k + "_node"] as Node3D).visible: return
+	var to: Vector3 = main._rig_of(k).global_position + Vector3(0, h, 0) - _cam().global_position
+	var yaw := atan2(-to.x, -to.z); var pitch := atan2(to.y, Vector2(to.x, to.z).length()) - deg_to_rad(5.0)
+	var kk := 1.0 - exp(-dt * 2.2)
+	player.yaw = lerp_angle(player.yaw, yaw, kk); player.pitch = lerp_angle(player.pitch, pitch, kk)
 
 # plan points [x, y] with the ground's height under each
 func _way(pts: Array) -> Array:
@@ -930,12 +958,11 @@ func _tape_lapse():
 		(finder8 as Finder8).glitch = 1.0
 		_after(0.1, func(): (finder8 as Finder8).glitch = 0.0)
 		clock = h * 3600.0 + m * 60.0
-		rec_t += (clock - (2.0 * 3600.0 + 42.0 * 60.0)) if lapse == 0 else 0.0
-		_sky_set(sky); rain_on = rain
+		_sky_set(sky); rain_on = rain; dawn = clampf((sky - 1.0) / 8.0, 0.0, 1.0)
 		if rain <= 0.01: _loop_db("rain_out", -50.0, 0.2); _loop_db("ch8_wind", -50.0, 0.2); light_want = 0.0
 		(finder8 as Finder8).drops = (finder8 as Finder8).drops.slice(0, 5)
-	cut.call(3, 30, 1.0, 1.0); rec_t = 48.0 * 60.0 + 40.0
-	_after(6.0, func(): cut.call(4, 52, 9.0, 0.0); rec_t = 2.0 * 3600.0 + 10.0 * 60.0 + 30.0; batt = 0)
+	cut.call(3, 30, 1.0, 1.0)
+	_after(6.0, func(): cut.call(4, 52, 9.0, 0.0); batt = 0)
 	_after(12.5, func():
 		(finder8 as Finder8).end_mark = true; rec8 = false; clock_run = false
 		_one("tape_clunk", -6.0))
@@ -970,7 +997,7 @@ func _end():
 func _process(dt):
 	t_now += dt; t_stage += dt
 	if clock_run: clock += dt
-	if rec8: rec_t += dt
+	if rec8: rec_t = maxf(0.0, clock - rec_c0)
 	if card_t > 0.0:
 		card_t -= dt
 		card.visible = true; player.move_enabled = false; player.look_enabled = false
@@ -1022,7 +1049,7 @@ func _process(dt):
 			"to_car":
 				if mode == FREE and t_stage > 1.0:
 					var d := Vector2(player.global_position.x - car_at.x, player.global_position.z - car_at.z).length()
-					if d < car_r + 3.2: stage = "car"; t_stage = 0.0; _set_mission(""); _start(B("八.車"))
+					if d < car_r + 4.0: stage = "car"; t_stage = 0.0; _set_mission(""); player.look_enabled = false; player.auto_path = []; demo_goal = []; demo_route = []; _start(B("八.車"))
 			"to_knock":
 				if _near_door(2.2): _begin("door"); clock = maxf(clock, 2.0 * 3600.0 + 30.0 * 60.0 + 40.0)
 			"door":
@@ -1033,7 +1060,7 @@ func _process(dt):
 				pass
 			"edge":
 				_edge_tick(dt)
-	if stage == "car" and mode == FREE and t_stage > 1.0: pass
+	if stage == "car": _frame8("natsuki", 1.36, dt)
 	if stage == "fall": _fall_tick(dt)
 	if stage == "sky": _sky_tick(dt)
 	if stage == "lapse": _sky_tick(dt)
@@ -1065,6 +1092,7 @@ func _light_tick(dt: float):
 	elif stage in ["top", "hall", "rec_wait", "flash", "rec", "to_door", "opening"]: light_want = 0.0
 	cam_light.light_energy = move_toward(cam_light.light_energy, 2.6 * light_want, dt * 6.0)
 	bolt8.light_energy = bolt_e
+	_night8(dt, out or stage in ["fall", "sky", "lapse"])
 	rain_on = move_toward(rain_on, 1.0 if (out or stage in ["sky"]) else (rain_on if stage == "lapse" else 0.0), dt * 2.0)
 	rain8.visible = rain_on > 0.01
 	if rain8.visible:
@@ -1247,7 +1275,22 @@ func _probe():
 	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
 		var nm := String(mi.name)
 		if nm.begins_with("vcam_") or nm.begins_with("tpd_") or nm.begins_with("ext_car") or nm.begins_with("ext_slipfall"): print("C8MESH ", nm, " plan=(%.2f, %.2f, %.2f) vis=%s" % [(mi as Node3D).global_position.x + 4.8, (mi as Node3D).global_position.z + 6.3, (mi as Node3D).global_position.y, (mi as Node3D).is_visible_in_tree()])
-	for k in main.lights: print("C8LIGHT ", k, " ", (main.lights[k] as Node3D).global_position + Vector3(4.8, 0, 6.3) if main.lights[k] is Node3D else "")
+	for k in main.lights:
+		if main.lights[k] is Light3D:
+			var l: Light3D = main.lights[k]
+			print("C8LIGHT ", k, " ", l.get_class(), " ", l.global_position + Vector3(4.8, 0, 6.3), " e=", l.light_energy, " c=", l.light_color, " vis=", l.is_visible_in_tree(), " mask=", l.light_cull_mask)
+	# 廊下の間取り：2.3 m から下へ当てた高さ（. 床、# 1.6 m より上、+ その間）。左が x=3.4、上が y=6.0
+	for iy in range(60, -6, -2):
+		var row := "C8HALL y=%4.1f " % (iy * 0.1)
+		for ix in range(34, 66, 1):
+			var q := PhysicsRayQueryParameters3D.create(gp(ix * 0.1, iy * 0.1, 2.3), gp(ix * 0.1, iy * 0.1, -0.5))
+			var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+			var hh: float = hit.position.y if not hit.is_empty() else -9.0
+			row += "." if hh < 0.12 else ("#" if hh > 1.6 else "+")
+		print(row)
+	var e: Environment = main.env
+	print("C8ENV bg=", e.background_mode, " amb_src=", e.ambient_light_source, " amb_c=", e.ambient_light_color, " amb_e=", e.ambient_light_energy, " sky_contrib=", e.ambient_light_sky_contribution, " bg_e=", e.background_energy_multiplier, " fog=", e.fog_enabled, " fogc=", e.fog_light_color, " fogd=", e.fog_density, " vol=", e.volumetric_fog_enabled, " exp=", e.tonemap_exposure)
+	for n in main.find_children("*", "DirectionalLight3D", true, false): print("C8DIR ", n.name, " e=", n.light_energy, " c=", n.light_color, " vis=", n.is_visible_in_tree(), " rot=", n.global_rotation_degrees)
 
 # 夏希の1秒の画（ui/ch8_natsuki.png）を作る道具。ゲームでは呼ばれない。
 #   godot --path <重ねたプロジェクト> -- --basepack=… --housepack=… --scene=house --play=ch8 --nocard --print=0 --ch8portrait=<出す png>
@@ -1262,6 +1305,12 @@ func _portrait(path: String):
 	if nat_phone: nat_phone.light_energy = 0.0
 	if main.faces.has("natsuki"): main.faces["natsuki"].mat.albedo_texture = main.faces["natsuki"].tex.talk
 	var o := gp(at[0], at[1], z)
+	main.env.fog_enabled = false; main.env.volumetric_fog_enabled = false
+	get_viewport().disable_3d = false
+	main.env.background_mode = Environment.BG_COLOR; main.env.background_color = Color(0.02, 0.02, 0.02)
+	main.env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; main.env.ambient_light_color = Color(0.5, 0.48, 0.45); main.env.ambient_light_energy = 0.35
+	for cl in main.find_children("*", "CanvasLayer", true, false): (cl as CanvasLayer).visible = false
+	for cl in find_children("*", "CanvasLayer", true, false): (cl as CanvasLayer).visible = false
 	var set8 := Node3D.new(); main.add_child(set8); set8.global_position = o
 	var wall := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(5.0, 3.2); wall.mesh = qm
 	var wm := StandardMaterial3D.new(); wm.albedo_color = Color(0.78, 0.74, 0.66); wm.roughness = 1.0; wall.material_override = wm
@@ -1277,7 +1326,7 @@ func _portrait(path: String):
 	var key := SpotLight3D.new(); key.light_color = Color(1.0, 0.86, 0.66); key.light_energy = 9.0; key.spot_range = 8.0; key.spot_angle = 50.0
 	key.shadow_enabled = true; key.shadow_blur = 2.5; set8.add_child(key); key.position = Vector3(1.9, 2.0, 1.5); key.look_at(o + Vector3(0, 1.3, 0))
 	var fill := OmniLight3D.new(); fill.light_color = Color(0.8, 0.86, 1.0); fill.light_energy = 0.5; fill.omni_range = 6.0; set8.add_child(fill); fill.position = Vector3(-1.6, 1.3, 1.8)
-	var pc := Camera3D.new(); set8.add_child(pc); pc.fov = 30.0; pc.position = Vector3(0.1, 1.33, 1.85); pc.look_at(o + Vector3(-0.04, 1.4, 0)); pc.make_current()
+	var pc := Camera3D.new(); set8.add_child(pc); pc.fov = 30.0; pc.position = Vector3(0.1, 1.3, 1.6); pc.look_at(o + Vector3(-0.06, 1.27, 0)); pc.make_current()
 	for i in 40: await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
