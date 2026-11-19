@@ -161,6 +161,7 @@ func _last_year():
 func _load_mio():
 	if not ResourceLoader.exists("res://assets/dusk/mio.glb") or OS.get_cmdline_user_args().has("--nomio"): return
 	main._load_scene("res://assets/dusk/mio.glb", "mio")
+	printerr("M f")
 	var inst: Node3D = main.S.mio_node
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var m3 := mi as MeshInstance3D
@@ -180,7 +181,7 @@ func _load_mio():
 			var an: Animation = (ap as AnimationPlayer).get_animation(names[0]).duplicate()
 			an.loop_mode = Animation.LOOP_LINEAR; lib.add_animation("loop", an)
 		(ap as AnimationPlayer).add_animation_library("t20", lib)
-		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"): (ap as AnimationPlayer).add_animation_library("talk", load("res://assets/dusk/mio_talk.res"))
+		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"): (ap as AnimationPlayer).add_animation_library("talk", _few(load("res://assets/dusk/mio_talk.res"), MIO_USE))
 	main._walk_anims("mio", inst)
 	if FileAccess.file_exists("res://assets/dusk/ch7.json"):
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/ch7.json"))
@@ -351,13 +352,26 @@ func _c7_libs():
 		if not _has(k) or not ResourceLoader.exists(p): continue
 		for ap in (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false):
 			if not (ap as AnimationPlayer).has_animation_library("c7"):
-				var lib: AnimationLibrary = (load(p) as AnimationLibrary).duplicate()
-				_sit_mix(lib, "drink")
-				(ap as AnimationPlayer).add_animation_library("c7", lib)
+				var lib: AnimationLibrary = load(p)
+				var few := _few(lib, C7_USE[k])
+				var mix := _sit_mix(lib, "drink")
+				if mix != null: few.add_animation("sit_drink", mix)
+				(ap as AnimationPlayer).add_animation_library("c7", few)
+
+# Godot 4.4.1 crashes (signal 11, with a window; never headless) when one AnimationPlayer holds many animations: main.gd's
+# TALK_CLIPS note (14 crashed every time, five or fewer never). With all ten of Mio's and all nine of the party's it crashed
+# at the start of this chapter. So: only the ones this chapter plays, in a new library
+const MIO_USE := ["idle", "sit_idle", "sit_laugh", "startle", "react"]
+const C7_USE := {"kiryu": ["sit_idle", "sit_laugh"], "taiga": ["sit_idle", "sit_laugh", "point"], "natsuki": ["sit_idle", "sit_laugh"]}
+func _few(src: AnimationLibrary, names: Array) -> AnimationLibrary:
+	var lib := AnimationLibrary.new()
+	for nm in names:
+		if src.has_animation(nm): lib.add_animation(nm, src.get_animation(nm))
+	return lib
 
 # Mixamo's Drinking stands. For a man on the sofa: its arms, back and head on the sitting clip's hips and legs ("sit_drink")
-func _sit_mix(lib: AnimationLibrary, clip: String):
-	if not lib.has_animation(clip) or not lib.has_animation("sit_idle"): return
+func _sit_mix(lib: AnimationLibrary, clip: String) -> Animation:
+	if not lib.has_animation(clip) or not lib.has_animation("sit_idle"): return null
 	# (a new Animation, sampled: taking keys out of the imported one crashed Godot 4.4.1)
 	var up: Animation = lib.get_animation(clip); var sit: Animation = lib.get_animation("sit_idle")
 	var mix := Animation.new(); mix.length = up.length; mix.loop_mode = Animation.LOOP_NONE
@@ -377,7 +391,7 @@ func _sit_mix(lib: AnimationLibrary, clip: String):
 			var tm := minf(float(f) / 24.0, src.length)
 			if ty == Animation.TYPE_ROTATION_3D: mix.rotation_track_insert_key(t, tm, src.rotation_track_interpolate(si, tm))
 			else: mix.position_track_insert_key(t, tm, src.position_track_interpolate(si, tm))
-	lib.add_animation("sit_" + clip, mix)
+	return mix
 
 func _ap(k: String) -> AnimationPlayer:
 	if not _has(k): return null
