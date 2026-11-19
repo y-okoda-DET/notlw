@@ -559,15 +559,17 @@ func _mirror():
 	if not ResourceLoader.exists(p): return
 	mirror = MeshInstance3D.new()
 	var q := QuadMesh.new(); q.size = Vector2(0.36, 0.36); mirror.mesh = q
-	var m := StandardMaterial3D.new(); m.albedo_texture = load(p); m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(0.74, 0.76, 0.78, 0.0)
+	# (props/make_yota_mirror.py: the cut-out as it was read as a sticker on the glass. Soft, toned to the glass, its edge melted)
+	var soft := "res://props/yota_mirror_soft.png"; var shp := "res://props/yota_mirror_shade.png"
+	var m := StandardMaterial3D.new(); m.albedo_texture = load(soft if ResourceLoader.exists(soft) else p); m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(1.0, 1.0, 1.0, 0.0)
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED; m.no_depth_test = true; m.render_priority = 3
 	mirror.material_override = m; mirror.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	main.add_child(mirror)
 	# the pane behind his head is dark with his own shadow (he stands between it and the sky): without it the white make-up was
 	# the print's bare paper on the lit seats, and nothing read
-	var sh := MeshInstance3D.new(); var q2 := QuadMesh.new(); q2.size = Vector2(0.44, 0.44); sh.mesh = q2
-	var m2 := StandardMaterial3D.new(); m2.albedo_texture = load(p); m2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var sh := MeshInstance3D.new(); var q2 := QuadMesh.new(); q2.size = Vector2(0.56, 0.56); sh.mesh = q2
+	var m2 := StandardMaterial3D.new(); m2.albedo_texture = load(shp if ResourceLoader.exists(shp) else p); m2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m2.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
 	m2.cull_mode = BaseMaterial3D.CULL_DISABLED; m2.no_depth_test = true; m2.render_priority = 2
 	sh.material_override = m2; sh.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; sh.name = "shade"; sh.position = Vector3(0, -0.02, -0.002)
@@ -592,10 +594,10 @@ func _mirror_tick(dt: float):
 		var eye: Vector3 = _cam().global_position
 		var d := (eye - mirror.global_position).length()
 		var along := absf((eye - gp(CAR_LOOK[0], CAR_LOOK[1], CAR_LOOK[2])).dot(Vector3(-CAR_N[1], 0.0, CAR_N[0]).normalized()))
-		want = clampf((1.7 - d) / 0.7, 0.0, 1.0) * clampf((0.42 - along) / 0.15, 0.0, 1.0) * 0.85
+		want = clampf((1.7 - d) / 0.7, 0.0, 1.0) * clampf((0.42 - along) / 0.15, 0.0, 1.0) * 0.78
 		if "--ch7mirror" in OS.get_cmdline_user_args(): want = 1.0
 	m.albedo_color.a = move_toward(m.albedo_color.a, want, dt * 1.2)
-	((mirror.get_node("shade") as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(0.02, 0.06, 0.1, m.albedo_color.a * 0.75)
+	((mirror.get_node("shade") as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(0.02, 0.06, 0.1, m.albedo_color.a * 0.6)
 	mirror.visible = m.albedo_color.a > 0.005
 	# he straightens up as he leaves the car
 	if stage == "to_window" and player.eye_height < EYE - 0.01:
