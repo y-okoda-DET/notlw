@@ -525,7 +525,9 @@ def generator(M):
         def on_gen(at, normal):
             nz = V3(normal).normalized(); mw = g.matrix_world; inv = mw.inverted()
             o0 = inv @ (V3(at) + nz * .3); d0 = (inv.to_3x3() @ -nz).normalized()
-            ok, loc, nrm, _i = g.ray_cast(o0, d0, distance=.6)
+            ok, loc, nrm, _i = g.ray_cast(o0, d0, distance=1.0 if nz.z > .9 else .6)
+            if not ok and abs(nz.z) < .9:   # above the frame (the fuel and the switch at ZB+.65): lay it on the top, from above
+                print('GEN TAPE side missed, on top', at); return on_gen((at[0], at[1], at[2] + .2), (0, 0, 1))
             if not ok: print('GEN TAPE no hit', at); return at, normal
             hit = mw @ loc; hn = (mw.inverted().transposed().to_3x3() @ nrm).normalized()
             if hn.dot(nz) < .6: hn = nz

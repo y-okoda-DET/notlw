@@ -595,7 +595,7 @@ func _probe_tick():
 # candle to throw (fps.gd _mio_shadow: a column, the shoulders and a head that only cast), lower as her eye is (sitting)
 var body_sh: Node3D
 func _body_shadow():
-	body_sh = Node3D.new(); main.add_child(body_sh)
+	body_sh = Node3D.new(); body_sh.name = "MioShadow"; main.add_child(body_sh)
 	var mat := StandardMaterial3D.new()
 	for spec in [[CapsuleMesh.new(), Vector3(0, 0.70, 0), Vector3(0.36, 1.40, 0.24)], [SphereMesh.new(), Vector3(0, 1.50, 0), Vector3(0.21, 0.24, 0.22)], [CapsuleMesh.new(), Vector3(0, 1.26, 0), Vector3(0.44, 0.30, 0.22)]]:
 		var mi := MeshInstance3D.new(); mi.mesh = spec[0]; mi.material_override = mat
