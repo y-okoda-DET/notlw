@@ -22,7 +22,7 @@ import export_talk as TK
 OUT = f'{P.RULES}/assets/dusk'
 SRC = W.SRC
 # 話す側の動き：export_talk.py の名前のまま。届いたら足す物（無ければ飛ばす）：驚く、笑う
-TALK = {'idle': 'Standing_Idle.fbx', 'talk_a': 'Talking_A.fbx', 'think': 'Thinking.fbx',
+TALK = {'idle': 'Standing_Idle.fbx', 'talk_a': 'Talking_A.fbx', 'think': 'Thinking.fbx', 'sit_a': 'Sitting_Talking_A.fbx', 'sit_b': 'Sitting_Talking_B.fbx',
         'startle': 'Surprised.fbx', 'laugh': 'Laughing.fbx'}
 
 def pose_idle(rig, t):

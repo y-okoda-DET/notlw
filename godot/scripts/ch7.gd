@@ -24,6 +24,7 @@ const TABLE := [1.9, 1.85]                      # the living room's low table
 const SEATS := {"kiryu": [3.1, 2.25], "taiga": [3.1, 1.3]}          # the sofa, facing west (ch2_21.gd)
 const SIT := {"kiryu": "talk/sit_b", "taiga": "talk/sit_a"}
 const STAND7 := {"natsuki": [1.95, 2.85], "mio": [0.95, 1.25]}
+const CHAIRS7 := {"natsuki": [1.15, 2.6], "mio": [0.8, 1.45]}       # 21時半: two of the dining chairs carried in, at the low table's west
 const HALL_NAT := [4.55, 2.35]                  # 夕方の扉: Natsuki in the hall behind Mio, the camera up
 const HALL_MIO := [5.0, 0.85]                   # Mio, who opens it
 const PARTY_ME := [2.2, 3.15]                   # Yota at the party, just inside the living room
@@ -241,6 +242,12 @@ func _probe():
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	print("C7ME ", _plan(), " y=", player.global_position.y, " eye=", player.eye_height)
+	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(mi.name).to_lower()
+		var gpn: Vector3 = (mi as Node3D).global_position
+		if nm.contains("chair") or nm.contains("sofa") or nm.contains("stool") or nm.contains("zabuton") or nm.contains("cushion") or (gpn.x + 4.8 < 4.0 and gpn.z + 6.3 < 4.2 and gpn.z + 6.3 > 0.2 and gpn.y < 1.0 and gpn.x + 4.8 > 0.0 and not nm.begins_with("ext_") and not nm.begins_with("wall")):
+			var ab: AABB = (mi as MeshInstance3D).get_aabb()
+			print("C7FURN ", mi.name, " plan=(%.2f, %.2f, %.2f) size=(%.2f, %.2f, %.2f) vis=%s" % [gpn.x + 4.8, gpn.z + 6.3, gpn.y, ab.size.x, ab.size.y, ab.size.z, (mi as Node3D).is_visible_in_tree()])
 	for l in main.find_children("*", "Light3D", true, false):
 		var L := l as Light3D
 		if L.visible and L.light_energy > 0.0: print("C7LIGHT ", L.name, " ", L.get_class(), " plan=(%.2f, %.2f, %.2f) e=%.2f" % [L.global_position.x + 4.8, L.global_position.z + 6.3, L.global_position.y, L.light_energy])
@@ -351,6 +358,24 @@ func _natsuki_cam():
 func _nat_cam_up(on: bool):
 	if nat_cam: nat_cam.visible = on
 	if _has("natsuki"): main.set_stand("natsuki", "t20/loop" if on else "talk/idle", 0.4)
+
+# Natsuki and Mio sit on two of the dining room's chairs (the user's Tripo chair, props/ch7_chair.glb: its base at 0, its front
+# toward +Z, .9 of its size as in furnish.py). Whoever has no sitting clip yet stands where the chair would be
+var party_seated := {}
+func _party_chairs():
+	if not ResourceLoader.exists("res://props/ch7_chair.glb"): return
+	for k in CHAIRS7:
+		if not _has(k): continue
+		var ap: AnimationPlayer = (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false)[0]
+		if not ap.has_animation("talk/sit_a"): continue
+		var at: Array = CHAIRS7[k]
+		var ch: Node3D = (load("res://props/ch7_chair.glb") as PackedScene).instantiate(); main.add_child(ch)
+		ch.scale = Vector3.ONE * 0.9
+		ch.global_position = gp(at[0], at[1], 0.0)
+		var to := gp(TABLE[0], TABLE[1], 0.0) - ch.global_position
+		ch.rotation.y = atan2(to.x, to.z)
+		for mi in ch.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+		party_seated[k] = true
 
 # the party's table: cans, paper cups, a bag of snacks, a plate, the big bottle. Plain shapes in the print's three inks
 func _party_props():
@@ -514,8 +539,10 @@ func _ready_night():
 	hour = 21; minute = 30
 	for k in SEATS:
 		_put(k, SEATS[k], _face(SEATS[k], [1.0, SEATS[k][1]])); main.set_stand(k, SIT[k], 0.0)
-	_put("natsuki", STAND7.natsuki, _face(STAND7.natsuki, TABLE)); main.set_stand("natsuki", "talk/idle", 0.0)
-	_put("mio", STAND7.mio, _face(STAND7.mio, TABLE))
+	_party_chairs()
+	for k in CHAIRS7:
+		var at: Array = CHAIRS7[k] if party_seated.has(k) else STAND7[k]
+		_put(k, at, _face(at, TABLE)); main.set_stand(k, "talk/sit_a" if party_seated.has(k) else "talk/idle", 0.0)
 	player.global_position = gp(PARTY_ME[0], PARTY_ME[1], 0.0)
 	var to := Vector3(TABLE[0] - PARTY_ME[0], 0.0, TABLE[1] - PARTY_ME[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-8.0)
@@ -532,8 +559,9 @@ func _talk_target() -> String:
 	var best := ""; var bd := 0.8
 	for k in ["kiryu", "natsuki", "mio", "taiga"]:
 		var at: Array = SEATS.get(k, STAND7.get(k, [0, 0]))
-		var pos := gp(at[0], at[1], 1.2 if STAND7.has(k) else 0.95)
-		if _has(k): pos = main._rig_of(k).global_position + Vector3(0, 1.2 if STAND7.has(k) else 0.95, 0)
+		var hh := 1.2 if (STAND7.has(k) and not party_seated.has(k)) else 0.95
+		var pos := gp(at[0], at[1], hh)
+		if _has(k): pos = main._rig_of(k).global_position + Vector3(0, hh, 0)
 		var to := pos - eye
 		if to.length() > 2.6: continue
 		var c := fwd.dot(to.normalized())
@@ -545,6 +573,10 @@ func _talk_to(k: String):
 	if k == "": return
 	if talked7.has(k) and k != "taiga": return
 	talked7[k] = true
+	if "--ch7trace" in OS.get_cmdline_user_args():
+		for kk in ["kiryu", "natsuki", "mio", "taiga"]:
+			if _has(kk): print("C7WHO ", kk, " rig=", main._rig_of(kk).global_position, " node=", (main.S[kk + "_node"] as Node3D).global_position)
+		print("C7ME ", _plan(), " y=", player.global_position.y, " pitch=", rad_to_deg(player.pitch), " cam=", _cam().global_position, " camrot=", _cam().global_rotation_degrees)
 	talk_with = k
 	_start(B("七." + NAME7[k]))
 
@@ -1177,13 +1209,13 @@ func _demo_there(r := 0.5) -> bool:
 	return false
 
 func _demo_look(at: Vector3):
-	var to := at - _cam().global_position
+	var to: Vector3 = at - (player.global_position + Vector3(0, player.eye_height, 0))   # (not the camera's place: on a part's first frame the head is still at the feet)
 	player.yaw = atan2(-to.x, -to.z); player.pitch = asin(clampf(to.normalized().y, -1.0, 1.0))
 
 func _demo7_tick(dt: float):
 	if "--ch7trace" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 12 == 0:
 		var a: Array = player._sample_path(player.auto_t) if player.auto_path.size() > 0 else []
-		print("C7TRACE %s plan(%.2f, %.2f) y=%.2f v=%s floor=%s target=%s" % [stage, _plan()[0], _plan()[1], player.global_position.y, player.velocity, player.is_on_floor(), a])
+		print("C7TRACE %s plan(%.2f, %.2f) y=%.2f v=%s floor=%s target=%s head=%s cam=%s eye=%.2f pitch=%.1f" % [stage, _plan()[0], _plan()[1], player.global_position.y, player.velocity, player.is_on_floor(), a, player.get_node("Head").position, _cam().position, player.eye_height, rad_to_deg(player.pitch)])
 	if mode != FREE: return
 	demo_wait -= dt
 	if demo_wait > 0.0: return
@@ -1200,7 +1232,7 @@ func _demo7_tick(dt: float):
 			var order := ["kiryu", "natsuki", "mio", "taiga"]
 			for k in order:
 				if talked7.has(k): continue
-				var at: Array = SEATS.get(k, STAND7.get(k))
+				var at: Array = SEATS.get(k, CHAIRS7.get(k) if party_seated.has(k) else STAND7.get(k))
 				var pos := gp(at[0], at[1], 1.1)
 				if _has(k): pos = main._rig_of(k).global_position + Vector3(0, 1.1, 0)
 				_demo_look(pos)
