@@ -459,8 +459,7 @@ func _party_chairs():
 	if not ResourceLoader.exists("res://props/ch7_chair.glb"): return
 	for k in CHAIRS7:
 		if not _has(k): continue
-		var ap: AnimationPlayer = (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false)[0]
-		if not ap.has_animation("talk/sit_a"): continue
+		if _anim7(k, ["c7/sit_idle", "talk/sit_idle", "talk/sit_a"]) == "": continue
 		var at: Array = CHAIRS7[k]
 		var ch: Node3D = (load("res://props/ch7_chair.glb") as PackedScene).instantiate(); main.add_child(ch)
 		ch.scale = Vector3.ONE * 0.9
