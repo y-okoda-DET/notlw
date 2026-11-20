@@ -973,8 +973,13 @@ func _cel_look() -> bool:
 	if mode != FREE or not _has("mio"): return false
 	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
 	var to := hd - _cam().global_position
-	if absf(to.y) > 1.2: return false   # 2026-11-21 (review): not through the floor from the hall above her
-	return to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)
+	if not (to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)): return false
+	# 2026-11-21 (review): not through the floor from the hall. At the stair head (plan 5.0, 5.9) she is seen down the stairwell, whose
+	# edge the ray clips (試作238: a height limit, then a plain ray, stopped the demo there), so there it is let through
+	var p := _plan()
+	if Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.9: return true
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(_cam().global_position, hd))
+	return hit.is_empty() or (hit.position as Vector3).distance_to(hd) < 0.6
 
 func _cel_grab():
 	cel8 = "grabbing"; note_lb.text = ""
