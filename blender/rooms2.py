@@ -445,18 +445,13 @@ def upstairs(M):
     box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
     # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
     # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
-    wm = F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine')   # 2026-11-18 the user's Tripo machine, its front to the room
-    if wm:
-        collide(7.04, 7.29, 7.56, 7.93, z, z + .88)
-        # 試作231（ユーザー「洗濯機、なんかかくかくしてる？」）: Tripo's light mesh came flat-shaded: smooth, keeping its edges
-        # 試作232: kept edges at 35° left the light mesh's facets (its faces meet at more than that): all smooth, no sharp edge
-        for p in wm.data.polygons: p.use_smooth = True
-        for nm in ('sharp_edge', 'sharp_face'):
-            if nm in wm.data.attributes: wm.data.attributes.remove(wm.data.attributes[nm])
-        for p in wm.data.polygons: p.use_smooth = True
-    else:
-        box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
-        cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
+    # 試作233: the Tripo machine stayed faceted after smoothing: its light map is cut into one island per face (the light
+    # differs at every seam), not its normals. A machine of our own (rounded body, lid, panel) bakes in one piece
+    o = box('wash_machine', 7.02, 7.29, 7.58, 7.93, z, z + .84, M['fridge'], col=True); apply_bevel(o, .035, 4)
+    o = box('wash_machine_panel', 7.04, 7.8, 7.56, 7.92, z + .84, z + .94, M['fridge']); apply_bevel(o, .02, 3)
+    cyl('wash_machine_lid', 7.3, 7.56, z + .84, z + .855, .2, M['plastic'], 32)
+    cyl('wash_machine_knob', 7.42, 7.79, z + .87, z + .91, .022, M['plastic'], 16)
+    box('wash_machine_base', 7.04, 7.31, 7.56, 7.91, z - .0, z + .04, M['plastic'])
     for i in range(3):
         box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
     # 試作232（ユーザー「この部屋、もう少しオブジェクト置いて、探索できるようにしたい。人が住んでいる感」、2階の洗面と浴室）:
