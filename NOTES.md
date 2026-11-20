@@ -626,3 +626,8 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 家の静的な物は env_static にまとめられ、名前が消える（export_house.join_static）。時刻で出し入れする物は DYN に入れる（夏希の床のテープ tapeX・tapeN）。共有メッシュ（食卓の椅子6脚）は lmboost の印が最後の1脚の物になり、6脚が1か所に描かれていた（当たりは元の場所）：まとめる前に1体ずつのメッシュにする。
 - 第3章の2時：桐生は澪が動いて 0.9m で下り始めていたので、澪が地下の扉に着いてから会話が始まった。澪が立った時に下り始め、階段の下で止まる。
 
+## PV のカット撮り（2026-11-20、/mnt/project-files/PV/作り方/）
+- このコンテナでは Godot（llvmpipe・1920x1080）1本で 約3GB＋共有メモリ 約3.6GB。2本並べても長く走ると memcg で落ちる（Killed）。1本ずつ撮る（run_serial.sh）。
+- 通しを速く進めるには main.gd の時計を --frameclock にして dt を足す形に変え（patch_main.py）、Engine.time_scale=2。4 にすると第3章で通しが崩れる。描かない間は窓を 1/10 に縮めると約3倍速い（render_loop_enabled=false だけでは速くならない）。
+- 撮る間は Label／RichTextLabel を隠すと、字幕・語り・操作の案内が消える（clip.gd。ファインダーの枠や STBY などの draw_string は残る）。
+
