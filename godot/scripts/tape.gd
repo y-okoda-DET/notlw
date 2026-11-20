@@ -690,7 +690,7 @@ func _b_set_face(k: String):
 # the deck's display: the one light left when the set goes off, low and in front of her
 func _b_deck_light():
 	deck_light = SpotLight3D.new(); deck_light.light_color = Color(0.62, 0.95, 0.88)
-	deck_light.light_energy = float(_arg("d11deck", "0.6")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
+	deck_light.light_energy = float(_arg("d11deck", "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
 	deck_light.spot_angle = 24.0; deck_light.spot_angle_attenuation = 1.5
 	deck_light.shadow_enabled = false; deck_light.light_specular = 0.6; deck_light.light_cull_mask = 1 | MIO_LAYER
 	main.add_child(deck_light)
