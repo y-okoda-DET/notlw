@@ -449,9 +449,11 @@ def upstairs(M):
     if wm:
         collide(7.04, 7.29, 7.56, 7.93, z, z + .88)
         # 試作231（ユーザー「洗濯機、なんかかくかくしてる？」）: Tripo's light mesh came flat-shaded: smooth, keeping its edges
+        # 試作232: kept edges at 35° left the light mesh's facets (its faces meet at more than that): all smooth, no sharp edge
         for p in wm.data.polygons: p.use_smooth = True
-        try: wm.data.set_sharp_from_angle(angle=math.radians(35))
-        except Exception as e: print('washer smooth', e)
+        for nm in ('sharp_edge', 'sharp_face'):
+            if nm in wm.data.attributes: wm.data.attributes.remove(wm.data.attributes[nm])
+        for p in wm.data.polygons: p.use_smooth = True
     else:
         box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
         cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
@@ -469,7 +471,10 @@ def upstairs(M):
         cyl(f'bath_bottle_{i}', bx, by, z + .015, z + .015 + h, .033, M[m], 12)
         cyl(f'bath_pump_{i}', bx, by, z + .015 + h, z + .04 + h, .008, M['plastic'], 6)
     box('bath_mat', 8.75, 6.55, 9.45, 6.98, z + .015, z + .026, M['towel'])
-    box('bath_hungtowel', 7.965, 6.48, 8.095, 6.88, z + 1.62, z + 2.03, M['towel'])
+    # over the partition's top, one fold each side (not a block through the board: its faces inside the board leaked light)
+    box('bath_hungtowel', 7.988, 6.48, 7.996, 6.88, z + 1.66, z + 2.0, M['towel'])
+    box('bath_hungtowel', 8.064, 6.48, 8.072, 6.88, z + 1.74, z + 2.0, M['towel'])
+    box('bath_hungtowel', 7.988, 6.48, 8.072, 6.88, z + 2.0, z + 2.008, M['towel'])
     o = box('wash_basket', 7.66, 7.22, 7.98, 7.56, z, z + .3, M['basket']); apply_bevel(o, .02)
     o = box('wash_basket_clothes', 7.69, 7.25, 7.95, 7.53, z + .3, z + .36, M['coat']); apply_bevel(o, .03)
     cyl('wash_cup', 6.3, 5.0, z + .86, z + .96, .035, M['bottle_w'], 12)

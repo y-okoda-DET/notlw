@@ -1988,3 +1988,105 @@ func _demo_house():
 			demo = [["until_free"]]
 			for q in a2.substr(9).split(";"): demo.append(["gop", float(q.get_slice(",", 0)), float(q.get_slice(",", 1))])
 			demo += [["dump"], ["quit"]]
+
+# ================================================================ the car on its four wheels (第8章 2026-11-19; 試作232 the
+# same for 第7章's nights, ユーザー「自動車のタイヤがまだ埋もれてる」): moved here from ch8.gd so both chapters set it
+var car_at := Vector3.ZERO     # the car's middle (Godot)
+var car_r := 2.2
+func _car_level(cars: Array):
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var body := cars[0] as MeshInstance3D
+	for c in cars:
+		if (c as MeshInstance3D).get_aabb().get_volume() > body.get_aabb().get_volume(): body = c
+	var la := body.get_aabb(); var gt := body.global_transform
+	# the long axis of the body, on the ground
+	var axes := [gt.basis.x * la.size.x, gt.basis.y * la.size.y, gt.basis.z * la.size.z]
+	var flat := axes.filter(func(a: Vector3): return absf(a.normalized().y) < 0.5)
+	if flat.size() < 2: return
+	flat.sort_custom(func(a: Vector3, b: Vector3): return a.length() > b.length())
+	var fwd: Vector3 = (flat[0] as Vector3); var half_l := fwd.length() * 0.5; fwd.y = 0.0; fwd = fwd.normalized()
+	var side: Vector3 = fwd.cross(Vector3.UP).normalized(); var half_w: float = (flat[1] as Vector3).length() * 0.5
+	var c0 := Vector3(car_at.x, 0.0, car_at.z)
+	# 2026-11-19 夜（ユーザー「まだタイヤがのめり込んでるように見える」）：車の外の地面でなく、四つの車輪それぞれの底と、
+	# その真下の地面を測って合わせる。車輪の底＝車の前後左右の四半分ごとの、いちばん低い頂点
+	var low := [1e9, 1e9, 1e9, 1e9]; var sum := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]; var cnt := [0, 0, 0, 0]
+	var pts: Array = []
+	for c in cars:
+		var mi := c as MeshInstance3D
+		if mi.mesh == null: continue
+		var tf := mi.global_transform
+		for v in mi.mesh.get_faces():
+			var w: Vector3 = tf * v; var d := w - c0
+			pts.append(Vector3(d.dot(fwd), w.y, d.dot(side)))
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k]: low[k] = q.y
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k] + 0.03: sum[k] += Vector2(q.x, q.z); cnt[k] += 1
+	# the ground under each wheel (not the car's own collision)
+	var ex: Array = [player.get_rid()]
+	for sb in main.S.env_node.find_children("*", "StaticBody3D", true, false):
+		if String(sb.name).begins_with("ext_car") or String(sb.get_parent().name).begins_with("ext_car"): ex.append((sb as StaticBody3D).get_rid())
+	var rows := []
+	for k in 4:
+		if cnt[k] == 0: return
+		var uv: Vector2 = sum[k] / float(cnt[k]); var wp: Vector3 = c0 + fwd * uv.x + side * uv.y
+		var rq := PhysicsRayQueryParameters3D.create(Vector3(wp.x, low[k] + 1.2, wp.z), Vector3(wp.x, low[k] - 3.0, wp.z)); rq.exclude = ex
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
+		if hit.is_empty(): return
+		rows.append([uv.x, uv.y, low[k], float(hit.position.y)])
+	# lift + a*u + b*v = ground - wheel, by least squares over the four wheels (a plane has three numbers: the fourth wheel
+	# takes what is left, as a real car's springs do)
+	var su := 0.0; var sv := 0.0; var suu := 0.0; var svv := 0.0; var suv := 0.0; var sd := 0.0; var sud := 0.0; var svd := 0.0
+	for r in rows:
+		var d: float = r[3] - 0.012 - r[2]
+		su += r[0]; sv += r[1]; suu += r[0] * r[0]; svv += r[1] * r[1]; suv += r[0] * r[1]; sd += d; sud += r[0] * d; svd += r[1] * d
+	var A := Basis(Vector3(4.0, su, sv), Vector3(su, suu, suv), Vector3(sv, suv, svv))
+	if absf(A.determinant()) < 1e-6: return
+	var sol: Vector3 = A.inverse() * Vector3(sd, sud, svd)
+	var lift := sol.x; var a := sol.y; var b := sol.z
+	var f2 := (fwd + Vector3.UP * a).normalized(); var s2 := (side + Vector3.UP * b).normalized()
+	var u2 := s2.cross(f2).normalized()
+	if u2.y < 0.0: u2 = -u2
+	s2 = f2.cross(u2).normalized() * signf(f2.cross(u2).dot(side))
+	var B0 := Basis(fwd, Vector3.UP, side); var B1 := Basis(f2, u2, s2)
+	var rot := B1 * B0.inverse()
+	var X := Transform3D(Basis.IDENTITY, c0 + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -c0)
+	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
+	car_at = X * car_at
+	# 車の下の影：夜で太陽の影が無く、白い車体が明るい地面にじかに接して「埋まって」見えた（ユーザー 2026-11-19 21時
+	# 「ファインダー越しで見ると沈んで見える」）。車の下の地面だけを暗くして、車体と地面の間に暗い帯を作る
+	var gy := 0.0
+	for r in rows: gy += (float(r[3]) - a * float(r[0]) - b * float(r[1])) * 0.25
+	var dl := half_l * 2.0 + 0.8; var dw := half_w * 2.0 + 0.8; var NX := 20; var NZ := 10
+	var sp: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state; var vs := PackedVector3Array(); var cs := PackedColorArray()
+	for iz in NZ + 1:
+		for ix in NX + 1:
+			var fu := float(ix) / NX - 0.5; var fv := float(iz) / NZ - 0.5
+			# 車の当たりの箱の中（下）から撃つ：上から撃つと屋根に当たる
+			var wp2: Vector3 = c0 + fwd * (fu * dl) + side * (fv * dw) + Vector3(0, gy + a * fu * dl + b * fv * dw, 0)
+			var rq2 := PhysicsRayQueryParameters3D.create(wp2 + Vector3(0, 0.2, 0), wp2 - Vector3(0, 2.0, 0)); rq2.exclude = ex
+			var h2: Dictionary = sp.intersect_ray(rq2)
+			if not h2.is_empty(): wp2 = h2.position
+			vs.append(wp2 + Vector3(0, 0.025, 0))
+			var e: float = minf((0.5 - absf(fu)) * dl, (0.5 - absf(fv)) * dw)
+			cs.append(Color(0, 0, 0, 0.9 * smoothstep(0.0, 0.45, e)))
+	var idx := PackedInt32Array()
+	for iz in NZ:
+		for ix in NX:
+			var i0 := iz * (NX + 1) + ix
+			idx.append_array([i0, i0 + 1, i0 + NX + 1, i0 + 1, i0 + NX + 2, i0 + NX + 1])
+	var arr := []; arr.resize(Mesh.ARRAY_MAX); arr[Mesh.ARRAY_VERTEX] = vs; arr[Mesh.ARRAY_COLOR] = cs; arr[Mesh.ARRAY_INDEX] = idx
+	var am := ArrayMesh.new(); am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.vertex_color_use_as_albedo = true
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.disable_fog = true
+	var shm := MeshInstance3D.new(); shm.name = "car_shadow"; shm.mesh = am; shm.material_override = sm; shm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(shm); shm.global_transform = Transform3D.IDENTITY
+	print("CAR level: lift %.3f pitch %.1f roll %.1f" % [lift, rad_to_deg(atan(a)), rad_to_deg(atan(b))])
+	for r in rows:
+		var after: float = r[2] + lift + a * r[0] + b * r[1]
+		print("CAR wheel (%.2f, %.2f): bottom %.3f ground %.3f -> bottom %.3f (%.3f %s the ground)" % [r[0], r[1], r[2], r[3], after, absf(after - r[3]), "under" if after < r[3] else "over"])

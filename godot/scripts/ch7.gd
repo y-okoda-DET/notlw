@@ -521,6 +521,7 @@ func _party_props():
 
 # ================================================================ 夕方
 func _ready_dusk():
+	_car7()
 	hour = 17; minute = 40
 	var c: Array = D.lines("七.カード")
 	card = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], ["", 36, 0]], Type.card())   # the third row (the question) is left empty
@@ -588,6 +589,7 @@ func _begin(st: String):
 
 # ================================================================ 21時半
 func _ready_night():
+	_car7()
 	hour = 21; minute = 30
 	for k in SEATS:
 		sit7[k] = _anim7(k, ["c7/sit_idle", SIT[k]])
@@ -670,6 +672,7 @@ func _slip_now():
 
 # ================================================================ 2時
 func _ready_two():
+	_car7()
 	hour = 1; minute = 50
 	for k in ["kiryu", "taiga", "natsuki", "mio"]:
 		if _has(k):
@@ -1426,3 +1429,16 @@ func _demo7_tick(dt: float):
 		"to_back":
 			if demo_goal.is_empty(): _demo_go(EAST_ROUTE, 1.0, true)
 			else: _demo_there(0.6)
+
+# 試作232（ユーザー「自動車のタイヤがまだ埋もれてる」、去年の夏 21時半）: the car on its four wheels as 第8章 sets it (story.gd
+# _car_level: each wheel's foot to the ground under it, and the dark under the car)
+func _car7():
+	var cars: Array = main.S.env_node.find_children("ext_car*", "MeshInstance3D", true, false)
+	if cars.is_empty(): return
+	var bb := AABB()
+	for i in cars.size():
+		var mi := cars[i] as MeshInstance3D
+		var b: AABB = mi.global_transform * mi.get_aabb()
+		bb = b if i == 0 else bb.merge(b)
+	car_at = bb.get_center(); car_r = maxf(bb.size.x, bb.size.z) * 0.5
+	_car_level(cars)
