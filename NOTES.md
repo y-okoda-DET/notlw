@@ -641,6 +641,7 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 選ぶあいだのカメラの肩越し（選ぶ_肩越し）は、聞き手の顎（z 0.82）より上を入れない：狙いを z 0.30、レンズ 55。澪の手元は座卓の下からでなく、座卓の西の外から（座卓は y -0.35〜0.55 なので y -0.26 だと天板の裏しか映らなかった）。
 - 前の記録（第3章で耳を寄せた、第5章で指を切った、1時に桐生と話した）は、入口が作る記録から読む約束：`Engine.set_meta("night_flags", {"hands_cut": true, …})`。確かめるときは `--ivflags=hands_cut,leaned,talked_kiryu_1am`。自動の通しで嘘を選ぶのは `--ivlie`（interview.sh は IVARGS で渡す）。
 - 画面つきの通しの撮影（interview.sh shots）は約 7 コマ／分。720 コマは 100 分かかる。短く撮るか、--ivstill の静止画で見る。
+- （2026-11-20 試作234）書き出しの途中でディスクの割り当てが尽きると、Godot は RULES.pck を 0 バイトで残し、build.sh は「== DONE」まで進む（[ -f ] は通る）。書き出したら pck の大きさを見る。古い $BUILD/RULES_proto* と zip を消してから、godot の --export-release だけやり直せば足りる（焼き直しは要らない）。
 
 ## 2026-11-20 第11章の最後のカット B（試作260、tape.gd --d11b）
 - 澪の顔（props/mio_seiza.glb の mio_face）は正面の絵を貼った面で、眼球・まぶた・口の骨も形キーも無い。目線・まばたき・口は、絵を列ごとに縦へ区分的に歪めて作った（blender/face/mio_face_states.py：まつ毛の線の太さを保ったまま上まぶたを下ろし、その下の白目と虹彩を下まぶたへ押しつぶす＝下を向いた眼球の縮み）。絵を差し替える材質は StandardMaterial の emission_texture が効かず顔全体が白く飛んだので、ShaderMaterial（tape.gd FACE_SHADER）にした。
