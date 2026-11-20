@@ -445,7 +445,14 @@ func _follow():
 		return
 	# turning round to the back seat she leans in over the console (her own seat's back is in the way otherwise)
 	var k := smoothstep(deg_to_rad(75.0), deg_to_rad(150.0), absf(player.yaw))
-	player.global_transform = car.global_transform * Transform3D(Basis.IDENTITY, SEAT_MIO + Vector3(0.30 * k, 0.03 * k, -0.04 * k))
+	# she keeps her head level: on the steep drive the car pitches ~10 deg, and looking out of her side window
+	# that pitch would roll the whole picture. A third of the car's tilt is felt, the rest her neck takes.
+	var cb := car.global_transform.basis.orthonormalized()
+	var fw := -cb.z; fw.y = 0.0
+	var lvl := Basis.looking_at(fw.normalized(), Vector3.UP) if fw.length() > 0.01 else cb
+	var hb := lvl.slerp(cb, 0.33)
+	var at := car.global_transform * (SEAT_MIO + Vector3(0.30 * k, 0.03 * k, -0.04 * k))
+	player.global_transform = Transform3D(hb, at)
 	player.velocity = Vector3.ZERO
 	# she turns in her seat, not round: to her window and back over her shoulder, a little toward Natsuki
 	player.yaw = clampf(player.yaw, -2.9, 2.9)
@@ -458,8 +465,10 @@ func _title():
 	if ResourceLoader.exists("res://ui/title_logo.png"): title_rect.texture = load("res://ui/title_logo.png")
 	title_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; title_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	title_rect.anchor_left = 0.5; title_rect.anchor_right = 0.5; title_rect.anchor_top = 0.5; title_rect.anchor_bottom = 0.5
-	var h := get_viewport().get_visible_rect().size.y * 0.46
-	title_rect.offset_left = -h * 0.5; title_rect.offset_right = h * 0.5; title_rect.offset_top = -h * 0.62; title_rect.offset_bottom = h * 0.38
+	# low, over the dark of the dashboard: the house she has just seen stays in the middle of the picture
+	var vs := get_viewport().get_visible_rect().size
+	var h := vs.y * 0.34
+	title_rect.offset_left = -h * 0.5; title_rect.offset_right = h * 0.5; title_rect.offset_top = vs.y * 0.10; title_rect.offset_bottom = vs.y * 0.10 + h
 	title_rect.modulate = Color(1, 1, 1, 0); title_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_layer.add_child(title_rect)
 
@@ -584,7 +593,7 @@ func _title_tick(dt: float):
 	title_rect.modulate.a = a
 
 func _to_dusk():
-	main._save_settings(); main.SCENE = "dusk"; main.FROM_CAR = true
+	main._save_settings(); main.SCENE = "house"; main.NEXT_PLAY = "ch1"; main.FROM_CAR = true   # a --play= on the command line must not bring the car back
 	get_tree().reload_current_scene()
 
 # ---------------------------------------------------------------- what is said (on its second, like door.gd)
@@ -597,7 +606,7 @@ func _lines(dt: float):
 		while si < STOP_LINES.size() and t_stage >= float(STOP_LINES[si][0]):
 			if SIF[si] == "" or has_flag(SIF[si]): _event(STOP_LINES[si])
 			si += 1
-	if cur.has("text") and typed < String(cur.text).length():
+	if cur.has("text") and typed < String(cur.text).length() and is_instance_valid(cur_lb):
 		typed = minf(float(String(cur.text).length()), typed + dt * 15.0)
 		_type(cur_lb, String(cur.text), int(typed))
 	main.talk_now = cur.get("who_key", "") if cur.has("text") and typed < String(cur.text).length() else ""
@@ -608,6 +617,7 @@ func _lines(dt: float):
 			var tw := create_tween(); tw.tween_property(lines_box, "modulate:a", 0.0, 1.2)
 			tw.tween_callback(func(): _clear_box(lines_box); lines_box.modulate.a = 1.0)
 			cur = {}
+	if dlook.has("lb") and not is_instance_valid(dlook.lb): dlook = {}
 	if dlook.has("lb") and dlook.typed < String(dlook.text).length():
 		dlook.typed = minf(float(String(dlook.text).length()), dlook.typed + dt * 20.0)
 		_type(dlook.lb, String(dlook.text), int(dlook.typed))
@@ -719,26 +729,32 @@ func _jump_stop():
 func _jump_gap():
 	_jump(999.0)
 	stage = "drive_on"; t_stage = 0.0; d = d_reveal - 0.5; v = 0.6
+	li = LINES.size(); si = STOP_LINES.size(); cur = {}; _clear_box(lines_box)
 	_drive(0.0)
 
 # the playthrough: she looks at the four things, then ahead at the gap
+var aim_k := ""
 func _demo_car(dt: float):
+	aim_k = ""
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var aim := Vector3.ZERO
-	if stage == "gap" or stage == "drive_on": aim = main.b2g(HOUSE_AT)
+	if stage in ["gap", "drive_on", "title"]: aim = main.b2g(HOUSE_AT)
 	elif not demo_looks.is_empty() and t_now >= float(demo_looks[0][0]):
 		var k: String = demo_looks[0][1]
-		aim = _item_at(k)
+		aim = _item_at(k); aim_k = k
 		if focus_k == k: _look(k); demo_looks.pop_front()
-		elif t_now > float(demo_looks[0][0]) + 7.0: demo_fails += 1; print("DEMO FAIL car: cannot look at ", k); demo_looks.pop_front()
+		elif t_now > float(demo_looks[0][0]) + 10.0: demo_fails += 1; print("DEMO FAIL car: cannot look at ", k, " yaw=%.2f pitch=%.2f off=%.1fdeg" % [player.yaw, player.pitch, rad_to_deg((-cam.global_basis.z).angle_to(aim - cam.global_position))]); demo_looks.pop_front()
 	for a in demo_aims:
 		if aim == Vector3.ZERO and t_now >= float(a[0]) and t_now < float(a[1]) and stage == "parked":
 			aim = (car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))) if a[2] == "natsuki" else mirror_mesh.global_position
 	if aim == Vector3.ZERO: return
 	# turn her head (yaw/pitch are the head's, in the car's frame)
-	var to_l := (car.global_basis.inverse() * (aim - cam.global_position)).normalized()
+	var to_l: Vector3 = (player.global_basis.inverse() * (aim - cam.global_position)).normalized()   # her head is levelled (_follow), not the car's frame
 	var k2 := 1.0 - exp(-dt * 3.0)
-	player.yaw = lerpf(player.yaw, atan2(-to_l.x, -to_l.z), k2)   # (not the short way round: she turns back the way she came, inside the seat)
+	var want := atan2(-to_l.x, -to_l.z)
+	# right behind her the aim's side flips as she leans in; Makoto is over her left shoulder, so she turns that way
+	if absf(want) > 2.3 and aim_k == "makoto": want = absf(want)
+	player.yaw = lerpf(player.yaw, want, k2)   # (not the short way round: she turns back the way she came, inside the seat)
 	player.pitch = lerpf(player.pitch, asin(clampf(to_l.y, -1.0, 1.0)), k2)
 
 # ---------------------------------------------------------------- Natsuki's hands on the wheel
