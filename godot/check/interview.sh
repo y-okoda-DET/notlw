@@ -1,8 +1,8 @@
 #!/bin/bash
 # 証言 一〜三（scripts/interview.gd）を、書き出した pck にいまのリポジトリのスクリプトと assets/interview を重ねて確かめる。
-#   bash godot/check/interview.sh <pck> run  1|2|3 [語]     画面なしで自動の通し（最後の行が「証言N ○／×」。語＝証言三で滑らせる語）
-#   bash godot/check/interview.sh <pck> shots 1|2|3 [語]    同じ通しを 2 コマ／秒で画にする（$WORK/iv/N/*.png、1920x1080）
-#   bash godot/check/interview.sh <pck> stills <名前[@コマ][+手の形][+flat],…> [--print=0]   カットやカメラごとの静止画（$WORK/iv/stills/）
+#   bash godot/check/interview.sh <pck> run  1|2|3          画面なしで自動の通し（最後の行が「証言N ○／×」。IVARGS="--ivlie --ivflags=…" で嘘と記録つきの行）
+#   bash godot/check/interview.sh <pck> shots 1|2|3         同じ通しを 2 コマ／秒で画にする（$WORK/iv/N/*.png、1920x1080）
+#   bash godot/check/interview.sh <pck> stills <名前[@コマ][+手の形][+fist][+deck][+meishi][+tv=on|tape],…> [--print=0]   カットやカメラごとの静止画（$WORK/iv/stills/）
 #   bash godot/check/interview.sh <pck> order               第6章の終わり（--ch6at=end）から：証言一 → 仮のカード → … → 第11章の頭まで並びを通す（1分）
 # 先に python3 blender/interview/export_interview.py（godot/assets/interview/ を作る）。
 set -u
@@ -10,11 +10,14 @@ set -u
 P=$1; MODE=${2:-run}; N=${3:-1}; W=${4:-}
 O=$WORK/overlay; S=$REPO/godot; L=$WORK/iv; mkdir -p $L
 bash "$(dirname "$0")/overlay.sh" > /dev/null
-mkdir -p $O/assets/interview; cp -ru $S/assets/interview/. $O/assets/interview/
+mkdir -p $O/assets/interview; [ -d $S/assets/interview ] && cp -ru $S/assets/interview/. $O/assets/interview/
+# 2026-11-20 第2稿：骨つきの二人（tripo/interview/*_rig.glb）、テレビ（props/crt_tv）。pck にまだ無い物を重ねる
+cp -u $REPO/tripo/interview/*_rig.glb $O/assets/interview/ 2>/dev/null
+mkdir -p $O/props; cp -u $S/props/crt_tv* $O/props/ 2>/dev/null; rm -f $O/props/*.import
 [ -d $S/ui ] && mkdir -p $O/ui && cp $S/ui/iv_* $O/ui/ 2>/dev/null
 $GODOT --headless --path $O --import > $L/import.log 2>&1 || true
-HP=$(dirname $P)/RULES_house.pck; [ -f "$HP" ] && HP="--housepack=$HP" || HP=
-SL=; [ -n "$W" ] && SL="--ivslip=$W"
+HP="--housepack=$(dirname $P)/RULES_house.pck"
+SL="${IVARGS:-}"   # 第2稿：IVARGS="--ivlie --ivflags=hands_cut,leaned,talked_kiryu_1am" で嘘の答えと記録つきの行を通す
 cd /tmp
 if [ "$MODE" = run ]; then
   timeout 900 $GODOT --path $O --headless --fixed-fps 24 --quit-after 60000 -- --basepack=$P $HP --play=i$N --demo --ivonly $SL > $L/run$N.log 2>&1

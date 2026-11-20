@@ -1,13 +1,17 @@
-## 証言 一・二・三：インタビューの部屋（数か月後、昼。澪の実家の客間）。2026-11-19「インタビューの証言一〜三を作る」のスレッド。
-## 台本は story/interview.txt、並びは scripts/order.gd、部屋と人物は assets/interview/（blender/interview/export_interview.py）。
-## 画・カメラ・刷りの決まりは docs/資料/インタビュー場面_ゲームへの入れ方_2026-11-16.md のとおり：
-##   ・カメラは cuts.json のカットを 12 コマ／秒で（コマの間を補わない）。Blender の枠と同じになるようにレンズのずらしを frustum で。
-##   ・昼の刷り（riso2 の look=2、網点 2.6）。聞き手の顔は、平たくなるまで画に出さない。澪の顔は見せない。
-##   ・証言 三：一語が滑る → めまい → 版ずれ → 溶けて平たくなる（物の色だけ・立ち絵・書き起こしの窓・ロード）。
+## 証言 一・二・三：インタビューの部屋（数か月後、昼。澪の実家の客間）。
+## 第1稿 2026-11-19「インタビューの証言一〜三を作る」、第2稿 2026-11-20「インタビューを作り直す」のスレッド。
+## 台本は story/interview.txt、並びは scripts/order.gd、部屋は assets/interview/（blender/interview/export_interview.py）。
+## 第2稿で変えたこと（決定事項 2026-11-20、企画書「証言 一〜三（インタビュー）」）：
+##   ・答えは一問一答。選んだ文は澪が声に出す言葉として画の下に出る。本当と嘘が混ざり、失敗で止まらない。
+##   ・平たい2Dの画面、立ち絵、ロード、「上書きしますか？」をやめた。
+##   ・紙芝居にしない：人は骨つき（tripo/interview/*_rig.glb、blender/interview/people/rig2glb.py）で、形から形へ動いて移り、
+##     息・首・ペン・拳がいつも動く。選ぶあいだも時間は止めず、カメラが澪の肩越しから手元・口元へ寄る。
+##   ・聞き手は名刺を置き、桐生の母から預かったテープを部屋のテレビで再生して、監督の章へつなぐ。
+## 画と刷りの決まりは前のまま（docs/資料/インタビュー場面_ゲームへの入れ方_2026-11-16.md）：カメラも人も 12 コマ／秒で進む、
+## 昼の刷り（riso2 の look=2）。聞き手の顔と澪の顔は画に出さない（どのカットも口元か胸で切る）。
 ##
 ## The house is not loaded here: this node is its own scene (order.gd packs it), and at its end it goes on down the
-## late chapters' order. The words on screen follow story.gd: what the interviewer says at the foot of the frame, what
-## Mio answers top left under a short rule, what she did not say struck through with the transcriber's double line.
+## late chapters' order.
 extends Node3D
 const Type = preload("res://scripts/type.gd")
 const Main = preload("res://scripts/main.gd")
@@ -15,15 +19,13 @@ const Snd = preload("res://scripts/sound.gd")
 const A := "res://assets/interview/"
 const FPS := 12.0
 const PAPER := Color(0.945, 0.925, 0.875)
-const INK := Color(0.0, 0.2, 0.42)
-const BLUE := Color(0.0, 0.47, 0.75)
-const ORANGE := Color(1.0, 0.424, 0.184)
-const TEAL := Color(0.06, 0.36, 0.46)     # the window's type: where both inks overlap, lightened to read as print
-const REC_TIME := "01:14:08"             # the recorder's display = every save's time (決定事項 2026-11-15, カット C)
+const INK := Color(0.06, 0.08, 0.14)
 const CARD_SEC := 3.2
 const AMBIENT := 0.5
 static var HAND_K := 0.75           # --handk= for trying
 const SUN_DIR := Vector3(0.4, -0.45, 1.0)   # the way the sun goes (blender/interview/build.py: (0.4, -1.0, -0.45))
+const SAY_SIZE := 32.0
+const PICK_SIZE := 28.0
 
 @export var which := 1
 
@@ -31,74 +33,80 @@ var u := 1.0
 var demo := false
 var demo_k := 1.0                 # the unattended run goes 40 times as fast (--demo); --demoslow: at the real pace, for check pictures
 var only := false                 # --ivonly: quit at the end instead of going on (check runs)
+var demo_lie := false             # --ivlie: the unattended run takes the lie where there is one (else the first true answer)
 var blocks := {}                  # 台本：name -> Array of entries
 var cuts := {}
 var cams := {}
-var flat_colors := {}
 var cam: Camera3D
 var env: Environment
 var riso: ShaderMaterial
 var blur_mat: ShaderMaterial
 var room: Node3D
 var tree_base := Transform3D.IDENTITY
-var mio: Node3D
-var hands := {}                   # form -> Node3D
-var hand_now := "seiza"
 var hide_now: Array = []
 var lights_3d: Array = []
-var flat_on := false
-var flat_saved := {}              # MeshInstance3D -> its material_override before
+var fails := 0
+var t_scene := 0.0               # this scene's clock (the people's and the camera's)
 # camera playback
 var frames: Array = []            # the running cut, one entry per 1/12 s
 var frame_t := 0.0
 var frame_dt := 1.0 / FPS
-var orbit := 0.0                  # >0: seconds per turn (証言 三の回り込み)
-var orbit_a := 20.0
 # page
 var page: Control
 var lines_box: VBoxContainer
-var tes_box: VBoxContainer
 var note_lb: Label
 var font: Font
 var skip := false                 # E / click: finish the line being typed, or go on
-# 証言 三
-var slips: Array = []             # the answers taken back by loading (struck in the window and in the list)
-var slipped_cards := {}           # card text -> true (cannot be said again)
-var loaded := false               # she has loaded at least once: 「さっきも、そうおっしゃいましたね」
-var win: Control                  # the flattened screen's layer (portrait, the transcript window)
-var win_text: Label
-var win_ghost: Label
-var win_mark: Label
-var win_load: Label
-var win_struck: VBoxContainer
-var portrait: TextureRect
-var fails := 0
+var last_who := ""
 
 static func T(s: String) -> String: return String(TranslationServer.translate(s)).replace("​", "")
 static func b2g(v) -> Vector3: return Vector3(v[0], v[2], -v[1])
+
+# what she did earlier in the night (入口のスレッドが記録を作る。ここでは Engine の meta "night_flags" か --ivflags=a,b を見る)
+static func flag(n: String) -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--ivflags=") and n in a.substr(10).split(","): return true
+	var f = Engine.get_meta("night_flags", {})
+	return f is Dictionary and bool(f.get(n, false))
 
 func _ready():
 	var args := OS.get_cmdline_user_args()
 	demo = "--demo" in args or "--demoslow" in args; only = "--ivonly" in args
 	demo_k = 40.0 if "--demo" in args else 1.0
+	demo_lie = "--ivlie" in args
 	for a in args:
 		if a.begins_with("--handk="): HAND_K = float(a.substr(8))
-		if a.begins_with("--ivslip="): demo_slip = a.substr(9)
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	font = Type.say()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_read_script()
 	cuts = JSON.parse_string(FileAccess.get_file_as_string(A + "cuts.json"))
 	cams = JSON.parse_string(FileAccess.get_file_as_string(A + "cameras.json"))
-	flat_colors = JSON.parse_string(FileAccess.get_file_as_string(A + "flat_colors.json")).objects
-	_environment(); _room(); _lights(); _camera(); _print_layer(); _page()
+	_environment(); _room(); _people(); _tv(); _meishi(); _lights(); _camera(); _print_layer(); _page()
 	Type.Soft.k = 2.2   # the day room is paper white where the night was ink: the pool under the type is made heavier here only
+	_sounds()
 	_run.call_deferred()
 
 func _exit_tree():
 	Type.Soft.k = 1.0
 
 # ================================================================ 台本
+func _entry(l: String) -> Dictionary:
+	var e := {}
+	if l.begins_with("［"):
+		var k := l.find("］")
+		var c := l.substr(1, k - 1); var rest := l.substr(k + 1).strip_edges()
+		e = _entry(rest); e["cond"] = c; return e
+	if l.begins_with("？"): return {"pick": int(l.substr(1)), "cards": []}
+	if l.begins_with("＞"):
+		var w := l.substr(1).split(" ", false)
+		e = {"do": w[0], "arg": w[1] if w.size() > 1 else "", "arg2": w[2] if w.size() > 2 else ""}
+		if w[0] == "card": e.arg = l.substr(l.find("card") + 5)
+		return e
+	if l.begins_with("（"): return {"note": l}
+	if l.contains("："): return {"who": l.get_slice("：", 0), "text": l.substr(l.find("：") + 1)}
+	return {}
+
 func _read_script():
 	var name := ""
 	var last_pick: Dictionary = {}
@@ -110,26 +118,27 @@ func _read_script():
 		l = l.strip_edges()
 		if l == "": continue
 		if l.begins_with("【"):
-			name = l.trim_prefix("【").trim_suffix("】"); blocks[name] = []; last_pick = {}; continue
+			name = l.trim_prefix("【").trim_suffix("】"); blocks[name] = []; last_pick = {}; last_card = {}; continue
 		if name == "": continue
-		var e := {}
-		if indented and not last_card.is_empty() and l.contains("："):
-			(last_card.reply as Array).append({"who": l.get_slice("：", 0), "text": l.substr(l.find("：") + 1)}); continue
-		if l.begins_with("・") and not last_pick.is_empty():
-			var parts := l.substr(1).split("｜")
-			last_card = {"text": parts[0].strip_edges(), "slip": "", "reply": []}
+		if indented and not last_card.is_empty():
+			var r := _entry(l)
+			if r.is_empty(): print("SCRIPT ERROR interview: line not understood: ", l); continue
+			(last_card.reply as Array).append(r); continue
+		var cond := ""
+		var l2 := l
+		if l.begins_with("［") and l.find("］・") > 0:
+			cond = l.substr(1, l.find("］") - 1); l2 = l.substr(l.find("］") + 1)
+		if l2.begins_with("・") and not last_pick.is_empty():
+			var parts := l2.substr(1).split("｜")
+			last_card = {"text": parts[0].strip_edges(), "truth": true, "lie": "", "reply": [], "cond": cond}
 			for k in range(1, parts.size()):
-				if parts[k].begins_with("滑る="): last_card.slip = parts[k].substr(3).strip_edges()
+				var p := parts[k].strip_edges()
+				if p.begins_with("嘘"): last_card.truth = false; last_card.lie = p.substr(2) if p.length() > 2 else "?"
 			(last_pick.cards as Array).append(last_card); continue
 		last_card = {}
-		if l.begins_with("？"): e = {"pick": int(l.substr(1)), "cards": []}; last_pick = e
-		elif l.begins_with("＞"):
-			var w := l.substr(1).split(" ", false)
-			e = {"do": w[0], "arg": w[1] if w.size() > 1 else "", "arg2": w[2] if w.size() > 2 else ""}
-			if w[0] == "card": e.arg = l.substr(l.find("card") + 5)
-		elif l.begins_with("（") or l.begins_with("［"): e = {"note": l}
-		elif l.contains("："): e = {"who": l.get_slice("：", 0), "text": l.substr(l.find("：") + 1)}
-		else: print("SCRIPT ERROR interview: line not understood: ", l); continue
+		var e := _entry(l)
+		if e.is_empty(): print("SCRIPT ERROR interview: line not understood: ", l); continue
+		if e.has("pick"): last_pick = e
 		(blocks[name] as Array).append(e)
 
 # ================================================================ the room
@@ -167,25 +176,14 @@ func _room():
 			var tm: BaseMaterial3D = m.get_active_material(0).duplicate(); tm.roughness = 0.34; tm.metallic_specular = 0.6
 			m.set_surface_override_material(0, tm)
 			m.layers = 1 | 8   # the sheen light (_lights) is for this top only
-			print("IV table_top ", m.get_active_material(0).roughness)
 		if n.begins_with("rec_time") or n.begins_with("recorder_display"):
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	for f in ["seiza", "pinch", "stroke", "write"]:
-		var p := A + "kikite_%s.glb" % f
-		if not ResourceLoader.exists(p): continue
-		var h: Node3D = (load(p) as PackedScene).instantiate(); h.visible = false; add_child(h); hands[f] = h
-		_two_sided(h)
-	if ResourceLoader.exists(A + "mio_seiza.glb"):
-		mio = (load(A + "mio_seiza.glb") as PackedScene).instantiate(); add_child(mio)
-		_two_sided(mio)
 	var probe := ReflectionProbe.new(); probe.position = Vector3(0, 0.9, 0); probe.size = Vector3(3.7, 2.4, 3.7)   # the low table's lacquer shows the shoji
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE; probe.interior = true; probe.ambient_mode = ReflectionProbe.AMBIENT_ENVIRONMENT
 	probe.cull_mask = 1 | 2; probe.box_projection = true; probe.intensity = 1.0
 	add_child(probe)
 
-# The garden tree past the shoji is only its shadow on the paper. A paper lit from behind does not take a shadow here,
-# so the leaves themselves are laid flat on each panel's near face, along the sun's way, as its shadow (the two panels
-# slide past each other, 35 mm apart: one copy of the tree for each, cut to its panel)
+# The garden tree past the shoji is only its shadow on the paper (laid flat on each panel, along the sun's way)
 const LEAF_SH := """shader_type spatial;
 render_mode unshaded, blend_mul, cull_disabled, shadows_disabled;
 uniform float x0 = -9.0; uniform float x1 = 9.0; uniform float y0 = -9.0; uniform float y1 = 9.0;
@@ -217,21 +215,20 @@ func _two_sided(n: Node):
 		for i in m.mesh.get_surface_count():
 			var mat := m.get_active_material(i)
 			if mat is BaseMaterial3D:
-				var m2: BaseMaterial3D = mat.duplicate(); m2.cull_mode = BaseMaterial3D.CULL_DISABLED
-				if "hands" in String(mat.resource_name): m2.albedo_color = Color(HAND_K, HAND_K, HAND_K)   # the hands' skin is paper-white in the day print without this: no fingers
+				var m2: BaseMaterial3D = mat.duplicate(); m2.cull_mode = BaseMaterial3D.CULL_DISABLED; m2.metallic_specular = 0.0
+				if "hand" in String(mat.resource_name) or "hand" in String(m.name): m2.albedo_color = Color(HAND_K, HAND_K, HAND_K)   # the hands' skin is paper-white in the day print without this: no fingers
 				m.set_surface_override_material(i, m2)
 
 func _lights():
-	# Blender lit the room with an area light the size of the shoji. Here: one soft sun-less "sky" from the north, low,
-	# that the paper does not stop (shadow_caster_mask), a weak return from the south, and the sun itself on the paper's
-	# back, where only the leaves and the lattice shadow it
+	# one soft sun-less "sky" from the north, low, that the paper does not stop (shadow_caster_mask), a weak return from the
+	# south, and the sun itself on the paper's back, where only the leaves and the lattice shadow it
 	var sky := DirectionalLight3D.new(); sky.name = "sky"
 	sky.light_color = Color(0.97, 0.98, 1.0); sky.light_energy = 1.8
 	sky.rotation = Vector3(deg_to_rad(-16), deg_to_rad(180), 0)     # from the north (-z) down into the room
 	sky.shadow_enabled = true; sky.light_angular_distance = 9.0; sky.shadow_blur = 2.0
 	sky.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL; sky.directional_shadow_max_distance = 8.0
 	sky.shadow_caster_mask = 1
-	sky.light_specular = 0.0   # it stands for a light as large as the wall: no hard glint (the lacquer shows the shoji by the probe)
+	sky.light_specular = 0.0
 	sky.light_cull_mask = 1
 	add_child(sky); lights_3d.append(sky)
 	var fill := DirectionalLight3D.new(); fill.name = "fill"
@@ -239,7 +236,6 @@ func _lights():
 	fill.rotation = Vector3(deg_to_rad(-25), 0, 0)                  # from the south
 	fill.shadow_enabled = false; fill.light_cull_mask = 1; fill.light_specular = 0.0
 	add_child(fill); lights_3d.append(fill)
-	# the lacquer's sheen: the shoji as a soft glare on the table top, toward whoever looks north across it
 	var sheen := DirectionalLight3D.new(); sheen.name = "sheen"
 	sheen.light_color = Color(0.97, 0.98, 1.0); sheen.light_energy = 0.12; sheen.light_specular = 9.0
 	sheen.rotation = Vector3(deg_to_rad(-20), deg_to_rad(180), 0); sheen.shadow_enabled = true; sheen.shadow_caster_mask = 1
@@ -250,8 +246,297 @@ func _lights():
 	sun.light_energy = 0.62; sun.light_specular = 0.0
 	sun.basis = Basis.looking_at(SUN_DIR.normalized(), Vector3.UP)
 	sun.shadow_enabled = false
-	sun.light_cull_mask = 2                                          # it lights the paper only (the room has the sky)
+	sun.light_cull_mask = 2
 	add_child(sun); lights_3d.append(sun)
+
+# ================================================================ the two people (骨つき)
+# Each is the Tripo body on the game_engine rig, its forms as one-key animations (rig2glb.py). The pose every 1/12 s is
+# the blend of two forms (from → to, eased) with what a living body adds on top: the breath, the head's small drift and
+# where it looks, a nod, the pen's hand, and (Mio) the fist. The additions are turns about the world's axes through the
+# bone (lateral = x, up = y, the facing = z), so they read the same whichever way the rig's bones were rolled.
+var ppl := {}          # "kikite" / "mio" -> person (Dictionary)
+const BREATH := {"kikite": [4.6, 1.0], "mio": [3.7, 1.0]}   # period (s), depth
+
+func _people():
+	if ResourceLoader.exists(A + "kikite_rig.glb"): ppl["kikite"] = _person("kikite", "kikite_rig.glb", "seiza", 1.0)
+	if ResourceLoader.exists(A + "mio_rig.glb"): ppl["mio"] = _person("mio", "mio_rig.glb", "lap", -1.0)
+	if ppl.has("kikite"): _pencil(ppl.kikite)
+	for k in ppl: _pose(ppl[k], 0.0)
+
+func _person(key: String, file: String, rest_form: String, facing: float) -> Dictionary:
+	var root: Node3D = (load(A + file) as PackedScene).instantiate(); add_child(root)
+	_two_sided(root)
+	var sk: Skeleton3D = root.find_children("*", "Skeleton3D", true, false)[0]
+	var ap: AnimationPlayer = root.find_children("*", "AnimationPlayer", true, false)[0]
+	var forms := {}
+	for an in ap.get_animation_list():
+		var a: Animation = ap.get_animation(an)
+		var f := {}
+		for t in a.get_track_count():
+			var bi := sk.find_bone(String(a.track_get_path(t).get_concatenated_subnames()))
+			if bi < 0 or a.track_get_key_count(t) == 0: continue
+			var ent: Dictionary = f.get(bi, {})
+			match a.track_get_type(t):
+				Animation.TYPE_POSITION_3D: ent["p"] = a.track_get_key_value(t, 0)
+				Animation.TYPE_ROTATION_3D: ent["r"] = a.track_get_key_value(t, 0)
+			f[bi] = ent
+		forms[String(an)] = f
+	ap.stop(); ap.get_parent().remove_child(ap); ap.queue_free()
+	var p := {"key": key, "root": root, "sk": sk, "forms": forms, "from": rest_form, "to": rest_form, "k": 1.0, "dur": 0.9,
+		"facing": facing, "axes": {}, "bones": {}, "breath": 0.0, "look": Vector2.ZERO, "look_to": Vector2.ZERO,
+		"nod": -1.0, "pen": "", "pen_t": 0.0, "fist": 0.0, "fist_to": 0.0, "seed": randf() * 100.0, "tense": 0.0}
+	for b in ["spine_01", "spine_02", "spine_03", "neck_01", "head", "clavicle_l", "clavicle_r", "hand_l", "hand_r", "lowerarm_l", "lowerarm_r", "upperarm_l", "upperarm_r"]:
+		p.bones[b] = sk.find_bone(b)
+	# the bones' local axes for the world's lateral, up and facing, measured once in the resting form
+	_set_form_pose(p, rest_form, rest_form, 1.0)
+	sk.force_update_all_bone_transforms()
+	for b in p.bones:
+		var bi: int = p.bones[b]
+		if bi < 0: continue
+		var gb: Basis = (sk.global_transform.basis.orthonormalized() * sk.get_bone_global_pose(bi).basis.orthonormalized()).inverse()
+		p.axes[bi] = [(gb * Vector3.RIGHT).normalized(), (gb * Vector3.UP).normalized(), (gb * Vector3(0, 0, facing)).normalized()]
+	return p
+
+func _form_bone(p: Dictionary, form: String, bi: int) -> Array:
+	var f: Dictionary = p.forms.get(form, {})
+	var sk: Skeleton3D = p.sk
+	var rest := sk.get_bone_rest(bi)
+	var e: Dictionary = f.get(bi, {})
+	return [e.get("p", rest.origin), e.get("r", rest.basis.get_rotation_quaternion())]
+
+func _set_form_pose(p: Dictionary, a: String, b: String, k: float, extra := {}):
+	var sk: Skeleton3D = p.sk
+	var e := k * k * (3.0 - 2.0 * k)
+	for bi in sk.get_bone_count():
+		var fa := _form_bone(p, a, bi); var fb := _form_bone(p, b, bi)
+		var pos: Vector3 = (fa[0] as Vector3).lerp(fb[0], e)
+		var rot: Quaternion = (fa[1] as Quaternion).slerp(fb[1], e)
+		if extra.has(bi): rot = rot * (extra[bi] as Quaternion)
+		sk.set_bone_pose_position(bi, pos); sk.set_bone_pose_rotation(bi, rot)
+
+# a turn about a world axis (0 lateral, 1 up, 2 facing) of `deg`, added to what the bone already turns
+func _turn(p: Dictionary, extra: Dictionary, bone: String, axis: int, deg: float):
+	var bi: int = p.bones.get(bone, -1)
+	if bi < 0 or absf(deg) < 0.0001: return
+	var q := Quaternion((p.axes[bi][axis] as Vector3), deg_to_rad(deg))
+	extra[bi] = (extra.get(bi, Quaternion.IDENTITY) as Quaternion) * q
+
+static func _wob(t: float, s: float) -> float:
+	# a slow drift: three sines that never line up
+	return 0.55 * sin(t * 0.37 + s) + 0.3 * sin(t * 0.83 + s * 1.7) + 0.15 * sin(t * 1.9 + s * 0.3)
+
+func _pose(p: Dictionary, dt: float):
+	# the forms
+	if p.k < 1.0: p.k = minf(1.0, float(p.k) + dt / float(p.dur))
+	var t: float = t_scene + float(p.seed)
+	var f: float = p.facing
+	var x := {}
+	# the breath: the chest rises and opens a little, the shoulders with it; the neck takes it back so the head stays
+	var per: float = BREATH[p.key][0] * (1.0 - 0.25 * float(p.tense))
+	p.breath = float(p.breath) + dt * TAU / per
+	var br := sin(float(p.breath)) * float(BREATH[p.key][1]) * (1.0 + 0.4 * float(p.tense))
+	_turn(p, x, "spine_02", 0, -f * 0.7 * br)
+	_turn(p, x, "spine_03", 0, -f * 1.1 * br)
+	_turn(p, x, "neck_01", 0, f * 1.4 * br)
+	_turn(p, x, "clavicle_l", 2, 1.1 * br)
+	_turn(p, x, "clavicle_r", 2, -1.1 * br)
+	# the head: a slow drift, where it is looking (lerped), a nod
+	p.look = (p.look as Vector2).lerp(p.look_to, 1.0 - exp(-dt * 3.0))
+	var nod := 0.0
+	if float(p.nod) >= 0.0:
+		p.nod = float(p.nod) + dt
+		nod = 6.0 * sin(PI * clampf(float(p.nod) / 0.75, 0.0, 1.0))
+		if float(p.nod) > 0.75: p.nod = -1.0
+	var pitch: float = 1.3 * _wob(t * 0.9, 1.0) + (p.look as Vector2).y + nod
+	var yaw: float = 2.0 * _wob(t * 0.7, 4.0) + (p.look as Vector2).x
+	_turn(p, x, "neck_01", 0, f * pitch * 0.35); _turn(p, x, "head", 0, f * pitch * 0.65)
+	_turn(p, x, "neck_01", 1, yaw * 0.4); _turn(p, x, "head", 1, yaw * 0.6)
+	_turn(p, x, "spine_01", 2, 0.6 * _wob(t * 0.5, 7.0))   # the weight shifting on the knees
+	# the pen: writing is small turns of the wrist, a stop is the hand lifted off the page and held
+	if String(p.pen) != "" and p.has("pen_hand"):
+		p.pen_t = float(p.pen_t) + dt
+		var hb := String(p.pen_hand); var lb := "lowerarm_" + hb.substr(5)
+		if p.pen == "write":
+			var w := float(p.pen_t)
+			_turn(p, x, hb, 1, 4.0 * sin(w * TAU * 2.6) + 1.5 * sin(w * TAU * 0.7))
+			_turn(p, x, hb, 0, f * 2.0 * absf(sin(w * TAU * 1.3)))
+			_turn(p, x, lb, 1, 1.6 * sin(w * TAU * 0.45))
+		elif p.pen == "stop":
+			var up := clampf(float(p.pen_t) / 0.18, 0.0, 1.0)
+			_turn(p, x, hb, 0, -f * 7.0 * up)
+	# Mio's fist
+	if p.key == "mio":
+		p.fist = move_toward(float(p.fist), float(p.fist_to), dt / (0.35 if float(p.fist_to) > float(p.fist) else 1.6))
+	if p.key == "mio" and float(p.fist) > 0.0:
+		_set_form_pose(p, "lap", "fist", float(p.fist), x)
+	else:
+		_set_form_pose(p, p.from, p.to, p.k, x)
+	if p.key == "kikite": _pencil_tick(p)
+
+func _form(who: String, form: String, dur := 0.9):
+	if not ppl.has(who): return
+	var p: Dictionary = ppl[who]
+	if not (p.forms as Dictionary).has(form): print("SCRIPT ERROR interview: no form ", who, " ", form); fails += 1; return
+	if p.to == form and float(p.k) >= 1.0: return
+	p.from = p.to if float(p.k) >= 0.5 else p.from
+	p.to = form; p.k = 0.0; p.dur = dur
+	if form != "write": p.pen = ""
+
+# the pencil: in the write form it is in the writing hand (where the write file had it); otherwise it lies on the notebook
+var pencil: Array = []
+var pencil_rel: Array = []
+var pencil_rest: Array = []
+func _pencil(p: Dictionary):
+	for n in (p.root as Node).find_children("kikite_pencil*", "MeshInstance3D", true, false): pencil.append(n)
+	if pencil.is_empty(): return
+	var sk: Skeleton3D = p.sk
+	_set_form_pose(p, "write", "write", 1.0); sk.force_update_all_bone_transforms()
+	var pg: Vector3 = (pencil[0] as Node3D).global_position
+	var best := ""; var bd := 9.0
+	for h in ["hand_l", "hand_r"]:
+		var g: Vector3 = (sk.global_transform * sk.get_bone_global_pose(sk.find_bone(h))).origin
+		if g.distance_to(pg) < bd: bd = g.distance_to(pg); best = h
+	p.pen_hand = best
+	var hg: Transform3D = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(best))
+	# lying on the notebook: the same pencil, its long axis turned flat and across the page
+	var gw: Transform3D = (pencil[0] as Node3D).global_transform
+	var ab: AABB = (pencil[0] as MeshInstance3D).get_aabb()
+	var ax := Vector3.RIGHT if ab.size.x >= maxf(ab.size.y, ab.size.z) else (Vector3.UP if ab.size.y >= ab.size.z else Vector3.BACK)
+	var L: Vector3 = (gw.basis * ax).normalized()
+	var d := Vector3(cos(deg_to_rad(20.0)), 0.0, sin(deg_to_rad(20.0)))
+	var grest := Transform3D(Basis(Quaternion(L, d)) * gw.basis, b2g([0.30, 0.47, 0.338]))
+	for n in pencil:
+		var g := (n as Node3D).global_transform
+		pencil_rel.append(hg.affine_inverse() * g)
+		pencil_rest.append(grest * (gw.affine_inverse() * g))
+	_set_form_pose(p, "seiza", "seiza", 1.0)
+
+func _pencil_tick(p: Dictionary):
+	if pencil.is_empty(): return
+	var held: bool = (p.to == "write" and float(p.k) > 0.5) or (p.from == "write" and float(p.k) < 0.5)
+	var sk: Skeleton3D = p.sk
+	var hg: Transform3D = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(p.pen_hand))
+	for i in pencil.size():
+		(pencil[i] as Node3D).global_transform = (hg * pencil_rel[i]) if held else pencil_rest[i]
+
+func _show_people():
+	if ppl.has("kikite"): (ppl.kikite.root as Node3D).visible = not ("people" in hide_now)
+	if ppl.has("mio"): (ppl.mio.root as Node3D).visible = not ("mio" in hide_now)
+
+var people_t := 0.0
+func _people_tick(dt: float):
+	# the people are drawn at the print's 12 a second, like the camera
+	people_t += dt
+	if people_t < 1.0 / FPS: return
+	var step := people_t; people_t = 0.0
+	for k in ppl: _pose(ppl[k], step)
+
+# ================================================================ the deck and the set, the card
+var tv_root: Node3D
+var deck_root: Node3D
+var screen: MeshInstance3D
+var screen_mat: ShaderMaterial
+var screen_lb: Label3D
+const TV_AT := [-1.50, -0.95, 0.42]      # Blender: on the low cabinet of the tokowaki (west wall, south of the post), facing east
+const SCREEN_SH := """shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform float on = 0.0;      // 0 dark glass, 1 the deck's blue, 2 the tape (the hall at two o'clock, through the finder)
+uniform float tm = 0.0;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 uv = UV;
+	vec3 c = vec3(0.10, 0.11, 0.12);
+	if (on > 0.5 && on < 1.5) c = vec3(0.10, 0.22, 0.62);
+	if (on > 1.5) {
+		float roll = fract(tm * 0.11);
+		float band = smoothstep(0.0, 0.03, abs(uv.y - roll)) * 0.25 + 0.75;
+		float n = h(floor(uv * vec2(220.0, 160.0)) + floor(tm * 24.0));
+		// a door's lighter frame in the dark, and the floor going away
+		float door = step(0.38, uv.x) * step(uv.x, 0.6) * step(0.18, uv.y) * step(uv.y, 0.82);
+		float floor_ = smoothstep(0.62, 1.0, uv.y) * 0.25;
+		c = vec3(0.07 + 0.16 * door + floor_) * band + (n - 0.5) * 0.07;
+		c *= vec3(0.92, 0.96, 1.0);
+	}
+	// the tube's curve: darker to the corners
+	vec2 d = uv - 0.5; c *= 1.0 - dot(d, d) * 1.2;
+	ALBEDO = c;
+}"""
+
+func _tv():
+	var at := b2g(TV_AT)
+	tv_root = Node3D.new(); add_child(tv_root)
+	deck_root = Node3D.new(); add_child(deck_root)
+	var deck_top := at.y
+	if ResourceLoader.exists("res://props/vcr.glb"):
+		var v: Node3D = (load("res://props/vcr.glb") as PackedScene).instantiate(); deck_root.add_child(v)
+		v.scale = Vector3(0.44, 0.68, 0.44); v.rotation.y = deg_to_rad(90.0)
+		var bb := _aabb(v)
+		v.global_position += Vector3(at.x + 0.06 - bb.get_center().x, at.y - bb.position.y, at.z - bb.get_center().z)
+		deck_top = _aabb(v).end.y
+	var w := 0.46
+	if ResourceLoader.exists("res://props/crt_tv.glb"):
+		var t: Node3D = (load("res://props/crt_tv.glb") as PackedScene).instantiate(); tv_root.add_child(t)
+		t.rotation.y = deg_to_rad(8.0)
+		var bb := _aabb(t); var k := w / bb.size.z
+		t.scale = Vector3(k, k, k)
+		bb = _aabb(t)
+		t.global_position += Vector3(at.x - 0.02 - bb.get_center().x, (deck_top if deck_root.get_child_count() > 0 else at.y) - bb.position.y, at.z - bb.get_center().z)
+		bb = _aabb(t)
+		# the glass: a little in front of the set's face, most of its width
+		screen = MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(bb.size.z * 0.66, bb.size.y * 0.57); screen.mesh = q
+		var sh := Shader.new(); sh.code = SCREEN_SH; screen_mat = ShaderMaterial.new(); screen_mat.shader = sh; screen.material_override = screen_mat
+		add_child(screen)
+		screen.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(90.0)), Vector3(bb.end.x - 0.03, bb.position.y + bb.size.y * 0.565, bb.get_center().z))
+		screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		screen_lb = Label3D.new(); screen_lb.font = Type.cam(); screen_lb.font_size = 48; screen_lb.pixel_size = 0.0006
+		screen_lb.modulate = Color(0.85, 0.88, 0.9); screen_lb.outline_size = 0; screen_lb.shaded = false; screen_lb.text = ""
+		screen_lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		add_child(screen_lb)
+		screen_lb.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(90.0)), screen.global_position + Vector3(0.002, q.size.y * 0.36, q.size.x * 0.30))
+	# the deck comes with her: it is in the room once she has played the tape (証言 一), and stays (二、三、第11章)
+	deck_root.visible = which >= 2
+
+func _aabb(n: Node3D) -> AABB:
+	var bb := AABB(); var first := true
+	for g in n.find_children("*", "MeshInstance3D", true, false):
+		var m := g as MeshInstance3D
+		var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
+	return bb
+
+# 名刺：91 × 55 mm, laid on the table to her (証言 一), left there (二、三)
+var meishi: Node3D
+func _meishi():
+	meishi = Node3D.new(); add_child(meishi)
+	var m := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.091, 0.0004, 0.055); m.mesh = bx
+	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.95, 0.94, 0.91); mat.roughness = 0.9; m.material_override = mat
+	meishi.add_child(m)
+	# printed lines (a name, a line of small type): marks, not words
+	for r in [[-0.012, 0.010, 0.040, 0.0035], [-0.008, -0.004, 0.048, 0.0016], [-0.008, -0.010, 0.040, 0.0016], [0.022, 0.018, 0.020, 0.0016]]:
+		var l := MeshInstance3D.new(); var b := BoxMesh.new(); b.size = Vector3(r[2], 0.0002, r[3]); l.mesh = b
+		var lm := StandardMaterial3D.new(); lm.albedo_color = Color(0.15, 0.15, 0.16); l.material_override = lm
+		meishi.add_child(l); l.position = Vector3(r[0], 0.0003, -r[1])
+	meishi.visible = which >= 2
+	meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), b2g(MEISHI_DOWN))
+const MEISHI_FROM := [-0.08, 0.36, 0.3605]   # from under her fingers on the tape (the stroke form)
+const MEISHI_DOWN := [-0.12, 0.25, 0.3605]   # pushed toward Mio, in front of the tape
+
+# ================================================================ camera
+# the shots made here (Blender's axes, as cuts.json): the choosing, the answer, the pen, the set
+const SHOTS := {
+	"選ぶ_肩越し": [[0.55, -1.50, 0.84], [-0.06, 0.80, 0.24], 58.0, 0.0, [], [0.48, -1.28, 0.82], 8.0],
+	"選ぶ_手元": [[-0.85, -0.52, 0.44], [0.0, -0.58, 0.30], 38.0, 0.0, ["people"], [-0.70, -0.54, 0.42], 10.0],
+	"選ぶ_口元": [[0.0, 0.45, 0.50], [0.0, -0.72, 0.50], 40.0, 0.17, ["people"], [0.0, 0.20, 0.50], 14.0],
+	"澪_口元": [[0.0, 0.42, 0.50], [0.0, -0.72, 0.50], 42.0, 0.17, ["people"], [0.0, 0.38, 0.50], 4.0],
+	"ペン": [[-0.30, 0.02, 0.85], [0.18, 0.46, 0.36], 40.0, 0.0, ["mio"], [-0.27, 0.06, 0.82], 4.0],
+	"名刺": [[-0.16, -0.30, 0.78], [-0.10, 0.36, 0.33], 50.0, 0.0, ["mio"], [-0.15, -0.24, 0.75], 4.0],
+	"テレビ_引き": [[-0.40, -0.40, 0.76], [-1.48, -0.95, 0.70], 32.0, 0.0, [], [-0.62, -0.30, 0.73], 4.0],
+	"テレビ_正面": [[-0.45, -0.95, 0.72], [-1.48, -0.95, 0.72], 30.0, 0.0, ["mio", "people"], [-0.45, -0.95, 0.72], 1.0],
+	"テレビ_上": [[-1.0, -0.95, 2.2], [-1.48, -0.95, 0.6], 30.0, 0.0, ["mio", "people"], [-1.0, -0.95, 2.2], 1.0],
+	"テレビ_寄る": [[-0.55, -0.40, 0.74], [-1.48, -0.95, 0.70], 36.0, 0.0, [], [-1.08, -0.93, 0.70], 5.0],
+	"澪_手_沈黙": [[-0.85, -0.52, 0.44], [0.0, -0.58, 0.30], 44.0, 0.0, ["people"], [-0.78, -0.53, 0.43], 6.0],
+}
+# 受けの画：the interviewer after an answer, cut lower each time (証言 一 胸、二 顎、三 口元)
+const RECEIVE := {1: "k3a_聞き手_胸", 2: "k3b_聞き手_顎", 3: "k3c_聞き手_口元"}
 
 func _camera():
 	cam = Camera3D.new(); cam.near = 0.05; cam.far = 40.0
@@ -275,47 +560,59 @@ func _set_cam(f: Dictionary):
 	if blur_mat: blur_mat.set_shader_parameter("px", float(f.get("blur", 0.0)))
 	if f.has("sway"):
 		var t := TAU * float(f.sway)
-		# Blender's rotation (0.02 sin t, 0.035 sin(t+0.7), 0) and x + 0.03 sin(t+1.3), in Godot's axes
 		for tr in trees:
 			tr.transform = tree_base
 			tr.rotate_x(0.02 * sin(t)); tr.rotate_z(-0.035 * sin(t + 0.7)); tr.position.x = tree_base.origin.x + 0.03 * sin(t + 1.3)
-	if riso: riso.set_shader_parameter("slip", Vector2(-26, 14) if String(f.get("post", "")) == "slip" else Vector2.ZERO)
 
-func _show_people():
-	for k in hands: (hands[k] as Node3D).visible = (k == hand_now) and not ("people" in hide_now) and not flat_on
-	if mio: mio.visible = not ("mio" in hide_now) and not flat_on
+# a shot of SHOTS as frames at 12 a second: from its start to its end over its seconds, slow at both ends
+func _shot_frames(name: String, sec := 0.0) -> Array:
+	var s: Array = SHOTS[name]
+	var dur: float = sec if sec > 0.0 else float(s[6])
+	var n := maxi(int(dur * FPS), 1)
+	var out: Array = []
+	for i in n:
+		var t := float(i) / float(maxi(n - 1, 1)); t = t * t * (3.0 - 2.0 * t) if name != "テレビ_寄る" else t * t
+		var loc: Array = []
+		for j in 3: loc.append(lerpf(float(s[0][j]), float(s[5][j]), t))
+		out.append({"loc": loc, "at": s[1], "lens": s[2], "shift_y": s[3], "hide": s[4]})
+	return out
 
 # a cut: its frames laid out one per 1/12 s (hold = that many); sec > 0 stretches it to that length
 func _cut(name: String, sec := 0.0) -> float:
-	if not cuts.shots.has(name): print("SCRIPT ERROR interview: no cut ", name); fails += 1; return 0.0
-	orbit = 0.0
 	frames = []
-	for f in cuts.shots[name]:
-		for i in int(f.get("hold", 1)): frames.append(f)
-	frame_dt = (sec / frames.size()) if sec > 0.0 else 1.0 / FPS
+	if SHOTS.has(name):
+		frames = _shot_frames(name, sec)
+		frame_dt = 1.0 / FPS
+	elif cuts.shots.has(name):
+		for f in cuts.shots[name]:
+			for i in int(f.get("hold", 1)): frames.append(f)
+		frame_dt = (sec / frames.size()) if sec > 0.0 else 1.0 / FPS
+	elif cams.has(name):
+		_still(name); return 0.0
+	else:
+		print("SCRIPT ERROR interview: no cut ", name); fails += 1; return 0.0
 	frame_t = 0.0
 	_set_cam(frames[0])
 	return frames.size() * frame_dt
 
 func _still(name: String):
+	if SHOTS.has(name):
+		_cut(name)
+		var f0: Dictionary = frames[0]
+		frames = []; _set_cam(f0); return
 	if not cams.has(name): print("SCRIPT ERROR interview: no camera ", name); fails += 1; return
-	orbit = 0.0; frames = []
+	frames = []
 	var c: Dictionary = cams[name]
 	_set_cam({"loc": c.loc, "at": c.at, "lens": c.lens, "shift_y": c.get("shift_y", 0.0), "hide": c.get("hide", [])})
 
 func _process(dt: float):
+	t_scene += dt
+	_people_tick(dt)
 	if frames.size() > 0:
 		frame_t += dt
 		var i := mini(int(frame_t / frame_dt), frames.size() - 1)
 		_set_cam(frames[i])
-	elif orbit > 0.0:
-		# 証言 三：the camera goes round the table and does not stop, stepping at the print's 12 a second
-		orbit_a += dt * 360.0 / orbit
-		var a := deg_to_rad(snappedf(orbit_a, 360.0 / orbit / FPS))
-		# 試作232（全体レビュー1「回り込むカメラが澪の頭と肩に食い込み、画面の3分の2が髪と袖の内側でふさがる」）: at 0.5 m up
-		# on a 1.3 m ring it went through her where she sits. It goes round over the heads of the two seated (1.15 m) and a
-		# little wider, looking down onto the table
-		_set_cam({"loc": [1.5 * sin(a), 0.10 - 1.5 * cos(a), 1.15], "at": [0, 0.10, 0.55], "lens": 36.0, "shift_y": 0.0, "hide": []})
+	if screen_mat: screen_mat.set_shader_parameter("tm", t_scene)
 
 # ================================================================ the print
 const BLUR := """shader_type canvas_item;
@@ -346,6 +643,13 @@ func _print_layer():
 	r.material = riso
 	layer.add_child(r)
 
+# ================================================================ the sound of the room
+func _sounds():
+	for s in [["iv_room", -16.0], ["iv_leaves", -24.0]]:
+		var st := Snd.stream(String(s[0]), true)
+		if st == null: continue
+		var p := AudioStreamPlayer.new(); p.stream = st; p.volume_db = float(s[1]); add_child(p); p.play()
+
 # ================================================================ the page (as story.gd sets it)
 func _label(size: float, col := Color(0, 0, 0, 0), shadow := true) -> Label:
 	var lb := Label.new()
@@ -353,6 +657,8 @@ func _label(size: float, col := Color(0, 0, 0, 0), shadow := true) -> Label:
 	lb.add_theme_font_size_override("font_size", int(size * u))
 	lb.add_theme_color_override("font_color", PAPER if col.a == 0.0 else col)
 	if shadow: Type.soft(lb, u)
+	# the ink's edge round the letters: the day print is paper white behind them (試作232、全体レビュー3)
+	lb.add_theme_color_override("font_outline_color", Color(INK.r, INK.g, INK.b, 0.9)); lb.add_theme_constant_override("outline_size", maxi(4, int(7.0 * u)))
 	lb.autowrap_mode = TextServer.AUTOWRAP_OFF
 	lb.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	return lb
@@ -362,18 +668,13 @@ func _page():
 	page = Control.new(); page.set_anchors_preset(Control.PRESET_FULL_RECT); page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(page)
 	lines_box = VBoxContainer.new()
-	lines_box.anchor_left = 0.1; lines_box.anchor_right = 0.9; lines_box.anchor_top = 1.0; lines_box.anchor_bottom = 1.0
+	lines_box.anchor_left = 0.08; lines_box.anchor_right = 0.92; lines_box.anchor_top = 1.0; lines_box.anchor_bottom = 1.0
 	lines_box.offset_bottom = -64 * u; lines_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	lines_box.add_theme_constant_override("separation", int(4 * u))
+	lines_box.add_theme_constant_override("separation", int(6 * u))
 	page.add_child(lines_box)
-	tes_box = VBoxContainer.new()
-	tes_box.anchor_left = 0.075; tes_box.anchor_right = 0.7; tes_box.anchor_top = 0.0; tes_box.anchor_bottom = 0.0
-	tes_box.offset_top = 92 * u
-	tes_box.add_theme_constant_override("separation", int(12 * u))
-	page.add_child(tes_box)
-	note_lb = _label(26)
+	note_lb = _label(24)
 	note_lb.anchor_left = 0.075; note_lb.anchor_top = 1.0; note_lb.anchor_bottom = 1.0
-	note_lb.offset_top = -66 * u; note_lb.offset_bottom = -30 * u
+	note_lb.offset_top = -50 * u; note_lb.offset_bottom = -18 * u
 	page.add_child(note_lb)
 
 # break a long sentence at its commas and stops, n full-width letters to a line at most
@@ -392,27 +693,20 @@ static func wrap_ja(s: String, n: int) -> String:
 func _clear(b: Container):
 	for c in b.get_children(): b.remove_child(c); c.queue_free()
 
-# a row under a short rule, top left (her answer); returns its Label
-func _tes_row(text: String, size := 26.0) -> Label:
-	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u))
-	var rule := ColorRect.new(); rule.color = Color(PAPER.r, PAPER.g, PAPER.b, 0.85)
-	rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	var holder := MarginContainer.new(); holder.add_theme_constant_override("margin_top", int(17 * u)); holder.add_child(rule)
-	row.add_child(holder)
-	var lb := _label(size); lb.text = wrap_ja(T(text), 34); lb.add_theme_constant_override("line_spacing", int(6 * u))
-	row.add_child(lb)
-	tes_box.add_child(row)
-	return lb
-
+# a spoken line at the foot of the frame; the speaker's name in small type when the speaker changes (story.gd)
 func _say_row(who: String, text: String) -> Label:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u)); row.alignment = BoxContainer.ALIGNMENT_CENTER
-	var lb := _label(32.0); lb.text = wrap_ja(T(text), 30); lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if who != last_who:
+		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(w)
+	last_who = who
+	var lb := _label(SAY_SIZE); lb.text = wrap_ja(T(text), 30); lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	row.add_child(lb)
 	lines_box.add_child(row)
 	while lines_box.get_child_count() > 2:
 		var c := lines_box.get_child(0); lines_box.remove_child(c); c.queue_free()
 	for i in range(lines_box.get_child_count()):
-		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.62
+		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.5
 	return lb
 
 # type a line in, then hold it; E / click finishes the typing, then goes on
@@ -444,9 +738,6 @@ func _unhandled_input(e):
 			if e.keycode in [KEY_W, KEY_UP]: _move_pick(-1)
 			elif e.keycode in [KEY_S, KEY_DOWN]: _move_pick(1)
 			elif e.keycode in [KEY_E, KEY_ENTER, KEY_SPACE]: pick_go = true
-		elif asking_load:
-			if e.keycode == KEY_L: load_answer = "load"
-			elif e.keycode in [KEY_E, KEY_ENTER, KEY_SPACE]: load_answer = "go"
 		elif e.keycode in [KEY_E, KEY_ENTER, KEY_SPACE]: skip = true
 		if e.keycode == KEY_F12: _save_frame()
 	elif e is InputEventMouseButton and e.pressed:
@@ -454,135 +745,140 @@ func _unhandled_input(e):
 			if e.button_index == MOUSE_BUTTON_WHEEL_UP: _move_pick(-1)
 			elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: _move_pick(1)
 			elif e.button_index == MOUSE_BUTTON_LEFT: pick_go = true
-		elif asking_load:
-			if e.button_index == MOUSE_BUTTON_LEFT:
-				load_answer = "load" if (win_load and win_load.get_global_rect().grow(18 * u).has_point(e.position)) else "go"
 		elif e.button_index == MOUSE_BUTTON_LEFT: skip = true
 
 func _save_frame():
 	var d := OS.get_executable_path().get_base_dir()
 	get_viewport().get_texture().get_image().save_png("%s/shot_interview%d_%d.png" % [d, which, Time.get_ticks_msec()])
 
-# ================================================================ answering: the cards
+# ================================================================ answering
 var picking := false
 var pick_go := false
 var pick_idx := 0
-var pick_rows: Array = []         # [{card, lb, taken}]
-var demo_slip := ""               # --ivslip=語: the unattended run says the line with this word (証言 三)
-var demo_slip_done := false
+var pick_rows: Array = []         # [{card, lb}]
+var choose_cam := false           # ＞choose_in：the next question is watched from over her shoulder, coming in
 
 func _move_pick(d: int):
-	var n := pick_rows.size()
-	for k in n:
-		pick_idx = posmod(pick_idx + d, n)
-		if not pick_rows[pick_idx].taken and not pick_rows[pick_idx].dead: break
+	pick_idx = posmod(pick_idx + d, pick_rows.size())
 	_show_pick()
 
 func _show_pick():
 	for i in pick_rows.size():
-		var r: Dictionary = pick_rows[i]
-		var a := 1.0 if (r.taken or i == pick_idx) else 0.86
-		if r.dead: a = 0.5
-		(r.lb as Label).add_theme_color_override("font_color", Color(PAPER.r, PAPER.g, PAPER.b, a))
+		var lb: Label = pick_rows[i].lb
+		lb.add_theme_color_override("font_color", PAPER if i == pick_idx else Color(PAPER.r, PAPER.g, PAPER.b, 0.62))
 
 func _strike(lb: Label, dur := 0.9):
-	var st = load("res://scripts/story.gd").Strike.new()
-	st.u = u; st.anim = dur
-	var w := 0.0
-	for ln in lb.text.split("\n"): w = maxf(w, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, lb.get_theme_font_size("font_size")).x)
-	# one double line per line of the sentence
-	var lh := font.get_height(lb.get_theme_font_size("font_size")) + lb.get_theme_constant("line_spacing")
+	var fs := lb.get_theme_font_size("font_size")
+	var lh := font.get_height(fs) + lb.get_theme_constant("line_spacing")
 	var lines := lb.text.split("\n")
 	for i in lines.size():
-		var s2 = st if i == 0 else load("res://scripts/story.gd").Strike.new()
+		var s2 = load("res://scripts/story.gd").Strike.new()
 		s2.u = u; s2.anim = dur
-		s2.w = font.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, lb.get_theme_font_size("font_size")).x
-		s2.position = Vector2(0, i * lh); s2.size = Vector2(s2.w, font.get_height(lb.get_theme_font_size("font_size")))
+		s2.w = font.get_string_size(lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		s2.position = Vector2(0, i * lh); s2.size = Vector2(s2.w, font.get_height(fs))
 		s2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		lb.add_child(s2)
 
-# the question's cards on the page; she says `n` of them. Returns the cards said, in order; stops early with the card
-# that slipped (証言 三) as the last one
-func _pick(e: Dictionary) -> Array:
-	_clear(tes_box)
+# the choosing camera: over her shoulder onto the interviewer waiting, then her hands, then her mouth; it does not stop
+func _choose_frames() -> Array:
+	return _shot_frames("選ぶ_肩越し") + _shot_frames("選ぶ_手元") + _shot_frames("選ぶ_口元")
+
+# one question: the answers she could give, at the foot of the frame; she says one. Time goes on while she chooses
+func _pick(e: Dictionary):
+	var cards: Array = (e.cards as Array).filter(func(c): return String(c.cond) == "" or flag(String(c.cond)))
+	if cards.is_empty(): return
+	_clear(lines_box); last_who = ""
 	pick_rows = []
-	for c in e.cards:
-		var lb := _tes_row(String(c.text), 25.0)
-		# 試作232（全体レビュー3「選ぶ行が障子・紙の白に重なり、選んでいない行はほとんど読めない」）: paper-coloured type on the
-		# paper-white shoji. Each row gets the ink's edge round its letters (as the subtitles' shadow reads, 2026-11-18)
-		lb.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.14, 0.9)); lb.add_theme_constant_override("outline_size", maxi(4, int(7.0 * u)))
-		lb.add_theme_color_override("font_shadow_color", Color(0.06, 0.08, 0.14, 0.55)); lb.add_theme_constant_override("shadow_offset_x", 2); lb.add_theme_constant_override("shadow_offset_y", 2)
-		var dead: bool = slipped_cards.has(String(c.text))
-		pick_rows.append({"card": c, "lb": lb, "taken": false, "dead": dead})
-		if dead: _strike(lb, 0.0)
+	for c in cards:
+		var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(12 * u))
+		var dash := _label(PICK_SIZE); dash.text = "—"
+		var lb := _label(PICK_SIZE); lb.text = wrap_ja(T(String(c.text)), 34); lb.add_theme_constant_override("line_spacing", int(4 * u))
+		row.add_child(dash); row.add_child(lb)
+		lines_box.add_child(row)
+		pick_rows.append({"card": c, "lb": lb})
 	pick_idx = 0
-	for i in pick_rows.size():
-		if not pick_rows[i].dead: pick_idx = i; break
 	_show_pick()
 	note_lb.text = T("［Ｗ／Ｓ　言葉を選ぶ］　［Ｅ　言う］")
-	var said: Array = []
-	var need := int(e.pick)
-	while said.size() < need:
-		picking = true; pick_go = false
-		if demo:
-			await _hold(0.6)
-			pick_idx = _demo_choice()
-			_show_pick(); pick_go = true
-		while not pick_go: await get_tree().process_frame
-		picking = false
-		var r: Dictionary = pick_rows[pick_idx]
-		if r.taken or r.dead: continue
-		r.taken = true; said.append(r.card)
-		print("SAY 澪＊：%s" % String(r.card.text))
-		var slip := String(r.card.slip)
-		# she says it: the line is typed again over itself, and a slipping word stops everything where it falls
-		var lb: Label = r.lb
-		var full := lb.text
-		var stop_at := full.length()
-		if slip != "" and which == 3:
-			var k := full.replace("\n", "").find(slip)
-			if k >= 0: stop_at = _index_with_breaks(full, k + slip.length())
-		lb.add_theme_color_override("font_color", PAPER)
-		var t := 0.0
-		lb.visible_characters = 0
-		while int(t * 20.0) < stop_at:
-			await get_tree().process_frame
-			t += get_process_delta_time() * demo_k
-			lb.visible_characters = mini(stop_at, int(t * 20.0))
-		if slip != "" and which == 3:
-			note_lb.text = ""
-			return said
-		lb.visible_characters = -1
-		await _hold(0.5)
-		if said.size() < need: _move_pick(1)
+	# the room goes on: the camera comes in, the interviewer waits, Mio looks down at her hands
+	if choose_cam:
+		frames = _choose_frames(); frame_dt = 1.0 / FPS; frame_t = 0.0; _set_cam(frames[0])
+	choose_cam = false
+	if ppl.has("mio"): ppl.mio.look_to = Vector2(0, 7.0); ppl.mio.tense = 0.6
+	if ppl.has("kikite"): ppl.kikite.look_to = Vector2(-2.0, 2.0)
+	picking = true; pick_go = false
+	var wait_t := 0.0
+	while not pick_go:
+		await get_tree().process_frame
+		wait_t += get_process_delta_time() * demo_k
+		if demo and wait_t > 3.0: pick_idx = _demo_choice(); _show_pick(); pick_go = true
+	picking = false
 	note_lb.text = ""
-	# what she did not say stays on the page struck through, then the page is left with her answer
-	for r in pick_rows:
-		if not r.taken and not r.dead: _strike(r.lb)
-	await _hold(1.6)
-	for r in pick_rows:
-		if not r.taken: (r.lb as Label).get_parent().queue_free()
+	var card: Dictionary = pick_rows[pick_idx].card
+	for i in pick_rows.size():
+		if i != pick_idx: _strike(pick_rows[i].lb)
 	await _hold(0.9)
-	return said
+	_clear(lines_box)
+	var lie := not bool(card.truth)
+	print("SAY 澪：%s" % String(card.text))
+	print("IV answer %s %s" % ["嘘=" + String(card.lie) if lie else "本当", String(card.text).substr(0, 12)])
+	# she says it: her mouth's cut, the line at the foot of the frame. A lie: her hands close in her lap as she says it
+	_cut("澪_口元")
+	if ppl.has("mio"):
+		ppl.mio.look_to = Vector2(0, 3.0)
+		if lie: ppl.mio.fist_to = 1.0; ppl.mio.tense = 1.0
+		else: ppl.mio.tense = 0.2
+	if ppl.has("kikite"): ppl.kikite.look_to = Vector2.ZERO
+	var lb2 := _say_row("澪", String(card.text))
+	# the pen's sound comes in half a beat before its picture
+	var n := lb2.text.length()
+	lb2.visible_characters = 0
+	var t := 0.0; var pen_in := false
+	skip = false
+	while t * 20.0 < n:
+		await get_tree().process_frame
+		t += get_process_delta_time() * demo_k
+		if skip: skip = false; break
+		lb2.visible_characters = mini(n, int(t * 20.0))
+	lb2.visible_characters = -1
+	await _hold(0.6 + n * 0.03)
+	Snd.one(self, "c7_pencil", -14.0)
+	await _hold(0.45)
+	# the pen: a true answer is written down at length; at a lie the pen stops for a moment, then goes on a little
+	_form("kikite", "write", 0.5)
+	_cut("ペン")
+	var stops := false
+	for r in card.reply:
+		if String(r.get("do", "")) == "pen_stop": stops = true
+	if ppl.has("kikite"):
+		ppl.kikite.pen = "write"; ppl.kikite.pen_t = 0.0
+		if lie or stops:
+			await _hold(0.8)
+			ppl.kikite.pen = "stop"; ppl.kikite.pen_t = 0.0
+			print("IV pen stop")
+			await _hold(1.4)
+			ppl.kikite.pen = "write"; ppl.kikite.pen_t = 0.0
+			await _hold(0.9)
+		else:
+			print("IV pen write")
+			await _hold(3.2)
+		ppl.kikite.pen = ""
+	# 受けの画
+	_still(RECEIVE[which])
+	if lie: get_tree().create_timer(3.0 / demo_k).timeout.connect(_unfist)
+	for r in card.reply:
+		if String(r.get("do", "")) in ["pen_stop", "pen_write"]: continue
+		await _one(r)
 
-func _index_with_breaks(full: String, n_plain: int) -> int:
-	var seen := 0
-	for i in full.length():
-		if full[i] != "\n": seen += 1
-		if seen >= n_plain: return i + 1
-	return full.length()
+func _unfist():
+	if ppl.has("mio"): ppl.mio.fist_to = 0.0; ppl.mio.tense = 0.3
 
 func _demo_choice() -> int:
-	# the unattended run: the first card not yet said; in 証言 三 the slipping card once (--ivslip=語, default こっちへ), then the safe ones
-	var want := demo_slip if demo_slip != "" else "こっちへ"
-	if which == 3 and not demo_slip_done:
-		for i in pick_rows.size():
-			if String(pick_rows[i].card.slip) == want and not pick_rows[i].dead and not pick_rows[i].taken: demo_slip_done = true; return i
+	# the unattended run: the lie where there is one (--ivlie), else the first true answer
 	for i in pick_rows.size():
-		if not pick_rows[i].taken and not pick_rows[i].dead and String(pick_rows[i].card.slip) == "": return i
+		if demo_lie != bool(pick_rows[i].card.truth): return i
 	return 0
 
-# check stills: --ivstill=名前[@コマ][+手の形][+flat],…  --ivout=フォルダ（カットかカメラの名前。1枚ずつ撮って終わる）
+# check stills: --ivstill=名前[@コマ][+形][+fist][+deck][+meishi][+tv=on|tape],…  --ivout=フォルダ（1枚ずつ撮って終わる）
 func _stills(spec: String):
 	var out := "/tmp"
 	for a in OS.get_cmdline_user_args():
@@ -593,19 +889,26 @@ func _stills(spec: String):
 	for item in spec.split(","):
 		var parts := item.split("+")
 		var nm := parts[0].get_slice("@", 0); var fr := int(parts[0].get_slice("@", 1)) if parts[0].contains("@") else 0
-		hand_now = "seiza"
-		var want_flat := false
+		var form := "seiza"; var fist := 0.0
 		for q in range(1, parts.size()):
-			if parts[q] == "flat": want_flat = true
-			else: hand_now = parts[q]
-		if cuts.shots.has(nm):
+			var w := String(parts[q])
+			if w == "fist": fist = 1.0
+			elif w == "deck": deck_root.visible = true
+			elif w == "meishi": meishi.visible = true
+			elif w.begins_with("tv="):
+				if screen_mat: screen_mat.set_shader_parameter("on", 1.0 if w == "tv=on" else 2.0)
+				if screen_lb and w != "tv=on": screen_lb.text = "ＲＥＣ　２：００"
+			elif w.begins_with("t="): t_scene = float(w.substr(2))
+			else: form = w
+		if ppl.has("kikite"): ppl.kikite.from = form; ppl.kikite.to = form; ppl.kikite.k = 1.0; ppl.kikite.pen = ""
+		if ppl.has("mio"): ppl.mio.fist = fist; ppl.mio.fist_to = fist
+		for p in ppl: _pose(ppl[p], 0.0)
+		if SHOTS.has(nm) or cuts.shots.has(nm):
 			_cut(nm); var fs := frames; frames = []; _set_cam(fs[clampi(fr, 0, fs.size() - 1)])
 		else: _still(nm)
-		if want_flat: await _flatten()
 		for i in 8: await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [out, k, item.replace("@", "_").replace("+", "_")]); k += 1
-		if want_flat: _unflatten()
+		get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [out, k, item.replace("@", "_").replace("+", "_").replace("=", "")]); k += 1
 	get_tree().quit()
 
 # ================================================================ the script runner
@@ -613,10 +916,9 @@ var ended := false
 func _run():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--ivstill="): await _stills(a.substr(10)); return
-	# its card first (the cover from the chapter before comes off once the card is up)
-	var first: Array = blocks.get(["", "一", "二", "三"][which], [])
-	if first.is_empty(): print("SCRIPT ERROR interview: no block for ", which); _finish(); return
-	await _block(["", "一", "二", "三"][which])
+	var nm: String = ["", "一", "二", "三"][which]
+	if not blocks.has(nm): print("SCRIPT ERROR interview: no block for ", which); _finish(); return
+	await _block(nm)
 	if not ended: _finish()
 
 func _block(name: String):
@@ -626,51 +928,106 @@ func _block(name: String):
 	var i := 0
 	while i < q.size() and not ended:
 		var e: Dictionary = q[i]; i += 1
-		if e.has("who"):
-			var text := String(e.text)
-			if text.contains("%s"): text = text % last_slip
-			print("SAY %s：%s" % [e.who, text])
-			if e.who == "澪":
-				_clear(tes_box); await _type(_tes_row(text), 20.0, 1.6)
-			elif flat_on: await _win_say(text)
-			else: await _type(_say_row(String(e.who), text))
-		elif e.has("note"):
-			print("SAY %s" % e.note)
-			note_lb.text = T(String(e.note)); await _hold(2.2); note_lb.text = ""
-		elif e.has("pick"):
-			var said: Array = await _pick(e)
-			if which == 3 and said.size() > 0 and String(said[-1].slip) != "":
-				last_slip = String(said[-1].slip); last_slip_card = String(said[-1].text)
-				await _block("三.滑る"); return
-			if which == 3 and name == "三.問い" and loaded:
-				_clear(lines_box); await _block("三.覚えている"); return
-			_clear(lines_box)
-			for c in said:
-				for r in c.reply:
-					print("SAY %s：%s" % [r.who, r.text]); await _type(_say_row(String(r.who), String(r.text)))
-		elif e.has("do"):
-			match String(e["do"]):
-				"card": await _card(String(e.arg))
-				"cut":
-					var d := _cut(String(e.arg), float(e.arg2) if String(e.arg2) != "" else 0.0)
-					# a cut that moves is watched to its end before the talk goes on, unless it was given a length to talk over
-					if String(e.arg2) == "" and frames.size() > 1 and _moves(String(e.arg)): await _hold(d)
-				"cam": _still(String(e.arg))
-				"orbit": frames = []; orbit = float(e.arg); orbit_a = 20.0
-				"hand": hand_now = String(e.arg); _show_people()
-				"wait": await _hold(float(e.arg))
-				"sound": Snd.one(self, {"決定": "iv_kettei"}.get(String(e.arg), String(e.arg)), -6.0)
-				"flat": await _flatten()
-				"unflat": _unflatten()
-				"load": await _ask_load(); return
-				"save": await _save_list(true)
-				"go": await _block(String(e.arg)); return
-				"end": _finish(); return
-				_: print("SCRIPT ERROR interview: ＞", e["do"]); fails += 1
+		if e.has("do") and String(e["do"]) == "go":
+			var to := String(e.arg)
+			if blocks.has(to): await _block(to)
+			else: print("IV go ", to); _finish()
+			return
+		await _one(e)
+
+func _one(e: Dictionary):
+	if e.has("cond") and not flag(String(e.cond)): return
+	if e.has("who"):
+		var text := String(e.text)
+		print("SAY %s：%s" % [e.who, text])
+		if e.who == "澪" and ppl.has("mio"): ppl.mio.look_to = Vector2(0, 4.0)
+		await _type(_say_row(String(e.who), text))
+	elif e.has("note"):
+		print("SAY %s" % e.note)
+		note_lb.text = T(String(e.note)); await _hold(2.2); note_lb.text = ""
+	elif e.has("pick"):
+		await _pick(e)
+	elif e.has("do"):
+		var a := String(e.arg)
+		match String(e["do"]):
+			"card": await _card(a)
+			"cut":
+				var d := _cut(a, float(e.arg2) if String(e.arg2) != "" else 0.0)
+				# a cut that moves is watched to its end before the talk goes on, unless it was given a length to talk over
+				if String(e.arg2) == "" and frames.size() > 1 and _moves(a): await _hold(d)
+			"cam": _still(a)
+			"hand": _form("kikite", a if a != "none" else "seiza")
+			"wait": await _hold(float(a))
+			"sound": Snd.one(self, {"決定": "iv_kettei"}.get(a, a), -6.0)
+			"choose_in": choose_cam = true
+			"fist":
+				if ppl.has("mio"):
+					ppl.mio.fist_to = 1.0; ppl.mio.tense = 1.0
+					get_tree().create_timer(3.5 / demo_k).timeout.connect(_unfist)
+			"pen_write":
+				_form("kikite", "write", 0.5)
+				if ppl.has("kikite"): ppl.kikite.pen = "write"; ppl.kikite.pen_t = 0.0
+			"pen_stop":
+				if ppl.has("kikite"): ppl.kikite.pen = "stop"; ppl.kikite.pen_t = 0.0
+			"glance_hands":
+				# she looks down at Mio's hands once, says nothing
+				if ppl.has("kikite"):
+					ppl.kikite.look_to = Vector2(0, 14.0)
+					await _hold(1.4)
+					ppl.kikite.look_to = Vector2.ZERO
+			"card_on_table": await _card_on_table()
+			"deck_play": await _deck_play()
+			"silence": await _silence()
+			"end": _finish()
+			_: print("SCRIPT ERROR interview: ＞", e["do"]); fails += 1
 
 func _moves(name: String) -> bool:
+	if SHOTS.has(name): return true
+	if not cuts.shots.has(name): return false
 	var fs: Array = cuts.shots[name]
 	return fs.size() > 1 and (fs[0].loc != fs[-1].loc or fs[0].at != fs[-1].at or fs[0].lens != fs[-1].lens)
+
+# 名刺：her hand goes out flat over the table with the card under her fingers, and leaves it in front of Mio
+func _card_on_table():
+	print("IV meishi")
+	_cut("名刺")
+	_form("kikite", "stroke", 0.8)
+	meishi.visible = true
+	var from := b2g(MEISHI_FROM); var to := b2g(MEISHI_DOWN)
+	var t := 0.0
+	while t < 1.6:
+		await get_tree().process_frame
+		t += get_process_delta_time() * demo_k
+		var k := clampf((t - 0.3) / 1.1, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)
+		meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(lerpf(-10.0, 4.0, k))), from.lerp(to, k))
+	_form("kikite", "seiza", 1.0)
+	await _hold(1.2)
+
+# the deck: she has brought it; the tape goes in (heard), the set comes on, its blue, then the tape's picture
+func _deck_play():
+	print("IV deck")
+	if ppl.has("kikite"): ppl.kikite.look_to = Vector2(-18.0, 4.0)
+	if ppl.has("mio"): ppl.mio.look_to = Vector2(16.0, 2.0)
+	_cut("テレビ_引き")
+	deck_root.visible = true
+	Snd.one(self, "cassette_in", -8.0)
+	await _hold(1.3)
+	Snd.one(self, "tape_clunk", -8.0)
+	await _hold(0.6)
+	Snd.one(self, "iv_tv_on", -16.0)
+	if screen_mat: screen_mat.set_shader_parameter("on", 1.0)
+	await _hold(1.4)
+	if screen_mat: screen_mat.set_shader_parameter("on", 2.0)
+	if screen_lb: screen_lb.text = "ＲＥＣ　２：００"
+	await _hold(1.0)
+
+# 証言 二の終わり：she does not answer. Her hands in her lap, the room's sound, then the cut
+func _silence():
+	print("IV silence")
+	_clear(lines_box)
+	_cut("澪_手_沈黙")
+	if ppl.has("mio"): ppl.mio.look_to = Vector2(0, 9.0); ppl.mio.tense = 0.8
+	await _hold(4.5)
 
 func _card(arg: String):
 	var p := arg.split("｜")
@@ -689,296 +1046,3 @@ func _finish():
 	print("DEMO DONE interview %d fails=%d" % [which, fails])
 	if only: get_tree().quit(); return
 	load("res://scripts/order.gd").go(self, "i%d" % which)
-
-# ================================================================ 証言 三：平たくなる、ロード
-var last_slip := ""
-var last_slip_card := ""
-var asking_load := false
-var load_answer := ""
-
-const WIN_BLUR := """shader_type canvas_item;
-uniform float px = 0.0;
-uniform float alpha = 1.0;
-void fragment() {
-	vec4 c = vec4(0.0); float w = 0.0;
-	for (int i = -3; i <= 3; i++) for (int j = -3; j <= 3; j++) {
-		float k = exp(-float(i * i + j * j) / 6.0);
-		c += texture(TEXTURE, UV + vec2(float(i), float(j)) * px / 3.0 * TEXTURE_PIXEL_SIZE) * k; w += k; }
-	c /= w; COLOR = vec4(c.rgb, c.a * alpha);
-}"""
-
-# the slipped frame is held as a picture and dissolved, blurring, into the flattened room; then the window, and the
-# portrait rising out of a blur with its orange plate coming into register last (決定事項 2026-11-16)
-func _flatten():
-	await get_tree().process_frame
-	var img: Image = null if DisplayServer.get_name() == "headless" else get_viewport().get_texture().get_image()
-	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
-	var hold := TextureRect.new()
-	if img: hold.texture = ImageTexture.create_from_image(img)
-	hold.set_anchors_preset(Control.PRESET_FULL_RECT); hold.stretch_mode = TextureRect.STRETCH_SCALE; hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sh := Shader.new(); sh.code = WIN_BLUR
-	var hm := ShaderMaterial.new(); hm.shader = sh; hold.material = hm
-	layer.add_child(hold)
-	_clear(tes_box); _clear(lines_box)
-	# under it, the room without light: each thing its own flat colour, no people, three flat inks
-	flat_on = true; _show_people()
-	riso.set_shader_parameter("slip", Vector2.ZERO); riso.set_shader_parameter("flat_ink", 1.0)
-	for l in lights_3d: (l as Light3D).visible = false
-	for t in trees: (t as Node3D).visible = false
-	env.ssao_enabled = false; env.ambient_light_energy = 0.0
-	for mi in room.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		flat_saved[m] = m.material_override
-		var fm := StandardMaterial3D.new(); fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var c = _flat_colour(String(m.name))
-		fm.albedo_color = Color(c[0], c[1], c[2]) if c != null else Color(0.8, 0.78, 0.74)
-		fm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.material_override = fm
-	_still("k3c_聞き手_口元"); hide_now = ["mio", "people"]; _show_people()
-	for k in 10:   # 10 コマ：溶かし前半
-		var t := float(k + 1) / 10.0; var e := t * t * (3.0 - 2.0 * t)
-		hm.set_shader_parameter("px", 14.0 * u * e); hm.set_shader_parameter("alpha", 1.0 - e)
-		await _frames12(1)
-	layer.queue_free()
-	_window()
-	var pm: ShaderMaterial = portrait.material
-	for k in 14:   # 14 コマ：窓は最初から、立ち絵が立ち上がる
-		var t := float(k + 1) / 14.0; var e := t * t * (3.0 - 2.0 * t)
-		portrait.modulate.a = minf(1.4 * t, 1.0) * minf(1.4 * t, 1.0) * (3.0 - 2.0 * minf(1.4 * t, 1.0))
-		portrait_shadow.modulate.a = e
-		pm.set_shader_parameter("px", 18.0 * u * (1.0 - e)); pm.set_shader_parameter("split", 24.0 * u * (1.0 - e))
-		await _frames12(1)
-	portrait.modulate.a = 1.0; portrait_shadow.modulate.a = 1.0
-
-func _frames12(n: int):
-	await _hold(n / FPS)
-
-func _flat_colour(n: String):
-	if flat_colors.has(n): return flat_colors[n]
-	for k in flat_colors:   # Godot renames "a.001" to "a_001"
-		if String(k).replace(".", "_") == n: return flat_colors[k]
-	var best = null; var bl := 0
-	for k in flat_colors:
-		if n.begins_with(String(k).replace(".", "_")) and String(k).length() > bl: best = flat_colors[k]; bl = String(k).length()
-	return best
-
-func _unflatten():
-	if not flat_on: return
-	flat_on = false
-	riso.set_shader_parameter("flat_ink", 0.0)
-	for l in lights_3d: (l as Light3D).visible = true
-	for t in trees: (t as Node3D).visible = true
-	env.ssao_enabled = true; env.ambient_light_energy = AMBIENT
-	for m in flat_saved:
-		if is_instance_valid(m): (m as MeshInstance3D).material_override = flat_saved[m]
-	flat_saved = {}
-	if win: win.get_parent().queue_free(); win = null
-	_show_people()
-
-const PORTRAIT_SH := """shader_type canvas_item;
-uniform float px = 0.0;      // blur
-uniform float split = 0.0;   // the orange plate off register (px)
-uniform vec3 paper = vec3(0.945, 0.925, 0.875);
-void fragment() {
-	// blue first: the picture's warm part (what the orange plate printed) comes in from the side as `split` closes
-	vec4 a = vec4(0.0), b = vec4(0.0); float w = 0.0;
-	vec2 off = vec2(split, -split * 0.5) * TEXTURE_PIXEL_SIZE;
-	for (int i = -3; i <= 3; i++) for (int j = -3; j <= 3; j++) {
-		float k = exp(-float(i * i + j * j) / 6.0);
-		vec2 d = vec2(float(i), float(j)) * px / 3.0 * TEXTURE_PIXEL_SIZE;
-		a += texture(TEXTURE, UV + d) * k; b += texture(TEXTURE, UV + off + d) * k; w += k; }
-	a /= w; b /= w;
-	float warm_a = clamp((a.r - a.b) * 2.0, 0.0, 1.0), warm_b = clamp((b.r - b.b) * 2.0, 0.0, 1.0);
-	vec3 blue_only = mix(a.rgb, paper * vec3(dot(a.rgb, vec3(0.3, 0.6, 0.1)) / 0.9), warm_a);
-	vec3 orange = mix(vec3(1.0), b.rgb / max(paper, vec3(0.01)), warm_b * b.a);
-	vec3 o = (split > 0.5) ? blue_only * orange : a.rgb;
-	COLOR = vec4(o, a.a) * COLOR;
-}"""
-
-const SHADOW_SH := """shader_type canvas_item;
-uniform float cell = 4.2;
-void fragment() {
-	float a = texture(TEXTURE, UV).a;
-	float t = radians(15.0);
-	vec2 r = vec2(FRAGCOORD.x * cos(t) + FRAGCOORD.y * sin(t), -FRAGCOORD.x * sin(t) + FRAGCOORD.y * cos(t)) / cell;
-	float d = length(fract(r) - 0.5);
-	COLOR = vec4(0.0, 0.47, 0.75, step(0.5, a) * step(d, 0.30) * COLOR.a);
-}"""
-var portrait_shadow: TextureRect
-
-class Dots extends Control:
-	# a flat screen of the blue plate's dots (a shadow under cut paper; the selected record's ground)
-	var cell := 5.0
-	var col := Color(0.0, 0.47, 0.75)
-	func _draw():
-		var a := deg_to_rad(15.0)
-		var r := cell * 0.27
-		var n := int((size.x + size.y) / cell) + 4
-		for i in range(-n, n):
-			for j in range(-n, n):
-				var p := Vector2(i * cell * cos(a) - j * cell * sin(a), i * cell * sin(a) + j * cell * cos(a))
-				if p.x > 0 and p.y > 0 and p.x < size.x and p.y < size.y: draw_circle(p, r, col)
-
-func _ink_label(size: float, col: Color, f: Font = null) -> Label:
-	var lb := Label.new()
-	lb.add_theme_font_override("font", f if f else font); lb.add_theme_font_size_override("font_size", int(size * u))
-	lb.add_theme_color_override("font_color", col)
-	lb.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	return lb
-
-# the transcript window: a sheet of the transcript laid over the foot of the frame (square corners, a flat dot shadow),
-# the name on a slip of cut paper, the type in ink (not knocked out: it is on paper), 「ロード」 bottom right
-func _window():
-	var vs := get_viewport().get_visible_rect().size
-	var layer := CanvasLayer.new(); layer.layer = 11; add_child(layer)
-	win = Control.new(); win.set_anchors_preset(Control.PRESET_FULL_RECT); win.mouse_filter = Control.MOUSE_FILTER_IGNORE; layer.add_child(win)
-	# the portrait: cut out of paper (the white allowance is in the picture), a flat dot shadow behind it
-	portrait = TextureRect.new(); portrait.texture = load(A + "portrait_2_真顔.png")
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var ph := vs.y * 0.917
-	portrait.size = Vector2(ph * portrait.texture.get_width() / portrait.texture.get_height(), ph)
-	portrait.position = Vector2((vs.x - portrait.size.x) / 2.0, 0.0)
-	var psh := Shader.new(); psh.code = PORTRAIT_SH
-	var pm := ShaderMaterial.new(); pm.shader = psh; portrait.material = pm
-	portrait.modulate.a = 0.0
-	# its shadow: the cut-out's shape in flat blue dots, down and to the right
-	var shd := TextureRect.new(); shd.texture = portrait.texture; shd.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; shd.stretch_mode = portrait.stretch_mode
-	shd.size = portrait.size; shd.position = portrait.position + Vector2(14, 12) * u
-	var ssh := Shader.new(); ssh.code = SHADOW_SH; var sm := ShaderMaterial.new(); sm.shader = ssh; sm.set_shader_parameter("cell", 4.2 * u); shd.material = sm
-	shd.modulate.a = 0.0; portrait_shadow = shd
-	win.add_child(shd)
-	win.add_child(portrait)
-	var top := vs.y * 0.741
-	var sheet := ColorRect.new(); sheet.color = PAPER; sheet.position = Vector2(0, top); sheet.size = Vector2(vs.x, vs.y - top)
-	var edge := Dots.new(); edge.position = Vector2(0, top - 7 * u); edge.size = Vector2(vs.x, 7 * u); edge.cell = 4.2 * u
-	win.add_child(edge); win.add_child(sheet)
-	# the name slip
-	var slip := ColorRect.new(); slip.color = PAPER; slip.position = Vector2(150 * u, top - 46 * u); slip.size = Vector2(220 * u, 56 * u); slip.rotation = deg_to_rad(-0.6)
-	var sdots := Dots.new(); sdots.position = slip.position + Vector2(6, 5) * u; sdots.size = slip.size; sdots.cell = 4.2 * u; sdots.rotation = slip.rotation
-	win.add_child(sdots); win.add_child(slip)
-	var nm := _ink_label(30, INK, Type.card()); nm.text = T("聞き手"); nm.position = Vector2(64 * u, 6 * u); slip.add_child(nm)
-	# what she has taken back, struck through, piles up in the window
-	win_struck = VBoxContainer.new(); win_struck.position = Vector2(290 * u, top + 96 * u); win_struck.add_theme_constant_override("separation", int(4 * u))
-	win.add_child(win_struck)
-	for s in slips: _win_strike_row(String(s), 0.0)
-	win_ghost = _ink_label(32, Color(ORANGE.r, ORANGE.g, ORANGE.b, 0.85)); win_ghost.position = Vector2(288 * u, top + 28 * u) + Vector2(-2, 2) * u; win.add_child(win_ghost)
-	win_text = _ink_label(32, INK); win_text.position = Vector2(288 * u, top + 28 * u); win.add_child(win_text)
-	win_mark = _ink_label(26, BLUE); win_mark.text = "▼"; win_mark.visible = false; win.add_child(win_mark)
-	win_load = _ink_label(30, BLUE, Type.card()); win_load.text = T("ロード")
-	win_load.position = Vector2(vs.x - 210 * u, vs.y - 86 * u); win.add_child(win_load)
-	var ul := ColorRect.new(); ul.color = BLUE; ul.position = Vector2(-28 * u, 46 * u); ul.size = Vector2(118 * u, 2 * u); win_load.add_child(ul)
-
-func _win_strike_row(text: String, dur: float):
-	var lb := _ink_label(22, Color(BLUE.r, BLUE.g, BLUE.b, 0.9)); lb.text = text
-	win_struck.add_child(lb)
-	var st = load("res://scripts/story.gd").Strike.new(); st.u = u; st.anim = dur; st.col = BLUE
-	st.w = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * u)).x
-	st.size = Vector2(st.w, font.get_height(int(22 * u))); st.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lb.add_child(st)
-
-# a line in the window: typed, then the ▼ waits for E / click
-func _win_say(text: String):
-	win_mark.visible = false
-	win_text.text = wrap_ja(T(text), 40); win_ghost.text = win_text.text
-	var n := win_text.text.length(); var t := 0.0
-	skip = false
-	while int(t * 22.0) < n:
-		win_text.visible_characters = int(t * 22.0); win_ghost.visible_characters = win_text.visible_characters
-		await get_tree().process_frame
-		t += get_process_delta_time() * demo_k
-		if skip: skip = false; break
-	win_text.visible_characters = -1; win_ghost.visible_characters = -1
-	var last: String = win_text.text.split("\n")[-1]
-	win_mark.position = win_text.position + Vector2(font.get_string_size(last, HORIZONTAL_ALIGNMENT_LEFT, -1, int(32 * u)).x + 26 * u, (win_text.text.count("\n")) * font.get_height(int(32 * u)) + 6 * u)
-	win_mark.visible = true
-	skip = false
-	var w := 0.0
-	while not skip:
-		await get_tree().process_frame
-		w += get_process_delta_time()
-		win_mark.modulate.a = 1.0 if fmod(w, 1.0) < 0.6 else 0.25
-		if demo and w > 0.05: break
-		if asking_load_next: break
-	skip = false
-
-var asking_load_next := false
-# the window waits: 「ロード」 (L / click on it) takes the answer back; E goes on
-func _ask_load():
-	asking_load = true; load_answer = ""
-	note_lb.text = ""
-	var hint := _ink_label(20, Color(BLUE.r, BLUE.g, BLUE.b, 0.8)); hint.text = T("Ｌ　ロード　　Ｅ　続ける")
-	hint.position = Vector2(get_viewport().get_visible_rect().size.x - 330 * u, get_viewport().get_visible_rect().size.y - 34 * u); win.add_child(hint)
-	var w := 0.0
-	while load_answer == "":
-		await get_tree().process_frame
-		w += get_process_delta_time()
-		win_load.modulate.a = 1.0 if fmod(w, 1.2) < 0.8 else 0.55
-		if demo and w > 0.1: load_answer = "load" if slips.size() < 1 else "go"
-	asking_load = false
-	if load_answer == "go":
-		print("IV load: no")
-		await _block("三.続ける"); return
-	print("IV load: yes")
-	slips.append(last_slip_card); slipped_cards[last_slip_card] = true; loaded = true
-	await _save_list(false)
-	_unflatten()
-	_clear(tes_box); _clear(lines_box)
-	await _block("三.問い")
-
-# the list of records, as a page of the transcript: number, a small print of the room, the recorder's time (every one
-# the same second), the answer taken back struck through. At the end the last frame asks 「上書きしますか？」
-func _save_list(final: bool):
-	var vs := get_viewport().get_visible_rect().size
-	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
-	var bg := ColorRect.new(); bg.color = PAPER; bg.set_anchors_preset(Control.PRESET_FULL_RECT); layer.add_child(bg)
-	var grain := ColorRect.new(); grain.set_anchors_preset(Control.PRESET_FULL_RECT); grain.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var gsh := Shader.new(); gsh.code = Main.CARD_GRAIN; var gm := ShaderMaterial.new(); gm.shader = gsh; grain.material = gm
-	_clear(tes_box); _clear(lines_box); note_lb.text = ""
-	var title_g := _ink_label(84, Color(ORANGE.r, ORANGE.g, ORANGE.b, 0.9), Type.card()); title_g.text = T("ロード"); title_g.position = Vector2(124, 56) * u; bg.add_child(title_g)
-	var title := _ink_label(84, INK, Type.card()); title.text = T("ロード"); title.position = Vector2(128, 52) * u; bg.add_child(title)
-	var sub := _ink_label(30, BLUE, Type.card()); sub.text = T("証言 三　書き起こし"); sub.position = Vector2(122, 186) * u; bg.add_child(sub)
-	var recs: Array = slips.duplicate()
-	var n := maxi(recs.size() + (1 if final else 0), 1)
-	var thumb: Texture2D = load("res://ui/iv_room_thumb.png") if ResourceLoader.exists("res://ui/iv_room_thumb.png") else null
-	var sel := n - 1
-	var rows := 5
-	for i in 10:
-		var col := i % 2; var row := i / 2
-		var x := (120 + col * 860) * u; var y := (270 + row * 158) * u
-		var live := i < n
-		var is_sel := live and i == sel
-		if is_sel:
-			var d := Dots.new(); d.position = Vector2(x - 16 * u, y - 14 * u); d.size = Vector2(832 * u, 152 * u); d.cell = 5.0 * u; d.col = Color(BLUE.r, BLUE.g, BLUE.b, 0.55); bg.add_child(d)
-		var num := _ink_label(30, BLUE, Type.card()); num.text = "%02d" % (i + 1); num.position = Vector2(x, y + 2 * u); bg.add_child(num)
-		var line := ColorRect.new(); line.color = BLUE; line.position = Vector2(x, y + 140 * u); line.size = Vector2(800 * u, 2 * u); bg.add_child(line)
-		if not live:
-			var dash := ColorRect.new(); dash.color = BLUE; dash.position = Vector2(x + 340 * u, y + 22 * u); dash.size = Vector2(60 * u, 2 * u); bg.add_child(dash)
-			continue
-		if thumb:
-			var tr := TextureRect.new(); tr.texture = thumb; tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.position = Vector2(x + 70 * u, y); tr.size = Vector2(240, 135) * u; bg.add_child(tr)
-		var tg := _ink_label(34, Color(ORANGE.r, ORANGE.g, ORANGE.b, 0.9), Type.cam()); tg.text = REC_TIME; tg.position = Vector2(x + 336 * u, y + 8 * u); bg.add_child(tg)
-		var tm := _ink_label(34, INK, Type.cam()); tm.text = REC_TIME; tm.position = Vector2(x + 338 * u, y + 6 * u); bg.add_child(tm)
-		if final and is_sel:
-			var ow := _ink_label(42, BLUE, Type.card()); ow.text = T("上書きしますか？"); ow.position = Vector2(x + 338 * u, y + 66 * u); bg.add_child(ow)
-			print("SAY （記録）上書きしますか？")
-		elif i < recs.size():
-			var head := String(recs[i]); if head.length() > 19: head = head.substr(0, 19)
-			var lb := _ink_label(24, BLUE); lb.text = head; lb.position = Vector2(x + 338 * u, y + 66 * u); bg.add_child(lb)
-			var st = load("res://scripts/story.gd").Strike.new(); st.u = u; st.col = BLUE; st.anim = 0.8 if i == recs.size() - 1 and not final else 0.0
-			st.w = font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * u)).x; st.size = Vector2(st.w, font.get_height(int(24 * u))); lb.add_child(st)
-			if i == recs.size() - 1 and not final: print("SAY （記録）%s %s" % [REC_TIME, head])
-	bg.add_child(grain)
-	if final:
-		# it only asks. There is no answer to give: the next thing is the tape (第11章)
-		await _hold(5.0)
-	else:
-		var hint := _ink_label(22, Color(BLUE.r, BLUE.g, BLUE.b, 0.8)); hint.text = T("Ｅ　この記録に戻る"); hint.position = Vector2(vs.x - 330 * u, vs.y - 60 * u); bg.add_child(hint)
-		await _hold(1.0)
-		skip = false
-		var w := 0.0
-		while not skip:
-			await get_tree().process_frame
-			w += get_process_delta_time()
-			if demo and w > 0.1: break
-		skip = false
-		layer.queue_free()
