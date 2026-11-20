@@ -58,6 +58,15 @@ static func _entry(ln: String, arg: String) -> Dictionary:
 	var e := {}
 	var sp := ln.find(" ")
 	if sp > 0 and ln.substr(0, sp).is_valid_float(): e["t"] = float(ln.substr(0, sp)); ln = ln.substr(sp + 1).strip_edges()
+	# 2026-11-20 練り直し：「［名前］ 行」は、その夜の記録（story.gd night_flags）に名前があるときだけ（not_名前 は無いとき）
+	if ln.begins_with("［"):
+		var close := ln.find("］")
+		var nm := ln.substr(1, close - 1) if close > 1 else ""
+		if close > 1 and close < ln.length() - 1 and _is_flag(nm):
+			var rest := _entry(ln.substr(close + 1).strip_edges(), arg)
+			rest["if"] = nm
+			if e.has("t"): rest["t"] = e.t
+			return rest
 	if ln.begins_with("＞"): e["do"] = ln.substr(1).strip_edges(); return e
 	if ln.begins_with("［") or ln.begins_with("（"): e["note"] = ln; return e
 	if ln.begins_with("◇"): e["mission"] = ln.substr(1).strip_edges(); return e   # 試作97: what she set out to do (top left, stays)
@@ -70,3 +79,9 @@ static func _entry(ln: String, arg: String) -> Dictionary:
 	e["who"] = who
 	e["text"] = ln.substr(c + 1).replace("%s", arg) if arg != "" else ln.substr(c + 1)
 	return e
+
+static func _is_flag(nm: String) -> bool:
+	if nm == "": return false
+	for ch in nm:
+		if not ((ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9") or ch == "_"): return false
+	return true

@@ -153,7 +153,7 @@ func _process(dt):
 	if mode == TALK: _talk_tick(dt)
 	_update_looks()
 	_turn_to_speaker(dt)
-	player.move_enabled = (mode == FREE) and stage in ["see_off", "lock"]
+	player.move_enabled = (mode == FREE) and stage in ["see_off", "lock", "window"]
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
 	main.story_talking = (mode == TALK)
 	if stage == "see_off":
@@ -167,7 +167,73 @@ func _process(dt):
 		lock_t += dt
 		if demo21 and lock_t > 1.5: _lock_now()
 	if out_t >= 0.0: _out_tick(dt)
+	if stage == "window": _window_tick(dt)
 	_cam_tick()
+
+# ---------------------------------------------------------------- 22時、鍵のあと（2026-11-20）：玄関わきの細い窓
+# The slit by the front door is not boarded. Through it, in the storm, the car's dome light: her door opens and shuts (the
+# slit brightens once), it stays on a while, then it goes away down the slope. The camera is not taken: E on the slit, when
+# she has turned to it, and on to 23時.
+const SLIT := [4.18, 0.0, 1.1]
+var win_t := 0.0
+var win_dome: OmniLight3D
+var win_flash: OmniLight3D
+var win_car := Vector3.ZERO
+func _window22():
+	stage = "window"; win_t = 0.0
+	var cars: Array = main.S.env_node.find_children("ext_car*", "MeshInstance3D", true, false)
+	win_car = gp(6.4, -8.0, -0.3)
+	if not cars.is_empty():
+		var bb := AABB()
+		for i in cars.size():
+			var b: AABB = (cars[i] as MeshInstance3D).global_transform * (cars[i] as MeshInstance3D).get_aabb()
+			bb = b if i == 0 else bb.merge(b)
+		win_car = bb.get_center()
+	win_dome = OmniLight3D.new(); win_dome.light_color = Color(1.0, 0.74, 0.42); win_dome.light_energy = 0.0
+	win_dome.omni_range = 6.0; win_dome.omni_attenuation = 1.0; win_dome.shadow_enabled = false; win_dome.light_specular = 0.2
+	main.add_child(win_dome); win_dome.global_position = win_car + Vector3(0, 0.75, 0)
+	win_flash = OmniLight3D.new(); win_flash.light_color = Color(1.0, 0.78, 0.5); win_flash.light_energy = 0.0
+	win_flash.omni_range = 1.6; win_flash.omni_attenuation = 1.5; win_flash.shadow_enabled = false; win_flash.light_specular = 0.0
+	main.add_child(win_flash); win_flash.global_position = gp(SLIT[0], SLIT[1] - 0.25, SLIT[2])
+	var tw := create_tween()
+	tw.tween_interval(2.5)
+	tw.tween_callback(func(): Sound.one(self, "car_door", -20.0, win_car))
+	tw.tween_property(win_dome, "light_energy", 3.2, 0.25)
+	tw.parallel().tween_property(win_flash, "light_energy", 0.9, 0.25)
+	tw.tween_property(win_flash, "light_energy", 0.25, 1.2)
+	tw.tween_interval(1.0)
+	tw.tween_callback(func(): Sound.one(self, "car_door", -22.0, win_car))
+	tw.tween_property(win_dome, "light_energy", 1.4, 0.4)
+	tw.parallel().tween_property(win_flash, "light_energy", 0.12, 0.4)
+	tw.tween_interval(9.0)
+	# it goes down the slope: the drive (ch8.gd DRIVE)
+	for q in [[6.4, -5.5], [8.6, -11.0], [10.6, -16.5]]:
+		tw.tween_property(win_dome, "global_position", gp(q[0], q[1], 0.5), 3.0)
+	tw.parallel().tween_property(win_dome, "light_energy", 0.0, 3.0)
+	tw.parallel().tween_property(win_flash, "light_energy", 0.0, 3.0)
+
+func _slit_looked() -> bool:
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := gp(SLIT[0], SLIT[1], SLIT[2]) - cam.global_position
+	return to.length() < 2.6 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(22.0)
+
+func _window_tick(dt: float):
+	win_t += dt
+	note_lb.text = T(String(D.lines("二十二.細い窓")[0])) if mode == FREE and _slit_looked() else ""
+	if demo21 and mode == FREE and win_t > 4.0:
+		var cam: Camera3D = player.get_node("Head/Camera")
+		var to := gp(SLIT[0], SLIT[1], SLIT[2]) - cam.global_position
+		var k := 1.0 - exp(-dt * 5.0)
+		player.yaw = lerp_angle(player.yaw, atan2(-to.x, -to.z), k)
+		player.pitch = lerpf(player.pitch, asin(clampf(to.normalized().y, -1.0, 1.0)), k)
+		if win_t > 7.0 and _slit_looked(): _window_seen()
+		elif win_t > 14.0: DEMO_FAILS += 1; print("DEMO FAIL h21: cannot look at the slit from ", player.global_position); _window_seen()
+
+func _window_seen():
+	if stage != "window": return
+	stage = "window_seen"; note_lb.text = ""
+	var q: Array = B("二十二.細い窓"); q.remove_at(0)
+	_start(q)
 
 # 試作125: Taiga asks her to lock it; she goes to the door and does
 var lock_t := 0.0
@@ -192,6 +258,8 @@ func _unhandled_input(e):
 		if press: get_viewport().set_input_as_handled(); _advance()   # 2026-11-17 夜（ユーザー「扉を締めたあとに扉が開く」）: the E that went on to the line also reached doors.gd and swung the locked door open
 	elif stage == "lock" and mode == FREE:
 		if press and _near_door(): get_viewport().set_input_as_handled(); _lock_now()   # 試作127: handled, or doors.gd then swung the door open (the lock's callback was gone)
+	elif stage == "window" and mode == FREE:
+		if press and _slit_looked(): get_viewport().set_input_as_handled(); _window_seen()
 
 # the choice waits for her; in the unattended run she says what the memory keeps her saying anyway: the first one
 func _talk_tick(dt):
@@ -202,17 +270,19 @@ func _talk_tick(dt):
 	super._talk_tick(dt)
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY h21 do %s t=%.1f" % [what, t_now])
 	match what:
-		"later":
-			# what she chose goes too: the transcript has her say the other
-			var lb: Label = choice_lbs[choice_idx]
-			var s := Strike.new(); s.u = u; s.anim = 0.9
-			s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
-			s.size = lb.size; s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			lb.add_child(s)
-			var keep: Array = B("二十一.残る")
+		"later", "listen":   # 2026-11-20 12時31分③: what she chose stands (the strike-through of 2026-11-14 is gone)
+			var keep: Array = B("二十一.あとで" if what == "later" else "二十一.聞く") + B("二十一.あと")
 			for i in range(keep.size() - 1, -1, -1): script_q.push_front(keep[i])
+		"after21":
+			pass
+		"siren_far":   # 12時31分②: far off, once, not coming nearer (another accident, near; the game does not say)
+			Sound.one(self, "siren_far", -10.0)
+		"window22":
+			script_q.clear(); mode = FREE
+			_window22()
 		"to22":
 			script_q.clear(); mode = FREE
 			get_tree().create_timer(2.5).timeout.connect(func(): _set_part(22))

@@ -716,6 +716,7 @@ func _door_end():
 
 # ================================================================ what the lines set off
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch7 do %s t=%.1f" % [what, t_now])
 	match what:
 		"hands":

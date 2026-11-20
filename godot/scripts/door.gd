@@ -7,12 +7,14 @@
 ## player stands there. W does not walk: the view leans half a step toward the door and comes back.
 ## When Natsuki has gone the interviewer's question comes back on a card, with the length of Mio's silences under it.
 extends "res://scripts/story.gd"
+const Sound = preload("res://scripts/sound.gd")
 
 const MIO_AT := [0.12, 3.80]          # Blender x, y of her feet: by Natsuki's tape mark, the stair's foot at her right
 const DOOR_AT := [0.20, 6.30, 1.45]
 # [seconds after the card, who, words, how] | [t, "silence"] | [t, "note", words] | [t, "leave"] | [t, "end"]
 # written in story/ch2_23.txt 【扉.流れ】 (the times, the words, who they are said to), read in _ready
 var LINES := []
+var LIF := []                  # 2026-11-20: a line's ［flag］ (the night's record), judged when its second comes; "" for none
 # E while she looks at the door (試作33「扉、調べられるようにしたい」): she does not speak in the hall (the silence goes on
 # counting); what comes is her answer months later, set apart at the top of the page. One look each, in this order
 # (【扉.見る1】…: a second line is the one for after Natsuki has gone).
@@ -30,6 +32,7 @@ var slip := Vector2.ZERO
 
 func _ready():
 	for e in B("扉.流れ"):
+		LIF.append(String(e.get("if", "")))
 		if e.has("do"): LINES.append([e.t, e.do])
 		elif e.has("note"): LINES.append([e.t, "note", e.note])
 		else: LINES.append([e.t, e.who, e.text, "testimony" if e.get("testimony", false) else {"澪": "to_mio", "扉": "to_door"}.get(e.get("to", ""), "")])
@@ -94,12 +97,17 @@ func _process(dt):
 			elif OS.get_cmdline_user_args().has("--demo"): print("DEMO DONE t=%.1f fails=%d" % [t_now, DEMO_FAILS]); get_tree().quit()
 		return
 	if OS.get_cmdline_user_args().has("--demo"): _demo_door(dt)
+	if not unlock_q.is_empty() or unlock_hold > 0.0:
+		t_now -= dt   # 2026-11-20: the night stands while she is at the lock
+		_unlock_tick(dt)
 	while li < LINES.size() and t_now >= float(LINES[li][0]):
-		_event(LINES[li]); li += 1
+		if LIF[li] == "" or has_flag(LIF[li]): _event(LINES[li])
+		li += 1
 	# the door she is looking at, and her answer about it being typed
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var at_door := (-cam.global_basis.z).angle_to(g(DOOR_AT) - cam.global_position) < deg_to_rad(13.0)
 	note_lb.text = T("［扉］") if at_door and looked < DOOR_LOOKS.size() else ""
+	if _lock_open() and _lock_looked() and unlock_q.is_empty(): note_lb.text = T("［鍵を開ける｜Ｅ］")
 	if dlook.has("lb") and dlook.typed < String(dlook.text).length():
 		dlook.typed = min(float(String(dlook.text).length()), dlook.typed + dt * 20.0)
 		_type(dlook.lb, String(dlook.text), int(dlook.typed))
@@ -119,7 +127,74 @@ func _process(dt):
 	if main.PRINT_V == 2 and main.riso: main.riso.set_shader_parameter("slip", slip)
 	_update_looks()
 
+# ---------------------------------------------------------------- 2026-11-20 12時28分（ユーザー「もう一つの形にする」）: the lock
+# Between 8 and 68 s she can go to the lock and turn it (once). Taiga throws his weight on the door as it gives and locks it
+# again, his hand left on the lock. Her hands could move; her mouth could not: no line of hers. Kept as "tried".
+var unlock_done := false
+var unlock_q: Array = []
+var unlock_hold := 0.0
+func _lock_open() -> bool:
+	return not unlock_done and t_now >= 8.0 and t_now <= 68.0 and ended < 0.0
+
+func _lock_at() -> Vector3:
+	var k := _front_knob(g(DOOR_AT))
+	if k: return ((k as MeshInstance3D).global_transform * (k as MeshInstance3D).get_aabb()).get_center()
+	return g([DOOR_AT[0] + 0.32, DOOR_AT[1], 1.0])
+
+func _lock_looked() -> bool:
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := _lock_at() - cam.global_position
+	var a := (-cam.global_basis.z).angle_to(to)
+	return a < deg_to_rad(9.0) and a < (-cam.global_basis.z).angle_to(g(DOOR_AT) - cam.global_position)
+
+func _unlock():
+	unlock_done = true; note_lb.text = ""
+	_close_silence()
+	unlock_q = B("扉.開ける")
+	# she goes to it: the steps she could not take before
+	var to: Vector3 = _lock_at(); var p0: Vector3 = player.global_position
+	var dst: Vector3 = p0 + (Vector3(to.x, p0.y, to.z) - p0) * 0.62
+	create_tween().tween_property(player, "global_position", dst, 0.8).set_trans(Tween.TRANS_SINE)
+	unlock_hold = 0.9
+	print("STORY door unlock t=%.1f" % t_now)
+
+func _unlock_tick(dt: float):
+	if cur.has("text") and typed < String(cur.text).length(): return
+	unlock_hold -= dt
+	if unlock_hold > 0.0 or unlock_q.is_empty(): return
+	var e: Dictionary = unlock_q.pop_front()
+	unlock_hold = 0.0
+	if e.has("do"):
+		match String(e.do):
+			"unlock":
+				Sound.one(self, "lock", -4.0, _lock_at())
+				var r0: float = main.S.get("door_rot", 0.0)
+				var tw := create_tween()
+				tw.tween_method(func(v: float): main.S["door_rot"] = v, r0, r0 + 0.16, 0.35).set_trans(Tween.TRANS_SINE).set_delay(0.3)
+				main.set_meta("door_rot0", r0)
+				Sound.one(self, "door_open", -6.0, g(DOOR_AT))
+				unlock_hold = 0.7
+			"taiga_lean":
+				var r1: float = main.get_meta("door_rot0", 0.0)
+				var tw2 := create_tween()
+				tw2.tween_method(func(v: float): main.S["door_rot"] = v, float(main.S.get("door_rot", r1)), r1, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				Sound.one(self, "body_fall", -4.0, g(DOOR_AT)); Sound.one(self, "door_close", 0.0, g(DOOR_AT))
+				get_tree().create_timer(0.5).timeout.connect(func(): Sound.one(self, "lock", -6.0, _lock_at()))
+				unlock_hold = 0.9
+			_: _flag_do(String(e.do))
+		return
+	if e.has("note"):
+		_line_row("", e.note, 22, "note"); cur = {}
+		unlock_hold = 1.4
+		return
+	cur = {"who": e.who, "text": _wrap_row(Tw(String(e.text))), "who_key": WHO_KEY.get(e.who, ""), "testimony": e.get("testimony", false)}
+	typed = 0.0
+	var r = _line_row(String(e.who), "", SAY_SIZE, "say")
+	cur_lb = r[1]
+	unlock_hold = 0.8 + String(e.text).length() * 0.05
+
 func _event(e: Array):
+	if e.size() == 2 and _flag_do(String(e[1])): return
 	if OS.get_cmdline_user_args().has("--demo"): print("SAY %.1f " % float(e[0]), "：".join(e.slice(1, 3)) if e.size() > 2 else "＞" + String(e[1]))
 	match e[1]:
 		"silence":
@@ -171,7 +246,8 @@ func _update_looks():
 func _unhandled_input(e):
 	if main.card.visible or ended >= 0.0: return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
-	if press and note_lb.text != "": _look_door(); return
+	if press and _lock_open() and _lock_looked() and unlock_q.is_empty(): _unlock(); return
+	if press and note_lb.text != "" and unlock_q.is_empty(): _look_door(); return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_W, KEY_UP]:
 		# the step she does not take: the weight goes forward and comes back
 		if lean_tw and lean_tw.is_valid(): lean_tw.kill()
@@ -189,6 +265,15 @@ func _jump(t: float):
 # the unattended playthrough: she turns to the door three times and looks (E), as a player who tries the door would
 const DEMO_LOOKS := [20.0, 60.0, 80.0]
 func _demo_door(dt: float):
+	if "--doortry" in OS.get_cmdline_user_args() and not unlock_done and t_now > 36.0:   # (the check of the other way: she goes to the lock)
+		var cam0: Camera3D = player.get_node("Head/Camera")
+		var to0 := _lock_at() - cam0.global_position
+		var k0 := 1.0 - exp(-dt * 5.0)
+		player.yaw = lerp_angle(player.yaw, atan2(-to0.x, -to0.z), k0)
+		player.pitch = lerp(player.pitch, asin(clamp(to0.normalized().y, -1.0, 1.0)), k0)
+		if _lock_looked(): _unlock()
+		elif t_now > 46.0: DEMO_FAILS += 1; print("DEMO FAIL door: cannot look at the lock t=%.1f" % t_now); unlock_done = true
+		return
 	if looked >= DEMO_LOOKS.size() or looked >= DOOR_LOOKS.size() or t_now < DEMO_LOOKS[looked]: return
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := g(DOOR_AT) - cam.global_position

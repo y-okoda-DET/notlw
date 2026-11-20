@@ -683,6 +683,7 @@ func _flow_tick(dt: float):
 	flow_t += dt
 	while not flow.is_empty() and flow_t >= float(flow[0][0]):
 		var e: Dictionary = flow.pop_front()[1]
+		if e.has("if") and not has_flag(String(e["if"])): continue
 		if demo6: print("SAY %.1f %s" % [flow_t, str(e.get("do", e.get("note", e.get("mission", e.get("text", "")))))])
 		if e.has("do"): _do(String(e.do))
 		elif e.has("note"): _line_row("", T(String(e.note)), 22, "note"); page_clear_t = 5.0
@@ -700,6 +701,7 @@ func _tes6(text: String):
 	lb.visible_characters = 0; type_q.append({"lb": lb, "n": 0.0})
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch6 do %s t=%.1f" % [what, t_now])
 	match what:
 		"cam_stop":
@@ -1406,6 +1408,7 @@ func _tripod_bag():
 # what a block does besides its prompt (＞ and ◇)
 func _run_block(key: String):
 	for e in B(key):
+		if e.has("if") and not has_flag(String(e["if"])): continue
 		if e.has("do"): _do(String(e.do))
 		elif e.has("mission"): _set_mission(String(e.mission))
 

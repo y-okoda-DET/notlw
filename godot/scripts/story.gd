@@ -125,7 +125,75 @@ func _rail_z(Y: float) -> float:
 
 const D := preload("res://scripts/daihon.gd")   # the words: godot/story/*.txt (書式は godot/story/README.md)
 func B(key: String, arg := "") -> Array:
-	return D.entries(key, arg)
+	return D.entries(key, arg)   # a ［flag］ line stays in and is judged when it comes (_next, and each chapter's own timed lines)
+
+# 2026-11-20 練り直し：その夜にしたこと（記録）。Engine の meta "night_flags"（証言・監督の章・第11章が読む）。
+# 台本の「［名前］ 行」は has_flag(名前) のときだけ、「［not_名前］」は無いときだけ出る
+static func set_flag(k: String, v = true):
+	var f: Dictionary = Engine.get_meta("night_flags", {})
+	f[k] = v; Engine.set_meta("night_flags", f)
+	print("STORY flag ", k, "=", v)
+
+static func has_flag(k: String) -> bool:
+	if k.begins_with("not_"): return not has_flag(k.substr(4))
+	var f: Dictionary = Engine.get_meta("night_flags", {})
+	return f.has(k) and f[k] != null and f[k] != false
+
+static func get_flag(k: String, def = null):
+	return (Engine.get_meta("night_flags", {}) as Dictionary).get(k, def)
+
+func _only_if(es: Array) -> Array:
+	var out := []
+	for e in es:
+		if e is Dictionary and e.has("if") and not has_flag(String(e["if"])): continue
+		if e is Dictionary and e.has("then"):
+			var t2 := []
+			for sub in e.then: t2.append(_only_if(sub))
+			e = e.duplicate(); e.then = t2
+		out.append(e)
+	return out
+
+# a ＞name that is only a mark in the night's record (said_nail, talked_kiryu_1am, ...): set it, and say it was one
+const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen"]
+func _flag_do(d: String) -> bool:
+	if d in FLAG_DOS: set_flag(d); return true
+	return false
+
+# 2026-11-20 a hand in the first person (blender/export_mio_arms.py: the wrist at the origin, the fingers -Z, the palm -Y,
+# the sleeve +Z): who's arm, along d (the sleeve's way, in the camera's frame), the back of the hand toward up; fingers curled
+# by k (0 open .. 1 a fist). Under the camera, hidden until shown (ch8's knocking fist; ch3's hand on her wrist)
+func _fp_arm(who: String, side: String, d: Vector3, up: Vector3, k: float) -> Node3D:
+	var path := "res://props/%s_arm_%s.glb" % [who, side]
+	if not ResourceLoader.exists(path): return null
+	var root := Node3D.new(); root.name = "%s_arm_%s" % [who, side]
+	var inst: Node3D = (load(path) as PackedScene).instantiate()
+	d = d.normalized()
+	var yb := (up - d * up.dot(d)).normalized()
+	inst.basis = Basis(yb.cross(d), yb, d)
+	root.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var to_h := Transform3D(); var nd: Node3D = sk
+	while nd != root: to_h = nd.transform * to_h; nd = nd.get_parent()
+	var to_a := inst.transform.affine_inverse() * to_h
+	var pose := []
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if bi < 0: continue
+			var gb: Basis = (to_a * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = (gb.y.cross(Vector3.DOWN)).normalized()
+			if f == "thumb":
+				var o: Vector3 = (to_a * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
+			var ang: float = k * ((1.3 * 0.6 * [0.30, 0.55, 0.40][j]) if f == "thumb" else (1.65 * [0.80, 1.05, 0.70][j]))
+			pose.append([bi, sk.get_bone_rest(bi).basis.get_rotation_quaternion() * Quaternion((gb.inverse() * ax).normalized(), ang)])
+	player.get_node("Head/Camera").add_child(root); root.visible = false
+	for b in pose: sk.set_bone_pose_rotation(b[0], b[1])   # once it is in the tree (a pose set before was reset)
+	return root
 
 func g(v: Array) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
@@ -794,6 +862,7 @@ func _next():
 			fade_tw.chain().tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
+	if cur is Dictionary and cur.has("if") and not has_flag(String(cur["if"])): _next(); return
 	if demo_on: print("SAY %s%s" % [(String(cur.who) + "：") if cur.has("who") else "", str(cur.get("text", cur.get("note", cur.get("choose", cur.get("do", ("◇" + String(cur.mission)) if cur.has("mission") else "")))))])   # the unattended playthrough leaves what was said in the log
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
@@ -900,6 +969,7 @@ func _advance():
 	_next()
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY do ", what, " t=%.1f" % t_now)
 	match what:
 		"house_lights": main.generator(true); _gen_flicker()
@@ -929,6 +999,15 @@ func _do(what: String):
 			# 試作232（ユーザー「第一章の最後、カメラの赤いランプ消す」）: the dot that stayed lit in the dark (2026-11-14) goes out
 			# a beat after the power, with the camera
 			get_tree().create_timer(1.2).timeout.connect(func(): if fixed_cam: _set_rec(false))
+		"shutter_slam":   # 2026-11-20 14時8分（ジャンプスケア①）: the next window's storm shutter, not fastened, slams in the wind
+			var at := gp(CELLAR_WIN[0] + 0.05, CELLAR_WIN[1] - 0.6, CELLAR_WIN[2] + 2.3)
+			var SND = preload("res://scripts/sound.gd")
+			SND.one(self, "door_close", 6.0, at); SND.one(self, "ch3_rattle", 3.0, at); SND.one(self, "hit", -4.0, at)
+			if taiga_aim:   # his light jumps with him
+				var e0 := taiga_aim.light_energy
+				var tw := create_tween()
+				for k in [0.4, 1.6, 0.7, 1.2]: tw.tween_property(taiga_aim, "light_energy", e0 * k, 0.06)
+				tw.tween_property(taiga_aim, "light_energy", e0, 0.2)
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")

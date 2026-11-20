@@ -924,6 +924,7 @@ func _release():
 	if mode == TALK: _next()
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch5 do %s t=%.1f" % [what, t_now])
 	match what:
 		"makoto_down":
@@ -1225,6 +1226,7 @@ func _below_tick(dt: float):
 	while not below_q.is_empty() and below_t >= float(below_q[0].t):
 		if mode == TALK and not cur.has("silence") and not below_q[0].has("do"): below_t = float(below_q[0].t); break   # after what she is saying
 		var e: Dictionary = below_q.pop_front()
+		if e.has("if") and not has_flag(String(e["if"])): continue
 		if e.has("do"):
 			match String(e.do):
 				"push": Sound.one(self, "creak3", -6.0, gp(5.5, 2.6, ZBASE + 1.0))
