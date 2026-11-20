@@ -402,7 +402,20 @@ func _mio_body():
 	for mi in mio_n.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).layers = MIO_LAYER; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	if b11 and face11 != "a": _b_face()
+	if face11 in ["d2", "b2"]: _b_head_up()
 	print("M220 mio head ", _mio_box("mio_head"), " hands ", _mio_box("mio_hands"), " body ", _mio_box("mio_body"))
+
+# 試作263 D2・B2: the chin up a little, the face upright to the lens (the head and hair turn together about the top of the neck)
+func _b_head_up():
+	var hb := _mio_box("mio_head")
+	var piv := Vector3(hb.get_center().x, hb.position.y + hb.size.y * float(_arg("d11hpy", "0.0")), hb.get_center().z + float(_arg("d11hpz", "0.0")))
+	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "10.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
+	for n in ["mio_head", "mio_hair"]:
+		var mi := mio_n.find_child(n, true, false) as Node3D
+		if mi == null: print("B11 no ", n); continue
+		var g := mi.global_transform
+		mi.global_transform = Transform3D(b * g.basis, piv + b * (g.origin - piv))
+	print("B11 head up ", _arg("d11hp", "10.0"), " pivot ", piv)
 
 func _mio_box(n: String) -> AABB:
 	var mi := mio_n.find_child(n, true, false) as MeshInstance3D
@@ -422,7 +435,7 @@ func _back_light():
 	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
 	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
 	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
-	if b11 and not c11 and face11 in ["", "b"]: _b_deck_light()
+	if b11 and not c11 and face11 in ["", "b", "b2"]: _b_deck_light()
 	if b11: _b_finger()
 	# the last cut of d: from the set's side, at her face
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
@@ -720,12 +733,12 @@ func _b_face():
 			face_sm = ShaderMaterial.new(); var sh := Shader.new(); sh.code = FACE_SHADER; face_sm.shader = sh
 			face_sm.set_shader_parameter("rough", src.roughness); face_sm.set_shader_parameter("spec", src.metallic_specular)
 			if src.normal_enabled and src.normal_texture: face_sm.set_shader_parameter("nrm", src.normal_texture); face_sm.set_shader_parameter("has_nrm", true)
-			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 or face11 == "d" else "6.0")))
-			face_sm.set_shader_parameter("white_k", float(_arg("d11white", "0.06" if face11 == "d" else "0.0")))
+			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 or face11 in ["d", "d2", "b2"] else "6.0")))
+			face_sm.set_shader_parameter("white_k", float(_arg("d11white", "0.06" if face11 in ["d", "d2", "b2"] else "0.0")))
 			m.set_surface_override_material(i, face_sm)
 	if face_sm == null: print("B11 no face material"); return
 	for k in ["e0", "e1", "e2", "e3", "b1", "b2"]:
-		var pre := "c" if c11 else ("d" if face11 == "d" else "")
+		var pre: String = "c" if c11 else ({"d": "d", "d2": "f", "b2": "g"}.get(face11, ""))
 		var p := "res://props/mio_face_states/%s.png" % ((pre + k.substr(1) if k[0] == "e" else pre + k) if pre != "" else k)
 		if not ResourceLoader.exists(p): print("B11 no ", p); return
 		face_tex[k] = load(p); face_tex[k + "g"] = load(p.replace(".png", "_glow.png"))
@@ -740,11 +753,13 @@ func _b_set_face(k: String):
 # the deck's display: the one light left when the set goes off, low and in front of her
 func _b_deck_light():
 	deck_light = SpotLight3D.new(); deck_light.light_color = Color(0.62, 0.95, 0.88)
-	deck_light.light_energy = float(_arg("d11deck", "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
+	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
 	deck_light.spot_angle = 24.0; deck_light.spot_angle_attenuation = 1.5
 	deck_light.shadow_enabled = false; deck_light.light_specular = 0.6; deck_light.light_cull_mask = 1 | MIO_LAYER
 	main.add_child(deck_light)
-	deck_light.global_transform = Transform3D(Basis(), ROOM + Vector3(0.005, 0.205, 0.13)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.04, EYE.z), Vector3.UP)
+	# 試作263 B2: a little off the front, toward the door's side, so the nose and one cheek keep a shadow
+	var dx := float(_arg("d11deckx", "-0.30" if face11 == "b2" else "0.0")); var dy := float(_arg("d11decky", "0.10" if face11 == "b2" else "0.0"))
+	deck_light.global_transform = Transform3D(Basis(), ROOM + Vector3(0.005 + dx, 0.205 + dy, 0.13)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.04, EYE.z), Vector3.UP)
 	# the display's own glow, so the light has a place in the picture
 	var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(0.066, 0.020); q.mesh = qm
 	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(0.55, 0.95, 0.85, 0.08)

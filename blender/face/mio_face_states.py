@@ -112,3 +112,21 @@ for k, (lid, m, cv) in DST.items():
     gi = np.clip(g * 255, 0, 255).astype(np.uint8); wi = np.clip(white * 255, 0, 255).astype(np.uint8)
     Image.fromarray(np.dstack([gi, wi, np.zeros_like(gi)]), "RGB").save(os.path.join(OUT, k + "_glow.png"))
     print(k, "ok")
+
+# 試作263 D2・B2（ユーザー 2026-11-20 21時37分「比較指示 その3」）：D2 はまぶたを D より少しだけ下げる（あごを上げると目が開いて見えるので、cover を D の約2倍）。
+# B2 は B の目（見開いたまま、cover 0）で、白い点はやめて片目に小さく一点（cim と ONE）。白目の光の印は両方に付ける（B2 も正面の光で白目が肌と同じ青に刷られ、眠そうに見えたため）。
+for pre, covers, wmask in (("f", (0.0, 0.10, 0.21, 0.32), True), ("g", (0.0, 0.0, 0.0, 0.0), True)):
+    ST = {pre + "0": (0.52, 1.0, covers[0]), pre + "1": (0.36, 0.66, covers[1]), pre + "2": (0.18, 0.33, covers[2]), pre + "3": (0.0, 0.0, covers[3]),
+          pre + "b1": (0.78, 1.0, 0.0), pre + "b2": (1.0, 1.0, 0.0)}
+    for k, (lid, m, cv) in ST.items():
+        o, g = state(lid, m, cv, cim, ONE)
+        lum = o[..., :3].mean(-1) / 255
+        near = np.zeros((H, W), bool)
+        for e in EYES:
+            near |= (np.abs(xx - (e["x0"] + e["x1"]) / 2) < (e["x1"] - e["x0"]) / 2 - 3) & (yy > e["top"]) & (yy < e["low"] - 1)
+        white = (near & (lum > 0.58) & ((o[..., 0] - o[..., 2]) < 50)).astype(np.float32) if wmask else np.zeros((H, W), np.float32)
+        white = np.asarray(Image.fromarray((white * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8))).astype(np.float32) / 255
+        Image.fromarray(np.clip(o, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, k + ".png"))
+        gi = np.clip(g * 255, 0, 255).astype(np.uint8); wi = np.clip(white * 255, 0, 255).astype(np.uint8)
+        Image.fromarray(np.dstack([gi, wi, np.zeros_like(gi)]), "RGB").save(os.path.join(OUT, k + "_glow.png"))
+        print(k, "ok")
