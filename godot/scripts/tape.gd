@@ -547,7 +547,14 @@ func _room_tick(dt: float):
 			if refl == "e":
 				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
 				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）
-				if end_t2 > 16.0 or ((c11 or face11 != "") and off_t >= 0.0): face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				var frz := float(_arg("d11freeze", "23.0" if face11 in ["d2", "b2"] else "999"))
+				if end_t2 <= frz and (end_t2 > 16.0 or ((c11 or face11 != "") and off_t >= 0.0)): face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				# 試作264（ユーザー 2026-11-21 6時「もっとしっかり見せたい、大人は判ってくれない、みたいな」）: her eyes on the lens, then the
+				# picture stops dead, held into the black (the camera does not move)
+				if end_t2 > frz and face_vp.render_target_update_mode != SubViewport.UPDATE_DISABLED:
+					face_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+					if main.riso: main.riso.set_shader_parameter("print_fps", 0.0)   # the print's grain stops too: a dead still
+					print("B11 freeze t=%.2f" % end_t2)
 				face_tr.modulate.a = smoothstep(16.5, 19.5, end_t2)
 				if end_t2 > CREDITS_AT and black2.color.a < 1.0:
 					black2.color.a = 1.0; print("STORY ch11 black (e)"); _credits()
@@ -734,7 +741,7 @@ func _b_face():
 			face_sm.set_shader_parameter("rough", src.roughness); face_sm.set_shader_parameter("spec", src.metallic_specular)
 			if src.normal_enabled and src.normal_texture: face_sm.set_shader_parameter("nrm", src.normal_texture); face_sm.set_shader_parameter("has_nrm", true)
 			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 or face11 in ["d", "d2", "b2"] else "6.0")))
-			face_sm.set_shader_parameter("white_k", float(_arg("d11white", "0.06" if face11 in ["d", "d2", "b2"] else "0.0")))
+			face_sm.set_shader_parameter("white_k", float(_arg("d11white", ("0.09" if face11 == "d2" else "0.06") if face11 in ["d", "d2", "b2"] else "0.0")))
 			m.set_surface_override_material(i, face_sm)
 	if face_sm == null: print("B11 no face material"); return
 	for k in ["e0", "e1", "e2", "e3", "b1", "b2"]:
