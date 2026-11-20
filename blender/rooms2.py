@@ -457,6 +457,39 @@ def upstairs(M):
         cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
     for i in range(3):
         box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
+    # 試作232（ユーザー「この部屋、もう少しオブジェクト置いて、探索できるようにしたい。人が住んでいる感」、2階の洗面と浴室）:
+    # what five people staying the night leave in a bathroom: the bowl on the stool, bottles by the tub, a mat, a towel over
+    # the partition, the laundry basket, cups and a pouch and a dryer on the basin
+    M['bathbowl'] = mat_basic('bathbowl', (.82, .8, .74), .5)
+    M['bottle_w'] = mat_basic('bottle_w', (.86, .86, .84), .35)
+    M['bottle_p'] = mat_basic('bottle_p', (.75, .55, .6), .35)
+    M['basket'] = mat_basic('basket', (.55, .45, .32), .85)
+    cyl('bath_bowl', 9.05, 5.75, z + .22, z + .3, .13, M['bathbowl'], 18)
+    for i, (bx, by, h, m) in enumerate(((8.45, 7.2, .21, 'bottle_w'), (8.45, 7.3, .19, 'bottle_p'), (8.46, 7.4, .17, 'bottle_w'))):
+        cyl(f'bath_bottle_{i}', bx, by, z + .015, z + .015 + h, .033, M[m], 12)
+        cyl(f'bath_pump_{i}', bx, by, z + .015 + h, z + .04 + h, .008, M['plastic'], 6)
+    box('bath_mat', 8.75, 6.55, 9.45, 6.98, z + .015, z + .026, M['towel'])
+    box('bath_hungtowel', 7.965, 6.48, 8.095, 6.88, z + 1.62, z + 2.03, M['towel'])
+    o = box('wash_basket', 7.66, 7.22, 7.98, 7.56, z, z + .3, M['basket']); apply_bevel(o, .02)
+    o = box('wash_basket_clothes', 7.69, 7.25, 7.95, 7.53, z + .3, z + .36, M['coat']); apply_bevel(o, .03)
+    cyl('wash_cup', 6.3, 5.0, z + .86, z + .96, .035, M['bottle_w'], 12)
+    for i in range(3): cyl(f'wash_brush_{i}', 6.29 + i * .012, 5.0 + (i - 1) * .01, z + .9, z + 1.07, .004, M['plastic'] if i % 2 else M['canred'], 6)
+    o = box('wash_pouch', 6.2, 5.38, 6.4, 5.6, z + .86, z + .95, M['bagnavy']); apply_bevel(o, .03)
+    o = cyl('wash_dryer', 6.45, 5.25, z + .87, z + .93, .035, M['plastic'], 12)
+    # 試作232（同じ感想。筋のスレッドと合わせて 2026-11-20「持ち主ごとの台本の跡」）: what each one brought for the shoot, by
+    # their things; each can be looked at (ch3.gd UP_ITEMS)
+    M['notebook'] = mat_basic('notebook', (.2, .22, .26), .7)
+    M['bookcover'] = mat_basic('bookcover', (.32, .48, .58), .6)
+    M['vhs'] = mat_basic('vhs', (.08, .08, .09), .5)
+    o = box('natsuki_note', 2.4, .8, 2.62, .96, z, z + .014, M['notebook'])
+    o.rotation_euler[2] = .25
+    box('natsuki_note_pen', 2.42, .99, 2.56, 1.0, z, z + .01, M['canred'])
+    for i, (dz, h, m) in enumerate(((0, .045, 'bookcover'), (.045, .03, 'label'))):
+        o = box(f'makoto_book_{i}', 7.0 + i * .01, .9, 7.22 + i * .01, 1.18, z + dz, z + dz + h, M[m]); o.rotation_euler[2] = .15 * i
+    for i in range(4):
+        o = box(f'kiryu_tape_{i}', 3.02, 4.46, 3.21, 4.56, z + i * .026, z + i * .026 + .025, M['vhs']); o.rotation_euler[2] = .08 * (i % 2)
+    for i in range(4): cyl(f'taiga_batt_{i}', 1.45 + i * .04, 6.32, z, z + .05, .017, M['canred'] if i % 2 else M['plastic'], 8)
+    o = cyl('taiga_rope', 1.62, 6.48, z, z + .06, .09, M['basket'], 16)
 
     clutter2(M, z)
 

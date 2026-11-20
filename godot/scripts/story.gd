@@ -926,6 +926,9 @@ func _do(what: String):
 			if cam_placed: PLACED = {"pos": fixed_cam.global_position, "basis": fixed_cam.global_basis}
 			main.power_cut()
 			_clear_page()
+			# 試作232（ユーザー「第一章の最後、カメラの赤いランプ消す」）: the dot that stayed lit in the dark (2026-11-14) goes out
+			# a beat after the power, with the camera
+			get_tree().create_timer(1.2).timeout.connect(func(): if fixed_cam: _set_rec(false))
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")
@@ -1782,9 +1785,11 @@ func _front_open_by(k: String, then: Callable, zb := -0.18):
 		tw.tween_callback(func(): preload("res://scripts/sound.gd").one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0)))
 		tw.tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(24.0), 0.6).set_trans(Tween.TRANS_SINE)
 		# a step back with it, still facing the door
-		var back: Vector3 = gp(5.47, 1.22, zb)
-		tw.tween_property(rig, "global_position", Vector3(back.x, rig.global_position.y, back.z), 0.7).set_trans(Tween.TRANS_SINE)
-		tw.parallel().tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(80.0), 1.0).set_trans(Tween.TRANS_SINE)
+		# 試作232（ユーザー「扉を開けて出るアニメーションが変」）: she slid back 0.6 m on still feet while the door swung to 80°.
+		# Half a step now (out of the leaf's sweep at 50°), and the door only so far as she needs to go through
+		var back: Vector3 = gp(5.4, 0.88, zb)
+		tw.tween_property(rig, "global_position", Vector3(back.x, rig.global_position.y, back.z), 0.8).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(52.0), 1.0).set_trans(Tween.TRANS_SINE)
 		tw.parallel().tween_property(rc, "w", 0.0, 0.4).set_delay(0.35)
 		tw.tween_callback(func():
 			if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = rig.global_position

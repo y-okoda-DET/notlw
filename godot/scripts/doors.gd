@@ -88,7 +88,9 @@ func _hall_side(mi: MeshInstance3D, d: Dictionary) -> float:
 		var c: Vector3 = mi.global_transform * mi.get_aabb().get_center()
 		if c.z > wall_z + 0.2: pick = d.rest + a2
 	piv.rotation.y = keep
-	return pick
+	# 試作232（ユーザー「柱が扉を突き抜けている」、20時）: at 92° the leaf lay along the kitchen wall and the kitchen door's
+	# jamb came through it. It stops at 68°, clear of the wall
+	return d.rest + (pick - d.rest) * 68.0 / 92.0
 
 func _hits_at(mi: MeshInstance3D, d: Dictionary, ang: float) -> int:
 	var piv: Node3D = d.pivot

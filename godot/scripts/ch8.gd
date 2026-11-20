@@ -569,9 +569,19 @@ class Finder8 extends Control:
 		var lc := Color(0.92, 0.92, 0.88)
 		# the lens's water (after the fall): each drop a pale ring that spreads and runs
 		for d in drops:
+			# 試作232（ユーザー「ここの雨粒、急に安っぽい」）: crisp rings with a white glint read as drawn bubbles. Water on the
+			# lens is out of focus: a soft pale smear, a little long, its lower edge darker, and a faint wet trail when it runs
 			var c := Vector2(x0 + d[0].x * w, y0 + d[0].y * h); var r: float = d[1] * u * (0.6 + minf(d[2], 1.0) * 0.4)
-			draw_circle(c, r, Color(0.82, 0.86, 0.9, 0.16)); draw_arc(c, r, 0.0, TAU, 20, Color(0.9, 0.93, 0.96, 0.34), 2.0 * u)
-			draw_circle(c + Vector2(-r * 0.3, -r * 0.3), r * 0.22, Color(1, 1, 1, 0.3))
+			if d.size() > 3 and d[0].y - d[3] > 0.004:
+				var c0 := Vector2(c.x, y0 + float(d[3]) * h)
+				draw_line(c0, c, Color(0.8, 0.84, 0.88, 0.05), r * 0.5); draw_line(c0, c, Color(0.8, 0.84, 0.88, 0.04), r * 0.9)
+			draw_set_transform(c, 0.0, Vector2(1.0, 1.18))
+			for k in 7:
+				var f := 1.0 - k * 0.11
+				draw_circle(Vector2.ZERO, r * f, Color(0.8, 0.85, 0.9, 0.028))
+			draw_arc(Vector2(0, r * 0.08), r * 0.92, deg_to_rad(25.0), deg_to_rad(155.0), 14, Color(0.02, 0.03, 0.05, 0.16), r * 0.16)
+			draw_arc(Vector2(0, -r * 0.05), r * 0.8, deg_to_rad(205.0), deg_to_rad(335.0), 14, Color(0.9, 0.93, 0.96, 0.07), r * 0.12)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# the tumble: the picture tears in bands
 		if glitch > 0.01:
 			rng.seed = int(Time.get_ticks_msec() / 60)
@@ -897,7 +907,8 @@ func _natsuki_out():
 	if car_dome: car_dome.global_position = c + side * 0.95 + Vector3(0, car_at.y + 0.5, 0)
 	_show("natsuki")
 	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
-	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), Callable(), _face(pl.call(p2), _plan()))
+	# 試作232（全体レビュー6「約50秒の会話の間、腕を下ろした棒立ち」）: where she stops she talks with her hands (talk_a), not idle
+	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan()))
 	talk_with = "natsuki"
 
 # the operator keeps her in the picture: her face a little above the middle
@@ -927,9 +938,43 @@ func _knock_press():
 	_start(B("八.扉." + ["一", "二", "三"][knocks - 1]))
 
 func _knock():
-	_one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2))
+	# 試作232（ユーザー「ここ、叩いてる動きを入れたい」）: his free hand comes into the picture from the lower right and strikes
+	# the door three times, on the sound (the camera is in his other hand)
+	var arm := _knock_arm()
+	var cam: Camera3D = _cam()
+	var dp: Vector3 = cam.to_local(gp(DOOR[0], DOOR[1] - 0.05, 1.25))
+	var hit := Vector3(0.09, -0.06, -clampf(-dp.z - 0.06, 0.32, 0.62))
+	var rest := Vector3(0.30, -0.42, -0.22); var back := hit + Vector3(0.05, -0.04, 0.16)
+	arm.position = rest; arm.visible = true
+	var tw := create_tween()
+	tw.tween_property(arm, "position", back, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	for i in 3:
-		_after(0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
+		tw.tween_property(arm, "position", hit, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(arm, "position", back, 0.33).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(arm, "position", rest, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func(): arm.visible = false)
+	_after(0.31, func(): _one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
+	for i in 3:
+		_after(0.31 + 0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
+
+var knock_arm: Node3D
+func _knock_arm() -> Node3D:
+	if knock_arm and is_instance_valid(knock_arm): return knock_arm
+	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
+	var sleeve := StandardMaterial3D.new(); sleeve.albedo_color = Color(0.2, 0.19, 0.18); sleeve.roughness = 0.9
+	var skin := StandardMaterial3D.new(); skin.albedo_color = Color(0.62, 0.47, 0.39); skin.roughness = 0.7
+	var fore := MeshInstance3D.new(); var cm := CapsuleMesh.new(); cm.radius = 0.048; cm.height = 0.42; fore.mesh = cm
+	fore.material_override = sleeve
+	fore.rotation = Vector3(deg_to_rad(-62.0), deg_to_rad(-18.0), 0.0); fore.position = Vector3(0.07, -0.1, 0.17)
+	knock_arm.add_child(fore)
+	var fist := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 0.05; sm.height = 0.1; fist.mesh = sm
+	fist.material_override = skin; fist.scale = Vector3(0.95, 0.8, 1.1)
+	knock_arm.add_child(fist)
+	for k in 4:   # the knuckles
+		var kn := MeshInstance3D.new(); var ks := SphereMesh.new(); ks.radius = 0.016; ks.height = 0.032; kn.mesh = ks
+		kn.material_override = skin; kn.position = Vector3(-0.03 + 0.02 * k, 0.018, -0.045); knock_arm.add_child(kn)
+	_cam().add_child(knock_arm); knock_arm.visible = false
+	return knock_arm
 
 # ---------------------------------------------------------------- 山道：夏希が先を行く。桐生はカメラに話し続ける
 func _road_start():
@@ -1051,7 +1096,8 @@ var sky_light: OmniLight3D
 func _sky_tick(dt: float):
 	# the lens's water
 	var F := finder8 as Finder8
-	if randf() < dt * 1.6 and F.drops.size() < 14: F.drops.append([Vector2(randf_range(0.06, 0.94), randf_range(0.05, 0.9)), randf_range(14.0, 40.0), 0.0])
+	if randf() < dt * 2.4 and F.drops.size() < 18:
+		var y0 := randf_range(0.05, 0.9); F.drops.append([Vector2(randf_range(0.06, 0.94), y0), randf_range(9.0, 30.0), 0.0, y0])
 	for d in F.drops:
 		d[2] += dt
 		if d[2] > 2.5: d[0].y += dt * 0.012 * d[1] / 20.0

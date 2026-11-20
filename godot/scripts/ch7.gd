@@ -1049,7 +1049,9 @@ const SEG := {"0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
 func _watch():
 	if hand_l == null: return
 	watch = Node3D.new(); watch.name = "watch"; hand_l.add_child(watch)
-	watch.position = Vector3(0.0, 0.031, 0.03)
+	# 試作232（ユーザー「時計が見えないのと、時計が服に埋もれてる」）: 3 cm up the arm it sat in the cuff. On the wrist's end of the
+	# hand now, a hair proud of the skin
+	watch.position = Vector3(0.0, 0.034, WATCH_Z)
 	var blackm := StandardMaterial3D.new(); blackm.albedo_color = Color(0.05, 0.05, 0.055); blackm.roughness = 0.6
 	var strap := MeshInstance3D.new(); var sm := BoxMesh.new(); sm.size = Vector3(0.07, 0.006, 0.022); strap.mesh = sm; strap.material_override = blackm; watch.add_child(strap)
 	var body := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.04, 0.011, 0.036); body.mesh = bm; body.material_override = blackm; body.position.y = 0.005; watch.add_child(body)
@@ -1090,7 +1092,9 @@ func _watch_set():
 		x += w + 0.0022
 	for mi in holder.get_children(): (mi as MeshInstance3D).layers = 2 | 16
 
-const WATCH_POS := Vector3(-0.03, -0.17, -0.3)
+const WATCH_Z := 0.0
+# 試作232: at -0.17 the hand stood at the picture's foot, the face cut off by the frame's edge (y02). Up into the lower third
+const WATCH_POS := Vector3(-0.03, -0.1, -0.3)
 const WATCH_DEG := Vector3(0, -82, -58)
 func _watch_show(on: bool):
 	if watch == null or watch_up == on: return

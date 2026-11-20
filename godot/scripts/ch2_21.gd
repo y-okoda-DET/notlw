@@ -223,6 +223,14 @@ func _do(what: String):
 		"natsuki_door":
 			stage = "see_off"; see_t = 0.0
 			main.walk_to("natsuki", [[4.85, 1.2, 0.0], NAT_DOOR], Callable(), _face(NAT_DOOR, MIO22))
+			# 試作232（ユーザー「夏希が暗すぎる」、22時の玄関）: in the genkan she was a shape against the black door. The lobby's
+			# light on her face and front (a soft fill that goes with her; out of the door it goes with her too)
+			var r: Node3D = main._rig_of("natsuki")
+			if r and r.get_node_or_null("see_off_fill") == null:
+				var f := OmniLight3D.new(); f.name = "see_off_fill"; f.light_color = Color(1.0, 0.86, 0.68); f.light_energy = 0.0
+				f.omni_range = 1.7; f.omni_attenuation = 1.6; f.shadow_enabled = false; f.light_specular = 0.08
+				r.add_child(f); f.position = Vector3(0.15, 1.75, 0.75)
+				create_tween().tween_property(f, "light_energy", 0.55, 1.5)
 		"natsuki_out":
 			# 2026-11-13 (ユーザー「扉開いて出るアニメーション、もう少しきれいに」): she opens it, waits for it, goes through, and it shuts
 			# behind her once she is out of sight (not while she is in the doorway)
