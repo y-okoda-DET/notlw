@@ -230,6 +230,9 @@ func _do(what: String):
 				var f := OmniLight3D.new(); f.name = "see_off_fill"; f.light_color = Color(1.0, 0.86, 0.68); f.light_energy = 0.0
 				f.omni_range = 1.7; f.omni_attenuation = 1.6; f.shadow_enabled = false; f.light_specular = 0.08
 				r.add_child(f); f.position = Vector3(0.15, 1.75, 0.75)
+				# 試作233: it lit the genkan wall beside her into a blown orange patch: it lights her alone (her meshes on layer 20)
+				f.light_cull_mask = 1 << 19
+				for m in r.find_children("*", "VisualInstance3D", true, false): (m as VisualInstance3D).layers |= 1 << 19
 				create_tween().tween_property(f, "light_energy", 0.55, 1.5)
 		"natsuki_out":
 			# 2026-11-13 (ユーザー「扉開いて出るアニメーション、もう少しきれいに」): she opens it, waits for it, goes through, and it shuts
