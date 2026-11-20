@@ -72,6 +72,11 @@ var b11 := false
 # light in one eye; the reflection the dark glass of B, but her face back in it enough to read the eyes' and the nose's shadow;
 # the hand where it hides neither key.
 var c11 := false
+# 2026-11-20 19時24分 試作262（ユーザー「修正指示 その2」）：--d11face=a|b|d. What is common to every face: the hand as near as B,
+# its fingertip just over the gap between 録画 and 取り出し, neither word hidden, the fingers each readable; the glass as dark as C;
+# the reflection between A and C (head and shoulders, the eyes' and nose's shadow faint, no half of the face lit); no key help.
+# The face: a = A as it is, b = B as it is (its own light), d = A's light and shading with B's eyes and mouth, the lid between.
+var face11 := ""
 var face_mat: StandardMaterial3D
 var face_tex := {}
 var face_now := ""
@@ -115,6 +120,7 @@ func _ready():
 		if a == "--d11pan": pan = true
 		if a == "--d11b": b11 = true
 		if a == "--d11c": b11 = true; c11 = true
+		if a.begins_with("--d11face="): b11 = true; face11 = a.substr(10)
 	if refl == "c": seat_x = 0.17
 	for e in _flow("テープ.流れ"): e[0] = float(e[0]) + NIGHT_AT; LINES.append(e)
 	_room()
@@ -253,6 +259,8 @@ uniform vec3 bhi = vec3(0.035, 0.075, 0.22);
 uniform sampler2D face_tex : source_color, filter_linear, repeat_disable;
 uniform float fk = 0.7;
 uniform float fdbg = 0.0;
+uniform float fk3 = 0.45;
+uniform float fsh = 9.0;
 uniform float ffl = 0.0;
 uniform vec2 fsc = vec2(1.65, 2.2);   // glass to picture: the head about a third of the glass
 uniform vec2 fc = vec2(0.5, 0.40);    // her head in the glass
@@ -294,7 +302,13 @@ void fragment() {
 			vec4 r4 = texture(refl_tex, vec2(1.0 - ru.x, ru.y));
 			float L = dot(r4.rgb, vec3(0.3, 0.6, 0.1));
 			c = r4.a * mix(bcol, bhi, clamp(L * rk * 30.0, 0.0, 1.0)) * (0.7 + 0.3 * edge);
-			if (bmode > 1.5) {
+			if (bmode > 2.5) {   // 試作262: between A and C. Her shape faint, the face's lights held down (no lit half), the eyes' and nose's shadow
+				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
+				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
+				float inside = step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
+				vec3 g = f * fk3; g = g / (1.0 + g * fsh);              // the shoulder: a lit cheek does not go bright
+				c = (vec3(0.006, 0.010, 0.022) + g * inside) * r4.a * (0.6 + 0.4 * edge);
+			} else if (bmode > 1.5) {
 				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
 				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
 				float inside = step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
@@ -349,7 +363,8 @@ func _screen():
 	if b11:
 		# C: the glass of A (the room in it as it is), only darker, so that it stays the dark glass and her face is what is read in it
 		# (her alone, drawn on a clear background, came out unlit: her shape only)
-		if not c11: rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 1.0)
+		if not c11 and face11 == "": rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 1.0)
+		elif face11 != "": rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 3.0)
 		# C: in the mirror camera she came out unlit (the door is behind her left; from the glass she is in her own shadow, and the
 		# print lifted the room instead). Her face in the glass is the set's-side picture (face_vp, the same place as the glass),
 		# turned as a mirror turns it, small, dark: the dark glass with her eyes' and nose's shadow faintly in it
@@ -386,7 +401,7 @@ func _mio_body():
 	mio_n.global_position += ROOM + Vector3(EYE.x + seat_x, EYE.y, EYE.z) - eye
 	for mi in mio_n.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).layers = MIO_LAYER; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	if b11: _b_face()
+	if b11 and face11 != "a": _b_face()
 	print("M220 mio head ", _mio_box("mio_head"), " hands ", _mio_box("mio_hands"), " body ", _mio_box("mio_body"))
 
 func _mio_box(n: String) -> AABB:
@@ -403,11 +418,11 @@ func _back_light():
 	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; main.add_child(mi)
 	mi.global_position = ROOM + at + Vector3(0, sz.y * 0.5, 0)
 	pass_light = OmniLight3D.new(); pass_light.light_color = Color(1.0, 0.84, 0.62)
-	pass_light.light_energy = float(_arg("d11door", "0.8" if refl == "a" else ("0.10" if b11 and not c11 else "0.35"))); pass_light.omni_range = 4.5; pass_light.omni_attenuation = 1.2
+	pass_light.light_energy = float(_arg("d11door", "0.8" if refl == "a" else ("0.10" if b11 and not c11 and face11 in ["", "b"] else "0.35"))); pass_light.omni_range = 4.5; pass_light.omni_attenuation = 1.2
 	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
 	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
 	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
-	if b11 and not c11: _b_deck_light()
+	if b11 and not c11 and face11 in ["", "b"]: _b_deck_light()
 	if b11: _b_finger()
 	# the last cut of d: from the set's side, at her face
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
@@ -420,9 +435,9 @@ func _back_light():
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
-		if c11:
+		if c11 or face11 != "":
 			scr_mat.set_shader_parameter("face_tex", face_vp.get_texture())
-			for k in ["fk", "ffl", "fdbg"]:
+			for k in ["fk", "ffl", "fdbg", "fk3", "fsh"]:
 				if _arg("d11" + k, "") != "": scr_mat.set_shader_parameter(k, float(_arg("d11" + k, "")))
 	pan_cam = Camera3D.new(); pan_cam.fov = float(_arg("d11panfov", "38")); main.add_child(pan_cam)
 	pan_cam.cull_mask = 0xFFFFF   # it sees the set from outside, and her
@@ -519,7 +534,7 @@ func _room_tick(dt: float):
 			if refl == "e":
 				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
 				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）
-				if end_t2 > 16.0 or (c11 and off_t >= 0.0): face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				if end_t2 > 16.0 or ((c11 or face11 != "") and off_t >= 0.0): face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 				face_tr.modulate.a = smoothstep(16.5, 19.5, end_t2)
 				if end_t2 > CREDITS_AT and black2.color.a < 1.0:
 					black2.color.a = 1.0; print("STORY ch11 black (e)"); _credits()
@@ -686,11 +701,13 @@ uniform float rough = 0.7;
 uniform float spec = 0.5;
 uniform vec3 glow_col = vec3(0.85, 0.97, 1.0);
 uniform float glow_k = 2.2;
+uniform float white_k = 0.0;   // 試作262 D: the whites of the eyes keep a little light in A's shade, so where she looks is read
 void fragment() {
 	vec4 c = texture(tex, UV);
 	ALBEDO = c.rgb; ROUGHNESS = rough; SPECULAR = spec;
 	if (has_nrm) NORMAL_MAP = texture(nrm, UV).rgb;
-	EMISSION = glow_col * texture(glow_tex, UV).r * glow_k;
+	vec3 gt = texture(glow_tex, UV).rgb;
+	EMISSION = glow_col * (gt.r * glow_k + gt.g * white_k);
 }"""
 var face_sm: ShaderMaterial
 func _b_face():
@@ -703,11 +720,13 @@ func _b_face():
 			face_sm = ShaderMaterial.new(); var sh := Shader.new(); sh.code = FACE_SHADER; face_sm.shader = sh
 			face_sm.set_shader_parameter("rough", src.roughness); face_sm.set_shader_parameter("spec", src.metallic_specular)
 			if src.normal_enabled and src.normal_texture: face_sm.set_shader_parameter("nrm", src.normal_texture); face_sm.set_shader_parameter("has_nrm", true)
-			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 else "6.0")))
+			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 or face11 == "d" else "6.0")))
+			face_sm.set_shader_parameter("white_k", float(_arg("d11white", "0.06" if face11 == "d" else "0.0")))
 			m.set_surface_override_material(i, face_sm)
 	if face_sm == null: print("B11 no face material"); return
 	for k in ["e0", "e1", "e2", "e3", "b1", "b2"]:
-		var p := "res://props/mio_face_states/%s.png" % (("c" + k.substr(1) if k[0] == "e" else "c" + k) if c11 else k)
+		var pre := "c" if c11 else ("d" if face11 == "d" else "")
+		var p := "res://props/mio_face_states/%s.png" % ((pre + k.substr(1) if k[0] == "e" else pre + k) if pre != "" else k)
 		if not ResourceLoader.exists(p): print("B11 no ", p); return
 		face_tex[k] = load(p); face_tex[k + "g"] = load(p.replace(".png", "_glow.png"))
 	_b_set_face("e0")
@@ -750,7 +769,9 @@ func _b_finger():
 			var gb: Basis = (to_h * sk.get_bone_global_rest(bi)).basis.orthonormalized()
 			var ax: Vector3 = gb.y.cross(Vector3.DOWN).normalized()
 			var a: float
+			var relaxed := "--d11face=" in " ".join(OS.get_cmdline_user_args())
 			if f == "index": a = [0.0, 0.05, 0.05][j]
+			elif relaxed and f != "thumb": a = {"middle": [0.55, 0.65, 0.40], "ring": [0.70, 0.75, 0.45], "pinky": [0.85, 0.85, 0.50]}[f][j]   # 試作262: the fingers each seen, not a fist
 			elif f == "thumb":
 				var o: Vector3 = (to_h * sk.get_bone_global_rest(bi)).origin
 				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized(); a = [0.25, 0.45, 0.35][j]
@@ -778,9 +799,11 @@ func _b_finger_at(k: float):
 	# k 0 = out of the picture (low, at her right), 1 = stopped over the keys
 	if finger == null: return
 	finger.visible = k > 0.001
-	var bas := Basis(Vector3.UP, float(_arg("d11fyaw", "0.35"))) * Basis(Vector3.RIGHT, float(_arg("d11fpitch", "-0.10"))) * Basis(Vector3.BACK, float(_arg("d11froll", "0.5")))
+	var r2 := face11 != ""   # 試作262: the hand over the gap from above, so neither word under it is hidden
+	var bas := Basis(Vector3.UP, float(_arg("d11fyaw", "0.0" if r2 else "0.35"))) * Basis(Vector3.RIGHT, float(_arg("d11fpitch", "-1.15" if r2 else "-0.10"))) * Basis(Vector3.BACK, float(_arg("d11froll", "0.0" if r2 else "0.5")))
 	var over := ROOM + Vector3(float(_arg("d11fx", "0.115")), 0.178 + float(_arg("d11fh", "0.014")), 0.118)
-	if c11: over = ROOM + Vector3(float(_arg("d11fx", "0.118")), float(_arg("d11cfy", "0.165")), float(_arg("d11cfz", "0.150")))   # between 録画 and 取り出し, just above
+	if c11: over = ROOM + Vector3(float(_arg("d11fx", "0.118")), float(_arg("d11cfy", "0.165")), float(_arg("d11cfz", "0.150")))
+	if face11 != "": over = ROOM + Vector3(float(_arg("d11fx", "0.110")), 0.178 + float(_arg("d11fh", "0.028")), float(_arg("d11fz", "0.120")))   # between 録画 and 取り出し, just above
 	var away := over + Vector3(0.32, -0.06, 0.16)
 	var tip := away.lerp(over, k)
 	finger.global_transform = Transform3D(bas, tip - bas * fin_tip)
@@ -790,7 +813,7 @@ func _b_tick():
 	# the finger comes in while her eyes go down, stops over the keys; it stays there as the set goes off, and goes as her eyes rise
 	var fk := smoothstep(3.2, 5.6, end_t2) * (1.0 - smoothstep(10.2, 12.2, end_t2))
 	_b_finger_at(fk)
-	if hand_light: hand_light.light_energy = glow.light_energy * float(_arg("d11handk", "0.05"))
+	if hand_light: hand_light.light_energy = glow.light_energy * float(_arg("d11handk", "0.15" if face11 != "" else "0.05"))
 	if off_t >= 0.0 and not off_snd: off_snd = true; Sound.one(self, "tv_off", float(_arg("d11offdb", "-4"))); print("B11 tv off sound")
 	# the face: down; one blink before her eyes rise; the eyes (only) to the lens about four seconds into the face, the mouth closing
 	# with them; after that no blink until the black

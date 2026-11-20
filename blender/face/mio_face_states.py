@@ -94,3 +94,21 @@ for k, (lid, m, cv) in CST.items():
     gi = np.clip(g * 255, 0, 255).astype(np.uint8)
     Image.fromarray(np.dstack([gi, gi, gi]), "RGB").save(os.path.join(OUT, k + "_glow.png"))
     print(k, "ok")
+
+# 試作262 D（ユーザー 2026-11-20 19時24分「修正指示 その2」）：A の光と陰影のまま、目線と口だけ B。まぶたは A と B の中間で見開かない。
+# 反射は片目に一点。A の光では目元が刷りの影に沈み、C は A と同じに見えた（目線が読めない）。D は、まぶたを C より上げ（cover を
+# 半分に）、白目に弱い光の印（glow の G）を持たせて、影の中でも黒目の位置が読めるようにする。R は一点の反射。
+DST = {"d0": (0.52, 1.0, 0.0), "d1": (0.36, 0.66, 0.06), "d2": (0.18, 0.33, 0.12), "d3": (0.0, 0.0, 0.17),
+       "db1": (0.78, 1.0, 0.0), "db2": (1.0, 1.0, 0.0)}
+for k, (lid, m, cv) in DST.items():
+    o, g = state(lid, m, cv, cim, ONE)
+    lum = o[..., :3].mean(-1) / 255
+    near = np.zeros((H, W), bool)
+    for e in EYES:
+        near |= (np.abs(xx - (e["x0"] + e["x1"]) / 2) < (e["x1"] - e["x0"]) / 2 - 3) & (yy > e["top"]) & (yy < e["low"] - 1)
+    white = (near & (lum > 0.58) & ((o[..., 0] - o[..., 2]) < 50)).astype(np.float32)   # the white: bright and not skin-coloured
+    white = np.asarray(Image.fromarray((white * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8))).astype(np.float32) / 255
+    Image.fromarray(np.clip(o, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, k + ".png"))
+    gi = np.clip(g * 255, 0, 255).astype(np.uint8); wi = np.clip(white * 255, 0, 255).astype(np.uint8)
+    Image.fromarray(np.dstack([gi, wi, np.zeros_like(gi)]), "RGB").save(os.path.join(OUT, k + "_glow.png"))
+    print(k, "ok")
