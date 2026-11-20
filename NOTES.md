@@ -648,3 +648,4 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 消えたテレビのガラスを「青緑のベタ」にするには黒（刷りでは青と橙の重なり＝いちばん深い影）にし、映り込みは鏡のカメラの SubViewport を transparent_bg にして澪の層だけ描き、その形（アルファ）を暗い青で塗る。transparent_bg の画では澪の明るさがほぼ 0 で、顔の凹凸は出なかった。
 - 第6章の腕（mio_arm_r.glb）を澪の目から見下ろすと、手の甲が刷りで紙の白に飛ぶ。腕だけ層 2 にして、テレビの光の 5% を当てる灯りを別に置いた。
 - 確かめ方：`RES=1280x720 SEC=40 bash godot/check/b11_run.sh <名前> [--d11b]`（テープの終わりから音つきの AVI、約6〜15分）。止め画は `SEC=0 … --d11endat=<秒>`。
+- （2026-11-20）一人称で見える人の腕は、export_mio_arms.py の WHO=<名前> で本人の体から作れる（mio・yota・kiryu）。props/<名前>_arm_l|r.glb はコミットしてあり build.sh では作らない。指の曲げ（set_bone_pose_rotation）は、腕を木に入れてからかけないと戻る（ch8.gd _knock_arm_kiryu）。
