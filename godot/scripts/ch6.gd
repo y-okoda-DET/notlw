@@ -1517,7 +1517,12 @@ func _tripod_bag():
 	tw.tween_callback(func():
 		done6["tripod"] = true; act = ""
 		candle_off = Vector3(0.2, -0.36, -0.42)
-		_run_block("三脚.袋"))
+		_run_block("三脚.袋")
+		# 2026-11-21 (review): its ［flag］ testimony was dropped by _run_block (it runs ＞ and ◇ only)
+		var t := ret_t + 0.6
+		for bl in D.lines("三脚.袋"):
+			var fl := _flag_line(String(bl))
+			if fl.begins_with("澪＊："): ret_q.append([t, _ret_row.bind(fl, true)]); t += fl.length() / 18.0 + 1.3)
 
 # what a block does besides its prompt (＞ and ◇)
 func _run_block(key: String):

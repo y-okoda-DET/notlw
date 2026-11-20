@@ -580,7 +580,11 @@ func _room_tick(dt: float):
 				if at_deck and room_t > 5.0: _play()
 		PLAYING:
 			var G: Array = B("テープ.案内")
-			note_lb.text = T(String(G[1].note if on_knob else G[0].note)) if (e > 0.2 or on_knob) else ""
+			# 2026-11-21 (review): the fast-forward was never told; before 3:30 a clear picture shows it
+			if on_knob: note_lb.text = T(String(G[1].note))
+			elif e > 0.2: note_lb.text = T(String(G[0].note))
+			elif night_n < N330 and not ff_on and G.size() > 2: note_lb.text = T(String(G[2].note))
+			else: note_lb.text = ""
 			if tape_t < 1.6:                     # the key pressed, her eyes go back up to the picture
 				var ku := 1.0 - exp(-dt * 4.0)
 				player.yaw = lerp_angle(player.yaw, 0.0, ku); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), ku)
@@ -675,7 +679,24 @@ func _tape_queue():
 	var strike_at := 46.0 + NIGHT_AT
 	for e in LINES:
 		if e.size() > 2 and e[1] == "do" and e[2] == "strike": strike_at = float(e[0]); break
-	for e in r: tqueue.append([strike_at + (float(e[0]) - t0), String(e[1])])
+	# 2026-11-21 (review): the night's gaps squeezed into the tape's minute: at most three swings before her first blow
+	# to the head, within 2.4 s of it, the rest within 4 s after it, never before she has the tripod (TAPE_TAKE);
+	# fewer than two blows to the head (a record cut short): the script's second strike stands in
+	var before := []; var after := []
+	for e in r: (before if float(e[0]) < t0 else after).append(e)
+	before = before.slice(maxi(0, before.size() - 3))
+	var span_a := 0.0
+	for e in after: span_a = maxf(span_a, float(e[0]) - t0)
+	var ka := 1.0 if span_a <= 4.0 else 4.0 / span_a
+	var span_b := 0.0
+	for e in before: span_b = maxf(span_b, t0 - float(e[0]))
+	var kb := 1.0 if span_b <= 2.4 else 2.4 / span_b
+	for e in before: tqueue.append([maxf(TAPE_TAKE + 0.3, strike_at - (t0 - float(e[0])) * kb), String(e[1])])
+	var heads := 0
+	for e in after:
+		tqueue.append([strike_at + (float(e[0]) - t0) * ka, String(e[1])])
+		if String(e[1]) == "head": heads += 1
+	if heads < 2: tqueue.append([strike_at + 1.2, "head"]); tqueue.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
 	print("STORY ch11 swings from the night: ", tqueue.size())
 
 func _tape_swing(dt: float):
@@ -762,8 +783,8 @@ func _unhandled_input(e):
 		var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 		if press and note_lb.text != "": _play()
 		return
-	if st == PLAYING and e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E and (night_n < N330 or post):
-		_end_tape(); return   # 2026-11-20: she may stop it (not while the 3:30 minute runs)
+	if st == PLAYING and e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E and post:
+		_end_tape(); return   # 2026-11-20: she may stop it once the 3:30 minute has played (2026-11-21: not before it, or the chapter ended without it)
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_RIGHT: on_knob = e.pressed
 	elif e is InputEventMouseMotion and on_knob and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		trk = clampf(trk + e.relative.x * 0.0006, 0.0, 1.0)

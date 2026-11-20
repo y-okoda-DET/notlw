@@ -973,6 +973,7 @@ func _cel_look() -> bool:
 	if mode != FREE or not _has("mio"): return false
 	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
 	var to := hd - _cam().global_position
+	if absf(to.y) > 1.2: return false   # 2026-11-21 (review): not through the floor from the hall above her
 	return to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)
 
 func _cel_grab():

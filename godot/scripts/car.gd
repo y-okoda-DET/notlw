@@ -82,6 +82,7 @@ var prev_fwd := Vector3.FORWARD
 
 func _ready():
 	player = main.player
+	Engine.remove_meta("night_flags") if Engine.has_meta("night_flags") else null   # 2026-11-21 (review): a new night: the last run's record goes (the chapter menu, F5)
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = []
@@ -728,6 +729,7 @@ func _event(e: Array):
 			_loop_to("car_idle", -60.0, 2.0); _loop_to("car_drive", -17.0, 1.5); _loop_to("car_gravel", -16.0, 2.0)
 			print("CAR drive_on t=%.1f" % t_now)
 		_:
+			if e.size() < 3: print("CAR do (none) ", e[1]); return   # a ＞ this scene does not know
 			var who: String = e[1]
 			cur = {"who": who, "text": _wrap_row(Tw(e[2])), "who_key": WHO_KEY.get(who, "")}
 			typed = 0.0; read_t = 0.0

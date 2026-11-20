@@ -751,7 +751,7 @@ func _swing(dt: float):
 		var a := _aim()
 		var what := "miss"
 		if a.dist <= REACH and (a.head or a.body): what = "head" if a.head else "body"
-		if rec_swings.size() < 12:
+		if rec_swings.size() < 12 or what == "head":   # (her blows to the head are always kept: the second is the one that drops Natsuki)
 			rec_swings.append([snappedf(clock, 0.05), what])
 			set_flag("swing_0330", rec_swings.duplicate(true))
 		if what != "miss": _blow(a.head)

@@ -369,7 +369,7 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1" or play == "h21") and k == "natsuki") else k   # her indoor head has its own UV layout
+			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1" or play == "h21" or play == "ch1car") and k == "natsuki") else k   # her indoor head has its own UV layout
 			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open

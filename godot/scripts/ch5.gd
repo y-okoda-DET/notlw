@@ -87,6 +87,8 @@ var start_at := "t4"
 
 func _ready():
 	player = main.player
+	if not ("--keepflags" in OS.get_cmdline_user_args()):
+		for fk in ["went_out", "went_out_4am", "hands_cut"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["真琴（下から）"]
@@ -1242,7 +1244,7 @@ func _press_peel():
 			if not q.is_empty(): _start(q)
 			while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): _below_step()
 		"back":
-			if boards_off < 4: _go_out()
+			if boards_off < 4 and not has_flag("went_out_4am"): _go_out()   # 2026-11-21 (review): once out, the door is a door (no second 【外.出る】)
 		"cellar", "front":
 			var key: String = {"cellar": "しない.地下", "front": "しない.玄関"}[look_k]
 			var e: Array = B(key).slice(1)   # the first line is the key's own prompt
@@ -1270,6 +1272,7 @@ var board_k := 0.0
 var board_creak := 0.0
 var cwin_light: OmniLight3D
 var back_sil := false
+var sil_counted := false   # 2026-11-21 (review): the counted silence is once (each walk back added a row and a rattle)
 var back_wall: StaticBody3D
 var back_sil_t := 0.0
 var back_sil_lb: Label
@@ -1308,8 +1311,8 @@ func _back_near() -> bool:
 func _out_tick(dt: float):
 	outside = player.global_position.x + 4.8 > 10.05
 	# the counted silence before the back door
-	if not back_sil and mode == FREE and boards_off < 4 and _back_near() and stage in ["peel", "done"]:
-		back_sil = true; back_sil_t = 0.0
+	if not back_sil and not sil_counted and mode == FREE and boards_off < 4 and _back_near() and stage in ["peel", "done"] and not has_flag("went_out_4am"):
+		back_sil = true; back_sil_t = 0.0; sil_counted = true
 		var r = _line_row("澪", "（沈黙）"); back_sil_lb = r[1]; page_clear_t = -1.0
 		Sound.one(self, "ch3_rattle", -10.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))   # the draught moves it on its hinge
 		if below_i == 0: _below_step()   # the voice from below, if it has not come yet: she counts with it in her ears
@@ -1343,7 +1346,7 @@ func _back_sil_close():
 
 func _go_out():
 	_back_sil_close()
-	set_flag("went_out", true); set_flag("went_out_4am", true)
+	set_flag("went_out_4am", true)   # (went_out — 外に出て、板を外した — is set at the first board: _board_off)
 	if dn:
 		for k in dn.doors.keys():
 			var s: Dictionary = dn.doors[k]
@@ -1374,6 +1377,7 @@ func _board_off():
 	board_k = 0.0
 	var b = _board_now()
 	boards_off += 1
+	set_flag("went_out", true)
 	var at := gp(CWIN[0], CWIN[1], CWIN[2])
 	Sound.one(self, "ch3_thud", -6.0, at); Sound.one(self, "creak3", -2.0, at)
 	if b:
@@ -1401,7 +1405,7 @@ func _blood_on(n: Node3D, k: int):
 	var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.32, 0.03, 0.03, 0.55 + 0.12 * k); mt.roughness = 0.35
 	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.material_override = mt
-	main.add_child(m)
+	n.add_child(m)   # 2026-11-21 (review): on the board, so it goes with the board when that comes off
 	m.global_position = n.global_position + Vector3(0.008, 0.035, randf_range(-0.12, 0.12))
 
 # ---------------------------------------------------------------- the cellar: heard, not seen

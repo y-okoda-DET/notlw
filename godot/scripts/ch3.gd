@@ -136,6 +136,8 @@ var mirror_done := false
 
 func _ready():
 	player = main.player
+	if not ("--keepflags" in OS.get_cmdline_user_args()):
+		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
@@ -498,6 +500,9 @@ func _begin(st: String):
 			_t230_start()
 			_flow_start("扉の番.二時半", "t3card")
 		"t3":
+			# 2026-11-21 (review): a lean held over the card stayed: she is back on the step, her head upright
+			if door_pos3 != "sit" and door_pos3 != "": _door_to("sit")
+			player.get_node("Head").rotation.z = 0.0
 			_flow_start("扉の番.三時", "end")
 		"end":
 			_end()
@@ -899,7 +904,7 @@ func _wash_mirror_tick():
 		main.walk_to("kiryu", pts, Callable(), _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
 	get_tree().create_timer(0.9).timeout.connect(func():
 		Sound.one(self, "creak2", -4.0, gp(7.4, 6.2, F2 + 0.1))
-		_start(B("二階.鏡")))
+		if mode == FREE and stage in ["up", "back"]: _start(B("二階.鏡")))   # (not over a talk begun in that second)
 
 # 一時: whom she can talk to, once each (T1_TALK keeps who: 第10章・第11章)
 const ONE_NAME := {"makoto": "真琴", "kiryu": "桐生", "taiga": "地下の扉"}
