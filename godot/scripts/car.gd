@@ -210,7 +210,22 @@ func _mat(c: Color, rough := 0.85, metal := 0.0) -> StandardMaterial3D:
 func _box(parent: Node3D, size: Vector3, at: Vector3, m: Material, rot := Vector3.ZERO, nm := "") -> MeshInstance3D:
 	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = size; mi.mesh = bm; mi.material_override = m
 	mi.position = at; mi.rotation = rot
-	if nm != "": mi.name = nm
+	if nm != "": mi.name = nm; mi.set_meta("part", nm)   # (a second of the same name is renamed by Godot: the part is kept here)
+	parent.add_child(mi)
+	return mi
+
+# 2026-11-21（ユーザー「ここ、作り物っぽい」：Aピラーとルームミラー）: a rounded trim piece between two points, its section an
+# ellipse (rx across, ry deep), its ends rounded: the pillars' moulded plastic, not boards
+func _rod(parent: Node3D, a: Vector3, b: Vector3, rx: float, ry: float, m: Material, nm := "", lean := Vector3.ZERO) -> MeshInstance3D:
+	var mi := MeshInstance3D.new(); var cm := CapsuleMesh.new()
+	var L := a.distance_to(b)
+	cm.radius = 0.5; cm.height = maxf(L / rx, 1.0) * 1.0; cm.radial_segments = 16; cm.rings = 6
+	mi.mesh = cm; mi.material_override = m
+	var f := (b - a).normalized()
+	var side := (lean if lean != Vector3.ZERO else Vector3.RIGHT)
+	var zx := f.cross(side).normalized(); var xx := zx.cross(f).normalized()
+	mi.transform = Transform3D(Basis(xx * rx * 2.0, f * (L / cm.height), zx * ry * 2.0), (a + b) * 0.5)
+	if nm != "": mi.name = nm; mi.set_meta("part", nm)   # (a second of the same name is renamed by Godot: the part is kept here)
 	parent.add_child(mi)
 	return mi
 
@@ -222,7 +237,7 @@ func _slab(parent: Node3D, a: Vector3, b: Vector3, w: float, t: float, m: Materi
 	var f := (b - a).normalized()
 	var up := Vector3.UP if absf(f.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
 	mi.transform = Transform3D(Basis.looking_at(f, up), (a + b) * 0.5)
-	if nm != "": mi.name = nm
+	if nm != "": mi.name = nm; mi.set_meta("part", nm)   # (a second of the same name is renamed by Godot: the part is kept here)
 	parent.add_child(mi)
 	return mi
 
@@ -233,6 +248,7 @@ func _inside():
 	var cloth_d := _mat(Color(0.20, 0.20, 0.21), 1.0)
 	var liner := _mat(Color(0.62, 0.60, 0.56), 1.0)
 	var trim := _mat(Color(0.45, 0.44, 0.42), 0.8)
+	var pillar := _mat(Color(0.25, 0.25, 0.25), 1.0)   # the pillars' grey moulding (darker: the sun behind it, not on it)
 	var inn := Node3D.new(); inn.name = "inside"; car.add_child(inn)
 	# fitted to the Tripo body (its windshield's foot at z -.95, y .96; its top at z -.30, y 1.32; the roof inside 1.34;
 	# the hatch from z 1.30): the dash from the windshield's foot back over the gauges, its face down to the knees
@@ -258,7 +274,7 @@ func _inside():
 	for x in [-0.37, 0.37]: _box(inn, Vector3(0.40, 0.025, 0.17), Vector3(x, 1.315, -0.20), liner, Vector3(0.25, 0, 0), "visor")
 	# the windshield's frame: the pillars (A, B, C), the roof's front edge, the doors' tops (the belt line) and the doors
 	for sx in [-1.0, 1.0]:
-		_slab(inn, Vector3(sx * 0.72, 0.96, -0.95), Vector3(sx * 0.66, 1.33, -0.30), 0.075, 0.09, trim, "pillar_a")
+		_rod(inn, Vector3(sx * 0.72, 0.95, -0.95), Vector3(sx * 0.665, 1.335, -0.30), 0.045, 0.032, pillar, "pillar_a", Vector3(sx, 0, 0))
 		_box(inn, Vector3(0.07, 0.38, 0.10), Vector3(sx * 0.71, 1.16, 0.42), trim, Vector3.ZERO, "pillar_b")
 		_slab(inn, Vector3(sx * 0.72, 0.98, 1.48), Vector3(sx * 0.64, 1.33, 1.24), 0.07, 0.26, trim, "pillar_c")
 		_box(inn, Vector3(0.06, 0.70, 1.35), Vector3(sx * 0.80, 0.63, -0.27), cloth_d, Vector3.ZERO, "door_f")
@@ -370,9 +386,11 @@ func _tripo_inside(inn: Node3D):
 		bn.position += Vector3(-bb.get_center().x, 0.28 - bb.position.y, 1.08 - bb.get_center().z)
 		print("CAR tripo bench size=", bb.size)
 		hide += ["bench", "bench_back"]
+	for a in OS.get_cmdline_user_args():   # check stills: --carhide=visor,pillar_b hides those parts
+		if a.begins_with("--carhide="): hide += Array(a.substr(10).split(","))
 	for c in inn.get_children():
 		for h in hide:
-			if String(c.name).begins_with(h) and c is MeshInstance3D: (c as Node3D).visible = false
+			if c is MeshInstance3D and String(c.get_meta("part", c.name)).begins_with(h): (c as Node3D).visible = false
 
 # the cassette (8 mm: the size of a deck of cards), its label in Natsuki's round hand
 var tape_node: Node3D
@@ -476,8 +494,9 @@ func _mirror():
 	var inn: Node3D = car.get_node("inside")
 	var holder := Node3D.new(); holder.name = "mirror"; inn.add_child(holder)
 	holder.position = MIRROR; holder.rotation = Vector3(0.05, 0.22, 0)   # turned to the driver
-	_box(holder, Vector3(0.23, 0.068, 0.03), Vector3(0, 0, -0.012), _mat(Color(0.08, 0.08, 0.085), 0.5), Vector3.ZERO, "mirror_back")
-	_box(holder, Vector3(0.02, 0.05, 0.02), Vector3(0, 0.06, -0.02), _mat(Color(0.08, 0.08, 0.085), 0.5), Vector3.ZERO, "mirror_stem")
+	var hm := _mat(Color(0.07, 0.07, 0.075), 0.65)
+	_rod(holder, Vector3(-0.112, 0, -0.016), Vector3(0.112, 0, -0.016), 0.020, 0.040, hm, "mirror_back", Vector3(0, 0, 1))   # a rounded shell, the glass set in its face
+	_rod(holder, Vector3(0, 0.02, -0.03), Vector3(0, 0.10, -0.045), 0.011, 0.011, hm, "mirror_stem")
 	mirror_vp = SubViewport.new(); mirror_vp.size = Vector2i(384, 112); mirror_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(mirror_vp)
 	mirror_cam = Camera3D.new(); mirror_cam.fov = 40.0; mirror_cam.near = 0.05; mirror_cam.far = 120.0

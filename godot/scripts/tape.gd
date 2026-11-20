@@ -245,7 +245,9 @@ func _guest_room() -> bool:
 	var r: Node3D = (load("res://assets/interview/room.glb") as PackedScene).instantiate(); main.add_child(r)
 	var rb := Basis(Vector3.UP, -PI / 2.0)
 	var tv_g: Vector3 = rb * (Vector3(GUEST_TV_AT[0], GUEST_TV_AT[2], -GUEST_TV_AT[1]) + Vector3(0.06, 0, 0))
-	r.global_transform = Transform3D(rb, ROOM + Vector3(0.0, 0.145, -0.06) - tv_g)
+	# measured (2026-11-21, ユーザー「物が浮いているように見える」): set so, the cabinet's top was 3 cm over our board and its
+	# front 0.37 m behind the deck. Moved so that the deck and the set stand on it, their backs to the tokonoma's wall
+	r.global_transform = Transform3D(rb, ROOM + Vector3(0.0, 0.145, -0.06) - tv_g + Vector3(0.0, -0.03, 0.52))
 	var night := Color(float(_arg("d11night", "0.4")), float(_arg("d11night", "0.4")) * 1.04, float(_arg("d11night", "0.4")) * 1.25)
 	var hide_names := ["tape", "tape_label", "notebook", "notebook_pages", "recorder_tripo", "recorder_display", "rec_time", "cup_i", "cup_i_tea", "cup_m", "cup_m_tea"]
 	for g in r.find_children("*", "MeshInstance3D", true, false):
@@ -264,6 +266,11 @@ func _guest_room() -> bool:
 	moon.omni_range = 4.0; moon.omni_attenuation = 0.8; moon.shadow_enabled = false; moon.light_specular = 0.0; moon.light_cull_mask = 1
 	main.add_child(moon); moon.global_position = r.global_position + Vector3(0, 2.0, 0)
 	print("TAPE guest room at ", r.global_position)
+	for g in r.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(g.name)
+		if nm.begins_with("waki") or nm.begins_with("toko_floor") or nm.begins_with("tatami0"):
+			var bb: AABB = (g as MeshInstance3D).global_transform * (g as MeshInstance3D).get_aabb()
+			print("TAPE part %s rel %s size %s" % [nm, bb.position - ROOM, bb.size])
 	return true
 
 func _tvbox(at: Vector3, size: Vector3, col: Color, rough := 0.5) -> MeshInstance3D:

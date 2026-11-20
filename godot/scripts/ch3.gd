@@ -161,6 +161,7 @@ func _ready():
 	demo_on = demo3
 	start_at = "t0"; var start := "t0"
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--ch3pose="): pose_dbg = Array(a.substr(10).split(",")).map(func(x): return float(x))   # check stills: upstairs, she stands here (plan x, y, yaw°)
 		if a.begins_with("--ch3at="): start = a.substr(8); start_at = start     # check stills and the playthrough of one part: t0 | seal | up | watch | t2 | t230 | t3
 	var c: Array = D.lines("三.カード")
 	card = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
@@ -814,6 +815,7 @@ func _item_looked() -> String:
 
 func _up_tick(_dt: float):
 	if car_glow: car_glow.light_energy = 0.9 + 0.1 * sin(t_now * 0.7)
+	_wash_mirror_tick()
 	if mode != FREE: return
 	var k := _item_looked()
 	look_at_k = k
@@ -824,6 +826,80 @@ func _up_tick(_dt: float):
 	elif k != "": note_lb.text = T("［%s］" % up_items[k].name)
 	elif has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5: note_lb.text = T(String(D.lines("二階.戻る")[0]))
 	else: note_lb.text = ""
+
+# ---------------------------------------------------------------- 2026-11-20 ジャンプスケア④：二階の洗面所の鏡
+# The basin's mirror (rooms2.py wash_mirror: plan x 6.08, y 4.95..5.65, F2 + 1.05..1.75, facing east) is clouded (B3, 2026-11-17):
+# it shows the room behind her as a grey haze and never her. The first time she stands at it and looks in, someone crosses
+# the room behind her in the glass (Kiryu, sealing the tub's window), one board of the floor sounds; she turns and it is him.
+const WASH_MIRROR := [6.085, 5.30, 1.40]   # its middle (z above F2)
+const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.7, 5.95]]
+var pose_dbg := []
+var wm_vp: SubViewport
+var wm_cam: Camera3D
+var wm_quad: MeshInstance3D
+const CLOUD_SH := """shader_type spatial;
+render_mode cull_back;
+uniform sampler2D refl : source_color, filter_linear;
+void fragment() {
+	vec2 uv = vec2(1.0 - UV.x, UV.y);
+	vec3 c = vec3(0.0);
+	for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) c += texture(refl, uv + vec2(float(i), float(j)) * 0.006).rgb;
+	c /= 25.0;
+	float edge = smoothstep(0.0, 0.25, min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y)));
+	ALBEDO = vec3(0.16, 0.17, 0.17);            // the fogged glass: only as light as the room is
+	ROUGHNESS = 0.6;
+	EMISSION = c * 0.75 * edge;                  // what it shows, already lit by the room's own light
+}"""
+func _wash_mirror_make():
+	wm_vp = SubViewport.new(); wm_vp.size = Vector2i(192, 192); wm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(wm_vp)
+	wm_cam = Camera3D.new(); wm_cam.near = 0.1; wm_cam.far = 12.0
+	wm_cam.cull_mask = 0xFFFFF & ~128   # (Mio's own body/shadow layers are not in it: she is never in the glass)
+	wm_vp.add_child(wm_cam)
+	wm_quad = MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.68, 0.68); wm_quad.mesh = q
+	var sm := ShaderMaterial.new(); var sh := Shader.new(); sh.code = CLOUD_SH; sm.shader = sh
+	sm.set_shader_parameter("refl", wm_vp.get_texture()); wm_quad.material_override = sm
+	wm_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.add_child(wm_quad)
+	wm_quad.global_transform = Transform3D(Basis(Vector3.UP, PI / 2.0), gp(WASH_MIRROR[0] + 0.006, WASH_MIRROR[1], F2 + WASH_MIRROR[2]))   # its face to the east (+x)
+
+func _wash_mirror_tick():
+	if not pose_dbg.is_empty() and mode == FREE:
+		player.global_position = gp(pose_dbg[0], pose_dbg[1], F2); player.velocity = Vector3.ZERO
+		player.yaw = deg_to_rad(pose_dbg[2]); player.pitch = deg_to_rad(-6.0)
+		if mirror_done: pose_dbg = []
+	var at := gp(WASH_MIRROR[0], WASH_MIRROR[1], F2 + WASH_MIRROR[2])
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var near: bool = player.global_position.y > F2 - 0.6 and cam.global_position.distance_to(at) < 3.2
+	if not near:
+		if wm_vp: wm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		return
+	if wm_vp == null: _wash_mirror_make()
+	wm_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var n := Vector3(1, 0, 0)
+	var e := cam.global_position
+	var refl := e - 2.0 * (e - at).dot(n) * n
+	wm_cam.global_transform = Transform3D(Basis.looking_at((at - refl).normalized(), Vector3.UP), refl)
+	wm_cam.fov = clampf(rad_to_deg(2.0 * atan(0.34 / maxf(refl.distance_to(at), 0.2))), 10.0, 90.0)
+	if mirror_done or mode != FREE: return
+	var looking: bool = (-cam.global_basis.z).angle_to(at - e) < deg_to_rad(22.0) and e.distance_to(at) < 1.6
+	if not looking: return
+	mirror_done = true
+	print("STORY ch3 mirror t=%.1f" % t_now)
+	var r := _rig("kiryu")
+	if r:
+		r.visible = true
+		r.global_transform = Transform3D(Basis(Vector3.UP, _face(WASH_PATH[0], WASH_PATH[1])), gp(WASH_PATH[0][0], WASH_PATH[0][1], F2))
+		# his torch, low in his hand: what the glass catches of him is the light going by
+		if not r.has_node("wm_torch"):
+			var tl := OmniLight3D.new(); tl.name = "wm_torch"; tl.light_color = Color(1.0, 0.86, 0.66); tl.light_energy = 1.4
+			tl.omni_range = 2.6; tl.shadow_enabled = false; tl.position = Vector3(0.25, 1.0, -0.3); r.add_child(tl)
+		var pts := []
+		for p in WASH_PATH.slice(1): pts.append([p[0], p[1], F2])
+		main.walk_to("kiryu", pts, Callable(), _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
+	get_tree().create_timer(0.9).timeout.connect(func():
+		Sound.one(self, "creak2", -4.0, gp(7.4, 6.2, F2 + 0.1))
+		_start(B("二階.鏡")))
 
 # 一時: whom she can talk to, once each (T1_TALK keeps who: 第10章・第11章)
 const ONE_NAME := {"makoto": "真琴", "kiryu": "桐生", "taiga": "地下の扉"}
