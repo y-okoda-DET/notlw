@@ -46,14 +46,17 @@ def mats(M):
     M['photo'] = lib.mat_image('lived_photo', lib.tex_path('lived_photo_lift'), rough=.9, bump=0)   # lift: the user's print (lived_photo.jpg) levelled up and matte, it was a dark square with a glare at dusk through the print (試作73)
     M['ledgerpage'] = lib.mat_image('lived_ledgerpage', lib.tex_path('lived_ledger'), rough=.85, bump=0)
 
-def phm(a, x, y, z, rz=0.0, rx=0.0, ry=0.0, s=1.0, name=None):
-    """A Poly Haven model (assets/phm/<a>, blender/ph_models.py), real size, its parts joined. Plan x, y; z absolute."""
+def phm(a, x, y, z, rz=0.0, rx=0.0, ry=0.0, s=1.0, name=None, drop=()):
+    """A Poly Haven model (assets/phm/<a>, blender/ph_models.py), real size, its parts joined. Plan x, y; z absolute.
+    drop: parts (node names) left out (the clock's hands: Godot draws them at the scene's hour, main.gd _clock)."""
     import os, paths as P
     f = f'{P.ASSETS}/phm/{a}/{a}.gltf'
     if not os.path.exists(f): print('NO PHM', a); return None
     before = {o.name for o in bpy.data.objects}
     bpy.ops.import_scene.gltf(filepath=f)
     names = [o.name for o in bpy.data.objects if o.name not in before]
+    for n in list(names):
+        if n in drop or any(n.startswith(d + '.') for d in drop): bpy.data.objects.remove(bpy.data.objects[n]); names.remove(n)
     ms = [bpy.data.objects[n] for n in names if bpy.data.objects[n].type == 'MESH']
     bpy.ops.object.select_all(action='DESELECT')
     for o in ms: o.select_set(True)
@@ -156,7 +159,8 @@ def kitchen(M):
     phm('wooden_cutting_board', 8.62, 3.95, .862, rz=.1, name='lived_board')
     phm('plastic_thermos', 9.18, 3.86, .862, rz=2.0, name='lived_thermos')
     phm('wicker_basket_01', 6.32, 4.55, 0, rz=1.4, name='lived_basket')
-    phm('wall_clock', 6.0 + W + .001, 5.3, 1.95, rz=math.pi / 2, name='lived_clock')   # stopped (no one wound it)
+    # 2026-11-17 夜（ユーザー「背景の時計、時刻を正確に」）: it goes, and shows the scene's hour; its hands are drawn in Godot (main.gd _clock)
+    phm('wall_clock', 6.0 + W + .001, 5.3, 1.95, rz=math.pi / 2, name='lived_clock', drop=('wall_clock_minute_hand', 'wall_clock_second_hand', 'wall_clock_hours_hand'))
     # November on his calendar: the 15th circled 「解禁」, his ×s stop three days later (no one turned the page since)
     prim('plane', 'lived_calendar', loc=(X(6.0) + W + .003, Y(5.78), 1.42), rot=(math.pi / 2, 0, math.pi / 2), scale=(.15, .225, 1), mat=M['calendar'])
     # the hand towel over the sink's edge, dry for months

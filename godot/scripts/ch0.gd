@@ -15,7 +15,7 @@
 ## It rides on fps.gd's stage (her, the trail, the blood, the small camera on the handrail, the lantern), as tape.gd does.
 extends "res://scripts/fps.gd"
 
-const SIT_AT := [4.42, 3.42]          # plan x, y: on the floor against the stair's boarding, a step behind where she stood at 3:30
+const SIT_AT := [4.22, 2.15]          # plan x, y: on the floor by the west boarding, a step back toward the door from where she stood at 3:30 (2026-11-17 夜: Natsuki lies where 第4章 played puts her, between Mio and the kitchen)
 const SIT_EYE := 0.86
 const STAND_EYE := 1.52
 const FRONT_DOOR := [5.0, 0.02, 1.05] # plan x, y, z: the middle of the front door's leaf (what she looks at to open it)
@@ -69,7 +69,7 @@ func _ready():
 	var bl := CanvasLayer.new(); bl.layer = 12; add_child(bl); bl.add_child(black)   # under the transcript (13)
 	player.global_position = gp(SIT_AT[0], SIT_AT[1], 0.0)
 	player.eye_height = SIT_EYE; player.get_node("Head").position.y = SIT_EYE
-	player.yaw = deg_to_rad(-6.0); player.pitch = deg_to_rad(-20.0)   # down the hall to the front door, and what is on the floor before it
+	player.yaw = deg_to_rad(172.0); player.pitch = deg_to_rad(-22.0)   # up the hall, at what is on the floor before her; the door (and the car's lamps) behind her
 	mio_shadow.scale = Vector3(1.0, SIT_EYE / STAND_EYE, 1.0)          # her shadow from the lantern is a sitting one
 	_foot.call_deferred("マウス 見る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	_car()
@@ -110,8 +110,10 @@ func _front_door_mine():
 # She is where the second blow put her (fps.gd's own fall, run to its end and held), the trail from the door to her.
 func _lay_her_down():
 	nat.visible = true
-	var mio := gp(TAPE_MIO[0], TAPE_MIO[1], 0.0)
-	var at := gp(NPATH[-1][0], NPATH[-1][1], NPATH[-1][2])
+	# 2026-11-17 夜（ユーザー「倒れた場所…テープに写ってる位置もそろえたい」）: where 第4章 as played puts her (NPATH_GAME, Mio at MIO_AT);
+	# the tape walks the same path now (fps.gd NPATH)
+	var mio := gp(MIO_AT[0], MIO_AT[1], 0.0)
+	var at := gp(_np()[-1][0], _np()[-1][1], _np()[-1][2])
 	var m := mio - at
 	nrig.global_transform = Transform3D(Basis(Vector3.UP, atan2(m.x, m.z)), at)
 	nap.play("walk/walk"); nap.seek(0.3, true); nap.pause()
@@ -199,6 +201,8 @@ func _car():
 		var box := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(1.75, 1.0, 4.4); box.mesh = bm
 		var cm := StandardMaterial3D.new(); cm.albedo_color = Color(0.05, 0.05, 0.06); cm.roughness = 0.4; box.material_override = cm
 		car_body = Node3D.new(); car_body.add_child(box); box.position.y = 0.6; main.add_child(car_body)
+	# 試作231（ユーザー「車が家の中にある」）: until it comes up the drive it stood at the world's origin, in the house's hall
+	car_body.visible = false
 	dawn_fog = FogVolume.new(); dawn_fog.size = Vector3(3.2, 2.6, 4.0)
 	var fm := FogMaterial.new(); fm.density = 0.012; fm.albedo = Color(1, 1, 1); fm.edge_fade = 0.4; dawn_fog.material = fm
 	main.add_child(dawn_fog); dawn_fog.global_position = gp(FRONT_DOOR[0], FRONT_DOOR[1] + 1.6, 1.3)
@@ -258,6 +262,7 @@ func _car_tick(dt: float):
 		l.look_at_from_position(lp, aim + right * float(l.get_meta("side")) * 0.6, Vector3.UP)
 		l.light_energy = LAMP_E * smoothstep(0.0, 1.5, car_t)
 	car_body.global_transform = Transform3D(Basis.looking_at(fw, Vector3.UP), p + Vector3(0, -0.72, 0) - fw * 2.2)   # its foot on the drive (the lamps 0.72 up)
+	car_body.visible = true
 
 # ---------------------------------------------------------------- her print on the door, her feet on the floor
 const HAND_SHADER := """
@@ -460,7 +465,9 @@ func _open_tick(dt: float):
 	if opened_t < 0.0: return
 	opened_t += dt
 	if main.door_pivot:
-		var k := clampf((opened_t - 0.8) / 3.2, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)   # her hand on the glass first, then the door
+		# 2026-11-17 夜（ユーザー「扉を開くアニメーションと音が微妙に合ってない」）: door_open.wav is 1.2 s, its latch at 0.6-0.8 s;
+		# the door moved from 0.8 s for 3.2 s, after the sound was over. It now gives at the latch and swings within the creak
+		var k := clampf((opened_t - 0.62) / 1.9, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)   # her hand on the glass first, then the door
 		main.door_pivot.position = door_pos0
 		main.door_pivot.rotation.y = door_rest0 + deg_to_rad(OPEN_DEG) * k * float(main.S.get("door_sign", 1.0))
 		door_light.light_energy = 3.0 * k
@@ -492,7 +499,7 @@ func _jump0(t: float):
 	clock = t
 
 # the unattended run: sit through it, get up, round her by the west wall, open the door
-const DEMO_PATH := [[4.30, 2.70], [4.30, 1.20], [4.80, 0.75]]
+const DEMO_PATH := [[4.75, 2.05], [4.85, 1.25], [4.80, 0.75]]   # 2026-11-17 夜: she sits on the door side of Natsuki now. 試作167: round the tripod (x 4.0..4.6, y 1.3..1.9) on its east
 func _demo0(dt: float):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	match dstep:

@@ -14,7 +14,13 @@ extends "res://scripts/story.gd"
 
 # ---------------------------------------------------------------- the night (plan metres: x east, y north from the front door; z up)
 const Sound = preload("res://scripts/sound.gd")
-const MIO_AT := [4.55, 3.0]                       # her feet: the middle of the hall, left of the handrail camera's frame
+const MIO_AT := [4.4, 3.1]                        # her feet: by the stair's foot, left of the handrail camera's frame (.54 m off the tripod: its collider .3 + hers .17)
+# 2026-11-18（レビュー2「第4章は主観の低い・斜めの向きで始め、夏希が入ってきて近づくのが最初の向きのまま見える形に」）:
+# she starts low (crouched by the newel), turned up the hall toward the kitchen door at a slant, not down it to the
+# front door; she rises to her full height once she moves or something takes her (before: [4.55, 3.0], yaw 0, eye 1.52)
+const START_YAW := -166.0
+const START_PITCH := 2.0
+const LOW_EYE := 1.36
 const TAPE_MIO := [4.35, 3.15]                    # on the tape she stands a step further left: all of her, and the tripod at her shoulder, outside the small camera's frame
 const WEAPON_AT := [4.16, 2.62]                   # the tripod, moved from the genkan to the stair's foot for this night
 const DOOR_OPEN := 88.0                           # as Kiryu left it open at two (scene.json state.t02.front)
@@ -27,7 +33,7 @@ const NSPEED := 0.36                              # m/s: she drags herself in
 # through the kitchen and out of its door into the hall behind Mio; down the hall past her, dazed, toward the front door
 # she was shut out of at 23:00; there she turns. The tape's frame (the handrail camera, toward the genkan) and everything
 # from the turn on are as before. (Before: in at the front door, [5.0, -0.75] → [4.75, 2.0])
-const NPATH := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.85, 4.4, 0.0, 25.0], [4.95, 3.0, 0.0, 30.0], [4.85, 2.25, 0.0, 1e9]]
+const NPATH := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.8, 4.5, 0.0, 25.0], [4.75, 3.9, 0.0, 1e9]]   # 2026-11-17 夜: the tape's walk ends where the game's does (NPATH_GAME): one place she lies, in every chapter
 # played, she comes at Mio from behind, wherever Mio stands (the last point is "a metre short of her", _npoint): she does
 # not go on past her as she did on the night itself (the tape). The memory and the tape part here
 const NPATH_GAME := [[6.6, 6.45, 0.0, 10.0], [5.75, 6.4, 0.0, 15.0], [4.9, 5.9, 0.0, 19.0], [4.8, 4.5, 0.0, 25.0], [4.75, 3.9, 0.0, 1e9]]
@@ -122,12 +128,13 @@ func _ready():
 	black = ColorRect.new(); black.color = Color(0, 0, 0, 0); black.set_anchors_preset(Control.PRESET_FULL_RECT); black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black); black_layer = bl
 	player.global_position = gp(MIO_AT[0], MIO_AT[1], 0.0)
-	player.yaw = 0.0; player.pitch = deg_to_rad(-4.0)     # south (Godot -z), down the hall to the front door
+	player.yaw = deg_to_rad(START_YAW); player.pitch = deg_to_rad(START_PITCH)   # up the hall at a slant: the kitchen door, the stair at the right
+	player.eye_height = LOW_EYE; low_at = player.global_position
 	_foot.call_deferred("ＷＡＳＤ 歩く　マウス 見る　Ｅ 手に取る　左クリック 振る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo": demo4 = true
 		if a == "--d4quiet": set_meta("quiet", true)   # the unattended run never takes the tripod up (the no-blow ending)
-		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0)   # check stills: where she stands
+		if a.begins_with("--d4mio="): var xy := a.substr(8).split(","); player.global_position = gp(float(xy[0]), float(xy[1]), 0.0); low_at = player.global_position   # check stills: where she stands
 		if a.begins_with("--d4at="): call_deferred("_jump", float(a.substr(7)))   # stills: start the night at this second
 		if a == "--d4hold": holding = true; call_deferred("_take")                  # stills: the tripod already in her hands
 		if a == "--nocard4": card_t = 0.0
@@ -206,7 +213,9 @@ const LANTERN_AT := [4.97, 3.50, 1.40]     # plan x, y; z its foot: hung on the 
 var lantern: OmniLight3D
 func _lantern():
 	var src: Light3D = main.lights.get("lantern_stair")
-	var from := Vector3.ZERO
+	# 試作176 A20（ユーザー「ランタンが浮いている」、第6章の二階）: the house of 4:30 has no lantern_stair light; from was the origin,
+	# and the copy went up by the whole of "to", into the room over the genkan. Where the plans put it (times.py CREW, the light's place)
+	var from := gp(5.75, 4.56, 2.05)
 	if src: from = src.global_position
 	var to := gp(LANTERN_AT[0], LANTERN_AT[1], LANTERN_AT[2] + 0.154)
 	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):
@@ -215,6 +224,7 @@ func _lantern():
 		var c := mi.duplicate() as MeshInstance3D
 		c.name = "d_" + nm; mi.get_parent().add_child(c)
 		c.global_transform = (mi as MeshInstance3D).global_transform.translated(to - from)
+		(mi as MeshInstance3D).visible = false   # one lantern: she moved it
 		c.gi_mode = GeometryInstance3D.GI_MODE_DISABLED   # 試作125: see the tripod above
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	lantern = OmniLight3D.new(); lantern.light_color = Color(1.0, 0.74, 0.50); lantern.light_energy = 0.30
@@ -429,6 +439,8 @@ func _process(dt):
 	if tape: return
 	mio_shadow.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z)
 	mio_shadow.rotation.y = player.yaw
+	_feet(dt)
+	_rise(dt)
 	_look_at_things()
 	_grab_mio(dt)
 	_swing(dt)
@@ -650,6 +662,13 @@ func _npoint(i: int) -> Vector3:
 		to.y = 0.0 if to.z > gp(0, 1.45, 0).z else p.y
 		return to
 	return gp(q[0], q[1], q[2])
+
+var low_at := Vector3.ZERO
+var rising := false
+func _rise(dt: float):
+	if player.eye_height >= 1.52: return
+	if not rising and ((player.global_position - low_at).length() > 0.2 or holding or grab_t >= 0.0): rising = true
+	if rising: player.eye_height = minf(1.52, player.eye_height + dt * 0.4)   # about half a second to stand
 
 func _mio_eye() -> Vector3:
 	if tape: return gp(TAPE_MIO[0], TAPE_MIO[1], 1.5)
@@ -943,6 +962,24 @@ func _grab_nat(dt: float):
 		reach.w = 0.0; nstate = "stand"; ni = _np().size(); grab_t = -1.0
 		nrig.global_transform = Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, 0.12), p)
 
+# 試作176 A16（ユーザー「歩いて勝手口の方へ向かうと、夏希がすり抜けていく。足がすくんで動けなかった、とかにする？」）:
+# until she has caught Mio's sleeve, Mio's feet do not move (she can look round, and take the tripod up). The first
+# time the player tries to walk, she says so, once. A blow before the grab (she reels) frees them too
+var feet_free := false
+var feet_told := 0               # 0 not yet, 1 wanted (a line is still being typed), 2 said
+func _feet(_dt: float):
+	if feet_free: return
+	if mio_g.is_empty() and (grab_done or nstate in ["reel", "down"] or clock >= QUIET_AT):
+		feet_free = true; player.move_enabled = true; return
+	player.move_enabled = false
+	var tried := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) \
+		or Input.is_action_pressed("ui_up") or Input.is_action_pressed("ui_down") or Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right")
+	if feet_told == 0 and (tried or "--tryfeet" in OS.get_cmdline_user_args() and clock > 3.0): feet_told = 1
+	var typing: bool = cur.has("text") and typed < String(cur.text).length()
+	if feet_told == 1 and not typing and mio_g.is_empty():
+		feet_told = 2; var e: Dictionary = B("四.足")[0]; _say(e.who, e.text, true)
+var grab_done := false
+
 func _grab_mio(dt: float):
 	if mio_g.is_empty(): return
 	mio_g.t += dt
@@ -978,7 +1015,7 @@ func _grab_mio(dt: float):
 	player.yaw = yaw; player.pitch = pit
 	if g >= 1.9:
 		player.move_enabled = true; player.look_enabled = true
-		mio_g = {}
+		mio_g = {}; grab_done = true
 
 # the tripod, hit and rocking on its feet (only while it stands)
 func _wobble(dt: float):

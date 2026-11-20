@@ -88,7 +88,9 @@ func _hall_side(mi: MeshInstance3D, d: Dictionary) -> float:
 		var c: Vector3 = mi.global_transform * mi.get_aabb().get_center()
 		if c.z > wall_z + 0.2: pick = d.rest + a2
 	piv.rotation.y = keep
-	return pick
+	# 試作232（ユーザー「柱が扉を突き抜けている」、20時）: at 92° the leaf lay along the kitchen wall and the kitchen door's
+	# jamb came through it. It stops at 68°, clear of the wall
+	return d.rest + (pick - d.rest) * 68.0 / 92.0
 
 func _hits_at(mi: MeshInstance3D, d: Dictionary, ang: float) -> int:
 	var piv: Node3D = d.pivot
@@ -137,7 +139,10 @@ func toggle(d: MeshInstance3D):
 	# 試作125: at 22:00 Taiga asks Mio to lock the front door (ch2_21.gd); E on it is her locking it
 	if s.key == "door_front" and main.has_meta("front_lock") and (main.get_meta("front_lock") as Callable).is_valid():
 		var cb: Callable = main.get_meta("front_lock"); main.remove_meta("front_lock"); cb.call(); return
+	if s.key == "door_front" and main.has_meta("front_locked"): Sound.one(self, "ch3_rattle", -12.0, (d as Node3D).global_position); return   # locked at 22時 (ch2_21.gd)
 	if s.locked != "":
+		# 2026-11-17 夜（ユーザー「左下の開かない、トル」）: the back door says nothing; it only rattles in its frame (it is not locked: 3:30)
+		if s.key == "door_back": Sound.one(self, "ch3_rattle", -12.0, (d as Node3D).global_position); return
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open
 	var to: float = s.open if s.is_open else s.rest

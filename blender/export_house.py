@@ -18,13 +18,14 @@ from lib import prim
 OUT = f'{P.RULES}/assets/house'
 os.makedirs(OUT, exist_ok=True)
 E.OUT = OUT
-DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_', 'bed1b_blanket')   # switched per time in Godot: kept out of the joined, lightmapped mesh (bed1b_blanket: 第3章で澪が持っていく)
+DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_', 'bed1b_blanket', 'tapeX', 'tapeN')   # switched per time in Godot: kept out of the joined, lightmapped mesh (bed1b_blanket: 第3章で澪が持っていく)
 E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
 # these get LM_BOOST times the atlas area instead: scaled up for the unwrap, then put back.
 # breaker: Poly Haven's power_box_01 (21k faces) in the cellar, its open door came out black at 試作64/65 (a sub-texel island)
-TRIPO_LIVED = ('breaker', 'lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton', 'natsuki_hoodie', 'futon_stack', 'csleepbag', 'sleepsack', 'csheet'); LM_BOOST = 3.0
+TRIPO_LIVED = ('breaker', 'lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton', 'natsuki_hoodie', 'futon_stack', 'csleepbag', 'sleepsack', 'csheet', 'bath_tub', 'wash_machine', 'makeup_box', 'furn_stove', 'furn_gas', 'furn_chair')   # 試作168: the tub and the machine came out in light blotches
+LM_BOOST = 3.0
 LM_BOOST_OF = {'lived_hide': 8.0, 'breaker': 6.0}   # the hide still came out in light and dark blocks at 3 (試作47)
 
 _bake_object = E.bake_object
@@ -82,6 +83,7 @@ def set_time(t, M):
         if o.name.startswith('gencord'): o.hide_render = not st['cord']
         if o.name.startswith('crew_') or (o.name.startswith('lampshade_') and o.name[len('lampshade_'):].split('.')[0] in TM.CREW_KEYS):
             o.hide_render = not st.get('crew', True)
+        if o.name.startswith(TM.GEAR): o.hide_render = not st.get('gear', True)   # 第7章（去年の夏）: none of tonight's film gear
     bpy.data.objects['door_pivot'].rotation_euler.z = math.radians(st['front'])
     L = TM.lights(t)
     lit = {o.name for o in L}
@@ -104,6 +106,10 @@ def join_static():
     bpy.context.view_layer.objects.active = statics[0]
     bpy.ops.object.convert(target='MESH')
     boost = []
+    # 試作231（ユーザー「椅子、等間隔に」「椅子が見えないのに当たりがある」）: the dining chairs share one mesh (furnish.chair):
+    # the lmboost index on the shared data was the last chair's, so all six were drawn back to one place. Each its own mesh
+    for o in statics:
+        if o.data.users > 1: o.data = o.data.copy()
     for o in statics:
         if o.name.startswith(TRIPO_LIVED):
             c = o.matrix_world.translation.copy(); boost.append(c)

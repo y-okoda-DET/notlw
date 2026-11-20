@@ -9,6 +9,7 @@
 ## 結び：発電機が止まり、車が来て、ノック、澪が自分の手で扉を開ける（序章の続き。ch0.gd の車と警察官を、ここに同じ形で持つ）。
 extends "res://scripts/ch5.gd"
 
+func _sixth() -> bool: return true
 const SIT6 := [4.42, 3.42]            # ch0.gd SIT_AT: where the game's first picture finds her
 const SIT_EYE6 := 0.86
 const STAND_EYE6 := 1.52
@@ -98,6 +99,8 @@ func _ready():
 	_hands()
 	_props6()
 	_targets6()
+	_body_shadow()
+	_board(); has_board = true   # 試作175 B4: Kiryu's board from 第1章, its margin keeps what is left of the first three (Tab)
 	_air_bus()
 	demo6 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo5 = false; demo_on = demo6
@@ -404,7 +407,10 @@ func _prompt(key: String) -> String:
 	return T(String(D.lines(key)[0]))
 
 func _looks6():
+	# 試作231（ユーザー「このなつきのテープなくす」）: the crew's floor mark is hidden at 4時半 (main.gd _house_state), and with
+	# it 【見る.床のテープ】
 	for it in LOOKS:
+		if it[0] == "mark": continue
 		var pos: Vector3 = gp(it[2][0], it[2][1], it[2][2])
 		if it[1] != "":
 			var found: Array = main.S.env_node.find_children(String(it[1]) + "*", "MeshInstance3D", true, false)
@@ -423,6 +429,15 @@ func _look_press(k: String, block: String):
 	looked[k] = true
 	if k == "makeup" and done6.has("lid"): _start(B(b).filter(func(e): return not e.has("do")).slice(0, 1) + B(b).slice(2)); return
 	_start(B(b))
+
+func _full_hands_at() -> bool:
+	var cam := _cam()
+	for k in ["nat", "cam", "box", "sink", "bag_m"]:
+		var t := _target(k)
+		if t.is_empty(): continue
+		var to: Vector3 = (t.pos as Vector3) - cam.global_position
+		if to.length() < float(t.reach) and (-cam.global_basis.z).angle_to(to) < deg_to_rad(float(t.deg)): return true
+	return false
 
 func _pick_target() -> Dictionary:
 	var cam := _cam()
@@ -580,8 +595,25 @@ func _probe_tick():
 	if not probe_cam.current: probe_cam.make_current()
 
 # ---------------------------------------------------------------- the clock
+# 試作176 A21（ユーザー「影、手だけが写る」）: her hands threw a shadow and nothing else. 第4章's body for the lantern and the
+# candle to throw (fps.gd _mio_shadow: a column, the shoulders and a head that only cast), lower as her eye is (sitting)
+var body_sh: Node3D
+func _body_shadow():
+	body_sh = Node3D.new(); body_sh.name = "MioShadow"; main.add_child(body_sh)
+	var mat := StandardMaterial3D.new()
+	for spec in [[CapsuleMesh.new(), Vector3(0, 0.70, 0), Vector3(0.36, 1.40, 0.24)], [SphereMesh.new(), Vector3(0, 1.50, 0), Vector3(0.21, 0.24, 0.22)], [CapsuleMesh.new(), Vector3(0, 1.26, 0), Vector3(0.44, 0.30, 0.22)]]:
+		var mi := MeshInstance3D.new(); mi.mesh = spec[0]; mi.material_override = mat
+		if mi.mesh is CapsuleMesh: (mi.mesh as CapsuleMesh).radius = 0.5; (mi.mesh as CapsuleMesh).height = 1.0 if spec[2].y < 0.5 else 2.0
+		mi.position = spec[1]; mi.scale = spec[2] if not (mi.mesh is CapsuleMesh) else Vector3(spec[2].x, spec[2].y / (1.0 if spec[2].y < 0.5 else 2.0), spec[2].z)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		body_sh.add_child(mi)
+
 func _process(dt):
 	t_now += dt; t_stage += dt
+	if body_sh:
+		body_sh.global_position = player.global_position; body_sh.rotation.y = player.yaw
+		body_sh.scale = Vector3(1.0, clampf(player.eye_height / 1.52, 0.5, 1.0), 1.0)
 	# while her hands are at a thing, a door in front of her is not offered (E was both: the tripod was held toward a door)
 	var dn6 = main.get_node_or_null("Doors")
 	if dn6 and dn6.is_processing() != (act == ""):
@@ -610,6 +642,7 @@ func _process(dt):
 	_flow_tick(dt)
 	_act_tick(dt)
 	_end_tick6(dt)
+	_board6_tick()
 	main.talk_now = ""
 	main.story_talking = (mode == TALK)
 	player.move_enabled = mode == FREE and act == "" and stage == "free"
@@ -621,6 +654,9 @@ func _process(dt):
 	if mode == FREE and act == "" and stage == "free":
 		tgt = _pick_target()
 		note_lb.text = String((tgt.name as Callable).call()) if not tgt.is_empty() else ""
+		# 試作175（ユーザー「夏希を選択できなかった」）: with the tripod in her arms nothing else could be taken, and nothing
+		# said so. Looking at what her hands would need, she is told they are full (the bag is the one place it goes)
+		if tgt.is_empty() and carrying and _full_hands_at(): note_lb.text = T("［両手がふさがっている］")
 	elif act == "" and stage != "end5": note_lb.text = ""
 	if demo6: _demo6_tick(dt)
 
@@ -677,6 +713,7 @@ func _do(what: String):
 
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["fin"]: return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_TAB: board_up = not board_up; return
 	if e is InputEventKey and e.pressed and not e.echo:
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_W, KEY_UP]: _move_choice(-1); return
 		if mode == TALK and cur.has("choose") and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1); return
@@ -1085,6 +1122,14 @@ func _cassette(label: String) -> Node3D:
 	return c
 
 func _props6():
+	# 試作231（ユーザー「ラジオないのに選択できる」）: the radio itself, where 【見る.ラジオ】 says it is (the house has it only in
+	# 第1・2章, story.gd). Switched off: no dial lamp
+	if ResourceLoader.exists("res://props/radio.glb"):
+		var rd: Node3D = (load("res://props/radio.glb") as PackedScene).instantiate(); rd.name = "ch6_radio"
+		for mi in rd.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		main.add_child(rd)
+		var ra: Array = LOOKS[3][2]
+		rd.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(200.0)), gp(ra[0], ra[1], ra[2] - 0.07))
 	for mi in main.S.env_node.find_children("bed1b_blanket*", "MeshInstance3D", true, false): (mi as Node3D).visible = false   # it is over Natsuki
 	# the tripod's bag, flat and open, where the crew's things are
 	if ResourceLoader.exists("res://props/tripod_case.glb"):
@@ -1140,11 +1185,12 @@ func _targets6():
 	if tripod:
 		_add_target("tripod", gp(TRIPOD_AT[0], TRIPOD_AT[1] + 0.5, 0.1), 2.4, 30.0, func(): return not done6.has("tripod") and not carrying,
 			func(): return _prompt("三脚.拾う"), _tripod_take)
-	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 2.2, 30.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
+	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 3.2, 34.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
 	_add_target("cam", fixed_cam.global_position, 2.3, 22.0, func(): return not carrying and not (done6.has("cam") and done6.has("batt")),
 		func(): return "［%s］" % T("カメラ") if not looked.has("cam") else _prompt("カメラ.出す") if not done6.has("cam") else _prompt("カメラ.電池"), _cam_press)
-	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and (phone_st in [0, 1] or (phone_st == 2 and has_pack)),
-		func(): return "［%s］" % T("夏希") if phone_st == 0 else _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ"), _nat_press)
+	# 試作231（ユーザー「夏希を選択できない」）: she can be looked at all the time; between the phone's steps it is one line
+	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and act == "",
+		func(): return _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ") if (phone_st == 2 and has_pack) else "［%s］" % T("夏希"), _nat_press)
 	_add_target("bag_m", gp(2.55, 3.85, F2 + 0.25), 1.9, 26.0, func(): return phone_st == 2 and not has_pack, func(): return _prompt("鞄.バッテリー"), _pack_take)
 	_add_target("box", gp(2.15, 2.23, 0.43), 1.9, 24.0, func(): return box_st in [1, 3] and not carrying,
 		func(): return _prompt("箱.開ける"), _box_press)
@@ -1526,21 +1572,47 @@ class PhoneMask extends Node2D:
 				if cam.is_position_behind(p0) or cam.is_position_behind(p1) or cam.is_position_behind(p2): continue
 				draw_primitive(PackedVector2Array([cam.unproject_position(p0), cam.unproject_position(p1), cam.unproject_position(p2)]), white, PackedVector2Array())
 
+# 試作232（ユーザー「画面の表示がズレてる」、第6章のスマホ）: the screen was drawn with one flat (affine) map from three of
+# its corners: held at a slant, the far end of the glass is narrower than the near (perspective) and the page stood off the
+# glass by the difference (the lit glass showing beside it). The page is drawn once, flat, into its own small viewport, and
+# laid on the glass as a grid of small quads whose corners are the glass's own points projected: it follows the glass
 class PhoneUI extends Control:
+	var st
+	var sv: SubViewport
+	const W := 310.0
+	const H := 660.0
+	const NX := 6
+	const NY := 12
+	func _process(_dt): queue_redraw()
+	func _draw():
+		if st == null or st.phone == null or not st.phone.is_visible_in_tree() or st.ph_lit <= 0.01: return
+		var cam := get_viewport().get_camera_3d()
+		if cam == null or sv == null: return
+		var gt: Transform3D = st.phone.global_transform
+		if (gt.basis * Vector3(0, -1, 0)).dot(cam.global_position - gt.origin) <= 0.0: return   # its back is to her
+		var pts: Array = []
+		for j in NY + 1:
+			var row: Array = []
+			for i in NX + 1:
+				var q: Vector3 = gt * Vector3(lerpf(0.031, -0.031, float(i) / NX), -0.0052, lerpf(-0.066, 0.066, float(j) / NY))
+				if cam.is_position_behind(q): return
+				row.append(cam.unproject_position(q))
+			pts.append(row)
+		var tex := sv.get_texture()
+		var col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+		for j in NY:
+			for i in NX:
+				var u0 := float(i) / NX; var u1 := float(i + 1) / NX; var v0 := float(j) / NY; var v1 := float(j + 1) / NY
+				draw_primitive(PackedVector2Array([pts[j][i], pts[j][i + 1], pts[j + 1][i + 1], pts[j + 1][i]]), col,
+					PackedVector2Array([Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)]), tex)
+
+class PhoneDraw extends Control:
 	var st
 	const W := 310.0
 	const H := 660.0
 	func _process(_dt): queue_redraw()
 	func _draw():
-		if st == null or st.phone == null or not st.phone.is_visible_in_tree() or st.ph_lit <= 0.01: return
-		var cam := get_viewport().get_camera_3d()
-		if cam == null: return
-		var gt: Transform3D = st.phone.global_transform
-		var tl: Vector3 = gt * Vector3(0.031, -0.0052, -0.066); var tr: Vector3 = gt * Vector3(-0.031, -0.0052, -0.066); var bl: Vector3 = gt * Vector3(0.031, -0.0052, 0.066)
-		if cam.is_position_behind(tl) or cam.is_position_behind(tr) or cam.is_position_behind(bl): return
-		if (gt.basis * Vector3(0, -1, 0)).dot(cam.global_position - gt.origin) <= 0.0: return   # its back is to her
-		var a := cam.unproject_position(tl); var b := cam.unproject_position(tr); var c := cam.unproject_position(bl)
-		draw_set_transform_matrix(Transform2D((b - a) / W, (c - a) / H, a))
+		if st == null or st.ph_lit <= 0.01: return
 		var lit: float = st.ph_lit
 		var paper := Color(0.965, 0.955, 0.93, lit)
 		var ink := Color(0.06, 0.08, 0.14, lit)
@@ -1585,7 +1657,6 @@ class PhoneUI extends Control:
 				var row := maxi(li - 1, 0)
 				var cx := 30 + f.get_string_size(shown.substr(row * per, per), HORIZONTAL_ALIGNMENT_LEFT, -1, 25).x + 3
 				if fmod(st.t_now, 1.0) < 0.55: draw_rect(Rect2(cx, 474 + row * 40 - 24, 2.5, 29), ink)
-		draw_set_transform_matrix(Transform2D())
 
 func _phone6():
 	phone = Node3D.new(); phone.name = "nat_phone"
@@ -1606,6 +1677,10 @@ func _phone6():
 	var grp := CanvasGroup.new(); grp.fit_margin = 4000.0; grp.clear_margin = 4000.0; lay.add_child(grp)
 	ph_ui = PhoneUI.new(); ph_ui.st = self; ph_ui.set_anchors_preset(Control.PRESET_FULL_RECT); ph_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ph_ui.size = get_viewport().get_visible_rect().size
+	var sv := SubViewport.new(); sv.size = Vector2i(int(PhoneUI.W) * 2, int(PhoneUI.H) * 2); sv.transparent_bg = true
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS; sv.disable_3d = true; sv.size_2d_override = Vector2i(int(PhoneUI.W), int(PhoneUI.H)); sv.size_2d_override_stretch = true
+	var pd := PhoneDraw.new(); pd.st = self; pd.size = Vector2(PhoneUI.W, PhoneUI.H); sv.add_child(pd)
+	add_child(sv); ph_ui.sv = sv
 	grp.add_child(ph_ui)
 	var pm := PhoneMask.new(); pm.st = self
 	var msh := Shader.new(); msh.code = "shader_type canvas_item;\nrender_mode blend_disabled;\nvoid fragment() { COLOR = vec4(0.0); }"
@@ -1638,7 +1713,10 @@ func _nat_press():
 		0:
 			phone_st = 1; _ret_open("夏希.見る")
 		1: _phone_find()
-		2: _phone_plug()
+		2:
+			if has_pack: _phone_plug()
+			else: _start(B("見る.夏希.電池"))
+		_: _start(B("見る.夏希"))
 
 func _blanket_fold(k: float, dur := 0.9):
 	if blanket == null: return
@@ -2183,7 +2261,7 @@ func _end6():
 	_after(t + 5.0, func():
 		if demo6: print("DEMO ch6 t=%.1f fails=%d batt=%s uptape=%s" % [t_now, DEMO_FAILS, done6.has("batt"), done6.has("uptape")]); DEMO_HOUSE = true
 		if demo6 and "--ch6only" in OS.get_cmdline_user_args(): print("DEMO DONE ch6"); get_tree().quit(); return
-		main.to_chapter("ch11"))   # 証言 一の部屋がまだ無い
+		main.next_chapter("ch6"))   # 後半の並び（scripts/order.gd）：証言 一へ
 
 # ================================================================ check stills, a part's playthrough (--ch6at=)
 func _jump6(s: String):
@@ -2357,3 +2435,17 @@ func _demo6_tick(dt: float):
 func _dfail6(what: String):
 	DEMO_FAILS += 1
 	print("DEMO FAIL ch6: %s t=%.1f" % [what, t_now])
+
+
+# 試作175 B4（ユーザー「6章をどう進めるか」）: in the board's margin (Tab), which of the first three is still as it was. Nothing on the
+# screen itself; only the names, never what is to be done with them
+func _board6_tick():
+	if board_layer == null: return
+	board_layer.visible = board_up and has_board and stage == "free"
+	if not board_layer.visible: return
+	_place_board()
+	var left: Array = []
+	if not done6.has("tripod"): left.append(T("三脚"))
+	if not (done6.has("cam") and done6.has("batt")): left.append(T("定点のカメラ"))
+	if not done6.has("phone"): left.append(T("夏希"))
+	board_note.text = ("— " + "、".join(left)) if not left.is_empty() else ""

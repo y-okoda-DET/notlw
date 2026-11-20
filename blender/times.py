@@ -34,8 +34,8 @@ BX, BY, BZ = St.SHOECAB_TOP; BZ += .12
 BLUE_P = tuple(Vector((BX, BY, BZ)) + (Vector((St.DOOR_C, St.YF - .1, 1.2)) - Vector((BX, BY, BZ))).normalized() * .03)
 SLIT = sum(St.SLIT_X) / 2
 
-TIMES = ['dusk', 't20', 't23', 't02', 't0330', 't0430']
-LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't23': '二十三時', 't02': '二時', 't0330': '三時半', 't0430': '四時半（夜明け）'}
+TIMES = ['dusk', 't20', 't23', 't02', 't0330', 't0430', 'y21', 'y02']   # y21・y02：第7章「去年の夏」の夜（2026-11-19）
+LABEL = {'dusk': '十七時半（夕方）', 't20': '二十時（停電）', 't23': '二十三時', 't02': '二時', 't0330': '三時半', 't0430': '四時半（夜明け）', 'y21': '去年の夏 二十一時半', 'y02': '去年の夏 二時'}
 
 # the state of the house at each time (Godot reads this from scene.json)
 # 試作68 (レビュー 試作65: at dusk the shadow side was lifted by the world, the ambient and the fog into one murk, the
@@ -54,7 +54,16 @@ STATE = {
     't02':   dict(boards=True, front=88, cord=True, exp=1.25, amb=[.22, .26, .32], ambe=.02, sky=.06, skyc=[.55, .62, .75], fog=.085, slip=True, crew=True),
     't0330': dict(boards=True, front=0, cord=True, exp=1.3, amb=[.2, .24, .3], ambe=.015, sky=.05, skyc=[.55, .62, .75], fog=.07, slip=True, crew=True),
     't0430': dict(boards=True, front=0, cord=True, exp=1.6, amb=[.4, .46, .58], ambe=.05, sky=.35, skyc=[.7, .78, .95], fog=.06, slip=True, crew=True),
+    # 第7章「去年の夏」(docs/資料/第7章の設計_2026-11-19.md): a year before, the same house on a clear summer night. The mains
+    # are on, nothing is boarded, none of tonight's film gear stands in the hall (gear=False). y21: the party, every room
+    # downstairs lit. y02: all asleep but two; the porch lamp, the living room's stand lamp, the lobby bulb left on low
+    # 試作232（全体レビュー9「21時半、窓の外が昼のように明るい」）: sky .12 and the moon .12 lit the clearing like an overcast
+    # day through the living room's windows. Both brought to 2:00's (the moon still casts, the trees go dark beyond it)
+    'y21':   dict(boards=False, front=0, cord=False, exp=1.4, amb=[.2, .25, .36], ambe=.03, sky=.06, skyc=[.5, .6, .85], fog=.03, slip=False, crew=False, gear=False),
+    'y02':   dict(boards=False, front=0, cord=False, exp=1.3, amb=[.2, .25, .36], ambe=.025, sky=.1, skyc=[.5, .6, .85], fog=.035, slip=False, crew=False, gear=False),
 }
+GEAR = ('fresnel', 'fres_lens', 'barndoor', 'yoke', 'cscol', 'csleg', 'tpd_', 'vcam_', 'lcd', 'recled', 'ledface', 'cable', 'tapebox')   # tonight's film gear that stands apart from the lightmapped mesh: not rendered into a bake whose state has gear=False (the apple box, the blue panel and the tape mark are part of the baked mesh: ch7.gd covers them)
+P_PORCH = (X(5.0), Y(-.72), 2.22)   # the porch lamp: a bare globe under the porch roof, over the top step (house4_ext.porches)
 
 def _g(o, **g):
     o['g'] = json.dumps(g); return o
@@ -120,6 +129,14 @@ def storm(e=.1):
     s.rotation_euler = Vector((.2, -.6, -.75)).to_track_quat('-Z', 'Y').to_euler()
     return _g(s, kind='sun', e=e, sh=1, fog=.4, ang=0, spec=0)   # soft (8) went through the walls, see dawn
 
+def moon(e=.1):
+    # a clear night, the moon high in the south-west over the drive (去年の夏). Hard-edged: a soft sun went through the walls
+    s = lib.sun('moon', (0, 0, 0), .22 * e / .1, k=7500, angle=.5)
+    s.rotation_euler = Vector((.35, -.55, -.75)).to_track_quat('-Z', 'Y').to_euler()
+    return _g(s, kind='sun', e=e, sh=1, fog=.3, ang=0, spec=.1)
+def porch(e=2.2):
+    return _g(lib.point('lamp_porch', P_PORCH, 60 * e / 2.2, k=2700, radius=.05), kind='omni', e=e, r=9.0, att=1.2, sh=1, fog=.6, size=.05)
+
 def lights(t):
     """Make the Blender lights for time t (removing any there are). Returns them."""
     for o in [o for o in bpy.data.objects if o.type == 'LIGHT']: bpy.data.objects.remove(o)
@@ -160,6 +177,21 @@ def lights(t):
                                    ('dusk_studys', (X(8.9), Y(-1.3), 2.0), (X(8.3), Y(2.4), .1), 1.5),   # 2.2 (試作72): the blanket's corner wall went paper white
                                    ('dusk_studye', (X(11.3), Y(1.7), 2.0), (X(7.4), Y(2.7), .1), 1.2)):
             L.append(_g(lib.area(nm, src, dst, 15 * e_ / 2.2 * DUSK_WIN, k=4200, size=(1.0, 1.0)), kind='spot', e=e_ * DUSK_WIN, ang=48, sh=1, size=.08, fog=.6, spec=.15))
+    elif t == 'y21':
+        # 去年の夏、飲み会: the mains. The living room's stand, the dining pendant, the kitchen, the lobby bulb, the porch
+        L.append(_g(lib.point('lamp_lobby', P_LOBBY, 40, k=2700, radius=.06), kind='omni', e=1.25, r=3.5, att=1.4, sh=1, fog=.2, size=.06))
+        L.append(_g(lib.point('lamp_living', P_LIVING, 186, k=2800, radius=.1), kind='omni', e=5.0, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        L.append(_g(lib.point('lamp_dining', P_DINING, 60, k=2800, radius=.1), kind='omni', e=1.8, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 70, k=2900, radius=.08), kind='omni', e=1.8, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        L.append(porch()); L.append(moon(.07))
+    elif t == 'y02':
+        # 去年の夏、二時: the porch lamp is what he steers by through the trees; in the living room only the stand lamp
+        # (the two who are still up); the lobby bulb is off, the door's sidelight shows the living room's light across the hall
+        L.append(_g(lib.point('lamp_living', P_LIVING, 90, k=2700, radius=.1), kind='omni', e=2.4, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        # the kitchen's light left on low, as people leave one for whoever comes down for water: the lit window at the back
+        # that he turns to (企画書「裏の窓」; 画像 F)
+        L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 28, k=2900, radius=.08), kind='omni', e=.75, r=5.0, att=1.3, sh=1, fog=0, size=.08))
+        L.append(porch()); L.append(moon(.12))
     elif t == 't20':
         # just after the cut: the generator has only just been started (the lobby bulb is dim and unsteady), the crew's
         # battery LED panel, gelled blue for tonight's planned shot, is the one light anyone can carry about; the

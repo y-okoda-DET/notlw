@@ -53,8 +53,10 @@ def flatten_tint(m):
     for n in list(N):
         if n.type in ('MIX', 'BUMP'): N.remove(n)
 
-def bake_object(o, size=1024):
-    """Bake the object's base colour (diffuse, colour pass only) into a fresh UV layout."""
+def bake_object(o, size=1024, normal=False):
+    """Bake the object's base colour (diffuse, colour pass only) into a fresh UV layout.
+    normal=True also bakes the material's relief (bump nodes) into a tangent-space normal map, so a procedural skin
+    keeps its creases and veins in the game (インタビューの手、2026-11-19). Off by default: the house is unchanged."""
     me = o.data
     bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o
     uv = me.uv_layers.new(name='bake'); me.uv_layers.active = uv
@@ -71,6 +73,15 @@ def bake_object(o, size=1024):
     s.render.bake.margin = 6
     bpy.ops.object.bake(type='DIFFUSE')
     img.filepath_raw = f'{TEXOUT}/{o.name}_bake.png'; img.file_format = 'PNG'; img.save()
+    nimg = None
+    if normal:
+        nimg = bpy.data.images.new(f'{o.name}_nrm', size, size, alpha=False); nimg.colorspace_settings.name = 'Non-Color'
+        for m in me.materials:
+            if m is None: continue
+            m.node_tree.nodes['_bake_target'].image = nimg
+        s.render.bake.normal_space = 'TANGENT'
+        bpy.ops.object.bake(type='NORMAL')
+        nimg.filepath_raw = f'{TEXOUT}/{o.name}_nrm.png'; nimg.file_format = 'PNG'; nimg.save()
     rough = .8
     for m in me.materials:
         if m and principled(m): rough = principled(m).inputs['Roughness'].default_value
@@ -79,6 +90,11 @@ def bake_object(o, size=1024):
     t = nm.node_tree.nodes.new('ShaderNodeTexImage'); t.image = img
     uvn = nm.node_tree.nodes.new('ShaderNodeUVMap'); uvn.uv_map = 'bake'
     nm.node_tree.links.new(uvn.outputs[0], t.inputs[0]); nm.node_tree.links.new(t.outputs[0], p.inputs['Base Color'])
+    if nimg:
+        tn = nm.node_tree.nodes.new('ShaderNodeTexImage'); tn.image = nimg
+        nmap = nm.node_tree.nodes.new('ShaderNodeNormalMap'); nmap.uv_map = 'bake'
+        nm.node_tree.links.new(uvn.outputs[0], tn.inputs[0]); nm.node_tree.links.new(tn.outputs[0], nmap.inputs['Color'])
+        nm.node_tree.links.new(nmap.outputs[0], p.inputs['Normal'])
     me.materials.clear(); me.materials.append(nm)
     # keep only the bake UV so glTF TEXCOORD_0 is the right one
     for u in list(me.uv_layers):

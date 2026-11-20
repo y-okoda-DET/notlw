@@ -525,7 +525,9 @@ func _lookers():
 		var sk: Skeleton3D = sks[0]
 		var lm := Look.new()
 		if k == "makoto":
-			lm.chain = [["spine_03", 0.5], ["neck_01", 0.5]]; lm.max_yaw = 1.05   # one spine bone: the reflector turns about it exactly
+			# one spine bone: the reflector turns about it exactly. 2026-11-18（試作166 の感想「真琴の顔が動きでゆがむ」）: half of a
+			# 60° turn in neck_01 alone twisted the skin of her jaw and face; the head takes its share as the others' does
+			lm.chain = [["spine_03", 0.4], ["neck_01", 0.25], ["head", 0.35]]; lm.max_yaw = 1.05
 		sk.add_child(lm)
 		var fwd := (sk.global_basis * Vector3(0, 0, 1)); fwd.y = 0.0
 		lm.setup(fwd.normalized())
@@ -924,6 +926,9 @@ func _do(what: String):
 			if cam_placed: PLACED = {"pos": fixed_cam.global_position, "basis": fixed_cam.global_basis}
 			main.power_cut()
 			_clear_page()
+			# 試作232（ユーザー「第一章の最後、カメラの赤いランプ消す」）: the dot that stayed lit in the dark (2026-11-14) goes out
+			# a beat after the power, with the camera
+			get_tree().create_timer(1.2).timeout.connect(func(): if fixed_cam: _set_rec(false))
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")
@@ -1473,6 +1478,14 @@ func _house_ready():
 	_changeover_lever()
 	items = {}
 	for k in ["kiryu", "natsuki", "makoto", "taiga"]: _person_item(k)
+	# 試作176 A9（ユーザー「2章でも調べられるオブジェクトがある状態にしたい」）: as in 第3章 and 第6章, a thing looked at and E is
+	# one line of Mio's (story/ch2_20.txt 【20時.見る.＊】). The same things as 第1章's, where they are at 20:00, and the fridge
+	var look = func(key: String, p: Vector3, r: float, name: String): items[key] = {"pos": p, "r": r, "kind": "look", "name": name}
+	look.call("h_fres", g([-0.10, 2.90, 1.95]), 0.22, "照明")
+	look.call("h_cam", g([-0.45, 4.70, 1.36]), 0.16, "桐生のカメラ")
+	look.call("h_tape", g([0.35, 4.10, 0.0]), 0.16, "床のテープ")
+	look.call("h_shoes", g([0.30, 5.55, -0.12]), 0.35, "靴")
+	look.call("h_fridge", g([4.55, 2.3, 1.1]), 0.35, "冷蔵庫")
 	main.TALK = {}
 	main.generator(false)
 	if main.env: main.env.tonemap_exposure = 0.0
@@ -1548,6 +1561,7 @@ func _taiga_reel_tick():
 
 func _house_tick(dt):
 	_taiga_reel_tick()
+	_helpers_tick()
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var pz: float = player.global_position.y
 	if hs == 0:
@@ -1684,6 +1698,8 @@ func _gen_flicker():
 		tw.tween_method(func(x): l.set_meta("e", e * x), 0.2, 1.0, 0.8)
 
 func _house_conv(key: String, n: int) -> Array:
+	var looks := {"h_fres": "照明", "h_cam": "桐生のカメラ", "h_tape": "床のテープ", "h_shoes": "靴", "h_fridge": "冷蔵庫"}
+	if looks.has(key): return B("20時.見る." + looks[key])
 	match key:
 		"kiryu":
 			if hs == 5: return B("20時.桐生.板")
@@ -1732,8 +1748,71 @@ func _helpers_to_windows():
 		if inward.length() < 0.01: continue
 		var at := c + inward.normalized() * 0.9; at.y = 0.0
 		var to := c - at
-		main.place_person(k, [at.x, -at.z, 0.0], atan2(to.x, to.z))   # 2026-11-13: +PI had them face the room (the light away from the window)
-		if items.has(k): items[k].pos = at + Vector3.UP * 1.5
+		# 2026-11-17 夜（ユーザー「桐生が喋り終わったらフッと消える」）: not at once in front of her; each goes to the window
+		# when Mio is not looking at them (_helpers_tick)
+		helpers_pending[k] = [[at.x, -at.z, 0.0], atan2(to.x, to.z), at + Vector3.UP * 1.5]   # 2026-11-13: +PI had them face the room (the light away from the window)
+
+var helpers_pending := {}
+
+# ---------------------------------------------------------------- someone opens the front door by hand (2026-11-17 夜)
+# The leaf is 1.1 m (x 4.45..5.55, hinge at 4.45) and opens inward: whoever stood within 1.1 m of the hinge was swept through.
+# They stop by the knob's side, put the hand on it (reach.gd), the door comes to them a little, they step back with it
+# out of its way, let go, and it goes on open. then(rest) is called with the door's shut angle.
+func _front_knob(near: Vector3) -> Node3D:
+	if main.door_pivot == null: return null
+	var best: Node3D = null; var bd := 1e9
+	for mi in main.door_pivot.find_children("*knob*", "MeshInstance3D", true, false):
+		var c: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		if c.distance_to(near) < bd: bd = c.distance_to(near); best = mi
+	return best
+
+func _reach(k: String, to: Node3D, fallback: Vector3) -> Node:
+	var sk: Skeleton3D = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)[0]
+	var rc: Node = load("res://scripts/reach.gd").new()
+	rc.target_node = to; rc.target = fallback
+	sk.add_child(rc)
+	return rc
+
+func _front_open_by(k: String, then: Callable, zb := -0.18):
+	if main.door_pivot == null: then.call(0.0); return
+	var rest: float = main.door_pivot.rotation.y
+	var at := [5.3, 0.62, zb]
+	main.walk_to(k, [at], func():
+		var rig: Node3D = main._rig_of(k)
+		var rc := _reach(k, _front_knob(rig.global_position + Vector3.UP), gp(5.4, 0.05, 1.0))
+		var tw := create_tween()
+		tw.tween_property(rc, "w", 1.0, 0.45).set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(func(): preload("res://scripts/sound.gd").one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0)))
+		tw.tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(24.0), 0.6).set_trans(Tween.TRANS_SINE)
+		# a step back with it, still facing the door
+		# 試作232（ユーザー「扉を開けて出るアニメーションが変」）: she slid back 0.6 m on still feet while the door swung to 80°.
+		# Half a step now (out of the leaf's sweep at 50°), and the door only so far as she needs to go through
+		var back: Vector3 = gp(5.4, 0.88, zb)
+		tw.tween_property(rig, "global_position", Vector3(back.x, rig.global_position.y, back.z), 0.8).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(main.door_pivot, "rotation:y", rest + deg_to_rad(52.0), 1.0).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(rc, "w", 0.0, 0.4).set_delay(0.35)
+		tw.tween_callback(func():
+			if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = rig.global_position
+			rc.queue_free(); then.call(rest)),
+		atan2(0.0, -1.0))
+func _helpers_tick():
+	if helpers_pending.is_empty(): return
+	var cam: Camera3D = player.get_node("Head/Camera")
+	for k in helpers_pending.keys():
+		if talk_with == k and mode == TALK: continue   # not while she is talking to them
+		var rig: Node3D = main._rig_of(k)
+		if rig == null: helpers_pending.erase(k); continue
+		var seen := false
+		for h in [0.3, 1.0, 1.6]:
+			var p: Vector3 = rig.global_position + Vector3.UP * h
+			if cam.is_position_in_frustum(p) and cam.global_position.distance_to(p) < 14.0:
+				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, p))
+				if hit.is_empty() or (hit.position as Vector3).distance_to(p) < 0.4: seen = true
+		if seen: continue
+		var q: Array = helpers_pending[k]
+		main.place_person(k, q[0], q[1])
+		if items.has(k): items[k].pos = q[2]
+		helpers_pending.erase(k)
 
 # ================================================================ 第2章: the boards (試作92)
 # After rule 1 Taiga brings boards up from the cellar and they board the ground floor's windows from inside (rooms2.boards,
@@ -1777,8 +1856,25 @@ func _boards_start():
 	talk_with = "taiga"
 	# 試作125 (ユーザー「ここの大河、足が変だから普通に立っているように」): he stood in the 20:00 pose (a step half taken)
 	if main.S.has("taiga_node"): main.set_stand("taiga", "talk/idle", 0.0)
-	main.carry_boards("taiga", true)
-	script_q.append_array(B("板.始まり"))
+	# 試作176 A8（ユーザー「ずっと大河を見てると、パッと切り替わって急に木を持っているのが気持ち悪い」）: the planks came into his
+	# hands where he stood. He goes down the cellar stair for them, out of her sight, and comes up with them (as she says he did)
+	if not main.S.has("taiga_node") or ARGS_HAS_NOWALK():
+		main.carry_boards("taiga", true); script_q.append_array(B("板.始まり")); return
+	var rig: Node3D = main._rig_of("taiga")
+	var here := [rig.global_position.x + 4.8, rig.global_position.z + 6.3, 0.0]
+	var down := [[5.2, 5.95, 0.0], [5.5, 5.8, 0.0], [5.5, 5.6, 0.0], [5.5, 3.6, ZB * (5.6 - 3.6) / 3.0]]
+	var up := [[5.5, 5.6, 0.0], [5.5, 5.8, 0.0], [5.2, 5.95, 0.0], here]
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_key("door_cellar")
+	taiga_moving = true
+	main.walk_to("taiga", down, func():
+		main.carry_boards("taiga", true)
+		main.walk_to("taiga", up, func():
+			taiga_moving = false
+			if mode == FREE: _start(B("板.始まり"))
+			else: script_q.append_array(B("板.始まり")), PI))
+
+func ARGS_HAS_NOWALK() -> bool: return "--boardsnow" in OS.get_cmdline_user_args()   # stills: the planks in his hands at once
 
 func _board_use(key: String):
 	talk_with = ""
@@ -1892,3 +1988,105 @@ func _demo_house():
 			demo = [["until_free"]]
 			for q in a2.substr(9).split(";"): demo.append(["gop", float(q.get_slice(",", 0)), float(q.get_slice(",", 1))])
 			demo += [["dump"], ["quit"]]
+
+# ================================================================ the car on its four wheels (第8章 2026-11-19; 試作232 the
+# same for 第7章's nights, ユーザー「自動車のタイヤがまだ埋もれてる」): moved here from ch8.gd so both chapters set it
+var car_at := Vector3.ZERO     # the car's middle (Godot)
+var car_r := 2.2
+func _car_level(cars: Array):
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var body := cars[0] as MeshInstance3D
+	for c in cars:
+		if (c as MeshInstance3D).get_aabb().get_volume() > body.get_aabb().get_volume(): body = c
+	var la := body.get_aabb(); var gt := body.global_transform
+	# the long axis of the body, on the ground
+	var axes := [gt.basis.x * la.size.x, gt.basis.y * la.size.y, gt.basis.z * la.size.z]
+	var flat := axes.filter(func(a: Vector3): return absf(a.normalized().y) < 0.5)
+	if flat.size() < 2: return
+	flat.sort_custom(func(a: Vector3, b: Vector3): return a.length() > b.length())
+	var fwd: Vector3 = (flat[0] as Vector3); var half_l := fwd.length() * 0.5; fwd.y = 0.0; fwd = fwd.normalized()
+	var side: Vector3 = fwd.cross(Vector3.UP).normalized(); var half_w: float = (flat[1] as Vector3).length() * 0.5
+	var c0 := Vector3(car_at.x, 0.0, car_at.z)
+	# 2026-11-19 夜（ユーザー「まだタイヤがのめり込んでるように見える」）：車の外の地面でなく、四つの車輪それぞれの底と、
+	# その真下の地面を測って合わせる。車輪の底＝車の前後左右の四半分ごとの、いちばん低い頂点
+	var low := [1e9, 1e9, 1e9, 1e9]; var sum := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]; var cnt := [0, 0, 0, 0]
+	var pts: Array = []
+	for c in cars:
+		var mi := c as MeshInstance3D
+		if mi.mesh == null: continue
+		var tf := mi.global_transform
+		for v in mi.mesh.get_faces():
+			var w: Vector3 = tf * v; var d := w - c0
+			pts.append(Vector3(d.dot(fwd), w.y, d.dot(side)))
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k]: low[k] = q.y
+	for q in pts:
+		if absf(q.x) < half_l * 0.3: continue
+		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
+		if q.y < low[k] + 0.03: sum[k] += Vector2(q.x, q.z); cnt[k] += 1
+	# the ground under each wheel (not the car's own collision)
+	var ex: Array = [player.get_rid()]
+	for sb in main.S.env_node.find_children("*", "StaticBody3D", true, false):
+		if String(sb.name).begins_with("ext_car") or String(sb.get_parent().name).begins_with("ext_car"): ex.append((sb as StaticBody3D).get_rid())
+	var rows := []
+	for k in 4:
+		if cnt[k] == 0: return
+		var uv: Vector2 = sum[k] / float(cnt[k]); var wp: Vector3 = c0 + fwd * uv.x + side * uv.y
+		var rq := PhysicsRayQueryParameters3D.create(Vector3(wp.x, low[k] + 1.2, wp.z), Vector3(wp.x, low[k] - 3.0, wp.z)); rq.exclude = ex
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
+		if hit.is_empty(): return
+		rows.append([uv.x, uv.y, low[k], float(hit.position.y)])
+	# lift + a*u + b*v = ground - wheel, by least squares over the four wheels (a plane has three numbers: the fourth wheel
+	# takes what is left, as a real car's springs do)
+	var su := 0.0; var sv := 0.0; var suu := 0.0; var svv := 0.0; var suv := 0.0; var sd := 0.0; var sud := 0.0; var svd := 0.0
+	for r in rows:
+		var d: float = r[3] - 0.012 - r[2]
+		su += r[0]; sv += r[1]; suu += r[0] * r[0]; svv += r[1] * r[1]; suv += r[0] * r[1]; sd += d; sud += r[0] * d; svd += r[1] * d
+	var A := Basis(Vector3(4.0, su, sv), Vector3(su, suu, suv), Vector3(sv, suv, svv))
+	if absf(A.determinant()) < 1e-6: return
+	var sol: Vector3 = A.inverse() * Vector3(sd, sud, svd)
+	var lift := sol.x; var a := sol.y; var b := sol.z
+	var f2 := (fwd + Vector3.UP * a).normalized(); var s2 := (side + Vector3.UP * b).normalized()
+	var u2 := s2.cross(f2).normalized()
+	if u2.y < 0.0: u2 = -u2
+	s2 = f2.cross(u2).normalized() * signf(f2.cross(u2).dot(side))
+	var B0 := Basis(fwd, Vector3.UP, side); var B1 := Basis(f2, u2, s2)
+	var rot := B1 * B0.inverse()
+	var X := Transform3D(Basis.IDENTITY, c0 + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -c0)
+	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
+	car_at = X * car_at
+	# 車の下の影：夜で太陽の影が無く、白い車体が明るい地面にじかに接して「埋まって」見えた（ユーザー 2026-11-19 21時
+	# 「ファインダー越しで見ると沈んで見える」）。車の下の地面だけを暗くして、車体と地面の間に暗い帯を作る
+	var gy := 0.0
+	for r in rows: gy += (float(r[3]) - a * float(r[0]) - b * float(r[1])) * 0.25
+	var dl := half_l * 2.0 + 0.8; var dw := half_w * 2.0 + 0.8; var NX := 20; var NZ := 10
+	var sp: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state; var vs := PackedVector3Array(); var cs := PackedColorArray()
+	for iz in NZ + 1:
+		for ix in NX + 1:
+			var fu := float(ix) / NX - 0.5; var fv := float(iz) / NZ - 0.5
+			# 車の当たりの箱の中（下）から撃つ：上から撃つと屋根に当たる
+			var wp2: Vector3 = c0 + fwd * (fu * dl) + side * (fv * dw) + Vector3(0, gy + a * fu * dl + b * fv * dw, 0)
+			var rq2 := PhysicsRayQueryParameters3D.create(wp2 + Vector3(0, 0.2, 0), wp2 - Vector3(0, 2.0, 0)); rq2.exclude = ex
+			var h2: Dictionary = sp.intersect_ray(rq2)
+			if not h2.is_empty(): wp2 = h2.position
+			vs.append(wp2 + Vector3(0, 0.025, 0))
+			var e: float = minf((0.5 - absf(fu)) * dl, (0.5 - absf(fv)) * dw)
+			cs.append(Color(0, 0, 0, 0.9 * smoothstep(0.0, 0.45, e)))
+	var idx := PackedInt32Array()
+	for iz in NZ:
+		for ix in NX:
+			var i0 := iz * (NX + 1) + ix
+			idx.append_array([i0, i0 + 1, i0 + NX + 1, i0 + 1, i0 + NX + 2, i0 + NX + 1])
+	var arr := []; arr.resize(Mesh.ARRAY_MAX); arr[Mesh.ARRAY_VERTEX] = vs; arr[Mesh.ARRAY_COLOR] = cs; arr[Mesh.ARRAY_INDEX] = idx
+	var am := ArrayMesh.new(); am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.vertex_color_use_as_albedo = true
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.disable_fog = true
+	var shm := MeshInstance3D.new(); shm.name = "car_shadow"; shm.mesh = am; shm.material_override = sm; shm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(shm); shm.global_transform = Transform3D.IDENTITY
+	print("CAR level: lift %.3f pitch %.1f roll %.1f" % [lift, rad_to_deg(atan(a)), rad_to_deg(atan(b))])
+	for r in rows:
+		var after: float = r[2] + lift + a * r[0] + b * r[1]
+		print("CAR wheel (%.2f, %.2f): bottom %.3f ground %.3f -> bottom %.3f (%.3f %s the ground)" % [r[0], r[1], r[2], r[3], after, absf(after - r[3]), "under" if after < r[3] else "over"])

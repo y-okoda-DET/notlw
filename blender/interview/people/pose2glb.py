@@ -13,7 +13,7 @@ for o in list(bpy.data.objects):
 for n in keep: n.name = n.name[:-6]
 import export_godot as E   # 手続きの材質（聞き手の手の年相応の肌など）は色の画像に焼く（ゲームの書き出しと同じ）
 for n in keep:
-    if any(m is not None and not E.is_simple(m) for m in n.data.materials): print('BAKE', n.name); E.bake_object(n, 2048)
+    if any(m is not None and not E.is_simple(m) for m in n.data.materials): print('BAKE', n.name); E.bake_object(n, 2048, normal=True)   # 手の肌のしわ・筋・血管の凹凸も（2026-11-19）
 for im in bpy.data.images:
     if im.size[0] > 2048: im.scale(2048, int(im.size[1] * 2048 / im.size[0]))
 bpy.ops.export_scene.gltf(filepath=out, export_format='GLB', use_selection=False, export_apply=True, export_yup=True, export_image_format='AUTO')

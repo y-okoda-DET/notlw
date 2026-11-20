@@ -4,8 +4,9 @@
 ## 零時：地下から上がってきた大河。真琴が傷を素手で押さえる。桐生「四時間か」。言えたはずの一言の所は（沈黙）。大河は自分で
 ##   地下へ下り、閂をかける。澪は手すりの定点のカメラのテープを替える。
 ## 零時半：目張り。隙間ごとに風の音がその場所から鳴り、真琴のろうそくの炎がそちらへ傾く。Ｅでテープ。5か所。玄関の下は貼れない。
-## 零時四十五分：二階へ毛布を取りに。寝室3つと洗面所の物を調べられる（澪の証言が出る）。
-## 一時〜三時：扉の番。玄関の上がり框に毛布で座ったまま、見る・聞くだけ。音のするほうを見て Ｅ で証言の文。
+## 一時：区切り（2026-11-18 レビュー5）。時計は止まり、家を歩ける。台所の真琴、地下の扉越しの大河、二階の桐生と一度ずつ話せる。
+##   二階へ毛布を取りに。寝室3つと洗面所の物を調べられる（澪の証言が出る）。毛布を持って玄関で「座る」と一時半へ。
+## 一時半〜三時：扉の番。玄関の上がり框に毛布で座ったまま、見る・聞くだけ。音のするほうを見て Ｅ で証言の文。
 ##   二時、桐生が下りてきてカメラを外し、「俺でもだ」と出ていく。鍵を閉めるのはプレイヤー。二時半、ノックと欠けた声。三時、裏で何かが鳴る。
 extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
@@ -13,7 +14,7 @@ const Sound = preload("res://scripts/sound.gd")
 const F2 := 2.75                       # the upstairs floor (house4: H1 2.45 + .3)
 const ZBASE := -2.45                   # the cellar's floor
 # where they stand at midnight (plan metres), and whom they face
-const AT0 := {"taiga": [5.45, 5.95], "makoto": [4.8, 5.5], "kiryu": [4.45, 6.5]}
+const AT0 := {"taiga": [5.2, 5.7], "makoto": [4.6, 5.15], "kiryu": [4.4, 6.5]}   # 2026-11-17 夜（ユーザー「大河の姿を見せたい。真琴と向かい合う感じで」）: he was in the cellar doorway, out of sight; now a step out of it, Makoto before him
 const MIO0 := [4.55, 4.25]
 const TAIGA_DOWN := [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 2.65, ZBASE], [5.5, 2.1, ZBASE]]
 const CAM_Y := 2.85                    # the small camera on the handrail (story.gd _house_ready)
@@ -45,7 +46,18 @@ const UP_ITEMS := [
 	["sweets", "bag_makoto", [7.3, 0.5, F2 + 0.2], "鞄", "二階.お菓子"],
 	["reflector", "makoto_reflector", [9.9, 3.75, F2 + 0.33], "レフ板", "二階.レフ板"],
 	["bath", "bath_water", [9.2, 7.27, F2 + 0.5], "風呂", "二階.風呂"],
+	# 試作232（ユーザー「調べられるようにしたい」「人が住んでいる感」。台詞は筋のスレッドと合わせた 2026-11-20）
+	["mark", "", [6.02, 2.93, F2 + 1.51], "壁の跡", "二階.四角い跡"],
+	["note_n", "", [2.51, 0.88, F2 + 0.02], "ノート", "二階.撮影ノート"],
+	["book_m", "", [7.11, 1.04, F2 + 0.05], "本", "二階.看護の教科書"],
+	["tapes_k", "", [3.11, 4.51, F2 + 0.06], "テープ", "二階.映画"],
+	["batt_t", "", [1.55, 6.38, F2 + 0.04], "電池", "二階.備え"],
+	["photo", "", [4.03, 5.275, 1.54], "写真", "廊下.写真"],
 ]
+# 試作232: in 零時半 (the tape round with Makoto) the hall's photograph, and a word with Makoto, once each
+const HALL_PHOTO := [4.03, 5.275, 1.54]
+var photo_said := false
+var mk_seal_said := false
 # what she can turn to while she keeps the door (plan points), the word under the frame, and the block
 const SOUNDS := {
 	"door": [[5.0, 0.03, 0.5], "扉", "扉の番.音.扉"],
@@ -110,6 +122,7 @@ func _ready():
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
 	_load_file("ch3")
+	T1_TALK = {}
 	_page()
 	_lookers()
 	main.generator(true)
@@ -177,23 +190,40 @@ func _look_from(a: Array, b: Array, eye := 1.52, bz := 1.3):
 func _stand(eye: float):
 	player.eye_height = eye; player.get_node("Head").position.y = eye
 
+# 2026-11-17 夜（ユーザー「ここ、立ち上がるアクション入れよう」）: from the floor to her feet: the head goes forward over
+# the knees first, then up (a hand on the wall), the blanket's sound; she can walk once she is up
+func _stand_up():
+	var e0: float = player.eye_height
+	var p0: float = player.pitch
+	player.move_enabled = false
+	Sound.one(self, "ch3_blanket", -16.0, player.global_position)
+	var tw := create_tween()
+	tw.tween_method(func(k: float):
+		var lean := sin(k * PI)                                   # forward, then back upright
+		_stand(lerpf(e0, STAND_EYE, smoothstep(0.15, 1.0, k)) - 0.08 * lean)
+		player.pitch = p0 - deg_to_rad(16.0) * lean
+		player.get_node("Head").position.z = -0.12 * lean, 0.0, 1.0, 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(func(): player.get_node("Head").position.z = 0.0; player.move_enabled = true)
+
 func _place_for(st: String):
 	match st:
 		"t0", "tape":
 			for k in AT0:
-				_put(k, AT0[k], _face(AT0[k], MIO0))
+				var to: Array = MIO0
+				if k == "taiga": to = AT0.makoto
+				elif k == "makoto": to = AT0.taiga
+				_put(k, AT0[k], _face(AT0[k], to))
 				main.set_stand(k, "talk/idle" if k != "makoto" else "talk/think", 0.0)
-			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, [5.2, 5.8])
+			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, [4.9, 5.45])
 		"seal":
 			_hide("taiga"); _put("kiryu", [1.6, 1.2], _face([1.6, 1.2], [1.9, 1.85]))   # in the living room by the lantern
 			main.set_stand("kiryu", "talk/sit_b", 0.0)
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			player.global_position = gp(4.6, 5.1, 0.0); _look_from([4.6, 5.1], [4.75, 6.1])
 		"up":
-			_hide("taiga"); _hide("kiryu")   # 試作127 B5: he tapes the upstairs (零時半 kiryu_up)
-			_put("makoto", [4.6, 1.9], _face([4.6, 1.9], [5.0, 0.0])); main.set_stand("makoto", "talk/idle", 0.0)
 			sealed_n = 5
 			for gq in gaps: _seal(gq, true)
+			_place_one()
 			player.global_position = gp(4.75, 1.9, 0.0); _look_from([4.75, 1.9], [5.5, 3.5])
 		"watch", "t2", "t230", "t3":
 			_hide("taiga"); _hide("makoto")
@@ -202,6 +232,18 @@ func _place_for(st: String):
 			sealed_n = 5; has_blanket = true
 			for gq in gaps: _seal(gq, true)
 			_sit()
+
+# 一時 (2026-11-18 レビュー5): where they are while the clock stands: Makoto in the kitchen with the candle, Kiryu on the
+# landing upstairs taping its window, Taiga behind the barred door (a voice only)
+const KR_HALL := [4.35, 3.7]           # 試作176 A14: Kiryu in the hall at 0:30, a step off Mio (4.6, 5.1), before he goes up
+const MK_ONE := [6.9, 6.2]
+const KR_ONE := [4.9, 7.5]
+const CELLAR_DOOR := [5.5, 5.62]
+func _place_one():
+	_hide("taiga")
+	_put("makoto", MK_ONE, _face(MK_ONE, [5.7, 6.2])); main.set_stand("makoto", "talk/idle", 0.0)
+	mk_at = "one"; mk_going = ""
+	_put("kiryu", KR_ONE, _face(KR_ONE, [4.9, 8.0]), F2); main.set_stand("kiryu", "talk/idle", 0.0)
 
 # the small camera on the handrail, recording (2026-11-15: always there by 20:00)
 func _night_cam():
@@ -298,10 +340,26 @@ func _candle():
 	candle.visible = false
 
 # held before her, at the height of her hands: it follows her body, not a bone (the talk clips move the hands about)
+# 2026-11-17 夜（ユーザー「ロウソク、持っているように見せたい」）: both her hands go to it (reach.gd): the right under the
+# saucer, the left cupped beside the flame's side
+var candle_hands := []
 func _candle_tick(dt: float):
+	for rc in candle_hands: rc.w = move_toward(rc.w, 1.0 if (candle and candle.visible) else 0.0, dt * 3.0)
 	if candle == null or not candle.visible: return
 	var r := _rig("makoto")
-	candle.global_position = r.global_transform * Vector3(0.12, 1.02, 0.28)
+	candle.global_position = r.global_transform * Vector3(0.0, 1.0, 0.30)
+	if candle_hands.is_empty() and main.S.has("makoto_node"):
+		var sk: Skeleton3D = main.S.makoto_node.find_children("*", "Skeleton3D", true, false)[0]
+		for sd in ["r", "l"]:
+			var rc: Node = load("res://scripts/reach.gd").new()
+			rc.side = sd; rc.target_node = candle
+			rc.offset = Vector3.ZERO
+			sk.add_child(rc); candle_hands.append(rc)
+	if candle_hands.size() == 2:
+		var b := r.global_basis
+		candle_hands[0].offset = b * Vector3(-0.03, -0.03, -0.06)   # right: under the saucer, the near side
+		candle_hands[1].offset = b * Vector3(0.06, 0.03, -0.02)     # left: cupped at its side
+		candle_hands[0].pole = b * Vector3(-1.0, -1.0, -0.3); candle_hands[1].pole = b * Vector3(1.0, -1.0, -0.3)
 	# 試作127（ユーザー「ろうそくの炎が傾くってのは目に見えない＆重くなる原因になるのではないかと懸念」）: no lean to the
 	# gaps any more (Makoto stands by the gap instead): the flame only shivers
 	flame.basis = Basis(Vector3.RIGHT, 0.05 * sin(t_now * 13.0))
@@ -356,6 +414,8 @@ func _blanket_view(on: bool, sitting := false):
 # ---------------------------------------------------------------- cards
 func _card(text: String, next: String, t := 1.5):
 	if card: card.queue_free()
+	var hm: Array = {"零時": [0, 0], "零時半": [0, 30], "一時": [1, 0], "一時半": [1, 30], "二時": [2, 0], "二時半": [2, 30], "三時": [3, 0]}.get(text.strip_edges(), [])
+	if not hm.is_empty(): main.clock_at(hm[0], hm[1])   # the kitchen clock (main.gd _clock_tick)
 	card = main.make_card(self, [[text, 52, 0]], Type.card())
 	card_t = t; card_next = next
 	_clear_page(); _set_mission("")
@@ -404,16 +464,14 @@ func _begin(st: String):
 		"up":
 			stage = "up"; candle.visible = true
 			_set_mission("二階の寝室から、毛布を取ってきました。")
-		"watch":
-			_hide("makoto"); candle.visible = false   # 一時: Mio alone at the door (Makoto is in the kitchen with the candle)
-			_sit(); _flow_start("扉の番.一時", "watch15")
-		"watch15":
+		"watch", "watch15":   # (--ch3at=watch starts here, sat)
+			_hide("makoto"); _hide("kiryu"); candle.visible = false
 			_flow_start("扉の番.一時半", "t2card")
 		"t2":
 			# 試作127（B7、ユーザー「ここ、立ち上がった方がいいかな」）: she gets up, the blanket on her shoulders, to see the
 			# cellar door; Kiryu comes down the stair as she goes
 			stage = "t2walk"; kiryu_sent = false
-			_stand(STAND_EYE); _blanket_view(true, false)
+			_stand_up(); _blanket_view(true, false)
 			_start(B("二時.地下へ"))
 		"t230":
 			_sit()
@@ -432,7 +490,7 @@ func _do(what: String):
 		"makoto_press":
 			# 試作127（ユーザー「カメラ位置のせいで、真琴が何をやっているかわからない」）: she stood between Mio and Taiga, her
 			# back to Mio. She goes round to his west side: from Mio's place she is seen side on, her hands on his arm
-			main.walk_to("makoto", [[4.85, 5.75, 0.0], [4.88, 6.0, 0.0]], Callable(), _face([4.88, 6.0], AT0.taiga))
+			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], Callable(), _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
 		"makoto_wipe":
 			main.set_stand("makoto", "talk/think")
 		"taiga_down":
@@ -441,6 +499,9 @@ func _do(what: String):
 			main.walk_to("taiga", TAIGA_DOWN, func():
 				_hide("taiga")
 				_bar_shut())
+		"cam_stop":   # 2026-11-18 the tape ran out: the clunk on the rail and the red lamp out (第6章 opens on the same sound)
+			Sound.one(self, "tape_clunk", -4.0, fixed_cam.global_position if fixed_cam else player.global_position)
+			_rec3(false)
 		"camera_go":
 			script_q.clear(); mode = FREE
 			get_tree().create_timer(0.2).timeout.connect(func(): _begin("tape"))
@@ -452,7 +513,9 @@ func _do(what: String):
 			get_tree().create_timer(0.6).timeout.connect(func(): _begin("up"))
 		"to0100":
 			script_q.clear(); mode = FREE
-			get_tree().create_timer(1.2).timeout.connect(func(): _card(D.lines("一時.カード")[0], "watch"))
+			get_tree().create_timer(1.2).timeout.connect(func(): _place_one(); _card(D.lines("一時.カード")[0], "up"))
+		"cellar_voice":
+			Sound.one(self, "ch3_murmur", -10.0, gp(5.5, 5.4, -0.6)); _hear("cellar")
 		"silence":
 			_silence_open()
 		"shake":
@@ -462,8 +525,19 @@ func _do(what: String):
 				tw.tween_property(player, "yaw", y0 + 0.07, 0.16).set_trans(Tween.TRANS_SINE)
 				tw.tween_property(player, "yaw", y0 - 0.07, 0.2).set_trans(Tween.TRANS_SINE)
 			tw.tween_property(player, "yaw", y0, 0.16)
-		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the lantern up the stair, a roll of tape in his hand
-			main.walk_to("kiryu", [[1.6, 0.95, 0.0], [2.7, 0.95, 0.0], [2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
+		"kiryu_come":   # 試作176 A14: from the lantern into the hall, where Mio will see him when he speaks
+			main.walk_to("kiryu", [[1.6, 0.95, 0.0], [2.7, 0.95, 0.0], [2.7, 2.8, 0.0], [3.6, 3.7, 0.0], [KR_HALL[0], KR_HALL[1], 0.0]], Callable(), _face(KR_HALL, [4.6, 5.1]))
+		"kiryu_look":   # she turns to him (he is there, or nearly: the talk before took longer than his walk)
+			talk_with = "kiryu"
+			var kr := _rig("kiryu")
+			if kr:
+				var to: Vector3 = (kr.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
+				var tw := create_tween(); tw.set_parallel(true)
+				tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)
+				tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
+		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the hall up the stair, a roll of tape in his hand
+			talk_with = ""
+			main.walk_to("kiryu", [[4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
 		"kiryu_rec":
 			_kiryu_tally()
 		"kiryu_out":
@@ -526,7 +600,7 @@ func _tape_tick():
 func _swap_tape():
 	note_lb.text = ""
 	Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
-	_rec3(false)
+	_rec3(false)   # already out since cam_stop (the tape ran out); on again once the new one is in
 	get_tree().create_timer(1.4).timeout.connect(func(): _rec3(true))
 	stage = "tape_done"
 	_start(B("零時.替えた"))
@@ -559,7 +633,14 @@ func _seal_tick(dt: float):
 	if not gq.is_empty() and _makoto_near(gq.at): note_lb.text = T(String(D.lines("目張り.案内")[0]))
 	elif _looking_at(gp(FRONT_GAP[0], FRONT_GAP[1], 0.4), 2.2, 30.0): note_lb.text = T("［玄関の下］")
 	elif _looking_at(gp(5.5, 5.62, 1.0), 1.8, 25.0) and not cellar_said: note_lb.text = T("［地下の扉］")
+	elif not photo_said and _looking_at(gp(HALL_PHOTO[0], HALL_PHOTO[1], HALL_PHOTO[2]), 2.2, 16.0): note_lb.text = T("［写真］")
+	elif not mk_seal_said and _mk_seal_looked(): note_lb.text = T("［真琴］")
 	else: note_lb.text = ""
+
+func _mk_seal_looked() -> bool:
+	var r: Node3D = main._rig_of("makoto")
+	if r == null or not r.visible or main.walking("makoto"): return false
+	return _looking_at(r.global_position + Vector3(0, 1.3, 0), 2.4, 20.0)
 
 func _makoto_near(p: Vector3) -> bool:
 	return candle and mk_at != "" and mk_at == _next_gap() and candle.global_position.distance_to(p) < 2.2
@@ -576,7 +657,9 @@ const MK_WAY := {
 	"g3": [[1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [6.6, 6.8]],
 	"g4": [[7.4, 6.6], [7.9, 6.3], [8.95, 6.0]],
 	"g5": [[8.85, 4.9]],
-	"front": [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.55, 1.8]],
+	# 試作176 A13（ユーザー「ここ歩くとき、真琴が三脚をすり抜けてくる」）: the genkan's tripod stands at plan (4.35, 1.6) with its legs
+	# .45 out; she ended at 4.55, 1.8, in them. Now down the hall's right side to the door's side of it, .6 m off the column
+	"front": [[8.2, 4.9], [6.9, 6.2], [5.7, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.4, 2.9], [4.8, 2.5], [4.95, 2.15]],
 }
 var mk_at := ""        # the gap (or "front") she stands at, "" while she walks
 var mk_going := ""
@@ -657,12 +740,40 @@ func _up_tick(_dt: float):
 	if mode != FREE: return
 	var k := _item_looked()
 	look_at_k = k
+	var who := _one_looked()
+	if who != "" and k != "blanket": look_at_k = ""; one_k = who; note_lb.text = T("［%s］" % ONE_NAME[who]); return
+	one_k = ""
 	if k == "blanket": note_lb.text = T(String(D.lines("二階.毛布")[0]))
 	elif k != "": note_lb.text = T("［%s］" % up_items[k].name)
 	elif has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5: note_lb.text = T(String(D.lines("二階.戻る")[0]))
 	else: note_lb.text = ""
 
+# 一時: whom she can talk to, once each (T1_TALK keeps who: 第10章・第11章)
+const ONE_NAME := {"makoto": "真琴", "kiryu": "桐生", "taiga": "地下の扉"}
+var one_k := ""
+static var T1_TALK := {}
+func _one_looked() -> String:
+	if mode != FREE: return ""
+	for w in ["makoto", "kiryu"]:
+		if T1_TALK.has(w): continue
+		var r := _rig(w)
+		if r == null or not r.visible: continue
+		if _looking_at(r.global_position + Vector3(0, 1.3, 0), 2.4, 18.0): return w
+	if not T1_TALK.has("taiga") and player.global_position.y < 0.5 and _looking_at(gp(CELLAR_DOOR[0], CELLAR_DOOR[1], 1.0), 1.9, 25.0): return "taiga"
+	return ""
+
+func _talk_one(w: String):
+	T1_TALK[w] = true
+	note_lb.text = ""; one_k = ""
+	talk_with = w if w != "taiga" else ""
+	if w == "makoto" or w == "kiryu":
+		var r := _rig(w); var me := _plan_of(r); var mio := _plan_of(player)
+		r.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), r.global_position)
+	print("STORY ch3 one %s t=%.1f" % [w, t_now])
+	_start(B({"makoto": "一時.真琴", "kiryu": "一時.桐生", "taiga": "一時.大河"}[w]))
+
 func _press_up():
+	if one_k != "": _talk_one(one_k); return
 	var k := look_at_k
 	if k == "blanket" and not has_blanket:
 		has_blanket = true
@@ -678,9 +789,16 @@ func _press_up():
 		up_items[k].seen = true
 		if not e.is_empty(): _say_tes(e[0].text)
 		return
-	if stage == "back" and has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0):
+	if stage == "back" and has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5:
 		note_lb.text = ""
-		_do("to0100")
+		_sit_down()
+
+# 一時の区切り: she sits on the step with the blanket round her, and the clock goes on to half past
+func _sit_down():
+	_sit(); stage = "sat"
+	Sound.one(self, "ch3_blanket", -10.0, player.global_position)
+	print("STORY ch3 sat t=%.1f talked=%s" % [t_now, ",".join(T1_TALK.keys())])
+	get_tree().create_timer(1.2).timeout.connect(func(): _card(D.lines("一時半.カード")[0], "watch15"))
 
 # her answer, months later, at the top left: typed, it stays a while and fades
 func _say_tes(text: String):
@@ -752,6 +870,7 @@ func _flow_tick(_dt: float):
 	while fi < flow.size() and t_stage >= float(flow[fi].t):
 		_flow_event(flow[fi]); fi += 1
 	if cur.has("text") and typed < String(cur.text).length():
+		if not is_instance_valid(cur_lb): cur = {}; return   # an answer at the top left took its row (2026-11-18: the cough came while it typed)
 		typed = min(float(String(cur.text).length()), typed + _dt * (20.0 if cur.get("testimony", false) else 15.0))
 		_type(cur_lb, String(cur.text), int(typed))
 
@@ -783,8 +902,8 @@ func _flow_event(e: Dictionary):
 			"makoto_up":
 				talk_with = ""
 				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
-				get_tree().create_timer(8.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
-				get_tree().create_timer(20.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
+				get_tree().create_timer(7.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
+				get_tree().create_timer(13.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
 			"knock":
 				Sound.one(self, "knock", -2.0, gp(FRONT_DOOR[0], FRONT_DOOR[1], 1.2)); _hear("knock")
 				for i in 3: knock_ts.append(t_now + 0.42 * i)
@@ -819,12 +938,14 @@ func _knock_tick():
 	knock_ts = knock_ts.filter(func(x): return t_now - float(x) < 0.5)
 
 # ---------------------------------------------------------------- 二時: Kiryu
-const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0], [4.75, 2.2, 0.0]]
+const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
 var kiryu_sent := false
 func _t2walk_tick():
 	if kiryu_sent or mode != FREE: return
-	var off := Vector2(player.global_position.x + 4.8 - SIT_AT[0], player.global_position.z + 6.3 - SIT_AT[1]).length()
-	if off > 0.9 or t_stage > 20.0: kiryu_sent = true; _kiryu_comes()
+	# 試作232（ユーザー「地下を見に行こうとしたらここで会話が始まった。変」）: he set off only once she had walked 0.9 m, and
+	# reached the hall when she was already at the cellar door: the talk caught her there, out of nowhere. He comes down as soon
+	# as she stands, so she meets him on the stair on her way, and he stops at its foot
+	kiryu_sent = true; _kiryu_comes()
 
 func _kiryu_comes():
 	stage = "t2walk"
@@ -836,7 +957,7 @@ func _kiryu_comes():
 			var nm := String(mi.name)
 			if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
 		# he turns to her where she is (the hall, on her way to the cellar door) and she to him
-		var me := [4.75, 2.2]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
+		var me := [5.5, 2.55]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
 		var k := _rig("kiryu"); k.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), k.global_position)
 		var to: Vector3 = (k.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
 		var tw := create_tween(); tw.set_parallel(true)
@@ -860,19 +981,18 @@ func _kiryu_tally():
 	Sound.one(self, "dial_tick", -14.0, _rig("kiryu").global_position + Vector3(0, 1.3, 0))
 
 func _kiryu_out():
+	# 2026-11-17 夜（ユーザー「桐生が壁を抜けて出ていく。丁寧に描く」）: he turns the lock, takes the knob, the door comes to him
+	# and he steps back with it (it swung through him before), then out through the open side and along the porch
 	Sound.one(self, "ch3_lock", -8.0, gp(5.0, 0.05, 1.0))
-	get_tree().create_timer(0.5).timeout.connect(func():
-		Sound.one(self, "door_open", -4.0, gp(5.0, 0.0, 1.0))
-		var tw := create_tween()
-		tw.tween_property(main.door_pivot, "rotation:y", door_rest + deg_to_rad(80.0), 1.0).set_trans(Tween.TRANS_SINE)
-		main.walk_to("kiryu", [[5.0, 0.4, -0.18], [5.0, -0.6, -0.21], [6.2, -1.1, -0.2]], func():
+	_front_open_by("kiryu", func(rest: float):
+		main.walk_to("kiryu", [[5.15, 0.55, -0.18], [5.05, -0.6, -0.21], [6.2, -1.1, -0.2]], func():
 			_hide("kiryu")
 			var tw2 := create_tween()
-			tw2.tween_property(main.door_pivot, "rotation:y", door_rest, 1.1).set_trans(Tween.TRANS_SINE)
+			tw2.tween_property(main.door_pivot, "rotation:y", rest, 1.1).set_trans(Tween.TRANS_SINE)
 			tw2.tween_callback(func():
 				Sound.one(self, "knock1", -10.0, gp(5.0, 0.0, 1.0))
 				stage = "lock"; t_stage = 0.0
-				_start(B("二時.鍵")))))
+				_start(B("二時.鍵"))))) 
 
 func _lock_tick():
 	if mode != FREE: note_lb.text = ""; return
@@ -943,7 +1063,11 @@ func _press():
 					front_seen = true; _start(B("目張り.玄関"))
 				return
 			if _looking_at(gp(5.5, 5.62, 1.0), 1.8, 25.0) and not cellar_said:
-				cellar_said = true; talk_with = "makoto"; _start(B("目張り.地下の扉"))
+				cellar_said = true; talk_with = "makoto"; _start(B("目張り.地下の扉")); return
+			if not photo_said and _looking_at(gp(HALL_PHOTO[0], HALL_PHOTO[1], HALL_PHOTO[2]), 2.2, 16.0):
+				photo_said = true; _say_tes(B("廊下.写真")[0].text); return
+			if not mk_seal_said and _mk_seal_looked():
+				mk_seal_said = true; talk_with = "makoto"; _start(B("目張り.真琴")); return
 		"up", "back":
 			_press_up()
 		"watch", "flow", "t2":
@@ -969,8 +1093,13 @@ func _demo_script():
 	steps.append(["walk", [[5.5, 6.0], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.6, 1.9], [4.8, 1.5], [5.0, 1.2]]])
 	steps.append(["aim", gp(FRONT_GAP[0], FRONT_GAP[1], 0.4)]); steps.append(["press"])
 	steps.append(["wait_stage", "up"]); steps.append(["wait_free"])
-	# 零時四十五分: up the stair, every one of the things in the rooms, the blanket, down to the door
-	steps.append(["walk", [[4.8, 1.9], [5.0, 1.9], [5.5, 2.4], [5.5, 5.75], [5.5, 6.0]]])
+	# 一時の区切り: Taiga through the cellar door, Makoto in the kitchen, then up the stair (Kiryu on the landing),
+	# every one of the things in the rooms, the blanket, down to the door, and sit
+	steps.append(["walk", [[4.8, 1.6], [4.6, 1.9], [4.6, 2.6], [4.3, 2.9], [4.3, 3.2], [4.2, 3.4], [4.3, 3.7], [4.8, 4.2], [4.8, 5.7], [5.1, 6.0], [5.5, 6.3]]])
+	steps.append(["one", "taiga"]); steps.append(["wait_free"])
+	steps.append(["walk", [[5.7, 6.2], [6.0, 6.2]]]); steps.append(["one", "makoto"]); steps.append(["wait_free"])
+	steps.append(["walk", [[5.5, 6.2], [5.1, 6.0], [4.8, 5.7], [4.8, 4.2], [4.3, 3.7], [4.2, 3.4], [4.3, 3.2], [4.3, 2.9], [4.6, 2.6], [4.8, 1.9], [5.0, 1.9], [5.5, 2.4], [5.5, 5.75], [5.5, 6.0]]])
+	steps.append(["one", "kiryu"]); steps.append(["wait_free"])
 	steps.append(["walk", [[5.2, 6.0], [4.8, 5.6], [4.8, 4.4], [4.1, 3.7], [3.2, 3.7], [2.6, 3.1]]]); steps.append(["item", "bag_m"])
 	steps.append(["walk", [[2.3, 3.1], [2.1, 2.9], [1.4, 2.9], [1.2, 2.7]]]); steps.append(["item", "blanket"])
 	steps.append(["walk", [[1.2, 1.6], [1.3, 1.5]]]); steps.append(["item", "hoodie"])
@@ -986,8 +1115,7 @@ func _demo_script():
 	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6)]); steps.append(["press"])
 	# 一時から: turn to each sound as it comes, and press
 	steps.append(["wait_stage", "flow"])
-	for k in ["door", "gen", "car", "cellar"]: steps.append(["hear", k])
-	steps.append(["wait_card", "watch15"]); steps.append(["hear", "cough"]); steps.append(["hear", "steps"])
+	for k in ["door", "gen", "car", "cellar", "cough", "steps"]: steps.append(["hear", k])
 	steps.append(["wait_stage", "t2walk"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [4.7, 3.3]]])
 	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [5.0, 1.3]]])
 	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2])]); steps.append(["press"])
@@ -1065,6 +1193,15 @@ func _demo_tick(dt):
 		"open":
 			if dn: dn.open_key(s[1])
 			done = true
+		"one":
+			var tp: Vector3 = gp(CELLAR_DOOR[0], CELLAR_DOOR[1], 1.0) if s[1] == "taiga" else _rig(s[1]).global_position + Vector3(0, 1.3, 0)
+			var cam5: Camera3D = player.get_node("Head/Camera")
+			var to5: Vector3 = tp - cam5.global_position
+			var k5 := 1.0 - exp(-dt * 6.0)
+			player.yaw = lerp_angle(player.yaw, atan2(-to5.x, -to5.z), k5)
+			player.pitch = lerpf(player.pitch, asin(clampf(to5.normalized().y, -1.0, 1.0)), k5)
+			if dwait > 1.0 and one_k == s[1] and mode == FREE: _talk_one(s[1]); done = true
+			elif dwait > 6.0: _dfail("one %s: cannot talk from %s (%.1f m)" % [s[1], _plan_of(player), to5.length()]); done = true
 		"item":
 			var it: Dictionary = up_items[s[1]]
 			var cam3: Camera3D = player.get_node("Head/Camera")
