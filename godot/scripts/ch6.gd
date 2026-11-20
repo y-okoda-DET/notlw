@@ -317,8 +317,10 @@ func _ret_open(key: String):
 	_clear_page()
 	var t := 0.2; var first := true
 	for ln in D.lines(key):
-		if not String(ln).begins_with("↩"): continue
-		var body := String(ln).substr(1)
+		var s0 := _flag_line(String(ln))
+		if s0.begins_with("澪＊："): ret_q.append([t, _ret_row.bind(s0, true)]); t += s0.length() / 18.0 + 1.0; continue
+		if not s0.begins_with("↩"): continue
+		var body := s0.substr(1)
 		if first: first = false; ret_q.append([t, _ret_head.bind(body)]); t += 0.9
 		else: ret_q.append([t, _ret_row.bind(body)]); t += 0.8
 	ret_t = 0.0
@@ -366,7 +368,7 @@ func _ret_after(key: String, hold := 8.0):
 	var t := ret_t + 0.4
 	if not ret_q.is_empty(): t = float(ret_q[-1][0]) + 0.8
 	for ln in D.lines(key):
-		var s := String(ln)
+		var s := _flag_line(String(ln))
 		if s.begins_with("×"): ret_q.append([t, _ret_strike.bind(s.substr(1))]); t += 1.5
 		elif s.begins_with("↩"): ret_q.append([t, _ret_row.bind(s.substr(1))]); t += 1.4
 		elif s.begins_with("＞"): ret_q.append([t, _do.bind(s.substr(1).strip_edges())]); t += 0.6
@@ -375,13 +377,24 @@ func _ret_after(key: String, hold := 8.0):
 			ret_q.append([t, _ret_row.bind(s, true)]); t += s.length() / 18.0 + 1.3
 	ret_q.append([t, func(): ret_hold = hold])
 
+# 2026-11-20 the night's record: "［flag］ line" is the line when the flag is set, nothing when not
+func _flag_line(s: String) -> String:
+	if not s.begins_with("［"): return s
+	var c := s.find("］")
+	if c < 2: return s
+	var nm := s.substr(1, c - 1)
+	var flag_ok := true
+	for ch in nm: if not ((ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9") or ch == "_"): flag_ok = false
+	if not flag_ok or c >= s.length() - 1: return s
+	return s.substr(c + 1).strip_edges() if has_flag(nm) else ""
+
 func _ret_tick(dt: float):
 	ret_t += dt
 	while not ret_q.is_empty() and ret_t >= float(ret_q[0][0]):
 		var c: Callable = ret_q.pop_front()[1]; c.call()
 	for e in type_q:
+		if not is_instance_valid(e.lb): continue
 		var lb: Label = e.lb
-		if not is_instance_valid(lb): continue
 		e.n = minf(float(lb.text.length()), float(e.n) + dt * 18.0); lb.visible_characters = int(e.n)
 	type_q = type_q.filter(func(e): return is_instance_valid(e.lb) and e.n < float((e.lb as Label).text.length()))
 	if ret_hold >= 0.0 and ret_q.is_empty():
@@ -645,7 +658,8 @@ func _process(dt):
 	_board6_tick()
 	main.talk_now = ""
 	main.story_talking = (mode == TALK)
-	player.move_enabled = mode == FREE and act == "" and stage == "free"
+	player.move_enabled = mode == FREE and act == "" and stage in ["free", "call", "peek", "peek2"]
+	if stage in ["call", "call_talk", "peek", "peek2", "down"]: _start6_tick(dt)
 	if page_clear_t >= 0.0:
 		page_clear_t -= dt
 		if page_clear_t < 0.0 and mode == FREE: _clear_box(lines_box)
@@ -666,11 +680,94 @@ func _begin(st: String):
 	match st:
 		"t420card":
 			_card(D.lines("四時二十分.カード")[0], "start")
-		"start":
-			stage = "start"
-			_flow_start("六.始まり", func(): stage = "free")
+		"start":   # 2026-11-20 12時39分①: the first minute is not tidying. She calls Natsuki; the cellar from the top of its stair; the click
+			stage = "call"
+			_cellar_shoe()
 		"jump":
 			_jump6(start6)
+
+# ---------------------------------------------------------------- 2026-11-20 始まり：夏希を呼ぶ、地下を見下ろす
+func _nat_looked() -> bool:
+	var t := _target("nat")
+	if t.is_empty(): return false
+	var to: Vector3 = (t.pos as Vector3) - _cam().global_position
+	return to.length() < 2.6 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)
+
+const CELLAR_FOOT := [5.5, 2.6, -2.35]   # the foot of the cellar stair (plan, height): Makoto's torch on the floor, Taiga's shoe past it
+func _cellar_looked(deg := 18.0) -> bool:
+	var to: Vector3 = gp(CELLAR_FOOT[0], CELLAR_FOOT[1], CELLAR_FOOT[2]) - _cam().global_position
+	var p: Vector3 = player.global_position
+	return player.global_position.y > -0.4 and to.length() < 6.2 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(deg) and Vector2(p.x - gp(5.5, 5.9, 0.0).x, p.z - gp(5.5, 5.9, 0.0).z).length() < 1.4
+
+var shoe6: MeshInstance3D
+var cel_torch6: SpotLight3D
+func _cellar_shoe():
+	if shoe6: return
+	var dn = main.get_node_or_null("Doors")
+	if dn: dn.open_key("door_cellar")
+	# her torch, rolled to the foot of the stair, lighting the ceiling (第5章: she went down with it)
+	cel_torch6 = SpotLight3D.new(); cel_torch6.light_color = Color(0.92, 0.95, 1.0); cel_torch6.light_energy = 2.6; cel_torch6.spot_range = 4.0
+	cel_torch6.spot_angle = 22.0; cel_torch6.spot_attenuation = 0.8; cel_torch6.shadow_enabled = true; main.add_child(cel_torch6)
+	cel_torch6.look_at_from_position(gp(5.42, 2.45, -2.4), gp(5.9, 1.4, -0.2), Vector3.UP)
+	var body := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.022; cy.bottom_radius = 0.022; cy.height = 0.17; body.mesh = cy
+	var bm := StandardMaterial3D.new(); bm.albedo_color = Color(0.1, 0.1, 0.11); bm.roughness = 0.5; body.material_override = bm
+	main.add_child(body); body.global_position = gp(5.45, 2.52, -2.42); body.rotation = Vector3(PI / 2, 0.4, 0)
+	# one of Taiga's shoes, at the edge of its light
+	shoe6 = MeshInstance3D.new(); var sb := BoxMesh.new(); sb.size = Vector3(0.1, 0.09, 0.28); shoe6.mesh = sb
+	var sm := StandardMaterial3D.new(); sm.albedo_color = Color(0.08, 0.08, 0.09); sm.roughness = 0.6; shoe6.material_override = sm
+	main.add_child(shoe6); shoe6.global_position = gp(5.75, 1.95, -2.4); shoe6.rotation.y = 0.5
+
+func _start6_tick(_dt: float):
+	if mode != FREE: return
+	match stage:
+		"call":
+			note_lb.text = T(String(D.lines("六.始まり")[0])) if _nat_looked() else ""
+			if demo6: _demo_aim6((_target("nat").pos as Vector3) if not _target("nat").is_empty() else player.global_position, func(): _press6())
+		"call_talk":
+			stage = "peek"
+		"peek":
+			note_lb.text = ""
+			if _cellar_looked():
+				stage = "peek2"
+				_tes6(String(B("六.地下.見下ろす")[0].text))
+			elif demo6: _demo_cellar()
+		"peek2":
+			note_lb.text = T(String(D.lines("六.地下.下りる")[0])) if _cellar_looked(30.0) else ""
+			if demo6 and _cellar_looked(30.0): _after(1.5, func(): if stage == "peek2": _press6())
+
+var demo_pk := 0.0
+func _demo_aim6(at: Vector3, then: Callable):
+	var to := at - _cam().global_position
+	player.yaw = lerp_angle(player.yaw, atan2(-to.x, -to.z), 0.15)
+	player.pitch = lerpf(player.pitch, asin(clampf(to.normalized().y, -1.0, 1.0)), 0.15)
+	demo_pk += get_process_delta_time()
+	if demo_pk > 1.5: demo_pk = 0.0; then.call()
+
+func _demo_cellar():
+	var tgt_p := gp(5.5, 5.95, 0.0)
+	var p: Vector3 = player.global_position
+	if Vector2(p.x - tgt_p.x, p.z - tgt_p.z).length() > 0.3:
+		if player.auto_path.is_empty():
+			var path := [[0.0, p.x, p.z, rad_to_deg(player.yaw), -10.0]]
+			var t := 0.3; var prev := p
+			for q in [[4.8, 4.2], [4.8, 5.7], [5.1, 6.05], [5.5, 5.95]]:
+				var to3: Vector3 = gp(q[0], q[1], 0.0); var d := Vector2(to3.x - prev.x, to3.z - prev.z)
+				t += d.length() / 1.1 + 0.2; path.append([t, to3.x, to3.z, rad_to_deg(atan2(-d.x, -d.y)), -10.0]); prev = to3
+			player.auto_path = path; player.auto_t = 0.0
+		return
+	player.auto_path = []
+	var to := gp(CELLAR_FOOT[0], CELLAR_FOOT[1], CELLAR_FOOT[2]) - _cam().global_position
+	player.yaw = lerp_angle(player.yaw, atan2(-to.x, -to.z), 0.15)
+	player.pitch = lerpf(player.pitch, asin(clampf(to.normalized().y, -1.0, 1.0)), 0.15)
+
+# ---------------------------------------------------------------- 2026-11-20（「お〜」の画の六つ目）: she sits; the first sun through the slit by the door
+func _dawn_ray():
+	var sl := SpotLight3D.new(); sl.light_color = Color(1.0, 0.86, 0.66); sl.light_energy = 0.0; sl.spot_range = 9.0
+	sl.spot_angle = 3.2; sl.spot_attenuation = 0.4; sl.spot_angle_attenuation = 0.3; sl.shadow_enabled = true
+	sl.light_volumetric_fog_energy = 1.2
+	main.add_child(sl)
+	sl.look_at_from_position(gp(3.7, -2.6, 0.9), gp(4.6, 3.6, 0.0), Vector3.UP)   # low, from the east-south-east, through the slit (x 4.08..4.28) to the genkan floor and the blanket
+	create_tween().tween_property(sl, "light_energy", 9.0, 6.0).set_trans(Tween.TRANS_SINE)
 
 # a block with seconds at the head of its lines (＞ do, （ ） note, ◇ mission, the rest said)
 func _flow_start(key: String, done := Callable()):
@@ -708,6 +805,21 @@ func _do(what: String):
 			_lamp6(false)
 			Sound.one(self, "tape_clunk", -6.0, fixed_cam.global_position)
 		"dawn": _dawn()
+		"shake_natsuki":
+			Sound.one(self, "ch3_blanket", -10.0, (_target("nat").pos as Vector3) if not _target("nat").is_empty() else player.global_position)
+		"step_down":   # one step down the cellar stair; the breath in, and the cough (the body stops her)
+			var to: Vector3 = player.global_position + (gp(5.5, 4.9, -0.45) - player.global_position) * Vector3(1, 0, 1).normalized() * 0.0
+			var dst: Vector3 = gp(5.5, 5.3, -0.25); dst.y = player.global_position.y - 0.22
+			set_meta("down_from", player.global_position)
+			create_tween().tween_property(player, "global_position", Vector3(dst.x, player.global_position.y, dst.z), 0.6).set_trans(Tween.TRANS_SINE)
+			_after(0.7, func(): Sound.one(self, "ch3_cough", 2.0))
+		"step_back":
+			var back: Vector3 = get_meta("down_from", player.global_position)
+			var tw := create_tween(); tw.tween_interval(0.9)
+			tw.tween_property(player, "global_position", back, 0.7).set_trans(Tween.TRANS_SINE)
+			tw.tween_callback(func(): stage = "tape0"; _flow_start("六.テープ", func(): stage = "free"))
+		"dawn_ray":
+			_dawn_ray()
 		"lid":
 			done6["lid"] = true
 			Sound.one(self, "lock", -14.0, _target("makeup").pos)
@@ -731,6 +843,8 @@ func _press6():
 	if stage == "end5": _press_end(); return
 	if act != "": _act_press(); return
 	if stage == "free" and not tgt.is_empty(): (tgt.press as Callable).call()
+	if stage == "call" and _nat_looked(): stage = "call_talk"; note_lb.text = ""; _start(B("六.始まり").slice(1))
+	elif stage == "peek2" and _cellar_looked(30.0): stage = "down"; note_lb.text = ""; _start(B("六.地下.下りる").slice(1))
 
 func _holding() -> bool:
 	return hold_demo or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
@@ -1835,24 +1949,20 @@ func _phone_open():
 			ph_mode = "chat"
 			# she reads it. The half-heard voice of half past two comes back on the page, and the gaps in it fill
 			_after(3.2, func():
-				_ret_open("夏希.見る")
-				_ret_after("スマホ.読んだ", -1.0)
+				_ret_open("スマホ.読んだ")
+				ret_q.append([(float(ret_q[-1][0]) + 0.8) if not ret_q.is_empty() else 0.8, func(): ret_hold = -1.0])
 				step = 55)))
 
 func _phone_tick(dt: float):
 	if step == 55 and not _ret_busy():
 		step = 6; _show_prompt("スマホ.消す")
 	if step == 6:
-		var body := "夏希：ここじゃ、なかった。"
-		if _holding():
-			if not ret_rows.has(body): return
-			if not (ret_rows[body] as Dictionary).has("s"): _ret_strike(body, 99.0)
+		if _holding():   # 2026-11-20: the letters go from the end; the page keeps its lines (no strike)
 			var was := int(ceil(ph_n))
 			ph_n = maxf(0.0, ph_n - dt * 6.0)
 			if int(ceil(ph_n)) != was:
 				del_tick += 1
 				if del_tick % 2 == 0: Sound.one(self, "dial_tick", -20.0)
-			((ret_rows[body] as Dictionary).s as Strike6).k = 1.0 - ph_n / float(ph_draft0.length())
 			if ph_n <= 0.0:
 				step = 7; note_lb.text = ""
 				_ret_after("スマホ.あと", 9.0)
@@ -2310,6 +2420,7 @@ func _demo6_script() -> Array:
 	var free := func(): return mode == FREE and act == "" and not _ret_busy()
 	st.append(["mark", "free"])
 	U.call(func(): return stage == "free")
+	W.call([[5.2, 6.0], [4.8, 5.6], [4.8, 4.4], [4.4, 3.6], [4.4, 3.0]])   # 2026-11-20: the free part starts at the cellar door now
 	P.call("lantern"); U.call(free)
 	# Ａ
 	P.call("tripod"); U.call(func(): return step == 1)

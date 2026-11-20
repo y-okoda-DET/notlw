@@ -1156,11 +1156,11 @@ func _cellar_jolt():
 	tw.tween_property(piv, "rotation:y", r0 + dir * 0.01, 0.06)
 	tw.tween_property(piv, "rotation:y", r0 + dir * 0.02, 0.25).set_trans(Tween.TRANS_SINE)
 
-const MIO_WAIT := [4.95, 5.05]   # (ch8.gd: at the cellar door, the hall before her)
+const MIO_WAIT := [4.75, 5.0]   # (ch8.gd: at the cellar door, the hall before her)
 const TAKE_AT := [5.05, 2.45]    # (by the tripod, the camera off it; not behind its pole from where she stands)
 func _shade() -> ColorRect:
 	if doze_rect == null:
-		var cl := CanvasLayer.new(); cl.layer = 0; add_child(cl)
+		var cl := CanvasLayer.new(); cl.layer = 11; add_child(cl)
 		doze_rect = ColorRect.new(); doze_rect.color = Color(0, 0, 0, 0); doze_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		doze_rect.set_anchors_preset(Control.PRESET_FULL_RECT); cl.add_child(doze_rect)
 	return doze_rect

@@ -1002,8 +1002,9 @@ func _grab_arm():
 # a cut: the hall, she by the cellar door, he a few steps toward the tripod
 func _cel_done():
 	cel8 = "done"
+	player.auto_path = []; demo_goal = []; demo_route = []
 	if grab8: grab8.visible = false
-	var cl := CanvasLayer.new(); cl.layer = 0; add_child(cl)
+	var cl := CanvasLayer.new(); cl.layer = 11; add_child(cl)
 	var bk := ColorRect.new(); bk.color = Color(0, 0, 0, 1); bk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bk.set_anchors_preset(Control.PRESET_FULL_RECT); cl.add_child(bk)
 	var tw := create_tween(); tw.tween_interval(0.25); tw.tween_property(bk, "color:a", 0.0, 0.9); tw.tween_callback(cl.queue_free)
@@ -1539,7 +1540,7 @@ func _demo8_tick(dt: float):
 			if cel8 == "heard":
 				if _cel_look(): player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8(); return
 				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
-				if demo_goal.is_empty(): _demo_go([[4.85, 2.6], [4.6, 3.5], [4.8, 4.4], [4.8, 5.6], [5.0, 5.9]])
+				if demo_goal.is_empty(): _demo_go([[5.3, 1.95], [4.7, 2.2], [4.3, 2.9], [4.3, 3.7], [4.8, 4.2], [5.0, 5.9]])   # off the stair foot, round by the hall (ch3.gd walks it the other way)
 				else: _demo_there(0.3)
 				return
 			if cel8 == "":
@@ -1549,7 +1550,7 @@ func _demo8_tick(dt: float):
 			if cel8 != "done": return
 			if player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.4:
 				player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8()
-			elif demo_goal.is_empty(): _demo_go([[5.5, 5.75], [5.5, 2.5], [4.85, 2.25]])
+			elif demo_goal.is_empty(): _demo_go([[4.6, 3.0], [4.85, 2.25]])   # from where _cel_done leaves her, in the hall
 			else: _demo_there(0.3)
 		"rec_wait":
 			if t_stage > 1.5: demo_wait = 1.0; _press8()
