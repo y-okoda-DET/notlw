@@ -33,7 +33,7 @@ var tape_t := 0.0
 var room_t := 0.0
 var end_t2 := -1.0
 var card11: Control
-var card11_t := 2.5   # 半分に（ユーザー 2026-11-14）
+var card11_t := 0.0   # 2026-11-20: no card (its question went to 証言 三)
 var tline := {}                # the line being written: {lb, text, written, segs, n_all, n_clear}
 var heard_clear := 0
 var heard_all := 0
@@ -86,6 +86,97 @@ const PAN_AT := Vector3(0.95, 0.70, 0.30)
 const MIO_LAYER := 128         # her body: the mirror and the last cut see it, her own eyes do not
 const SCR_LAYER := 4           # the glass itself: the mirror does not see it
 
+# ---------------------------------------------------------------- 2026-11-20: the tape from 0:20 (時刻は 0:20:00 からの秒)
+const N0 := 1200                      # 0:20:00, the head of the second cassette
+const N230 := 7798.0                  # 2:29:58 (【テープ.二時半】 0 s)
+const N330 := 11394.0                 # 3:29:54 (【テープ.流れ】 0 s = 第4章 4 s)
+const N400 := 13200.0                 # 4:00:00 (【テープ.四時】)
+const N_END := 14400.0                # 4:20:00: the tape runs out
+const FF_RATE := 120.0
+const T230_POS := {"sit": [5.0, 1.62], "near": [5.0, 0.86], "ear": [5.0, 0.6]}   # ch3.gd T230_AT
+const SIT_AT := [4.9, 1.62]           # the 框 (ch8.gd MIO_SIT)
+var night_n := 0.0
+var play_room_t := 0.0
+var post := false
+var ff_on := false
+var demo_ff := false
+var jumped := false
+var pre_q := []                       # [n, kind, ...] in night seconds, as _event takes them
+var pre_pos := []                     # [n, "sit"|"near"|"ear"|"gone"]
+var pre_pi := 0
+var mio_h                             # a ch8.gd, not in the tree: its _load_mio/_blanket make her, sitting in the blanket
+var mio_pose := ""
+
+func _pre_build():
+	pre_q = []; pre_pos = []
+	if "--ch11rec" in OS.get_cmdline_user_args() and not (get_flag("door_0230") is Dictionary):   # (this part alone: a night as 第3章's playthrough leaves it; ch8.gd --ch8rec)
+		set_flag("door_0230", {"pos": [[0.0, "sit"], [9.0, "near"], [10.0, "ear"], [25.0, "near"], [44.0, "sit"]], "asks": [[13.0, 0], [30.5, 1]], "silences": [[13.0, 17.5], [30.5, 32.5]], "said_rule": true})
+		set_flag("said_rule")
+	var rec = get_flag("door_0230")
+	if not (rec is Dictionary): rec = {"pos": [[0, "sit"]], "asks": [], "said_rule": has_flag("said_rule")}
+	# where she was: from 1:00 at the door in the blanket; 2:00-2:07 at the cellar door (out of the frame); 2:30 as recorded
+	pre_pos.append([0.0, "gone"]); pre_pos.append([2400.0, "sit"]); pre_pos.append([6000.0, "gone"]); pre_pos.append([6420.0, "sit"])
+	for pp in (rec.get("pos", []) as Array): pre_pos.append([N230 + float(pp[0]), String(pp[1])])
+	pre_pos.append([N230 + 70.0, "sit"])
+	pre_pos.sort_custom(func(a, b): return float(a[0]) < float(b[0]))
+	for e in B("テープ.二時半"):
+		if not e.has("t"): continue
+		if e.has("if") and not has_flag(String(e["if"])): continue
+		var n := N230 + float(e.t)
+		if e.has("do"): continue
+		if e.has("note"): pre_q.append([n, "note", e.note])
+		else: pre_q.append([n, "say", e.get("who", ""), e.text])
+	var ch: Array = D.entries("テープ.問い")
+	for a in (rec.get("asks", []) as Array):
+		if str(a[1]) == "rule" or ch.is_empty(): continue
+		var i := int(a[1])
+		if i >= (ch[0].then as Array).size(): continue
+		var k := 0
+		for e in ((ch[0].then as Array)[i] as Array):
+			var n2 := N230 + float(a[0]) + 2.6 * k; k += 1
+			if e.has("note"): pre_q.append([n2, "note", e.note])
+			elif e.has("text"): pre_q.append([n2, "say", e.get("who", ""), e.text])
+	var k4 := 0
+	for e in B("テープ.四時"):
+		var n4 := N400 + 3.0 * k4; k4 += 1
+		if e.has("note"): pre_q.append([n4, "note", e.note])
+		elif e.has("text"): pre_q.append([n4, "say", e.get("who", ""), e.text])
+	pre_q.sort_custom(func(a, b): return float(a[0]) < float(b[0]))
+	_hall_mio()
+	print("STORY ch11 pre: %d lines, %d places (record %s)" % [pre_q.size(), pre_pos.size(), "yes" if get_flag("door_0230") is Dictionary else "no"])
+
+func _pre_tick(_dt: float):
+	while not pre_q.is_empty() and night_n >= float(pre_q[0][0]):
+		var e: Array = pre_q.pop_front()
+		if ff_on and night_n - float(e[0]) > 2.0: continue   # run past fast: a blur, not words
+		_event(e)
+	var want := "gone"
+	for pp in pre_pos:
+		if night_n >= float(pp[0]): want = String(pp[1])
+	if post: want = "gone"
+	_hall_mio_pose(want)
+
+func _hall_mio():
+	if mio_h != null: return
+	mio_h = load("res://scripts/ch8.gd").new()
+	mio_h.main = main; mio_h.player = player
+	mio_h._load_mio()
+	if not main.S.has("mio_node"): mio_h = null; return
+	_hall_mio_pose("gone")
+
+func _hall_mio_pose(p: String):
+	if mio_h == null or p == mio_pose: return
+	mio_pose = p
+	var rig: Node3D = main._rig_of("mio")
+	rig.visible = p != "gone"
+	if mio_h.blanket: mio_h.blanket.visible = p == "sit"
+	if p == "gone": return
+	var at: Array = SIT_AT if p == "sit" else T230_POS.get(p, SIT_AT)
+	var yaw := atan2(5.0 - float(at[0]), 0.0 - float(at[1]))   # to the door (plan 5.0, 0.0)
+	main.place_person("mio", [float(at[0]) - 4.8, 6.3 - float(at[1]), -0.36 if p == "sit" else 0.0], yaw)
+	main.set_stand("mio", "talk/sit_idle" if p == "sit" else "talk/idle", 0.3)
+	if p == "ear": rig.rotate_object_local(Vector3.RIGHT, 0.22); rig.global_position += Vector3(0, -0.12, 0)
+
 func _init():
 	tape = true
 
@@ -101,8 +192,7 @@ func _ready():
 	_screen()
 	_mio_body()
 	_back_light()
-	var c: Array = D.lines("十一.カード")
-	card11 = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
+	card11 = Control.new(); card11.visible = false; add_child(card11)   # 2026-11-20: no card any more
 	black2 = ColorRect.new(); black2.color = Color(0, 0, 0, 0); black2.set_anchors_preset(Control.PRESET_FULL_RECT); black2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black2)
 	# she sits; she does not walk in this chapter
@@ -397,7 +487,20 @@ func _clock(dt: float) -> bool:
 	room_t += dt
 	_room_tick(dt)
 	if st != PLAYING: return false
+	# 2026-11-20: the tape from 0:20 (the second cassette's head). Before 3:29:54 and after the night's 61 s the hall is
+	# still (the 第4章 night does not run): the 2:30 part from the record, Makoto's voice at 4:00. Ｆ held runs it fast.
+	var ff := Input.is_key_pressed(KEY_F) or demo_ff
+	ff_on = ff and not (night_n >= N330 - 1.0 and not post)
+	var rate := FF_RATE if ff_on else 1.0
+	if night_n < N330 or post:
+		night_n += dt * rate
+		if not post and night_n >= N330: night_n = N330; tape_t = 0.0; clock = NIGHT_AT; _hall_mio_pose("gone"); return true
+		_pre_tick(dt)
+		_typing(dt)
+		if post and night_n >= N_END: _end_tape()
+		return false
 	tape_t += dt
+	night_n = N330 + tape_t
 	clock = tape_t + NIGHT_AT; t_now = clock
 	return true
 
@@ -406,6 +509,7 @@ func _room_tick(dt: float):
 	var deck_at := ROOM + Vector3(0, 0.20, 0.11)
 	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(14.0)
 	var e := _err()
+	if ff_on: e = maxf(e, 0.8)   # the picture tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
 	scr_mat.set_shader_parameter("err", e)
 	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
@@ -428,13 +532,14 @@ func _room_tick(dt: float):
 		PLAYING:
 			var G: Array = B("テープ.案内")
 			note_lb.text = T(String(G[1].note if on_knob else G[0].note)) if (e > 0.2 or on_knob) else ""
-			osd.visible = tape_t < 4.0
 			if tape_t < 1.6:                     # the key pressed, her eyes go back up to the picture
 				var ku := 1.0 - exp(-dt * 4.0)
 				player.yaw = lerp_angle(player.yaw, 0.0, ku); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), ku)
 			osd_trk.text = ("トラッキング " + "-".repeat(int(trk * 16.0)) + "|" + "-".repeat(16 - int(trk * 16.0))) if on_knob else ""
-			var s := 54 + int(tape_t)
-			stamp.text = "AM 3:%02d:%02d" % [29 + s / 60, s % 60]
+			var ns := N0 + int(night_n)
+			stamp.text = "AM %d:%02d:%02d" % [ns / 3600, (ns / 60) % 60, ns % 60]
+			osd.text = "▶▶" if ff_on else "再生"
+			osd.visible = ff_on or room_t - play_room_t < 4.0 or (tape_t >= 0.0 and tape_t < 4.0 and not post)
 			_tape_swing(dt)
 			if demo11: _demo11(dt)
 		ENDED:
@@ -474,7 +579,8 @@ func _room_tick(dt: float):
 				if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit()
 
 func _play():
-	st = PLAYING; tape_t = 0.0
+	st = PLAYING; tape_t = 0.0; play_room_t = room_t
+	if not jumped: night_n = 0.0; tape_t = -1.0; _pre_build()
 	note_lb.text = ""
 	print("STORY ch11 play room_t=%.1f" % room_t)
 
@@ -489,6 +595,7 @@ func _do4(what: String):
 	match what:
 		"strike", "strike2": tswing = 0.0; tswings += 1
 		"end": _end_tape()
+		"after": post = true; print("STORY ch11 after t=%.1f" % tape_t)
 		_: super._do4(what)
 
 # Mio is under the camera, out of its frame. The tripod is in her hands from the second she took it up in 第4章;
@@ -568,6 +675,8 @@ func _unhandled_input(e):
 		var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 		if press and note_lb.text != "": _play()
 		return
+	if st == PLAYING and e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E and (night_n < N330 or post):
+		_end_tape(); return   # 2026-11-20: she may stop it (not while the 3:30 minute runs)
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_RIGHT: on_knob = e.pressed
 	elif e is InputEventMouseMotion and on_knob and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		trk = clampf(trk + e.relative.x * 0.0006, 0.0, 1.0)
@@ -576,6 +685,7 @@ func _unhandled_input(e):
 
 # stills: the tape at t seconds
 func _tape_jump(t: float):
+	jumped = true; night_n = N330 + t
 	_play()
 	player.pitch = deg_to_rad(-7.0)   # 試作220：the chapter starts looking down at the deck; a still of the tape is of the picture
 	trk = float(get_meta("trk", _target_trk(t)))
@@ -606,10 +716,11 @@ func _tape_jump(t: float):
 
 # the unattended run: her hand goes to the knob when the picture tears, and finds the place
 func _demo11(dt: float):
+	demo_ff = (night_n < N230 - 3.0) or (night_n > N230 + 72.0 and night_n < N330 - 4.0) or (post and night_n < N400 - 3.0) or (post and night_n > N400 + 12.0)
 	var want := _target_trk(tape_t)
 	var off := absf(trk - want)
-	if off > 0.05 and held_since < 0.0 and tape_t > 3.0: held_since = tape_t
-	on_knob = held_since >= 0.0 and tape_t - held_since > 1.2
+	if off > 0.05 and held_since < 0.0 and room_t - play_room_t > 3.0: held_since = room_t
+	on_knob = held_since >= 0.0 and room_t - held_since > 1.2
 	if on_knob:
 		trk = move_toward(trk, want, dt * 0.09)
 		if absf(trk - want) < 0.004: held_since = -1.0; on_knob = false
