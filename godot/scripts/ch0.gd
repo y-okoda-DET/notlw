@@ -485,7 +485,8 @@ func _open_tick(dt: float):
 			after0 = 3
 			if demo0: print("DEMO ch0 t=%.1f fails=%d" % [clock, DEMO_FAILS])
 			if demo0 and "--demoquit" in OS.get_cmdline_user_args() and "--ch0only" in OS.get_cmdline_user_args(): print("DEMO DONE ch0 t=%.1f" % clock); get_tree().quit(); return
-			# the evening (第一章): main.gd plays 第1章 when the scene asked for is the dusk
+			# 第一章: the drive up (scripts/car.gd, 2026-11-20), then the evening. Without it, the evening (main.gd plays 第1章 when the scene asked for is the dusk)
+			if ResourceLoader.exists("res://scripts/car.gd"): main.to_chapter("ch1car"); return
 			main._save_settings(); main.SCENE = "dusk"; get_tree().reload_current_scene()
 
 # check stills: the scene at t seconds, the lines before it on the page

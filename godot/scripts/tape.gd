@@ -581,6 +581,8 @@ func _room_tick(dt: float):
 func _play():
 	st = PLAYING; tape_t = 0.0; play_room_t = room_t
 	if not jumped: night_n = 0.0; tape_t = -1.0; _pre_build()
+	for a in OS.get_cmdline_user_args():   # check stills: the tape from this count on (N230 = 2:30)
+		if a.begins_with("--ch11n="): night_n = float(a.substr(8))
 	note_lb.text = ""
 	print("STORY ch11 play room_t=%.1f" % room_t)
 

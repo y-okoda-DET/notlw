@@ -106,6 +106,7 @@ func _ready():
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
 	if house: RESTS[1] = ["point", [0.30, 3.65, _rail_z(3.75) + 0.10], 0.09]   # 試作125: the newel ends at the rail now (house4.stairs_up)
 	_items()
+	if main.SCENE == "house": _guestbook()
 	_page()
 	_board()
 	_finder()
@@ -212,6 +213,33 @@ func _items():
 	add.call("shoes", [0.30, 5.55, -0.12], 0.35, "look", "靴")
 	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
 	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
+	if main.SCENE == "house": add.call("guestbook", GB_AT, 0.16, "look", "宿帳")
+
+# 2026-11-20 練り直し（ユーザー 12時56分）：玄関の靴箱の上の宿帳。去年の八月の頁が開きやすい（何度も開かれた癖）。
+# 澪が見て「閉じて、棚に戻す」を選べば消える（guestbook_hidden）。見なかった・そのままにした人には、真琴が先に読んでいる（【真琴.宿帳】）
+const GB_AT := [0.955, 5.60, 0.745]     # house4.genkan_fit: the shoe cabinet's top (plan x 5.6..5.94, y .1..1.3; z ZG + .91)
+var guestbook: Node3D
+func _guestbook():
+	guestbook = Node3D.new(); guestbook.name = "guestbook"; add_child(guestbook)
+	guestbook.position = g(GB_AT); guestbook.rotation = Vector3(0, deg_to_rad(84.0), 0)
+	var cover := StandardMaterial3D.new(); cover.albedo_color = Color(0.13, 0.20, 0.17); cover.roughness = 0.7
+	var paper_m := StandardMaterial3D.new(); paper_m.albedo_color = Color(0.86, 0.83, 0.74); paper_m.roughness = 0.95
+	var ink_m := StandardMaterial3D.new(); ink_m.albedo_color = Color(0.25, 0.27, 0.35); ink_m.roughness = 0.9
+	var box = func(sz: Vector3, at: Vector3, m: Material, rz := 0.0):
+		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = sz; mi.mesh = bm; mi.material_override = m
+		mi.position = at; mi.rotation = Vector3(0, 0, rz); guestbook.add_child(mi)
+	# open, the spine down the middle: the two covers, the two blocks of pages bowed up a little toward the spine
+	box.call(Vector3(0.155, 0.004, 0.215), Vector3(-0.079, 0.002, 0), cover, -0.04)
+	box.call(Vector3(0.155, 0.004, 0.215), Vector3(0.079, 0.002, 0), cover, 0.04)
+	box.call(Vector3(0.145, 0.012, 0.205), Vector3(-0.075, 0.009, 0), paper_m, -0.07)
+	box.call(Vector3(0.145, 0.009, 0.205), Vector3(0.075, 0.008, 0), paper_m, 0.07)
+	# the rows of names (ruled, written in): thin dark strokes on both pages
+	for side in [-1.0, 1.0]:
+		for r in 9:
+			var w := 0.06 + fmod(r * 0.37 + (0.3 if side > 0 else 0.0), 1.0) * 0.06
+			box.call(Vector3(w, 0.0008, 0.0035), Vector3(side * (0.03 + w * 0.5), 0.0165 if side < 0 else 0.0145, -0.085 + r * 0.019), ink_m, side * 0.07)
+	# a ballpoint on a string, beside it
+	box.call(Vector3(0.006, 0.006, 0.13), Vector3(0.19, 0.003, 0.02), ink_m)
 
 # ================================================================ the words, in the player's language
 # Every string on screen is written here in Japanese and looked up in lang/text.csv (keys = the Japanese, one column
@@ -645,6 +673,7 @@ func _rest_for(eye: Vector3, dir: Vector3) -> Dictionary:
 
 # ================================================================ per frame
 func _process(dt):
+	if guestbook and guestbook.visible and has_flag("guestbook_hidden"): guestbook.visible = false   # 閉じて、棚の奥に戻した
 	t_now += dt
 	if main.card.visible: return
 	_demo_tick(dt)
@@ -826,7 +855,12 @@ func _conversation(key: String) -> Array:
 			if not holding_cam and not cam_placed: return B("桐生.カメラは箱")
 			return B("桐生.探して")
 		"natsuki": return B("夏希.一回目" if n == 0 else "夏希.二回目から")
-		"makoto": return B(["真琴.一回目", "真琴.二回目", "真琴.三回目から"][min(n, 2)])
+		"makoto":
+			# 2026-11-20: if the guestbook is still out, she has read it: the first time Mio speaks to her, that comes first
+			if main.SCENE == "house" and not has_flag("guestbook_hidden") and not has_flag("mk_guestbook"):
+				set_flag("mk_guestbook"); talked[key] = n
+				return B("真琴.宿帳")
+			return B(["真琴.一回目", "真琴.二回目", "真琴.三回目から"][min(n, 2)])
 		"taiga": return B("大河.一回目" if n == 0 else "大河.二回目から")
 		"tape": return B("調べる.テープ")
 		"camcorder": return B("調べる.桐生のカメラ")
@@ -834,6 +868,9 @@ func _conversation(key: String) -> Array:
 		"note": return B("調べる.貼り紙")
 		"shoes": return B("調べる.靴")
 		"radio": return B("調べる.ラジオ")
+		"guestbook":
+			items.erase("guestbook"); focus = ""   # one look: the page is read once
+			return B("宿帳.見る")
 	return []
 
 const WHO_KEY := {"桐生": "kiryu", "夏希": "natsuki", "真琴": "makoto", "大河": "taiga"}

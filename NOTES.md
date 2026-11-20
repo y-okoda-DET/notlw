@@ -661,3 +661,9 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 ## 2026-11-20 裏のデッキの階段は、上りで角に止まる（main.gd に板を足した）
 - 勝手口の裏の階段（house4_ext.back_porch_boxes の ramp）は、上の端がデッキの上面より約5cm下で終わる。上りでカプセル（半径0.17）がデッキの角（plan y 5.9、高さ0）に当たり、その接触は 56° で壁になる（床は52°まで）。test_move で見つけた。試作127 の「勝手口から外に出て家に戻れなくなった」はこれ。
 - いまは main.gd の _colliders で、階段より少し急な板（38.5°）を足して角を覆う。坂の上の段差は坂の角度に足される（坂34°の上の3.5cmの段差は68°で壁）ので、板の足は坂の面に揃える。次の焼き直しで house4_ext の ramp をデッキの上面まで伸ばせば、この板は要らない。
+
+## 2026-11-20 第1章の頭、行きの車の中（scripts/car.gd、play "ch1car"）
+- 車の道（car.gd PATH）は outside_geo.py の ROAD（南の端 s=179 から私道の口 J まで、2m おき）と DRIVE（下から玄関の手前まで 1.5m おき）を並べた物。Blender の世界座標（x, y, 路面の z）。左側通行で道の中心から 0.9m 左、崩れる前の路肩の三角コーン（slip_props：中心から外へ約0.65m）の所だけ右へ 0.8m よける。作り直すとき：`cd blender && python3 -c "import outside_geo as G"` の ROAD.P/N/z、DRIVE.P/z を同じ間隔で取る。
+- Tripo の車（ext_car、env.glb の駐車した物）を複製して車体にする。Tripo の前は自分の +z（furnish.tripo_prop：Blender の -Y）なので、Y まわり 180° 回して車の -z（前）に合わせる。中から見えないよう、ベルトライン（0.98m）より上と、窓の付け根より後ろはシェーダーで捨てる（ボンネットだけ窓越しに見える）。車の中（ダッシュボード、ハンドル、座席、柱、天井）は car.gd が箱で組む。
+- 夏希の手は、ハンドルの輪の10時・2時へ二本の骨で届かせる（car.gd ReachIK、set_bone_global_pose）。座る形は natsuki_c7.res の sit_idle、真琴は makoto_talk.res の sit_a。一つの AnimationPlayer に多くの動きを持たせると Godot 4.4.1 が落ちるので、車の場面では元の library を外して1本だけにする。
+- ルームミラーは SubViewport のカメラ（目の位置をミラーの面で折り返した所から撮る）。
