@@ -631,3 +631,13 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 通しを速く進めるには main.gd の時計を --frameclock にして dt を足す形に変え（patch_main.py）、Engine.time_scale=2。4 にすると第3章で通しが崩れる。描かない間は窓を 1/10 に縮めると約3倍速い（render_loop_enabled=false だけでは速くならない）。
 - 撮る間は Label／RichTextLabel を隠すと、字幕・語り・操作の案内が消える（clip.gd。ファインダーの枠や STBY などの draw_string は残る）。
 
+## 2026-11-20 証言 一〜三の第2稿（インタビューを作り直すスレッド、interview.gd・rig2glb.py）
+- 人を動かすため、聞き手と澪を「骨つき」の GLB にした（tripo/interview/kikite_rig.glb・mio_rig.glb）。元は /mnt/project-files/インタビュー/tripo/ の blend（骨 55 本、形ごとに1つの blend）。`python3 blender/interview/people/dump.py -- <形>.blend kikite <形>.json` で各形の骨（matrix_basis）を json に書き、`python3 blender/interview/people/rig2glb.py -- kikite kikite_seiza.blend <json のフォルダ> kikite_rig.glb`（澪は `-- mio mio_seiza.blend - mio_rig.glb`）。形は1コマの動き（NLA の帯1本ずつ）として入る。手の SUBSURF は 1 段にして当て、CORRECTIVE_SMOOTH は外す。鉛筆は write の blend から持ってくる。四つの形の blend は骨の休みの位置も rig の置き場所も同じ（確かめた）。
+- 澪の拳（fist）は、膝の形（lap）から指の骨を各関節 45°、親指 22° 曲げた物。曲げる軸は骨の x か z の、指先が手首に近づくほう（rig2glb.py で総当たり）。
+- Godot 側（interview.gd _person・_pose）：AnimationPlayer は読んだらすぐ外し、各形の骨の回転と位置を表に持つ。毎コマ「形 A→B の補間＋足し算」を set_bone_pose_* で置く。足し算は世界の軸（横 x、上 y、向き z）まわりの回転を、その骨の局所の軸に直したもの（休みの形で一度だけ測る）。骨のロールがどうでも同じ向きに効く。人も 12 コマ／秒で進める（カメラと同じ）。
+- 澪は北を向く（Godot の -z）、聞き手は南（+z）。x 軸まわりの + 回転は聞き手には前かがみ、澪には反り。facing（±1）で符号を合わせる。
+- 鉛筆は write の形のときだけ書く手（測ると hand_l/hand_r の近いほう）に付け、ほかは帳面の上に寝かせる。
+- 部屋のテレビ（props/crt_tv.glb）とデッキ（props/vcr.glb）は床脇の地袋の上（Blender (-1.50, -0.95, 0.42)、東向き）。テレビの絵はガラスの面より 3cm 奥の平面（前に出すと斜めから浮いて見えた）。crt_tv.glb は向き 8°（第11章の -82° の 90° 違い）で東を向く。
+- 選ぶあいだのカメラの肩越し（選ぶ_肩越し）は、聞き手の顎（z 0.82）より上を入れない：狙いを z 0.30、レンズ 55。澪の手元は座卓の下からでなく、座卓の西の外から（座卓は y -0.35〜0.55 なので y -0.26 だと天板の裏しか映らなかった）。
+- 前の記録（第3章で耳を寄せた、第5章で指を切った、1時に桐生と話した）は、入口が作る記録から読む約束：`Engine.set_meta("night_flags", {"hands_cut": true, …})`。確かめるときは `--ivflags=hands_cut,leaned,talked_kiryu_1am`。自動の通しで嘘を選ぶのは `--ivlie`（interview.sh は IVARGS で渡す）。
+- 画面つきの通しの撮影（interview.sh shots）は約 7 コマ／分。720 コマは 100 分かかる。短く撮るか、--ivstill の静止画で見る。
