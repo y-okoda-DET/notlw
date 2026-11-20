@@ -349,6 +349,12 @@ func _room():
 			if "--d11dbgf" in OS.get_cmdline_user_args():   # straight on, orthographic: to measure the glass against the body
 				dc.projection = Camera3D.PROJECTION_ORTHOGONAL; dc.size = 0.8; dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0, 0.6, 1.5))
 			var dl := OmniLight3D.new(); dl.light_energy = 3.0; dl.omni_range = 5.0; main.add_child(dl); dl.global_position = ROOM + Vector3(0.6, 1.4, 1.2)
+	# 2026-11-21（ユーザー「客間のテレビが直ってないな」）: the set's foot is at 0.355, the deck's top near 0.25: it hung 10 cm over the
+	# deck. A low wooden AV rack: the set on its top board, the deck in the opening under it, on the cabinet (nothing in the last cut moves)
+	var wood := Color(0.17, 0.13, 0.10)
+	_box(Vector3(0, 0.34, -0.08), Vector3(0.70, 0.03, 0.42), wood, 0.7)                 # the top board, under the set
+	for sx in [-0.335, 0.335]: _box(Vector3(sx, 0.245, -0.08), Vector3(0.03, 0.19, 0.42), wood, 0.7)   # its two sides, down to the cabinet
+	_box(Vector3(0, 0.245, -0.285), Vector3(0.70, 0.19, 0.01), wood, 0.8)               # its back
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen

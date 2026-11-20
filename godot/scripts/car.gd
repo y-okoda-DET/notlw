@@ -106,6 +106,7 @@ func _ready():
 		if a.begins_with("--caraim="): var c2 := a.substr(9).split(","); caraim = Vector3(float(c2[0]), float(c2[1]), float(c2[2]))
 		if a.begins_with("--carcam="): var c := a.substr(9).split(","); carcam = Vector3(float(c[0]), float(c[1]), float(c[2]))
 		if a == "--cargap": call_deferred("_jump_gap")
+		if a.begins_with("--carlook="): var c3 := a.substr(10).split(","); carlook = Vector2(float(c3[0]), float(c3[1]))
 	_loop("car_drive", -14.0)
 	print("CAR ready d_slip=%.1f d_stop=%.1f d_reveal=%.1f d_end=%.1f len=%.1f" % [d_slip, d_stop, d_reveal, d_end, curve.get_baked_length()])
 
@@ -530,6 +531,7 @@ func _seat_player():
 	player.yaw = 0.0; player.pitch = deg_to_rad(-2.0)
 	_follow()
 
+var carlook := Vector2.ZERO
 var carcam := Vector3.ZERO      # check stills: the camera outside the car, at this point of its frame, looking at it (--carcam=x,y,z)
 func _follow():
 	if carcam != Vector3.ZERO:
@@ -549,6 +551,7 @@ func _follow():
 	player.global_transform = Transform3D(hb, at)
 	player.velocity = Vector3.ZERO
 	# she turns in her seat, not round: to her window and back over her shoulder, a little toward Natsuki
+	if carlook != Vector2.ZERO: player.yaw = deg_to_rad(carlook.x); player.pitch = deg_to_rad(carlook.y)   # check stills: --carlook=yaw,pitch
 	player.yaw = clampf(player.yaw, -2.9, 2.9)
 	player.pitch = clampf(player.pitch, -0.95, 0.55)
 
