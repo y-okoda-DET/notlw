@@ -22,21 +22,23 @@ const PATH := [[42.78, 106.47, -10.715], [44.07, 104.95, -10.708], [45.37, 103.4
 const DRIVE_I := 61                  # PATH's first point on the drive
 const SLIP_AT := [67.87, 60.03]      # the shoulder that goes (outside_geo SLIP_IDX)
 const HOUSE_AT := [0.2, 4.0, 1.5]    # the front of the house (what she should see at the gap)
-const REVEAL_BACK := 15.5            # metres before the drive's end: the gap in the cedars, where the house shows (試し撮りで決めた)
+const STOP_BACK := 24.0              # she stops on the forest road this far short of the drive (the house is not seen from there:
+                                     # from the drive's foot it is, 試し撮り 2026-11-20)
+const REVEAL_IN := 3.0               # metres up the drive: the house in the gap of the cedars, ahead
 const END_BACK := 5.0                # it stops here, short of the porch (the cut is before)
 
 # the car's frame: x to the right, y up from the ground, -z forward (front). Right-hand drive: Natsuki at +x, Mio at -x
 const LEN := 4.0
 const SEAT_MIO := Vector3(-0.37, 0.40, 0.10)     # the cushion under her (the player's body stands here)
-const EYE_UP := 0.74                             # her eye over it
+const EYE_UP := 0.70                             # her eye over it
 const SEAT_NAT := Vector3(0.37, 0.40, 0.10)
-const SEAT_MK := Vector3(-0.36, 0.42, 0.96)
-const WHEEL := Vector3(0.37, 0.90, -0.40)        # the wheel's middle
+const SEAT_MK := Vector3(-0.30, 0.42, 0.96)
+const WHEEL := Vector3(0.37, 0.90, -0.34)        # the wheel's middle
 const WHEEL_TILT := 0.42                          # its face turned up from upright (rad)
 const WHEEL_R := 0.185
-const MIRROR := Vector3(0.0, 1.235, -0.25)
-const TAPE_AT := Vector3(-0.30, 0.958, -0.80)    # on the dash, Mio's side, against the windshield
-const PHONE_AT := Vector3(0.66, 0.93, -0.53)     # clipped to the vent right of the wheel
+const MIRROR := Vector3(0.0, 1.245, -0.28)
+const TAPE_AT := Vector3(-0.28, 0.934, -0.74)    # on the dash, Mio's side, against the windshield
+const PHONE_AT := Vector3(0.13, 0.86, -0.505)    # clipped to the vent at the wheel's left (the middle of the dash: Mio sees it)
 const BELT := 0.98                               # the Tripo body is cut above this (the inside is ours)
 
 var LINES := []; var LIF := []; var li := 0
@@ -123,11 +125,11 @@ func _curve():
 	var L := curve.get_baked_length()
 	d_slip = curve.get_closest_offset(main.b2g([SLIP_AT[0], SLIP_AT[1], -11.0]))
 	d_drive = curve.get_closest_offset(pts[DRIVE_I])
-	d_stop = d_drive + 2.6
+	d_stop = d_drive - STOP_BACK
 	d_end = L - END_BACK
-	d_reveal = L - REVEAL_BACK
+	d_reveal = d_drive + REVEAL_IN
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--carreveal="): d_reveal = L - float(a.substr(12))
+		if a.begins_with("--carreveal="): d_reveal = d_drive + float(a.substr(12))
 
 func _at(dd: float) -> Transform3D:
 	var p := curve.sample_baked(clampf(dd, 0.0, curve.get_baked_length()), true)
@@ -233,19 +235,19 @@ func _inside():
 	var inn := Node3D.new(); inn.name = "inside"; car.add_child(inn)
 	# fitted to the Tripo body (its windshield's foot at z -.95, y .96; its top at z -.30, y 1.32; the roof inside 1.34;
 	# the hatch from z 1.30): the dash from the windshield's foot back over the gauges, its face down to the knees
-	_slab(inn, Vector3(0, 0.955, -0.95), Vector3(0, 0.935, -0.52), 1.56, 0.04, dash, "dash_top")
-	_slab(inn, Vector3(0, 0.93, -0.52), Vector3(0, 0.62, -0.38), 1.56, 0.06, dash2, "dash_face")
-	_box(inn, Vector3(1.56, 0.32, 0.45), Vector3(0, 0.77, -0.74), dash, Vector3.ZERO, "dash_body")
+	_slab(inn, Vector3(0, 0.905, -0.93), Vector3(0, 0.885, -0.52), 1.56, 0.04, dash, "dash_top")
+	_slab(inn, Vector3(0, 0.88, -0.52), Vector3(0, 0.62, -0.40), 1.56, 0.06, dash2, "dash_face")
+	_box(inn, Vector3(1.56, 0.28, 0.45), Vector3(0, 0.74, -0.74), dash, Vector3.ZERO, "dash_body")
 	# the hood over the gauges (Natsuki's side), the gauges' glass, the centre stack, the glove box, the vents
-	_slab(inn, Vector3(0.37, 0.995, -0.68), Vector3(0.37, 0.975, -0.50), 0.36, 0.035, dash, "binnacle")
+	_slab(inn, Vector3(0.37, 0.955, -0.68), Vector3(0.37, 0.935, -0.50), 0.36, 0.035, dash, "binnacle")
 	var gauge := _mat(Color(0.05, 0.05, 0.06), 0.2); gauge.emission_enabled = true; gauge.emission = Color(0.9, 0.55, 0.2); gauge.emission_energy_multiplier = 0.15
-	_box(inn, Vector3(0.30, 0.10, 0.01), Vector3(0.37, 0.905, -0.555), gauge, Vector3(-0.3, 0, 0), "gauges")
-	_box(inn, Vector3(0.24, 0.34, 0.12), Vector3(0.0, 0.73, -0.47), dash2, Vector3(-0.25, 0, 0), "stack")
+	_box(inn, Vector3(0.30, 0.10, 0.01), Vector3(0.37, 0.87, -0.555), gauge, Vector3(-0.3, 0, 0), "gauges")
+	_box(inn, Vector3(0.24, 0.30, 0.12), Vector3(0.0, 0.70, -0.47), dash, Vector3(-0.25, 0, 0), "stack")
 	var lcd := _mat(Color(0.03, 0.05, 0.05), 0.3); lcd.emission_enabled = true; lcd.emission = Color(0.35, 0.75, 0.70); lcd.emission_energy_multiplier = 0.35
 	_box(inn, Vector3(0.17, 0.05, 0.01), Vector3(0.0, 0.83, -0.405), lcd, Vector3(-0.25, 0, 0), "radio_lcd")
 	_box(inn, Vector3(0.40, 0.16, 0.02), Vector3(-0.40, 0.70, -0.42), dash2, Vector3(-0.2, 0, 0), "glovebox")
 	for x in [-0.66, -0.12, 0.12, 0.66]:
-		_box(inn, Vector3(0.12, 0.05, 0.02), Vector3(x, 0.88, -0.49), _mat(Color(0.06, 0.06, 0.065), 0.6), Vector3(-0.3, 0, 0), "vent")
+		_box(inn, Vector3(0.12, 0.05, 0.02), Vector3(x, 0.84, -0.50), _mat(Color(0.06, 0.06, 0.065), 0.6), Vector3(-0.3, 0, 0), "vent")
 	# the floor, the console between the seats, the shift
 	_box(inn, Vector3(1.6, 0.04, 2.3), Vector3(0, 0.26, 0.40), cloth_d, Vector3.ZERO, "floor")
 	_box(inn, Vector3(0.20, 0.20, 0.60), Vector3(0, 0.40, 0.02), dash, Vector3.ZERO, "console")
@@ -313,7 +315,7 @@ func _tape(inn: Node3D):
 var phone_lb: Label3D
 func _phone(inn: Node3D):
 	var ph := Node3D.new(); ph.name = "phone"; inn.add_child(ph)
-	ph.position = PHONE_AT; ph.rotation = Vector3(-0.35, -0.25, 0)
+	ph.position = PHONE_AT; ph.rotation = Vector3(-0.3, 0.18, 0)
 	_box(ph, Vector3(0.072, 0.15, 0.009), Vector3.ZERO, _mat(Color(0.05, 0.05, 0.06), 0.3), Vector3.ZERO, "case")
 	var scr := _mat(Color(0.02, 0.02, 0.03), 0.2); scr.emission_enabled = true; scr.emission = Color(0.55, 0.62, 0.72); scr.emission_energy_multiplier = 0.55
 	_box(ph, Vector3(0.064, 0.138, 0.001), Vector3(0, 0, 0.005), scr, Vector3.ZERO, "screen")
@@ -365,7 +367,7 @@ func _seat(k: String, at: Vector3, lib_path: String, clip: String):
 	holder.position = at + Vector3(0, -SIT_HIP, 0.04)
 	holder.rotation = Vector3(0, PI, 0)
 	sitters[k] = [rig, holder]
-const SIT_HIP := 0.46        # the sitting clips' hips over the floor they stand on (a chair's seat)
+const SIT_HIP := 0.31        # the sitting clips (a chair: hips .43 over the feet) set lower: in the car the feet are on its floor (.28), the hips on the cushion (car.gd probe)
 var sitters := {}
 
 var earphone: MeshInstance3D
@@ -378,23 +380,35 @@ func _earphone():
 	ba.add_child(earphone)
 	earphone.position = Vector3(0.075, 0.07, 0.0)
 
+var probed := false
+var probe_n := 0
 func _place_people():
 	for k in sitters:
 		var r: Node3D = sitters[k][0]; var h: Node3D = sitters[k][1]
 		r.global_transform = h.global_transform
+	if not probed and Engine.get_process_frames() > 150 and "--carprobe" in OS.get_cmdline_user_args():
+		probed = true
+		for k in sitters:
+			for ap in (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false):
+				print("CAR probe %s ap %s playing=%s cur=%s pos=%.2f active=%s libs=%s" % [k, ap.name, ap.is_playing(), ap.current_animation, ap.current_animation_position, ap.active, ap.get_animation_library_list()])
+			var sk: Skeleton3D = (main.S[k + "_node"] as Node).find_children("*", "Skeleton3D", true, false)[0]
+			var inv := car.global_transform.affine_inverse()
+			for b in ["pelvis", "head", "foot_l", "hand_l", "hand_r", "upperarm_r"]:
+				var bi := sk.find_bone(b)
+				if bi >= 0: print("CAR probe %s %s %s" % [k, b, inv * (sk.global_transform * sk.get_bone_global_pose(bi).origin)])
 
 # ---------------------------------------------------------------- the mirror (Makoto asleep behind, in it)
 func _mirror():
 	var inn: Node3D = car.get_node("inside")
 	var holder := Node3D.new(); holder.name = "mirror"; inn.add_child(holder)
 	holder.position = MIRROR; holder.rotation = Vector3(0.05, 0.22, 0)   # turned to the driver
-	_box(holder, Vector3(0.26, 0.075, 0.03), Vector3(0, 0, -0.012), _mat(Color(0.08, 0.08, 0.085), 0.5), Vector3.ZERO, "mirror_back")
+	_box(holder, Vector3(0.23, 0.068, 0.03), Vector3(0, 0, -0.012), _mat(Color(0.08, 0.08, 0.085), 0.5), Vector3.ZERO, "mirror_back")
 	_box(holder, Vector3(0.02, 0.05, 0.02), Vector3(0, 0.06, -0.02), _mat(Color(0.08, 0.08, 0.085), 0.5), Vector3.ZERO, "mirror_stem")
 	mirror_vp = SubViewport.new(); mirror_vp.size = Vector2i(384, 112); mirror_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(mirror_vp)
 	mirror_cam = Camera3D.new(); mirror_cam.fov = 40.0; mirror_cam.near = 0.05; mirror_cam.far = 120.0
 	mirror_vp.add_child(mirror_cam)
-	mirror_mesh = MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.245, 0.065); mirror_mesh.mesh = q
+	mirror_mesh = MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.215, 0.058); mirror_mesh.mesh = q
 	mirror_mesh.position = Vector3(0, 0, 0.0045); mirror_mesh.name = "mirror_glass"
 	var mm := StandardMaterial3D.new(); mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mm.albedo_texture = mirror_vp.get_texture(); mm.uv1_scale = Vector3(-1, 1, 1); mm.uv1_offset = Vector3(1, 0, 0)
@@ -419,7 +433,7 @@ func _seat_player():
 	player.fly = true; player.move_enabled = false
 	player.collision_layer = 0; player.collision_mask = 0
 	player.eye_height = EYE_UP
-	player.yaw = 0.0; player.pitch = deg_to_rad(-6.0)
+	player.yaw = 0.0; player.pitch = deg_to_rad(-2.0)
 	_follow()
 
 var carcam := Vector3.ZERO      # check stills: the camera outside the car, at this point of its frame, looking at it (--carcam=x,y,z)
@@ -429,7 +443,9 @@ func _follow():
 		player.eye_height = 0.0; player.global_transform = Transform3D(Basis.IDENTITY, at)
 		var dv := (to - at).normalized(); player.yaw = atan2(-dv.x, -dv.z); player.pitch = asin(dv.y)
 		return
-	player.global_transform = car.global_transform * Transform3D(Basis.IDENTITY, SEAT_MIO)
+	# turning round to the back seat she leans in over the console (her own seat's back is in the way otherwise)
+	var k := smoothstep(deg_to_rad(75.0), deg_to_rad(150.0), absf(player.yaw))
+	player.global_transform = car.global_transform * Transform3D(Basis.IDENTITY, SEAT_MIO + Vector3(0.30 * k, 0.03 * k, -0.04 * k))
 	player.velocity = Vector3.ZERO
 	# she turns in her seat, not round: to her window and back over her shoulder, a little toward Natsuki
 	player.yaw = clampf(player.yaw, -2.9, 2.9)
@@ -551,7 +567,7 @@ func _drive(dt: float):
 	tf.origin += tf.basis.y * (bump * 0.004 * gravel)
 	car.global_transform = tf
 	if wheel: wheel.rotation = Vector3(WHEEL_TILT, 0, 0); wheel.rotate_object_local(Vector3(0, 0, 1), steer)
-	if nat_ik: nat_ik.wheel = wheel
+	if nat_ik: nat_ik.wheel = wheel; _nat_look_tick(dt)
 	_place_people()
 	_follow()
 	_mirror_tick()
@@ -627,9 +643,23 @@ func _blinker(n: int):
 		get_tree().create_timer(0.2 + i * 0.4).timeout.connect(func(): _one("car_blinker", -14.0))
 
 # Natsuki keeps her eyes on the road; at the hard lines she looks at Mio once, and back
-var glance_t := -1.0
+var glance_t := 0.0
+var glance_at := ""
 func _nat_glance():
-	pass
+	var tx := String(cur.get("text", ""))
+	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 2.6
+	elif tx.contains("澪"): glance_at = "mio"; glance_t = 3.6
+
+func _nat_look_tick(dt: float):
+	if nat_ik == null: return
+	glance_t -= dt
+	var want := 1.0 if glance_t > 0.0 else 0.0
+	nat_ik.look_w = move_toward(nat_ik.look_w, want, dt * 1.4)
+	var cam: Camera3D = player.get_node("Head/Camera")
+	if glance_at == "tape": nat_ik.look_alt = car.global_transform * TAPE_AT
+	else: nat_ik.look_alt = cam.global_position
+	# the road: 12 m ahead, a little up from the dash
+	nat_ik.look_road = car.global_transform * Vector3(0.37, 1.2, -12.0)
 
 # ---------------------------------------------------------------- what she can look at (E)
 const ITEMS := {"tape": ["テープ", "一.車.テープ", 9.0], "phone": ["スマホ", "一.車.スマホ", 9.0], "makoto": ["真琴", "一.車.真琴", 14.0], "window": ["窓の外", "一.車.窓", 30.0]}
@@ -708,7 +738,7 @@ func _demo_car(dt: float):
 	# turn her head (yaw/pitch are the head's, in the car's frame)
 	var to_l := (car.global_basis.inverse() * (aim - cam.global_position)).normalized()
 	var k2 := 1.0 - exp(-dt * 3.0)
-	player.yaw = lerp_angle(player.yaw, atan2(-to_l.x, -to_l.z), k2)
+	player.yaw = lerpf(player.yaw, atan2(-to_l.x, -to_l.z), k2)   # (not the short way round: she turns back the way she came, inside the seat)
 	player.pitch = lerpf(player.pitch, asin(clampf(to_l.y, -1.0, 1.0)), k2)
 
 # ---------------------------------------------------------------- Natsuki's hands on the wheel
@@ -717,8 +747,18 @@ class ReachIK extends SkeletonModifier3D:
 	const WHEEL_R := 0.185
 	var wheel: Node3D
 	var arms := []      # [upper, lower, hand, side]
+	# her eyes: on the road ahead; a glance (look_w) at Mio or at the tape
+	var look_road := Vector3.ZERO
+	var look_alt := Vector3.ZERO
+	var look_w := 0.0
+	var neck := -1
+	var head := -1
+	var face_v := Vector3.ZERO    # the face's forward in the head bone's frame
 	func setup():
 		var sk := get_skeleton()
+		neck = sk.find_bone("neck_01"); head = sk.find_bone("head")
+		if head >= 0:
+			face_v = (sk.get_bone_global_rest(head).basis.inverse() * Vector3(0, 0, 1)).normalized()
 		for s in ["l", "r"]:
 			var a := sk.find_bone("upperarm_" + s); var b := sk.find_bone("lowerarm_" + s); var c := sk.find_bone("hand_" + s)
 			if a >= 0 and b >= 0 and c >= 0: arms.append([a, b, c, -1.0 if s == "l" else 1.0])
@@ -735,6 +775,22 @@ class ReachIK extends SkeletonModifier3D:
 			var car_basis: Basis = wheel.get_parent().global_basis
 			var pole_w: Vector3 = tgt_w + car_basis * Vector3(side * 0.30, -0.45, 0.25)
 			_two_bone(sk, arm[0], arm[1], arm[2], inv * tgt_w, inv * pole_w)
+		if head >= 0 and look_road != Vector3.ZERO:
+			var e := look_w * look_w * (3.0 - 2.0 * look_w)
+			var tgt: Vector3 = look_road.lerp(look_alt, e) if look_alt != Vector3.ZERO else look_road
+			var gh := sk.get_bone_global_pose(head)
+			var f := (gh.basis * face_v).normalized()
+			var to := (inv * tgt - gh.origin).normalized()
+			var q := Quaternion(f, to)
+			var ang := q.get_angle()
+			if ang > 1.3: q = Quaternion(q.get_axis().normalized(), 1.3)
+			if neck >= 0:
+				var gn := sk.get_bone_global_pose(neck)
+				sk.set_bone_global_pose(neck, Transform3D(Basis(Quaternion.IDENTITY.slerp(q, 0.45)) * gn.basis, gn.origin))
+				gh = sk.get_bone_global_pose(head)
+				f = (gh.basis * face_v).normalized(); to = (inv * tgt - gh.origin).normalized()
+				q = Quaternion(f, to)
+			sk.set_bone_global_pose(head, Transform3D(Basis(q) * gh.basis, gh.origin))
 	func _two_bone(sk: Skeleton3D, a: int, b: int, c: int, t: Vector3, pole: Vector3):
 		var ga := sk.get_bone_global_pose(a); var gb := sk.get_bone_global_pose(b); var gc := sk.get_bone_global_pose(c)
 		var A := ga.origin; var Bp := gb.origin; var C := gc.origin
