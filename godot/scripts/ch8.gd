@@ -474,7 +474,15 @@ class Finder8 extends Control:
 			var c := Vector2(x0 + d[0].x * w, y0 + d[0].y * h); var r: float = d[1] * u * (0.6 + minf(d[2], 1.0) * 0.4)
 			if d.size() > 3 and d[0].y - d[3] > 0.004:
 				var c0 := Vector2(c.x, y0 + float(d[3]) * h)
-				draw_line(c0, c, Color(0.8, 0.84, 0.88, 0.05), r * 0.5); draw_line(c0, c, Color(0.8, 0.84, 0.88, 0.04), r * 0.9)
+				# 試作233: an even line read as a stick. The wet trail is narrow and faint at its top, wider and wetter near the
+				# drop, and wanders a little
+				var ph: float = float(d[3]) * 37.0
+				var prev := c0
+				for k in range(1, 11):
+					var t := float(k) / 10.0
+					var pt := c0.lerp(c, t) + Vector2(sin(ph + t * 5.0) * r * 0.12 * (1.0 - t), 0.0)
+					draw_line(prev, pt, Color(0.8, 0.84, 0.88, 0.006 + 0.03 * t * t), r * (0.12 + 0.5 * t))
+					prev = pt
 			draw_set_transform(c, 0.0, Vector2(1.0, 1.18))
 			for k in 7:
 				var f := 1.0 - k * 0.11
