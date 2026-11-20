@@ -86,8 +86,6 @@ var sky_q: Array = []
 var sky_i := 0
 var lapse := 0
 var loops8 := {}
-var car_at := Vector3.ZERO     # the car's middle (Godot)
-var car_r := 2.2
 var yaw_lock := false
 var hall_framed := false
 var free_look_after := 0.0
@@ -454,104 +452,6 @@ func _car():
 # 車は平らに置いてあり、私道は下っている：坂の上側の車輪が地面に沈んで見えた（2026-11-19 ユーザー「車が沈んでる感じ」）。
 # この章の間だけ、車の四隅の外の地面から坂の傾きを取り、車をその傾きに寝かせて、いちばん低い所が地面に載るまで持ち上げる。
 # （家の書き出しの側で直すのが本筋：入口のスレッドに伝える。第0章・第3章の外でも同じはず）
-func _car_level(cars: Array):
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	var body := cars[0] as MeshInstance3D
-	for c in cars:
-		if (c as MeshInstance3D).get_aabb().get_volume() > body.get_aabb().get_volume(): body = c
-	var la := body.get_aabb(); var gt := body.global_transform
-	# the long axis of the body, on the ground
-	var axes := [gt.basis.x * la.size.x, gt.basis.y * la.size.y, gt.basis.z * la.size.z]
-	var flat := axes.filter(func(a: Vector3): return absf(a.normalized().y) < 0.5)
-	if flat.size() < 2: return
-	flat.sort_custom(func(a: Vector3, b: Vector3): return a.length() > b.length())
-	var fwd: Vector3 = (flat[0] as Vector3); var half_l := fwd.length() * 0.5; fwd.y = 0.0; fwd = fwd.normalized()
-	var side: Vector3 = fwd.cross(Vector3.UP).normalized(); var half_w: float = (flat[1] as Vector3).length() * 0.5
-	var c0 := Vector3(car_at.x, 0.0, car_at.z)
-	# 2026-11-19 夜（ユーザー「まだタイヤがのめり込んでるように見える」）：車の外の地面でなく、四つの車輪それぞれの底と、
-	# その真下の地面を測って合わせる。車輪の底＝車の前後左右の四半分ごとの、いちばん低い頂点
-	var low := [1e9, 1e9, 1e9, 1e9]; var sum := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]; var cnt := [0, 0, 0, 0]
-	var pts: Array = []
-	for c in cars:
-		var mi := c as MeshInstance3D
-		if mi.mesh == null: continue
-		var tf := mi.global_transform
-		for v in mi.mesh.get_faces():
-			var w: Vector3 = tf * v; var d := w - c0
-			pts.append(Vector3(d.dot(fwd), w.y, d.dot(side)))
-	for q in pts:
-		if absf(q.x) < half_l * 0.3: continue
-		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
-		if q.y < low[k]: low[k] = q.y
-	for q in pts:
-		if absf(q.x) < half_l * 0.3: continue
-		var k := (0 if q.x > 0.0 else 1) * 2 + (0 if q.z > 0.0 else 1)
-		if q.y < low[k] + 0.03: sum[k] += Vector2(q.x, q.z); cnt[k] += 1
-	# the ground under each wheel (not the car's own collision)
-	var ex: Array = [player.get_rid()]
-	for sb in main.S.env_node.find_children("*", "StaticBody3D", true, false):
-		if String(sb.name).begins_with("ext_car") or String(sb.get_parent().name).begins_with("ext_car"): ex.append((sb as StaticBody3D).get_rid())
-	var rows := []
-	for k in 4:
-		if cnt[k] == 0: return
-		var uv: Vector2 = sum[k] / float(cnt[k]); var wp: Vector3 = c0 + fwd * uv.x + side * uv.y
-		var rq := PhysicsRayQueryParameters3D.create(Vector3(wp.x, low[k] + 1.2, wp.z), Vector3(wp.x, low[k] - 3.0, wp.z)); rq.exclude = ex
-		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
-		if hit.is_empty(): return
-		rows.append([uv.x, uv.y, low[k], float(hit.position.y)])
-	# lift + a*u + b*v = ground - wheel, by least squares over the four wheels (a plane has three numbers: the fourth wheel
-	# takes what is left, as a real car's springs do)
-	var su := 0.0; var sv := 0.0; var suu := 0.0; var svv := 0.0; var suv := 0.0; var sd := 0.0; var sud := 0.0; var svd := 0.0
-	for r in rows:
-		var d: float = r[3] - 0.012 - r[2]
-		su += r[0]; sv += r[1]; suu += r[0] * r[0]; svv += r[1] * r[1]; suv += r[0] * r[1]; sd += d; sud += r[0] * d; svd += r[1] * d
-	var A := Basis(Vector3(4.0, su, sv), Vector3(su, suu, suv), Vector3(sv, suv, svv))
-	if absf(A.determinant()) < 1e-6: return
-	var sol: Vector3 = A.inverse() * Vector3(sd, sud, svd)
-	var lift := sol.x; var a := sol.y; var b := sol.z
-	var f2 := (fwd + Vector3.UP * a).normalized(); var s2 := (side + Vector3.UP * b).normalized()
-	var u2 := s2.cross(f2).normalized()
-	if u2.y < 0.0: u2 = -u2
-	s2 = f2.cross(u2).normalized() * signf(f2.cross(u2).dot(side))
-	var B0 := Basis(fwd, Vector3.UP, side); var B1 := Basis(f2, u2, s2)
-	var rot := B1 * B0.inverse()
-	var X := Transform3D(Basis.IDENTITY, c0 + Vector3(0, lift, 0)) * Transform3D(rot, Vector3.ZERO) * Transform3D(Basis.IDENTITY, -c0)
-	for c in cars: (c as Node3D).global_transform = X * (c as Node3D).global_transform
-	car_at = X * car_at
-	# 車の下の影：夜で太陽の影が無く、白い車体が明るい地面にじかに接して「埋まって」見えた（ユーザー 2026-11-19 21時
-	# 「ファインダー越しで見ると沈んで見える」）。車の下の地面だけを暗くして、車体と地面の間に暗い帯を作る
-	var gy := 0.0
-	for r in rows: gy += (float(r[3]) - a * float(r[0]) - b * float(r[1])) * 0.25
-	var dl := half_l * 2.0 + 0.8; var dw := half_w * 2.0 + 0.8; var NX := 20; var NZ := 10
-	var sp: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state; var vs := PackedVector3Array(); var cs := PackedColorArray()
-	for iz in NZ + 1:
-		for ix in NX + 1:
-			var fu := float(ix) / NX - 0.5; var fv := float(iz) / NZ - 0.5
-			# 車の当たりの箱の中（下）から撃つ：上から撃つと屋根に当たる
-			var wp2: Vector3 = c0 + fwd * (fu * dl) + side * (fv * dw) + Vector3(0, gy + a * fu * dl + b * fv * dw, 0)
-			var rq2 := PhysicsRayQueryParameters3D.create(wp2 + Vector3(0, 0.2, 0), wp2 - Vector3(0, 2.0, 0)); rq2.exclude = ex
-			var h2: Dictionary = sp.intersect_ray(rq2)
-			if not h2.is_empty(): wp2 = h2.position
-			vs.append(wp2 + Vector3(0, 0.025, 0))
-			var e: float = minf((0.5 - absf(fu)) * dl, (0.5 - absf(fv)) * dw)
-			cs.append(Color(0, 0, 0, 0.9 * smoothstep(0.0, 0.45, e)))
-	var idx := PackedInt32Array()
-	for iz in NZ:
-		for ix in NX:
-			var i0 := iz * (NX + 1) + ix
-			idx.append_array([i0, i0 + 1, i0 + NX + 1, i0 + 1, i0 + NX + 2, i0 + NX + 1])
-	var arr := []; arr.resize(Mesh.ARRAY_MAX); arr[Mesh.ARRAY_VERTEX] = vs; arr[Mesh.ARRAY_COLOR] = cs; arr[Mesh.ARRAY_INDEX] = idx
-	var am := ArrayMesh.new(); am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.vertex_color_use_as_albedo = true
-	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.disable_fog = true
-	var shm := MeshInstance3D.new(); shm.name = "car_shadow"; shm.mesh = am; shm.material_override = sm; shm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(shm); shm.global_transform = Transform3D.IDENTITY
-	print("CH8 car level: lift %.3f pitch %.1f roll %.1f" % [lift, rad_to_deg(atan(a)), rad_to_deg(atan(b))])
-	for r in rows:
-		var after: float = r[2] + lift + a * r[0] + b * r[1]
-		print("CH8 wheel (%.2f, %.2f): bottom %.3f ground %.3f -> bottom %.3f (%.3f %s the ground)" % [r[0], r[1], r[2], r[3], after, absf(after - r[3]), "under" if after < r[3] else "over"])
-
 # ---------------------------------------------------------------- the finder (the whole chapter is its picture)
 class Finder8 extends Control:
 	var st
@@ -569,9 +469,27 @@ class Finder8 extends Control:
 		var lc := Color(0.92, 0.92, 0.88)
 		# the lens's water (after the fall): each drop a pale ring that spreads and runs
 		for d in drops:
+			# 試作232（ユーザー「ここの雨粒、急に安っぽい」）: crisp rings with a white glint read as drawn bubbles. Water on the
+			# lens is out of focus: a soft pale smear, a little long, its lower edge darker, and a faint wet trail when it runs
 			var c := Vector2(x0 + d[0].x * w, y0 + d[0].y * h); var r: float = d[1] * u * (0.6 + minf(d[2], 1.0) * 0.4)
-			draw_circle(c, r, Color(0.82, 0.86, 0.9, 0.16)); draw_arc(c, r, 0.0, TAU, 20, Color(0.9, 0.93, 0.96, 0.34), 2.0 * u)
-			draw_circle(c + Vector2(-r * 0.3, -r * 0.3), r * 0.22, Color(1, 1, 1, 0.3))
+			if d.size() > 3 and d[0].y - d[3] > 0.004:
+				var c0 := Vector2(c.x, y0 + float(d[3]) * h)
+				# 試作233: an even line read as a stick. The wet trail is narrow and faint at its top, wider and wetter near the
+				# drop, and wanders a little
+				var ph: float = float(d[3]) * 37.0
+				var prev := c0
+				for k in range(1, 11):
+					var t := float(k) / 10.0
+					var pt := c0.lerp(c, t) + Vector2(sin(ph + t * 5.0) * r * 0.12 * (1.0 - t), 0.0)
+					draw_line(prev, pt, Color(0.8, 0.84, 0.88, 0.006 + 0.03 * t * t), r * (0.12 + 0.5 * t))
+					prev = pt
+			draw_set_transform(c, 0.0, Vector2(1.0, 1.18))
+			for k in 7:
+				var f := 1.0 - k * 0.11
+				draw_circle(Vector2.ZERO, r * f, Color(0.8, 0.85, 0.9, 0.028))
+			draw_arc(Vector2(0, r * 0.08), r * 0.92, deg_to_rad(25.0), deg_to_rad(155.0), 14, Color(0.02, 0.03, 0.05, 0.16), r * 0.16)
+			draw_arc(Vector2(0, -r * 0.05), r * 0.8, deg_to_rad(205.0), deg_to_rad(335.0), 14, Color(0.9, 0.93, 0.96, 0.07), r * 0.12)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# the tumble: the picture tears in bands
 		if glitch > 0.01:
 			rng.seed = int(Time.get_ticks_msec() / 60)
@@ -709,12 +627,14 @@ func _night8(dt: float, on: bool):
 	var e: Environment = main.env
 	if e == null: return
 	if fog0.is_empty(): fog0 = [e.fog_density, e.fog_light_color, e.fog_light_energy, e.fog_sky_affect]
-	night_k = move_toward(night_k, 1.0 if on else 0.0, dt * 1.2)
+	# 試作232（全体レビュー5「外に出た直後と山道でファインダーがほぼ白に飛ぶ」）: the house's outside night (bright, for the
+	# windows) stayed on for most of a second after the door, a white fog. The night comes at once outside; it goes slowly
+	night_k = move_toward(night_k, 1.0 if on else 0.0, dt * (8.0 if on else 1.2))
 	if night_k <= 0.0 and not on:
 		e.fog_density = fog0[0]; e.fog_light_color = fog0[1]; e.fog_light_energy = fog0[2]; e.fog_sky_affect = fog0[3]; return
 	var fl := clampf(bolt_e / 5.0, 0.0, 1.0)
 	var dark := Color(0.012, 0.02, 0.035).lerp(Color(0.2, 0.27, 0.36), dawn)
-	e.fog_light_color = (fog0[1] as Color).lerp(dark.lerp(Color(0.34, 0.4, 0.5), fl), night_k)
+	e.fog_light_color = (fog0[1] as Color).lerp(dark.lerp(Color(0.22, 0.26, 0.33), fl), night_k)   # (the flash's fog: 0.34-0.5 burnt the finder white)
 	e.fog_light_energy = lerpf(fog0[2], 1.0, night_k)
 	e.fog_density = lerpf(fog0[0], lerpf(0.075, 0.012, maxf(fl, dawn)), night_k)
 	e.fog_sky_affect = lerpf(fog0[3], 1.0, night_k)
@@ -728,7 +648,9 @@ func _place():
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_porch_ramp()
-	_stand_at(TOP_AT, 20.0, -6.0, F2)
+	# 試作232（全体レビュー2「二階の廊下を真正面から見た一点透視の画で始まる」）: he starts turned across the landing to the
+	# stairwell and its rail (three-quarter), not down the corridor
+	_stand_at(TOP_AT, -38.0, -14.0, F2)
 	player.eye_height = EYE
 	match start8:
 		"take": _stand_at(TAKE_AT, 150.0, -20.0, 0.0)
@@ -771,9 +693,13 @@ func _take_now(quick := false):
 	if quick: return
 	# his eyes on the camera in his hands; her feet come into the bottom of the picture; he tilts up, and stops at her mouth
 	# his eyes on the camera in his hands; then the picture comes up onto her back: she sits at the step, the door before her
+	# 試作232（全体レビュー4「澪を真上から見下ろす画（頭のてっぺん）」）: 0.6 m from her at his chest's height the picture
+	# looked down on her crown. He takes a step back up the hall first: from 1.4 m her back and shoulders, the door past her
+	var back := gp(4.62, 2.95, 0.0); back.y = player.global_position.y
+	create_tween().tween_property(player, "global_position", back, 1.1).set_trans(Tween.TRANS_SINE)
 	var hd := gp(MIO_SIT[0], MIO_SIT[1], 0.62)
-	_turn_to(_yaw_to(hd), deg_to_rad(-58.0), 0.6)
-	_after(0.9, func(): _turn_to(_yaw_to(hd), deg_to_rad(-43.0), 1.8))
+	_turn_to(_yaw_to(hd), deg_to_rad(-40.0), 0.6)
+	_after(1.1, func(): _turn_to(_yaw_to(hd), deg_to_rad(-14.0), 1.8))
 	_after(2.6, func(): _start(B("八.廊下")))
 
 # the picture's top edge at her mouth (the interview cuts its listener at the chest, the chin, the mouth: the same grammar)
@@ -897,7 +823,8 @@ func _natsuki_out():
 	if car_dome: car_dome.global_position = c + side * 0.95 + Vector3(0, car_at.y + 0.5, 0)
 	_show("natsuki")
 	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
-	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), Callable(), _face(pl.call(p2), _plan()))
+	# 試作232（全体レビュー6「約50秒の会話の間、腕を下ろした棒立ち」）: where she stops she talks with her hands (talk_a), not idle
+	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan()))
 	talk_with = "natsuki"
 
 # the operator keeps her in the picture: her face a little above the middle
@@ -927,9 +854,93 @@ func _knock_press():
 	_start(B("八.扉." + ["一", "二", "三"][knocks - 1]))
 
 func _knock():
-	_one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2))
+	# 試作232（ユーザー「ここ、叩いてる動きを入れたい」）: his free hand comes into the picture from the lower right and strikes
+	# the door three times, on the sound (the camera is in his other hand)
+	var arm := _knock_arm()
+	var cam: Camera3D = _cam()
+	var dp: Vector3 = cam.to_local(gp(DOOR[0], DOOR[1] - 0.05, 1.25))
+	var hit := Vector3(0.09, -0.06, -clampf(-dp.z - 0.06, 0.32, 0.62))
+	var rest := Vector3(0.30, -0.42, -0.22); var back := hit + Vector3(0.05, -0.04, 0.16)
+	arm.position = rest; arm.visible = true
+	var tw := create_tween()
+	tw.tween_property(arm, "position", back, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	for i in 3:
-		_after(0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
+		tw.tween_property(arm, "position", hit, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(arm, "position", back, 0.33).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(arm, "position", rest, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func(): arm.visible = false)
+	_after(0.31, func(): _one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
+	for i in 3:
+		_after(0.31 + 0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
+
+var knock_arm: Node3D
+func _knock_arm() -> Node3D:
+	if knock_arm and is_instance_valid(knock_arm): return knock_arm
+	if ResourceLoader.exists("res://props/kiryu_arm_r.glb"): return _knock_arm_kiryu()
+	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
+	var sleeve := StandardMaterial3D.new(); sleeve.albedo_color = Color(0.13, 0.13, 0.13); sleeve.roughness = 0.95
+	var skin := StandardMaterial3D.new(); skin.albedo_color = Color(0.42, 0.31, 0.25); skin.roughness = 0.75
+	# 試作233: the forearm runs from the wrist back to the lower right corner of the picture (seen from behind, as his own arm)
+	var d := Vector3(0.42, -0.55, 0.72).normalized()
+	var bas := Basis(Quaternion(Vector3.UP, d))
+	var fore := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.058; cy.bottom_radius = 0.042; cy.height = 0.55; fore.mesh = cy
+	fore.material_override = sleeve; fore.transform = Transform3D(bas, Vector3(0, -0.005, 0.03) + d * 0.3)
+	knock_arm.add_child(fore)
+	var cuff := MeshInstance3D.new(); var cc := CylinderMesh.new(); cc.top_radius = 0.047; cc.bottom_radius = 0.047; cc.height = 0.03; cuff.mesh = cc
+	cuff.material_override = sleeve; cuff.transform = Transform3D(bas, Vector3(0, -0.005, 0.03) + d * 0.035)
+	knock_arm.add_child(cuff)
+	var wrist := MeshInstance3D.new(); var wc := CylinderMesh.new(); wc.top_radius = 0.03; wc.bottom_radius = 0.027; wc.height = 0.07; wrist.mesh = wc
+	wrist.material_override = skin; wrist.transform = Transform3D(bas, Vector3(0, -0.005, 0.03))
+	knock_arm.add_child(wrist)
+	var fist := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.085, 0.075, 0.09); fist.mesh = bm
+	fist.material_override = skin; fist.rotation = Vector3(deg_to_rad(8.0), deg_to_rad(-12.0), deg_to_rad(-10.0))
+	knock_arm.add_child(fist)
+	for k in 4:   # the knuckles and the folded fingers, on the door side
+		var kn := MeshInstance3D.new(); var ks := SphereMesh.new(); ks.radius = 0.014; ks.height = 0.028; kn.mesh = ks
+		kn.material_override = skin; kn.position = Vector3(-0.03 + 0.02 * k, 0.03, -0.045); knock_arm.add_child(kn)
+		var fg := MeshInstance3D.new(); var fc := CapsuleMesh.new(); fc.radius = 0.011; fc.height = 0.05; fg.mesh = fc
+		fg.material_override = skin; fg.position = Vector3(-0.03 + 0.02 * k, 0.0, -0.05); knock_arm.add_child(fg)
+	var thumb := MeshInstance3D.new(); var tc := CapsuleMesh.new(); tc.radius = 0.012; tc.height = 0.06; thumb.mesh = tc
+	thumb.material_override = skin; thumb.position = Vector3(-0.045, -0.02, -0.02); thumb.rotation = Vector3(0.0, deg_to_rad(30.0), deg_to_rad(70.0))
+	knock_arm.add_child(thumb)
+	for m in knock_arm.get_children(): (m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_cam().add_child(knock_arm); knock_arm.visible = false
+	return knock_arm
+
+# 試作234（独立レビュー「灰色の筒に箱が付いたよう」）: Kiryu's own forearm and hand (props/kiryu_arm_r.glb, WHO=kiryu
+# export_mio_arms.py; the same frame as Mio's: the wrist at the origin, the fingers -Z, the palm -Y, the sleeve +Z), the fingers
+# curled into a fist, the knuckles to the door and the palm to the left, the forearm back to the lower right of the picture
+func _knock_arm_kiryu() -> Node3D:
+	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
+	var inst: Node3D = (load("res://props/kiryu_arm_r.glb") as PackedScene).instantiate()
+	var d := Vector3(0.42, -0.55, 0.72).normalized()
+	var yb := (Vector3(1, 0.25, 0) - d * Vector3(1, 0.25, 0).dot(d)).normalized()
+	inst.basis = Basis(yb.cross(d), yb, d)
+	knock_arm.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var to_h := Transform3D(); var nd: Node3D = sk
+	while nd != knock_arm: to_h = nd.transform * to_h; nd = nd.get_parent()
+	var to_a := inst.transform.affine_inverse() * to_h   # in the arm's own frame
+	var fist := []
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_r" % [f, j + 1])
+			if bi < 0: continue
+			var gb: Basis = (to_a * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = (gb.y.cross(Vector3.DOWN)).normalized()
+			if f == "thumb":
+				var o: Vector3 = (to_a * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
+			var ang: float = (1.3 * 0.6 * [0.30, 0.55, 0.40][j]) if f == "thumb" else (1.65 * [0.80, 1.05, 0.70][j])
+			fist.append([bi, sk.get_bone_rest(bi).basis.get_rotation_quaternion() * Quaternion((gb.inverse() * ax).normalized(), ang)])
+	_cam().add_child(knock_arm); knock_arm.visible = false
+	for b in fist: sk.set_bone_pose_rotation(b[0], b[1])   # once it is in the tree (a pose set before was reset)
+	print("CH8 knock arm bones ", fist.size())
+	return knock_arm
 
 # ---------------------------------------------------------------- 山道：夏希が先を行く。桐生はカメラに話し続ける
 func _road_start():
@@ -1051,7 +1062,8 @@ var sky_light: OmniLight3D
 func _sky_tick(dt: float):
 	# the lens's water
 	var F := finder8 as Finder8
-	if randf() < dt * 1.6 and F.drops.size() < 14: F.drops.append([Vector2(randf_range(0.06, 0.94), randf_range(0.05, 0.9)), randf_range(14.0, 40.0), 0.0])
+	if randf() < dt * 2.4 and F.drops.size() < 18:
+		var y0 := randf_range(0.05, 0.9); F.drops.append([Vector2(randf_range(0.06, 0.94), y0), randf_range(9.0, 30.0), 0.0, y0])
 	for d in F.drops:
 		d[2] += dt
 		if d[2] > 2.5: d[0].y += dt * 0.012 * d[1] / 20.0

@@ -46,7 +46,18 @@ const UP_ITEMS := [
 	["sweets", "bag_makoto", [7.3, 0.5, F2 + 0.2], "鞄", "二階.お菓子"],
 	["reflector", "makoto_reflector", [9.9, 3.75, F2 + 0.33], "レフ板", "二階.レフ板"],
 	["bath", "bath_water", [9.2, 7.27, F2 + 0.5], "風呂", "二階.風呂"],
+	# 試作232（ユーザー「調べられるようにしたい」「人が住んでいる感」。台詞は筋のスレッドと合わせた 2026-11-20）
+	["mark", "", [6.02, 2.93, F2 + 1.51], "壁の跡", "二階.四角い跡"],
+	["note_n", "", [2.51, 0.88, F2 + 0.02], "ノート", "二階.撮影ノート"],
+	["book_m", "", [7.11, 1.04, F2 + 0.05], "本", "二階.看護の教科書"],
+	["tapes_k", "", [3.11, 4.51, F2 + 0.06], "テープ", "二階.映画"],
+	["batt_t", "", [1.55, 6.38, F2 + 0.04], "電池", "二階.備え"],
+	["photo", "", [4.03, 5.275, 1.54], "写真", "廊下.写真"],
 ]
+# 試作232: in 零時半 (the tape round with Makoto) the hall's photograph, and a word with Makoto, once each
+const HALL_PHOTO := [4.03, 5.275, 1.54]
+var photo_said := false
+var mk_seal_said := false
 # what she can turn to while she keeps the door (plan points), the word under the frame, and the block
 const SOUNDS := {
 	"door": [[5.0, 0.03, 0.5], "扉", "扉の番.音.扉"],
@@ -622,7 +633,14 @@ func _seal_tick(dt: float):
 	if not gq.is_empty() and _makoto_near(gq.at): note_lb.text = T(String(D.lines("目張り.案内")[0]))
 	elif _looking_at(gp(FRONT_GAP[0], FRONT_GAP[1], 0.4), 2.2, 30.0): note_lb.text = T("［玄関の下］")
 	elif _looking_at(gp(5.5, 5.62, 1.0), 1.8, 25.0) and not cellar_said: note_lb.text = T("［地下の扉］")
+	elif not photo_said and _looking_at(gp(HALL_PHOTO[0], HALL_PHOTO[1], HALL_PHOTO[2]), 2.2, 16.0): note_lb.text = T("［写真］")
+	elif not mk_seal_said and _mk_seal_looked(): note_lb.text = T("［真琴］")
 	else: note_lb.text = ""
+
+func _mk_seal_looked() -> bool:
+	var r: Node3D = main._rig_of("makoto")
+	if r == null or not r.visible or main.walking("makoto"): return false
+	return _looking_at(r.global_position + Vector3(0, 1.3, 0), 2.4, 20.0)
 
 func _makoto_near(p: Vector3) -> bool:
 	return candle and mk_at != "" and mk_at == _next_gap() and candle.global_position.distance_to(p) < 2.2
@@ -920,12 +938,14 @@ func _knock_tick():
 	knock_ts = knock_ts.filter(func(x): return t_now - float(x) < 0.5)
 
 # ---------------------------------------------------------------- 二時: Kiryu
-const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0], [4.75, 2.2, 0.0]]
+const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
 var kiryu_sent := false
 func _t2walk_tick():
 	if kiryu_sent or mode != FREE: return
-	var off := Vector2(player.global_position.x + 4.8 - SIT_AT[0], player.global_position.z + 6.3 - SIT_AT[1]).length()
-	if off > 0.9 or t_stage > 20.0: kiryu_sent = true; _kiryu_comes()
+	# 試作232（ユーザー「地下を見に行こうとしたらここで会話が始まった。変」）: he set off only once she had walked 0.9 m, and
+	# reached the hall when she was already at the cellar door: the talk caught her there, out of nowhere. He comes down as soon
+	# as she stands, so she meets him on the stair on her way, and he stops at its foot
+	kiryu_sent = true; _kiryu_comes()
 
 func _kiryu_comes():
 	stage = "t2walk"
@@ -937,7 +957,7 @@ func _kiryu_comes():
 			var nm := String(mi.name)
 			if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
 		# he turns to her where she is (the hall, on her way to the cellar door) and she to him
-		var me := [4.75, 2.2]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
+		var me := [5.5, 2.55]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
 		var k := _rig("kiryu"); k.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), k.global_position)
 		var to: Vector3 = (k.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
 		var tw := create_tween(); tw.set_parallel(true)
@@ -1043,7 +1063,11 @@ func _press():
 					front_seen = true; _start(B("目張り.玄関"))
 				return
 			if _looking_at(gp(5.5, 5.62, 1.0), 1.8, 25.0) and not cellar_said:
-				cellar_said = true; talk_with = "makoto"; _start(B("目張り.地下の扉"))
+				cellar_said = true; talk_with = "makoto"; _start(B("目張り.地下の扉")); return
+			if not photo_said and _looking_at(gp(HALL_PHOTO[0], HALL_PHOTO[1], HALL_PHOTO[2]), 2.2, 16.0):
+				photo_said = true; _say_tes(B("廊下.写真")[0].text); return
+			if not mk_seal_said and _mk_seal_looked():
+				mk_seal_said = true; talk_with = "makoto"; _start(B("目張り.真琴")); return
 		"up", "back":
 			_press_up()
 		"watch", "flow", "t2":

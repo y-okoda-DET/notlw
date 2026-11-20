@@ -14,6 +14,6 @@ open(p,'w').write(s)
 PY
 # models that are not in the pck yet (第6章：澪の腕)
 mkdir -p $O/ui; cp $REPO/godot/ui/conte7_*.png $O/ui/ 2>/dev/null || true
-mkdir -p $O/props; cp $REPO/godot/props/yota_* $REPO/godot/props/ch7_* $O/props/ 2>/dev/null || true; cp $REPO/godot/props/mio_arm_*.glb $REPO/godot/props/police_head.glb $REPO/godot/props/tripod_case.glb $REPO/godot/props/police_body_nohead.glb $O/props/ 2>/dev/null || true
+mkdir -p $O/props; cp $REPO/godot/props/yota_* $REPO/godot/props/kiryu_arm_* $REPO/godot/props/ch7_* $O/props/ 2>/dev/null || true; cp $REPO/godot/props/mio_arm_*.glb $REPO/godot/props/police_head.glb $REPO/godot/props/tripod_case.glb $REPO/godot/props/police_body_nohead.glb $O/props/ 2>/dev/null || true
 $GODOT --headless --path $O --import >/dev/null 2>&1 || true
 echo $O

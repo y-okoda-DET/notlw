@@ -407,7 +407,10 @@ func _prompt(key: String) -> String:
 	return T(String(D.lines(key)[0]))
 
 func _looks6():
+	# 試作231（ユーザー「このなつきのテープなくす」）: the crew's floor mark is hidden at 4時半 (main.gd _house_state), and with
+	# it 【見る.床のテープ】
 	for it in LOOKS:
+		if it[0] == "mark": continue
 		var pos: Vector3 = gp(it[2][0], it[2][1], it[2][2])
 		if it[1] != "":
 			var found: Array = main.S.env_node.find_children(String(it[1]) + "*", "MeshInstance3D", true, false)
@@ -1119,6 +1122,14 @@ func _cassette(label: String) -> Node3D:
 	return c
 
 func _props6():
+	# 試作231（ユーザー「ラジオないのに選択できる」）: the radio itself, where 【見る.ラジオ】 says it is (the house has it only in
+	# 第1・2章, story.gd). Switched off: no dial lamp
+	if ResourceLoader.exists("res://props/radio.glb"):
+		var rd: Node3D = (load("res://props/radio.glb") as PackedScene).instantiate(); rd.name = "ch6_radio"
+		for mi in rd.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		main.add_child(rd)
+		var ra: Array = LOOKS[3][2]
+		rd.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(200.0)), gp(ra[0], ra[1], ra[2] - 0.07))
 	for mi in main.S.env_node.find_children("bed1b_blanket*", "MeshInstance3D", true, false): (mi as Node3D).visible = false   # it is over Natsuki
 	# the tripod's bag, flat and open, where the crew's things are
 	if ResourceLoader.exists("res://props/tripod_case.glb"):
@@ -1177,8 +1188,9 @@ func _targets6():
 	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 3.2, 34.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
 	_add_target("cam", fixed_cam.global_position, 2.3, 22.0, func(): return not carrying and not (done6.has("cam") and done6.has("batt")),
 		func(): return "［%s］" % T("カメラ") if not looked.has("cam") else _prompt("カメラ.出す") if not done6.has("cam") else _prompt("カメラ.電池"), _cam_press)
-	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and (phone_st in [0, 1] or (phone_st == 2 and has_pack)),
-		func(): return "［%s］" % T("夏希") if phone_st == 0 else _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ"), _nat_press)
+	# 試作231（ユーザー「夏希を選択できない」）: she can be looked at all the time; between the phone's steps it is one line
+	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and act == "",
+		func(): return _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ") if (phone_st == 2 and has_pack) else "［%s］" % T("夏希"), _nat_press)
 	_add_target("bag_m", gp(2.55, 3.85, F2 + 0.25), 1.9, 26.0, func(): return phone_st == 2 and not has_pack, func(): return _prompt("鞄.バッテリー"), _pack_take)
 	_add_target("box", gp(2.15, 2.23, 0.43), 1.9, 24.0, func(): return box_st in [1, 3] and not carrying,
 		func(): return _prompt("箱.開ける"), _box_press)
@@ -1560,21 +1572,47 @@ class PhoneMask extends Node2D:
 				if cam.is_position_behind(p0) or cam.is_position_behind(p1) or cam.is_position_behind(p2): continue
 				draw_primitive(PackedVector2Array([cam.unproject_position(p0), cam.unproject_position(p1), cam.unproject_position(p2)]), white, PackedVector2Array())
 
+# 試作232（ユーザー「画面の表示がズレてる」、第6章のスマホ）: the screen was drawn with one flat (affine) map from three of
+# its corners: held at a slant, the far end of the glass is narrower than the near (perspective) and the page stood off the
+# glass by the difference (the lit glass showing beside it). The page is drawn once, flat, into its own small viewport, and
+# laid on the glass as a grid of small quads whose corners are the glass's own points projected: it follows the glass
 class PhoneUI extends Control:
+	var st
+	var sv: SubViewport
+	const W := 310.0
+	const H := 660.0
+	const NX := 6
+	const NY := 12
+	func _process(_dt): queue_redraw()
+	func _draw():
+		if st == null or st.phone == null or not st.phone.is_visible_in_tree() or st.ph_lit <= 0.01: return
+		var cam := get_viewport().get_camera_3d()
+		if cam == null or sv == null: return
+		var gt: Transform3D = st.phone.global_transform
+		if (gt.basis * Vector3(0, -1, 0)).dot(cam.global_position - gt.origin) <= 0.0: return   # its back is to her
+		var pts: Array = []
+		for j in NY + 1:
+			var row: Array = []
+			for i in NX + 1:
+				var q: Vector3 = gt * Vector3(lerpf(0.031, -0.031, float(i) / NX), -0.0052, lerpf(-0.066, 0.066, float(j) / NY))
+				if cam.is_position_behind(q): return
+				row.append(cam.unproject_position(q))
+			pts.append(row)
+		var tex := sv.get_texture()
+		var col := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+		for j in NY:
+			for i in NX:
+				var u0 := float(i) / NX; var u1 := float(i + 1) / NX; var v0 := float(j) / NY; var v1 := float(j + 1) / NY
+				draw_primitive(PackedVector2Array([pts[j][i], pts[j][i + 1], pts[j + 1][i + 1], pts[j + 1][i]]), col,
+					PackedVector2Array([Vector2(u0, v0), Vector2(u1, v0), Vector2(u1, v1), Vector2(u0, v1)]), tex)
+
+class PhoneDraw extends Control:
 	var st
 	const W := 310.0
 	const H := 660.0
 	func _process(_dt): queue_redraw()
 	func _draw():
-		if st == null or st.phone == null or not st.phone.is_visible_in_tree() or st.ph_lit <= 0.01: return
-		var cam := get_viewport().get_camera_3d()
-		if cam == null: return
-		var gt: Transform3D = st.phone.global_transform
-		var tl: Vector3 = gt * Vector3(0.031, -0.0052, -0.066); var tr: Vector3 = gt * Vector3(-0.031, -0.0052, -0.066); var bl: Vector3 = gt * Vector3(0.031, -0.0052, 0.066)
-		if cam.is_position_behind(tl) or cam.is_position_behind(tr) or cam.is_position_behind(bl): return
-		if (gt.basis * Vector3(0, -1, 0)).dot(cam.global_position - gt.origin) <= 0.0: return   # its back is to her
-		var a := cam.unproject_position(tl); var b := cam.unproject_position(tr); var c := cam.unproject_position(bl)
-		draw_set_transform_matrix(Transform2D((b - a) / W, (c - a) / H, a))
+		if st == null or st.ph_lit <= 0.01: return
 		var lit: float = st.ph_lit
 		var paper := Color(0.965, 0.955, 0.93, lit)
 		var ink := Color(0.06, 0.08, 0.14, lit)
@@ -1619,7 +1657,6 @@ class PhoneUI extends Control:
 				var row := maxi(li - 1, 0)
 				var cx := 30 + f.get_string_size(shown.substr(row * per, per), HORIZONTAL_ALIGNMENT_LEFT, -1, 25).x + 3
 				if fmod(st.t_now, 1.0) < 0.55: draw_rect(Rect2(cx, 474 + row * 40 - 24, 2.5, 29), ink)
-		draw_set_transform_matrix(Transform2D())
 
 func _phone6():
 	phone = Node3D.new(); phone.name = "nat_phone"
@@ -1640,6 +1677,10 @@ func _phone6():
 	var grp := CanvasGroup.new(); grp.fit_margin = 4000.0; grp.clear_margin = 4000.0; lay.add_child(grp)
 	ph_ui = PhoneUI.new(); ph_ui.st = self; ph_ui.set_anchors_preset(Control.PRESET_FULL_RECT); ph_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ph_ui.size = get_viewport().get_visible_rect().size
+	var sv := SubViewport.new(); sv.size = Vector2i(int(PhoneUI.W) * 2, int(PhoneUI.H) * 2); sv.transparent_bg = true
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS; sv.disable_3d = true; sv.size_2d_override = Vector2i(int(PhoneUI.W), int(PhoneUI.H)); sv.size_2d_override_stretch = true
+	var pd := PhoneDraw.new(); pd.st = self; pd.size = Vector2(PhoneUI.W, PhoneUI.H); sv.add_child(pd)
+	add_child(sv); ph_ui.sv = sv
 	grp.add_child(ph_ui)
 	var pm := PhoneMask.new(); pm.st = self
 	var msh := Shader.new(); msh.code = "shader_type canvas_item;\nrender_mode blend_disabled;\nvoid fragment() { COLOR = vec4(0.0); }"
@@ -1672,7 +1713,10 @@ func _nat_press():
 		0:
 			phone_st = 1; _ret_open("夏希.見る")
 		1: _phone_find()
-		2: _phone_plug()
+		2:
+			if has_pack: _phone_plug()
+			else: _start(B("見る.夏希.電池"))
+		_: _start(B("見る.夏希"))
 
 func _blanket_fold(k: float, dur := 0.9):
 	if blanket == null: return

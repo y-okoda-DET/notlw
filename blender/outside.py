@@ -505,9 +505,30 @@ def car(M):
     o = F.tripo_prop('car', (p[0], p[1], D.z[i] - .02), rz, 4.0, name='ext_car')
     if o:
         o.rotation_euler = (-math.atan(g), 0, rz)
-        if o.data.materials:
-            for k, m in enumerate(o.data.materials): pass
-    return o, (p[0], p[1], D.z[i]), rz
+        # 試作232（ユーザー「自動車のタイヤがまだ埋もれてる」、去年の夜）: set on the drive's centre line height, its wheels sank
+        # where the ground under them (the drive's camber, the verge) stands higher. The car stands on the ground under its
+        # four wheels: its height from their mean, pitch and roll from their differences, and no wheel under the ground
+        try:
+            gz = lambda x, y: float(np.ravel(G.final(x, y, 'ok'))[0])
+            xs = [v.co.x for v in o.data.vertices]; ys = [v.co.y for v in o.data.vertices]
+            L = (max(ys) - min(ys)) * o.scale[1] * .62; W = (max(xs) - min(xs)) * o.scale[0] * .8
+            fx, fy = math.sin(rz), -math.cos(rz); rx_, ry_ = math.cos(rz), math.sin(rz)
+            h = {}
+            for a, sa in (('f', 1), ('r', -1)):
+                for b, sb in (('L', -1), ('R', 1)):
+                    h[a + b] = gz(p[0] + fx * sa * L / 2 + rx_ * sb * W / 2, p[1] + fy * sa * L / 2 + ry_ * sb * W / 2)
+            front = (h['fL'] + h['fR']) / 2; rear = (h['rL'] + h['rR']) / 2
+            left = (h['fL'] + h['rL']) / 2; right = (h['fR'] + h['rR']) / 2
+            pa = -math.atan((front - rear) / L); ro = -math.atan((right - left) / W)
+            zc = sum(h.values()) / 4
+            # the plane through the mean leaves the highest wheel below its ground by its misfit: lift by that
+            plane = {'fL': zc + (front - rear) / 2 - (right - left) / 2, 'fR': zc + (front - rear) / 2 + (right - left) / 2,
+                     'rL': zc - (front - rear) / 2 - (right - left) / 2, 'rR': zc - (front - rear) / 2 + (right - left) / 2}
+            lift = max(0.0, max(h[k] - plane[k] for k in h))
+            o.location = (p[0], p[1], zc + lift + .015); o.rotation_euler = (pa, ro, rz)
+            print('CAR wheels', {k: round(v, 3) for k, v in h.items()}, 'z', round(zc + lift, 3), 'pitch', round(math.degrees(pa), 1), 'roll', round(math.degrees(ro), 1), 'was', round(D.z[i] - .02, 3))
+        except Exception as e: print('CAR ground fit failed', e)
+    return o, (p[0], p[1], o.location.z if o else D.z[i]), rz
 
 # ------------------------------------------------------------------ trees and sky
 def plant(M):

@@ -632,6 +632,8 @@ func _house_state():
 		elif nm.begins_with("crew_"): mi.visible = ST.get("crew", true)   # the crew's lanterns and candles, out from 23:00 (times.py)
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
 		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
+		# 試作231（ユーザー「このなつきのテープなくす」、序章・第6章の4時半）: the crew's floor mark with Natsuki's name is 第1章's
+		elif nm.begins_with("tapeX") or nm.begins_with("tapeN"): mi.visible = TIME != "t0430"
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true
@@ -1687,8 +1689,12 @@ func _walk_tick(dt: float):
 		# 2026-11-17 夜（ユーザー「降りてくるアニメーション、変」）: the stair clips carry their own travel (walk.json: a cycle goes
 		# fwd 0.36 m on and rise -0.40 m down), and the way moved her on top of it: she sank and slid through each cycle and
 		# popped back (the crouch on the way down). The clip's own travel is taken back off where the rig is drawn
+		# 試作232（ユーザー「階段を昇るアニメーションが変。二歩分一気に移動しているみたい。下りるのも」）: the clips in the pck are
+		# in place (their pelvis keeps within 3 cm of where it starts: --probe of the walk glbs; walk.json's fwd/rise come from
+		# Blender's root, which the export leaves out). Taken off anyway, it held the body still for a cycle and then jumped it two
+		# treads at the loop. The body is drawn where the way has it; the way's pace (fwd / dur) keeps the feet on the treads
 		var draw := p
-		if mode != "walk" and J.has("fwd") and w.i < w.pts.size():
+		if mode != "walk" and J.has("fwd") and w.i < w.pts.size() and ARGS.has("stairtravel"):
 			var ph := fposmod((w.ap as AnimationPlayer).current_animation_position, float(J.get("dur", 1.0))) / float(J.get("dur", 1.0))
 			var hd := Vector3(seg.x, 0.0, seg.z).normalized() if hz > 0.01 else Vector3.ZERO
 			draw = p - hd * float(J.fwd) * ph - Vector3(0, float(J.get("rise", 0.0)) * ph, 0)
@@ -1999,6 +2005,15 @@ func _shadow_budget(dt: float):
 	# a lamp the eye cannot see (the house's walls between, by a ray) is put out (its cull mask) until it is near again;
 	# one in sight keeps its light, without the shadow
 	var space := get_world_3d().direct_space_state if not ARGS.has("leak") else null
+	# 試作232（ユーザー「場所によって光が変わる」、23時の台所、4度目）: one ray to the lamp was stopped by a person (Makoto
+	# before the candle) or a door's edge, and the kitchen went from candlelight to blue with a step. The rays pass people,
+	# go to the lamp and to four points round it at half its reach (the light it throws, not the flame alone), and a lamp
+	# once seen stays lit a second (no blinking at an edge)
+	var ex: Array = []
+	for k in CHARS:
+		if S.has(k + "_col") and S[k + "_col"] is CollisionObject3D: ex.append((S[k + "_col"] as CollisionObject3D).get_rid())
+	if player is CollisionObject3D: ex.append((player as CollisionObject3D).get_rid())
+	var now_s := Time.get_ticks_msec() / 1000.0
 	for i in cand.size():
 		var l: Light3D = cand[i][1]
 		l.shadow_enabled = i < shadow_n
@@ -2007,9 +2022,17 @@ func _shadow_budget(dt: float):
 		if i >= shadow_n and dusk_cut: on = false
 		elif i >= shadow_n and space:
 			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
-			var q := PhysicsRayQueryParameters3D.create(e, to)
-			q.collide_with_areas = false
-			on = space.intersect_ray(q).is_empty()
+			var r2: float = (l.omni_range if l is OmniLight3D else l.spot_range) * 0.5
+			on = false
+			for off in [Vector3.ZERO, Vector3(r2, 0, 0), Vector3(-r2, 0, 0), Vector3(0, 0, r2), Vector3(0, 0, -r2)]:
+				if off != Vector3.ZERO:   # a point the lamp itself lights (not one through its own room's wall)
+					var ql := PhysicsRayQueryParameters3D.create(l.global_position, to + off); ql.collide_with_areas = false; ql.exclude = ex
+					if not space.intersect_ray(ql).is_empty(): continue
+				var q := PhysicsRayQueryParameters3D.create(e, to + off)
+				q.collide_with_areas = false; q.exclude = ex
+				if space.intersect_ray(q).is_empty(): on = true; break
+			if on: l.set_meta("seen_t", now_s)
+			elif now_s - float(l.get_meta("seen_t", -10.0)) < 1.0: on = true
 		l.light_cull_mask = int(l.get_meta("mask")) if on else 0
 	if ARGS.has("sbdbg"):
 		var nm := {}

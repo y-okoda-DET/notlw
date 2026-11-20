@@ -170,7 +170,7 @@ def mats2(M):
     M['futon'] = mat_basic('futon', (.78, .74, .64), .95)
     M['mattress'] = mat_basic('mattress', (.6, .58, .53), .95)   # an old sheet: not the paper's white through the print
     M['coat'] = mat_basic('coat', (.2, .17, .14), .9)
-    M['refl'] = mat_basic('refl', (.04, .04, .045), .6)
+    M['refl'] = mat_basic('refl', (.85, .85, .82), .7)   # 試作231: the board itself (it was its dark round bag)
     M['futon2'] = mat_image('futon2', tex_path('plaid'), rough=.95, coords='UV', bump=.03, tint=(.85, .62, .55))
     M['stove'] = mat_basic('stove', (.75, .74, .7), .35)
     M['stovetop'] = mat_basic('stovetop', (.08, .08, .08), .5, metal=.3)
@@ -256,7 +256,13 @@ def hardcase(M, name, x0, y0, x1, y1, z, h, open_lid=False):
 
 def bag(M, x, y, w, d, h, mat, name='bag', rot=0.0, z=0.0, tag=None):
     o = prim('cube', name, loc=(X(x), Y(y), z + h / 2), rot=(0, 0, rot), scale=(w / 2, d / 2, h / 2), mat=mat)
-    bv = o.modifiers.new('bv', 'BEVEL'); bv.width = min(w, d, h) * .3; bv.segments = 3
+    # 試作231（ユーザー「この辺のカバン類、箱にしか見えない」）: a soft bag, not a bevelled box: the cube subdivided round, its top
+    # pinched in to the handles and its sides sagging (a bag full of clothes, set down)
+    me = o.data
+    for v in me.vertices:
+        if v.co.z > 0: v.co.y *= .55; v.co.x *= .9
+        else: v.co.x *= 1.04; v.co.y *= 1.06
+    sd = o.modifiers.new('sd', 'SUBSURF'); sd.levels = 2; sd.render_levels = 2
     lib.tube(f'{name}_handle', [(X(x) - w * .25, Y(y), z + h), (X(x), Y(y), z + h + .08), (X(x) + w * .25, Y(y), z + h)], [.01] * 3, M['plastic'], seg=6, sub=3)
     collide(x - w / 2, y - d / 2, x + w / 2, y + d / 2, z, z + h)
     if tag: tape(M, tag, (X(x) + .1 * math.cos(rot), Y(y) + .1 * math.sin(rot), z + h), (0, 0, 1), .12, up=(-math.sin(rot), math.cos(rot), 0), name=f'{name}_tape')
@@ -413,14 +419,18 @@ def upstairs(M):
     if ch:
         cloth.drop('makoto_jacket', (X(9.5), Y(3.1)), (.62, .5), z + 1.1, M['coat'], [ch], res=.025, frames=60, rumple=.06, seed=33,
                    floor=z, bend=.25, thick=.008)
-    o = prim('cylinder', 'makoto_reflector', loc=(X(9.9), Y(3.75), z + .33), rot=(0, math.pi / 2 - .2, 0), scale=(.33, .33, .025), mat=M['refl'], vertices=32)
+    # 試作231（ユーザー「夕方に持っていたレフ板は四角でした」）: the same square board as at dusk (export_dusk.py, .4 m), leaning on the wall
+    o = prim('cube', 'makoto_reflector', loc=(X(9.84), Y(3.75), z + .22), rot=(0, -.2, 0), scale=(.012, .2, .2), mat=M['refl'])
     apply_bevel(o, .02)
     lived.ghost_frames(M, 'Y', 6, 1, [(2.7, 3.15, z + 1.32, z + 1.7)])
 
     # 洗面・浴室 (x 6..10, y 4.2..8): the washbasin and machine by the door, the tub behind a low tiled step
     box('bath_floor', 6.06, 4.26, 9.94, 7.94, z, z + .015, M['bathtile'], 1.0)
-    box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathtile'], col=True)
-    box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathtile'], col=True)
+    # 試作231（ユーザー「壁がカビだらけに見える」）: the tile picture stretched up the 2 m partition read as mould in the print.
+    # A plain painted board (the floor keeps its tiles)
+    M['bathwall'] = mat_basic('bathwall', (.8, .82, .8), .45)
+    box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathwall'], col=True)
+    box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathwall'], col=True)
     # 2026-11-18 the user's Tripo tub (tiled outside, blue enamel in; front -Y in Blender): 1.32 x .79 x .58 in the NE corner
     if F.tripo_prop('bathtub', (X(9.26), Y(7.53), z), math.pi, (1.35, 1.0, 1.5), name='bath_tub'):
         collide(8.6, 7.13, 9.92, 7.93, z, z + .58)
@@ -435,13 +445,51 @@ def upstairs(M):
     box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
     # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
     # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
-    if F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine'):   # 2026-11-18 the user's Tripo machine, its front to the room
-        collide(7.04, 7.29, 7.56, 7.93, z, z + .88)
-    else:
-        box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
-        cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
+    # 試作233: the Tripo machine stayed faceted after smoothing: its light map is cut into one island per face (the light
+    # differs at every seam), not its normals. A machine of our own (rounded body, lid, panel) bakes in one piece
+    o = box('wash_machine', 7.02, 7.29, 7.58, 7.93, z, z + .84, M['fridge'], col=True); apply_bevel(o, .035, 4)
+    o = box('wash_machine_panel', 7.04, 7.8, 7.56, 7.92, z + .84, z + .94, M['fridge']); apply_bevel(o, .02, 3)
+    cyl('wash_machine_lid', 7.3, 7.56, z + .84, z + .855, .2, M['plastic'], 32)
+    cyl('wash_machine_knob', 7.42, 7.79, z + .87, z + .91, .022, M['plastic'], 16)
+    box('wash_machine_base', 7.04, 7.31, 7.56, 7.91, z - .0, z + .04, M['plastic'])
     for i in range(3):
         box('wash_towel', 7.6 + i * .12, 7.9, 7.68 + i * .12, 7.94, z + 1.05, z + 1.5, M['towel'])
+    # 試作232（ユーザー「この部屋、もう少しオブジェクト置いて、探索できるようにしたい。人が住んでいる感」、2階の洗面と浴室）:
+    # what five people staying the night leave in a bathroom: the bowl on the stool, bottles by the tub, a mat, a towel over
+    # the partition, the laundry basket, cups and a pouch and a dryer on the basin
+    M['bathbowl'] = mat_basic('bathbowl', (.82, .8, .74), .5)
+    M['bottle_w'] = mat_basic('bottle_w', (.86, .86, .84), .35)
+    M['bottle_p'] = mat_basic('bottle_p', (.75, .55, .6), .35)
+    M['basket'] = mat_basic('basket', (.55, .45, .32), .85)
+    cyl('bath_bowl', 9.05, 5.75, z + .22, z + .3, .13, M['bathbowl'], 18)
+    for i, (bx, by, h, m) in enumerate(((8.45, 7.2, .21, 'bottle_w'), (8.45, 7.3, .19, 'bottle_p'), (8.46, 7.4, .17, 'bottle_w'))):
+        cyl(f'bath_bottle_{i}', bx, by, z + .015, z + .015 + h, .033, M[m], 12)
+        cyl(f'bath_pump_{i}', bx, by, z + .015 + h, z + .04 + h, .008, M['plastic'], 6)
+    box('bath_mat', 8.75, 6.55, 9.45, 6.98, z + .015, z + .026, M['towel'])
+    # over the partition's top, one fold each side (not a block through the board: its faces inside the board leaked light)
+    box('bath_hungtowel', 7.988, 6.48, 7.996, 6.88, z + 1.66, z + 2.0, M['towel'])
+    box('bath_hungtowel', 8.064, 6.48, 8.072, 6.88, z + 1.74, z + 2.0, M['towel'])
+    box('bath_hungtowel', 7.988, 6.48, 8.072, 6.88, z + 2.0, z + 2.008, M['towel'])
+    o = box('wash_basket', 7.66, 7.22, 7.98, 7.56, z, z + .3, M['basket']); apply_bevel(o, .02)
+    o = box('wash_basket_clothes', 7.69, 7.25, 7.95, 7.53, z + .3, z + .36, M['coat']); apply_bevel(o, .03)
+    cyl('wash_cup', 6.3, 5.0, z + .86, z + .96, .035, M['bottle_w'], 12)
+    for i in range(3): cyl(f'wash_brush_{i}', 6.29 + i * .012, 5.0 + (i - 1) * .01, z + .9, z + 1.07, .004, M['plastic'] if i % 2 else M['canred'], 6)
+    o = box('wash_pouch', 6.2, 5.38, 6.4, 5.6, z + .86, z + .95, M['bagnavy']); apply_bevel(o, .03)
+    o = cyl('wash_dryer', 6.45, 5.25, z + .87, z + .93, .035, M['plastic'], 12)
+    # 試作232（同じ感想。筋のスレッドと合わせて 2026-11-20「持ち主ごとの台本の跡」）: what each one brought for the shoot, by
+    # their things; each can be looked at (ch3.gd UP_ITEMS)
+    M['notebook'] = mat_basic('notebook', (.2, .22, .26), .7)
+    M['bookcover'] = mat_basic('bookcover', (.32, .48, .58), .6)
+    M['vhs'] = mat_basic('vhs', (.08, .08, .09), .5)
+    o = box('natsuki_note', 2.4, .8, 2.62, .96, z, z + .014, M['notebook'])
+    o.rotation_euler[2] = .25
+    box('natsuki_note_pen', 2.42, .99, 2.56, 1.0, z, z + .01, M['canred'])
+    for i, (dz, h, m) in enumerate(((0, .045, 'bookcover'), (.045, .03, 'label'))):
+        o = box(f'makoto_book_{i}', 7.0 + i * .01, .9, 7.22 + i * .01, 1.18, z + dz, z + dz + h, M[m]); o.rotation_euler[2] = .15 * i
+    for i in range(4):
+        o = box(f'kiryu_tape_{i}', 3.02, 4.46, 3.21, 4.56, z + i * .026, z + i * .026 + .025, M['vhs']); o.rotation_euler[2] = .08 * (i % 2)
+    for i in range(4): cyl(f'taiga_batt_{i}', 1.45 + i * .04, 6.32, z, z + .05, .017, M['canred'] if i % 2 else M['plastic'], 8)
+    o = cyl('taiga_rope', 1.62, 6.48, z, z + .06, .09, M['basket'], 16)
 
     clutter2(M, z)
 
