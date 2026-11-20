@@ -869,18 +869,32 @@ var knock_arm: Node3D
 func _knock_arm() -> Node3D:
 	if knock_arm and is_instance_valid(knock_arm): return knock_arm
 	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
-	var sleeve := StandardMaterial3D.new(); sleeve.albedo_color = Color(0.2, 0.19, 0.18); sleeve.roughness = 0.9
-	var skin := StandardMaterial3D.new(); skin.albedo_color = Color(0.62, 0.47, 0.39); skin.roughness = 0.7
-	var fore := MeshInstance3D.new(); var cm := CapsuleMesh.new(); cm.radius = 0.048; cm.height = 0.42; fore.mesh = cm
-	fore.material_override = sleeve
-	fore.rotation = Vector3(deg_to_rad(-62.0), deg_to_rad(-18.0), 0.0); fore.position = Vector3(0.07, -0.1, 0.17)
+	var sleeve := StandardMaterial3D.new(); sleeve.albedo_color = Color(0.13, 0.13, 0.13); sleeve.roughness = 0.95
+	var skin := StandardMaterial3D.new(); skin.albedo_color = Color(0.42, 0.31, 0.25); skin.roughness = 0.75
+	# 試作233: the forearm runs from the wrist back to the lower right corner of the picture (seen from behind, as his own arm)
+	var d := Vector3(0.42, -0.55, 0.72).normalized()
+	var bas := Basis(Quaternion(Vector3.UP, d))
+	var fore := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.058; cy.bottom_radius = 0.042; cy.height = 0.55; fore.mesh = cy
+	fore.material_override = sleeve; fore.transform = Transform3D(bas, Vector3(0, -0.005, 0.03) + d * 0.3)
 	knock_arm.add_child(fore)
-	var fist := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 0.05; sm.height = 0.1; fist.mesh = sm
-	fist.material_override = skin; fist.scale = Vector3(0.95, 0.8, 1.1)
+	var cuff := MeshInstance3D.new(); var cc := CylinderMesh.new(); cc.top_radius = 0.047; cc.bottom_radius = 0.047; cc.height = 0.03; cuff.mesh = cc
+	cuff.material_override = sleeve; cuff.transform = Transform3D(bas, Vector3(0, -0.005, 0.03) + d * 0.035)
+	knock_arm.add_child(cuff)
+	var wrist := MeshInstance3D.new(); var wc := CylinderMesh.new(); wc.top_radius = 0.03; wc.bottom_radius = 0.027; wc.height = 0.07; wrist.mesh = wc
+	wrist.material_override = skin; wrist.transform = Transform3D(bas, Vector3(0, -0.005, 0.03))
+	knock_arm.add_child(wrist)
+	var fist := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.085, 0.075, 0.09); fist.mesh = bm
+	fist.material_override = skin; fist.rotation = Vector3(deg_to_rad(8.0), deg_to_rad(-12.0), deg_to_rad(-10.0))
 	knock_arm.add_child(fist)
-	for k in 4:   # the knuckles
-		var kn := MeshInstance3D.new(); var ks := SphereMesh.new(); ks.radius = 0.016; ks.height = 0.032; kn.mesh = ks
-		kn.material_override = skin; kn.position = Vector3(-0.03 + 0.02 * k, 0.018, -0.045); knock_arm.add_child(kn)
+	for k in 4:   # the knuckles and the folded fingers, on the door side
+		var kn := MeshInstance3D.new(); var ks := SphereMesh.new(); ks.radius = 0.014; ks.height = 0.028; kn.mesh = ks
+		kn.material_override = skin; kn.position = Vector3(-0.03 + 0.02 * k, 0.03, -0.045); knock_arm.add_child(kn)
+		var fg := MeshInstance3D.new(); var fc := CapsuleMesh.new(); fc.radius = 0.011; fc.height = 0.05; fg.mesh = fc
+		fg.material_override = skin; fg.position = Vector3(-0.03 + 0.02 * k, 0.0, -0.05); knock_arm.add_child(fg)
+	var thumb := MeshInstance3D.new(); var tc := CapsuleMesh.new(); tc.radius = 0.012; tc.height = 0.06; thumb.mesh = tc
+	thumb.material_override = skin; thumb.position = Vector3(-0.045, -0.02, -0.02); thumb.rotation = Vector3(0.0, deg_to_rad(30.0), deg_to_rad(70.0))
+	knock_arm.add_child(thumb)
+	for m in knock_arm.get_children(): (m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_cam().add_child(knock_arm); knock_arm.visible = false
 	return knock_arm
 
