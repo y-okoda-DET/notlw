@@ -641,3 +641,9 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 選ぶあいだのカメラの肩越し（選ぶ_肩越し）は、聞き手の顎（z 0.82）より上を入れない：狙いを z 0.30、レンズ 55。澪の手元は座卓の下からでなく、座卓の西の外から（座卓は y -0.35〜0.55 なので y -0.26 だと天板の裏しか映らなかった）。
 - 前の記録（第3章で耳を寄せた、第5章で指を切った、1時に桐生と話した）は、入口が作る記録から読む約束：`Engine.set_meta("night_flags", {"hands_cut": true, …})`。確かめるときは `--ivflags=hands_cut,leaned,talked_kiryu_1am`。自動の通しで嘘を選ぶのは `--ivlie`（interview.sh は IVARGS で渡す）。
 - 画面つきの通しの撮影（interview.sh shots）は約 7 コマ／分。720 コマは 100 分かかる。短く撮るか、--ivstill の静止画で見る。
+
+## 2026-11-20 第11章の最後のカット B（試作260、tape.gd --d11b）
+- 澪の顔（props/mio_seiza.glb の mio_face）は正面の絵を貼った面で、眼球・まぶた・口の骨も形キーも無い。目線・まばたき・口は、絵を列ごとに縦へ区分的に歪めて作った（blender/face/mio_face_states.py：まつ毛の線の太さを保ったまま上まぶたを下ろし、その下の白目と虹彩を下まぶたへ押しつぶす＝下を向いた眼球の縮み）。絵を差し替える材質は StandardMaterial の emission_texture が効かず顔全体が白く飛んだので、ShaderMaterial（tape.gd FACE_SHADER）にした。
+- 消えたテレビのガラスを「青緑のベタ」にするには黒（刷りでは青と橙の重なり＝いちばん深い影）にし、映り込みは鏡のカメラの SubViewport を transparent_bg にして澪の層だけ描き、その形（アルファ）を暗い青で塗る。transparent_bg の画では澪の明るさがほぼ 0 で、顔の凹凸は出なかった。
+- 第6章の腕（mio_arm_r.glb）を澪の目から見下ろすと、手の甲が刷りで紙の白に飛ぶ。腕だけ層 2 にして、テレビの光の 5% を当てる灯りを別に置いた。
+- 確かめ方：`RES=1280x720 SEC=40 bash godot/check/b11_run.sh <名前> [--d11b]`（テープの終わりから音つきの AVI、約6〜15分）。止め画は `SEC=0 … --d11endat=<秒>`。
