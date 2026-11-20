@@ -102,6 +102,7 @@ func _ready():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--cart="): call_deferred("_jump", float(a.substr(7)))   # check stills: the drive from this second
 		if a == "--carstop": call_deferred("_jump_stop")
+		if a.begins_with("--caraim="): var c2 := a.substr(9).split(","); caraim = Vector3(float(c2[0]), float(c2[1]), float(c2[2]))
 		if a.begins_with("--carcam="): var c := a.substr(9).split(","); carcam = Vector3(float(c[0]), float(c[1]), float(c[2]))
 		if a == "--cargap": call_deferred("_jump_gap")
 	_loop("car_drive", -14.0)
@@ -284,6 +285,7 @@ func _inside():
 	for a in [PI / 2, -PI / 2, PI]:
 		_box(wheel, Vector3(WHEEL_R - 0.02, 0.03, 0.02), Vector3(cos(a) * WHEEL_R * 0.5, sin(a) * WHEEL_R * 0.5, 0.0), dash2, Vector3(0, 0, a), "spoke")
 	_slab(inn, WHEEL + Vector3(0, -0.02, -0.05), WHEEL + Vector3(0, -0.10, -0.24), 0.07, 0.07, dash, "column")
+	_tripo_inside(inn)
 	# Natsuki's things: the tape on the dash, her phone on the vent
 	_tape(inn)
 	_phone(inn)
@@ -300,11 +302,83 @@ func _inside():
 	fill2.light_energy = 0.25; fill2.light_color = Color(1.0, 0.95, 0.88); fill2.shadow_enabled = false; fill2.light_specular = 0.0
 	car.add_child(fill2)
 
+# 2026-11-21 the user's Tripo dash, front seat and rear bench (画像生成とTripo_8回目; tripo/prep_props.py car_dash, car_seat,
+# car_bench). They take the place of the boxes above. Tripo's own axes (measured in Blender, tripo/prep_props.py's import):
+# the dash faces the cabin along its +x with the wheel toward its -z; the seats face their +x. Each is turned, sized and stood
+# on the floor here; the wheel node (Natsuki's hands) goes to Tripo's wheel and no longer turns (the wheel in the model does not).
+var tripo_dash := false
+var dash_top_y := -1.0   # the Tripo dash's top under the tape (the tape lies on it)
+var caraim := Vector3.ZERO
+const DASH_FIT := {"yaw": -90.0, "w": 1.42, "back_z": -0.30, "top": 0.93}
+func _prop_in(inn: Node3D, file: String, yaw: float) -> Node3D:
+	var n: Node3D = (load(file) as PackedScene).instantiate(); inn.add_child(n)
+	n.rotation.y = deg_to_rad(yaw)
+	return n
+
+func _local_aabb(inn: Node3D, n: Node3D) -> AABB:
+	var bb := AABB(); var first := true
+	var inv := inn.global_transform.affine_inverse()
+	for g in n.find_children("*", "MeshInstance3D", true, false):
+		var m := g as MeshInstance3D
+		var b: AABB = (inv * m.global_transform) * m.get_aabb()
+		bb = b if first else bb.merge(b); first = false
+	return bb
+
+# the highest point of the model's surface over (x, z) in the car's frame (its vertices within 4 cm)
+func _top_at(inn: Node3D, n: Node3D, x: float, z: float) -> float:
+	var best := -1.0
+	var inv := inn.global_transform.affine_inverse()
+	for g in n.find_children("*", "MeshInstance3D", true, false):
+		var m := g as MeshInstance3D
+		var tf: Transform3D = inv * m.global_transform
+		for si in m.mesh.get_surface_count():
+			var vs: PackedVector3Array = m.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+			for v in vs:
+				var p: Vector3 = tf * v
+				if absf(p.x - x) < 0.04 and absf(p.z - z) < 0.04 and p.y > best: best = p.y
+	return best
+
+func _tripo_inside(inn: Node3D):
+	if "--boxcar" in OS.get_cmdline_user_args(): return
+	var hide := []
+	if ResourceLoader.exists("res://props/car_dash.glb"):
+		var d := _prop_in(inn, "res://props/car_dash.glb", float(DASH_FIT.yaw))
+		var bb := _local_aabb(inn, d)
+		var k: float = float(DASH_FIT.w) / bb.size.x
+		d.scale = Vector3(k, k, k)
+		bb = _local_aabb(inn, d)
+		d.position += Vector3(-bb.get_center().x, float(DASH_FIT.top) - bb.end.y, float(DASH_FIT.back_z) - bb.end.z)
+		# Tripo's wheel (measured: its rim's far point at model (.29, -.02, -.24)); the ring's middle a little in from it
+		var rim: Vector3 = d.transform * Vector3(0.29, -0.023, -0.24)
+		wheel.position = rim + Vector3(0, 0, -0.03)
+		tripo_dash = true
+		dash_top_y = _top_at(inn, d, TAPE_AT.x, TAPE_AT.z); print("CAR dash top under the tape %.3f" % dash_top_y)
+		hide += ["dash_top", "dash_face", "dash_body", "binnacle", "gauges", "stack", "radio_lcd", "glovebox", "vent", "column", "hub", "spoke"]
+		for c in wheel.get_children(): (c as Node3D).visible = false
+		print("CAR tripo dash k=%.2f wheel=%s" % [k, wheel.position])
+	if ResourceLoader.exists("res://props/car_seat.glb"):
+		for x in [SEAT_MIO.x, SEAT_NAT.x]:
+			var st := _prop_in(inn, "res://props/car_seat.glb", 90.0)
+			var bb := _local_aabb(inn, st); var k := 1.02 / bb.size.y
+			st.scale = Vector3(k, k, k); bb = _local_aabb(inn, st)
+			st.position += Vector3(x - bb.get_center().x, 0.28 - bb.position.y, 0.24 - bb.get_center().z)
+		hide += ["cushion", "back", "headrest"]
+	if ResourceLoader.exists("res://props/car_bench.glb"):
+		var bn := _prop_in(inn, "res://props/car_bench.glb", 90.0)
+		var bb := _local_aabb(inn, bn); var k := 1.36 / bb.size.x
+		bn.scale = Vector3(k, k, k); bb = _local_aabb(inn, bn)
+		bn.position += Vector3(-bb.get_center().x, 0.28 - bb.position.y, 1.08 - bb.get_center().z)
+		print("CAR tripo bench size=", bb.size)
+		hide += ["bench", "bench_back"]
+	for c in inn.get_children():
+		for h in hide:
+			if String(c.name).begins_with(h) and c is MeshInstance3D: (c as Node3D).visible = false
+
 # the cassette (8 mm: the size of a deck of cards), its label in Natsuki's round hand
 var tape_node: Node3D
 func _tape(inn: Node3D):
 	tape_node = Node3D.new(); tape_node.name = "tape8"; inn.add_child(tape_node)
-	tape_node.position = TAPE_AT; tape_node.rotation = Vector3(0, 0.35, 0)
+	tape_node.position = TAPE_AT if dash_top_y < 0.0 else Vector3(TAPE_AT.x, dash_top_y + 0.009, TAPE_AT.z); tape_node.rotation = Vector3(0, 0.35, 0)
 	_box(tape_node, Vector3(0.095, 0.016, 0.062), Vector3.ZERO, _mat(Color(0.08, 0.08, 0.085), 0.4), Vector3.ZERO, "shell")
 	_box(tape_node, Vector3(0.06, 0.002, 0.03), Vector3(0, 0.0085, 0.006), _mat(Color(0.93, 0.92, 0.86), 0.9), Vector3.ZERO, "label")
 	var l := Label3D.new(); l.text = "上映用"; l.font = Type.say(); l.font_size = 64; l.pixel_size = 0.00028
@@ -439,7 +513,7 @@ func _seat_player():
 var carcam := Vector3.ZERO      # check stills: the camera outside the car, at this point of its frame, looking at it (--carcam=x,y,z)
 func _follow():
 	if carcam != Vector3.ZERO:
-		var at := car.global_transform * carcam; var to := car.global_transform * Vector3(0, 0.8, 0)
+		var at := car.global_transform * carcam; var to := car.global_transform * (caraim if caraim != Vector3.ZERO else Vector3(0, 0.8, 0))
 		player.eye_height = 0.0; player.global_transform = Transform3D(Basis.IDENTITY, at)
 		var dv := (to - at).normalized(); player.yaw = atan2(-dv.x, -dv.z); player.pitch = asin(dv.y)
 		return
@@ -575,7 +649,7 @@ func _drive(dt: float):
 	tf.basis = tf.basis * Basis.from_euler(Vector3(pitch * 0.02, 0.0, roll * 0.02))
 	tf.origin += tf.basis.y * (bump * 0.004 * gravel)
 	car.global_transform = tf
-	if wheel: wheel.rotation = Vector3(WHEEL_TILT, 0, 0); wheel.rotate_object_local(Vector3(0, 0, 1), steer)
+	if wheel: wheel.rotation = Vector3(WHEEL_TILT, 0, 0); wheel.rotate_object_local(Vector3(0, 0, 1), steer * (0.15 if tripo_dash else 1.0))
 	if nat_ik: nat_ik.wheel = wheel; _nat_look_tick(dt)
 	_place_people()
 	_follow()
@@ -666,7 +740,7 @@ func _nat_look_tick(dt: float):
 	var want := 1.0 if glance_t > 0.0 else 0.0
 	nat_ik.look_w = move_toward(nat_ik.look_w, want, dt * 1.4)
 	var cam: Camera3D = player.get_node("Head/Camera")
-	if glance_at == "tape": nat_ik.look_alt = car.global_transform * TAPE_AT
+	if glance_at == "tape": nat_ik.look_alt = tape_node.global_position
 	else: nat_ik.look_alt = cam.global_position
 	# the road: 12 m ahead, a little up from the dash
 	nat_ik.look_road = car.global_transform * Vector3(0.37, 1.2, -12.0)
@@ -675,7 +749,7 @@ func _nat_look_tick(dt: float):
 const ITEMS := {"tape": ["テープ", "一.車.テープ", 9.0], "phone": ["スマホ", "一.車.スマホ", 9.0], "makoto": ["真琴", "一.車.真琴", 14.0], "window": ["窓の外", "一.車.窓", 30.0]}
 func _item_at(k: String) -> Vector3:
 	match k:
-		"tape": return car.global_transform * TAPE_AT
+		"tape": return tape_node.global_position
 		"phone": return car.global_transform * PHONE_AT
 		"makoto": return car.global_transform * (SEAT_MK + Vector3(0.0, 0.72, 0.02))
 		"window": return car.global_transform * Vector3(-2.5, 1.15, -0.1)

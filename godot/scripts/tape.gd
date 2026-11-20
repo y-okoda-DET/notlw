@@ -235,11 +235,43 @@ func _box(at: Vector3, size: Vector3, col: Color, rough := 0.8) -> MeshInstance3
 	main.add_child(mi); mi.global_position = ROOM + at
 	return mi
 
+# 2026-11-20（決定事項 13時7分「第11章の部屋は客間に替える」）: the interview's room (assets/interview/room.glb, 澪の実家の客間), at
+# night. The deck and the set stand where the interview's did, on the low cabinet beside the tokonoma (interview.gd TV_AT, facing
+# east): the room is turned so that east is toward her (+z) and lowered so that the cabinet's top is our board's (0.145).
+# Its textures carry the day they were baked in; at night they are the night's: dark, a little blue, the set's light on them.
+const GUEST_TV_AT := [-1.50, -0.95, 0.42]
+func _guest_room() -> bool:
+	if "--oldroom" in OS.get_cmdline_user_args() or not ResourceLoader.exists("res://assets/interview/room.glb"): return false
+	var r: Node3D = (load("res://assets/interview/room.glb") as PackedScene).instantiate(); main.add_child(r)
+	var rb := Basis(Vector3.UP, -PI / 2.0)
+	var tv_g: Vector3 = rb * (Vector3(GUEST_TV_AT[0], GUEST_TV_AT[2], -GUEST_TV_AT[1]) + Vector3(0.06, 0, 0))
+	r.global_transform = Transform3D(rb, ROOM + Vector3(0.0, 0.145, -0.06) - tv_g)
+	var night := Color(float(_arg("d11night", "0.4")), float(_arg("d11night", "0.4")) * 1.04, float(_arg("d11night", "0.4")) * 1.25)
+	var hide_names := ["tape", "tape_label", "notebook", "notebook_pages", "recorder_tripo", "recorder_display", "rec_time", "cup_i", "cup_i_tea", "cup_m", "cup_m_tea"]
+	for g in r.find_children("*", "MeshInstance3D", true, false):
+		var m := g as MeshInstance3D
+		if String(m.name) in hide_names: m.visible = false; continue
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		for i in m.get_surface_override_material_count():
+			var mat = m.get_active_material(i)
+			if mat is BaseMaterial3D:
+				var nm: BaseMaterial3D = mat.duplicate()
+				nm.albedo_color = nm.albedo_color * night
+				if nm.emission_enabled: nm.emission_energy_multiplier *= 0.1
+				m.set_surface_override_material(i, nm)
+	# the moon through the shoji: a low blue light over the whole room (the set does the rest)
+	var moon := OmniLight3D.new(); moon.light_color = Color(0.55, 0.65, 0.95); moon.light_energy = float(_arg("d11moon", "0.35"))
+	moon.omni_range = 4.0; moon.omni_attenuation = 0.8; moon.shadow_enabled = false; moon.light_specular = 0.0; moon.light_cull_mask = 1
+	main.add_child(moon); moon.global_position = r.global_position + Vector3(0, 2.0, 0)
+	print("TAPE guest room at ", r.global_position)
+	return true
+
 func _tvbox(at: Vector3, size: Vector3, col: Color, rough := 0.5) -> MeshInstance3D:
 	var mi := _box(at, size, col, rough); mi.layers = 2      # the set does not light its own face
 	return mi
 
 func _room():
+	var n0: int = main.get_child_count()
 	_box(Vector3(0, -0.05, 0.6), Vector3(4.0, 0.1, 4.0), Color(0.42, 0.36, 0.27))             # the floor
 	_box(Vector3(0, 1.2, -0.42), Vector3(4.0, 2.6, 0.1), Color(0.62, 0.60, 0.55))             # the wall behind the set
 	_box(Vector3(-2.0, 1.2, 0.6), Vector3(0.1, 2.6, 4.0), Color(0.62, 0.60, 0.55))
@@ -250,6 +282,9 @@ func _room():
 	_box(Vector3(0, 0.13, -0.08), Vector3(0.95, 0.03, 0.46), Color(0.30, 0.22, 0.15))
 	_box(Vector3(-0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.55, 0.5, 0.42))
 	_box(Vector3(0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.45, 0.5, 0.52))
+	var plain: Array = main.get_children().slice(n0)
+	if _guest_room():
+		for b in plain: (b as Node3D).visible = false
 	var deck := _box(Vector3(0, 0.20, -0.06), Vector3(0.43, 0.10, 0.34), Color(0.10, 0.10, 0.11), 0.45)
 	var slot := _box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
 	# 2026-11-14（ユーザー「VHSデッキはモデリングしたい」）: the user's Tripo deck (godot/props/vcr.glb, from tripo/prep_props.py),
