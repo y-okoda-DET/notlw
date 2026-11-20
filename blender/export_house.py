@@ -26,7 +26,7 @@ E.NO_LM = tuple(E.NO_LM) + DYN
 # breaker: Poly Haven's power_box_01 (21k faces) in the cellar, its open door came out black at 試作64/65 (a sub-texel island)
 TRIPO_LIVED = ('breaker', 'lived_vest', 'lived_boots', 'lived_kettle', 'lived_hide', 'lived_blanket', 'study_zabuton', 'natsuki_hoodie', 'futon_stack', 'csleepbag', 'sleepsack', 'csheet', 'bath_tub', 'wash_machine', 'makeup_box', 'furn_stove', 'furn_gas', 'furn_chair')   # 試作168: the tub and the machine came out in light blotches
 LM_BOOST = 3.0
-LM_BOOST_OF = {'lived_hide': 8.0, 'breaker': 6.0}   # the hide still came out in light and dark blocks at 3 (試作47)
+LM_BOOST_OF = {'lived_hide': 8.0, 'breaker': 6.0, 'wash_machine': 8.0}   # 試作236: the user's Tripo machine stayed faceted at 3 (one small island per face, each its own light)   # the hide still came out in light and dark blocks at 3 (試作47)
 
 _bake_object = E.bake_object
 def _bake_sized(o, size=1024):
