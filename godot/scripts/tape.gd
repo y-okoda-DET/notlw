@@ -39,6 +39,8 @@ var heard_clear := 0
 var heard_all := 0
 var tswing := -1.0
 var tswings := 0
+var tqueue := []       # swing_0330 (第4章で振った通り): [tape clock, "head"|"body"|"miss"], the first blow to her head at the script's strike
+var tswing_what := "head"
 var held_since := -1.0
 var black2: ColorRect
 var demo11 := false
@@ -182,6 +184,11 @@ func _init():
 
 func _ready():
 	super._ready()
+	for a in OS.get_cmdline_user_args():   # checks: --swings=50.0:miss,50.6:head,… stands in for the night's record
+		if a.begins_with("--swings="):
+			var r := []
+			for w in a.substr(9).split(","): r.append([float(w.split(":")[0]), w.split(":")[1]])
+			set_flag("swing_0330", r)
 	load_story("ch11")
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--d11refl="): refl = a.substr(10)
@@ -595,14 +602,44 @@ func _end_tape():
 # ================================================================ what the night does on the tape
 func _do4(what: String):
 	match what:
-		"strike", "strike2": tswing = 0.0; tswings += 1
+		"strike", "strike2":
+			if not _swing_rec().is_empty(): return   # the record's own blows are on their way (_tape_queue)
+			tswing = 0.0; tswings += 1; tswing_what = "head"
 		"end": _end_tape()
 		"after": post = true; print("STORY ch11 after t=%.1f" % tape_t)
 		_: super._do4(what)
 
 # Mio is under the camera, out of its frame. The tripod is in her hands from the second she took it up in 第4章;
 # what the tape has of her is the tripod coming into the frame, twice.
+# the night as she played it: her swings at 3:30 (fps.gd rec_swings), placed so her first blow to the head comes when
+# the script's first strike does. Nothing kept (a chapter reached from the menu): the two strikes of the script.
+func _swing_rec() -> Array:
+	var r = get_flag("swing_0330", null)
+	if not (r is Array) or r.is_empty(): return []
+	var first := -1
+	for i in r.size():
+		if String(r[i][1]) == "head": first = i; break
+	return r if first >= 0 else []
+
+var tqueue_made := false
+func _tape_queue():
+	if tqueue_made: return
+	tqueue_made = true
+	var r := _swing_rec()
+	if r.is_empty(): return
+	var t0 := 0.0
+	for e in r:
+		if String(e[1]) == "head": t0 = float(e[0]); break
+	var strike_at := 46.0 + NIGHT_AT
+	for e in LINES:
+		if e.size() > 2 and e[1] == "do" and e[2] == "strike": strike_at = float(e[0]); break
+	for e in r: tqueue.append([strike_at + (float(e[0]) - t0), String(e[1])])
+	print("STORY ch11 swings from the night: ", tqueue.size())
+
 func _tape_swing(dt: float):
+	_tape_queue()
+	if not tqueue.is_empty() and tswing < 0.0 and clock >= float(tqueue[0][0]):
+		tswing = 0.0; tswings += 1; tswing_what = String(tqueue[0][1]); tqueue.pop_front()
 	if clock < TAPE_TAKE: return   # 2026-11-14: she takes it up only after Natsuki has caught her sleeve and her hand has hit it
 	if weapon.get_parent() != main:
 		weapon.get_parent().remove_child(weapon); main.add_child(weapon)
@@ -616,12 +653,18 @@ func _tape_swing(dt: float):
 		if k < 0.3: ang = lerp(-0.22, -0.75, smoothstep(0.0, 0.3, k))
 		elif k < 0.5: ang = lerp(-0.75, 1.55, pow((k - 0.3) / 0.2, 2.0))
 		else: ang = lerp(1.55, -0.22, smoothstep(0.5, 1.0, k))
-		if k >= 0.44 and not swing_hit: swing_hit = true; _blow(true)
+		if k >= 0.44 and not swing_hit:
+			swing_hit = true
+			if tswing_what != "miss": _blow(tswing_what == "head")
 		if k >= 1.0: tswing = -1.0; swing_hit = false
 	var axis := Vector3.UP.cross(dir).normalized()
 	weapon.global_transform = Transform3D(Basis(axis, ang) * Basis(Vector3.UP, atan2(dir.x, dir.z)), hands) * Transform3D(Basis(), Vector3(0, -0.42, 0))
 
 func _blow(head: bool):
+	if not head or head_hits >= 2:   # to the body she rocks; once she is down, the tripod comes down on the boards beside her
+		Sound.one(self, "hit", -9.0, _nhead())
+		print("STORY ch11 blow %s tape_t=%.1f" % ["body" if not head else "again", tape_t])
+		return
 	head_hits += 1
 	nap.pause(); nwalk = false
 	if head_hits == 1: hit_base = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)

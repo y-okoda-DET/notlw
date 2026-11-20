@@ -69,6 +69,7 @@ var weapon_h := 1.4
 var holding := false
 var swing_t := -1.0
 var swing_hit := false
+var rec_swings := []   # swing_0330: every blow she swung once the tripod was in her hands, [clock, "head"|"body"|"miss"]; 第11章's tape plays them back
 var head_hits := 0
 var hud: Hud
 var hud_on := false
@@ -117,6 +118,7 @@ func _ready():
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	load_story("ch4")
+	if not tape: set_flag("swing_0330", null)   # this night's 3:30 is played again: the old record goes
 	_page()
 	_stage()
 	if tape: return
@@ -747,7 +749,12 @@ func _swing(dt: float):
 	if not swing_hit and k >= 0.44:
 		swing_hit = true
 		var a := _aim()
-		if a.dist <= REACH and (a.head or a.body): _blow(a.head)
+		var what := "miss"
+		if a.dist <= REACH and (a.head or a.body): what = "head" if a.head else "body"
+		if rec_swings.size() < 12:
+			rec_swings.append([snappedf(clock, 0.05), what])
+			set_flag("swing_0330", rec_swings.duplicate(true))
+		if what != "miss": _blow(a.head)
 	if k >= 1.0: swing_t = -1.0; _held(0.0)
 
 func _blow(head: bool):
