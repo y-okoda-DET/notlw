@@ -876,6 +876,7 @@ func _knock():
 var knock_arm: Node3D
 func _knock_arm() -> Node3D:
 	if knock_arm and is_instance_valid(knock_arm): return knock_arm
+	if ResourceLoader.exists("res://props/kiryu_arm_r.glb"): return _knock_arm_kiryu()
 	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
 	var sleeve := StandardMaterial3D.new(); sleeve.albedo_color = Color(0.13, 0.13, 0.13); sleeve.roughness = 0.95
 	var skin := StandardMaterial3D.new(); skin.albedo_color = Color(0.42, 0.31, 0.25); skin.roughness = 0.75
@@ -904,6 +905,41 @@ func _knock_arm() -> Node3D:
 	knock_arm.add_child(thumb)
 	for m in knock_arm.get_children(): (m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_cam().add_child(knock_arm); knock_arm.visible = false
+	return knock_arm
+
+# 試作234（独立レビュー「灰色の筒に箱が付いたよう」）: Kiryu's own forearm and hand (props/kiryu_arm_r.glb, WHO=kiryu
+# export_mio_arms.py; the same frame as Mio's: the wrist at the origin, the fingers -Z, the palm -Y, the sleeve +Z), the fingers
+# curled into a fist, the knuckles to the door and the palm to the left, the forearm back to the lower right of the picture
+func _knock_arm_kiryu() -> Node3D:
+	knock_arm = Node3D.new(); knock_arm.name = "knock_arm"
+	var inst: Node3D = (load("res://props/kiryu_arm_r.glb") as PackedScene).instantiate()
+	var d := Vector3(0.42, -0.55, 0.72).normalized()
+	var yb := (Vector3(1, 0.25, 0) - d * Vector3(1, 0.25, 0).dot(d)).normalized()
+	inst.basis = Basis(yb.cross(d), yb, d)
+	knock_arm.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var to_h := Transform3D(); var nd: Node3D = sk
+	while nd != knock_arm: to_h = nd.transform * to_h; nd = nd.get_parent()
+	var to_a := inst.transform.affine_inverse() * to_h   # in the arm's own frame
+	var fist := []
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_r" % [f, j + 1])
+			if bi < 0: continue
+			var gb: Basis = (to_a * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = (gb.y.cross(Vector3.DOWN)).normalized()
+			if f == "thumb":
+				var o: Vector3 = (to_a * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
+			var ang: float = (1.3 * 0.6 * [0.30, 0.55, 0.40][j]) if f == "thumb" else (1.65 * [0.80, 1.05, 0.70][j])
+			fist.append([bi, sk.get_bone_rest(bi).basis.get_rotation_quaternion() * Quaternion((gb.inverse() * ax).normalized(), ang)])
+	_cam().add_child(knock_arm); knock_arm.visible = false
+	for b in fist: sk.set_bone_pose_rotation(b[0], b[1])   # once it is in the tree (a pose set before was reset)
+	print("CH8 knock arm bones ", fist.size())
 	return knock_arm
 
 # ---------------------------------------------------------------- 山道：夏希が先を行く。桐生はカメラに話し続ける
