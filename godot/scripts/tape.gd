@@ -591,7 +591,7 @@ func _room_tick(dt: float):
 			osd_trk.text = ("トラッキング " + "-".repeat(int(trk * 16.0)) + "|" + "-".repeat(16 - int(trk * 16.0))) if on_knob else ""
 			var ns := N0 + int(night_n)
 			stamp.text = "AM %d:%02d:%02d" % [ns / 3600, (ns / 60) % 60, ns % 60]
-			osd.text = "▶▶" if ff_on else "再生"
+			osd.text = "早送り" if ff_on else "再生"
 			osd.visible = ff_on or room_t - play_room_t < 4.0 or (tape_t >= 0.0 and tape_t < 4.0 and not post)
 			_tape_swing(dt)
 			if demo11: _demo11(dt)
