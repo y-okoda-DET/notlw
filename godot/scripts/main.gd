@@ -751,6 +751,17 @@ func _colliders():
 				sb.global_position = b2g(b.c); sb.rotation.x = b.rx
 			else:
 				_box(b.c, b.s)
+		if SCENE == "house":
+			# 2026-11-20（試作127「一度勝手口から外に出て…家の中に戻れなくなった」）: the back porch stair's ramp meets the deck
+			# about 5 cm under its top (house4_ext.back_porch_boxes), a lip the capsule cannot climb: walking up, she stopped
+			# at the top step. A short wedge from the deck's top edge onto the ramp. (Plan x 10.4..11.3, the deck's edge at y 5.9.)
+			var lip := StaticBody3D.new(); var lc := CollisionShape3D.new(); var lb := BoxShape3D.new()
+			# A plank a little steeper than the ramp (38.5° to its 34°): its foot in the ramp's plane at y 6.13, it passes 1 cm over
+			# the deck's corner (y 5.9, height 0) and ends at y 5.88, 2.6 cm over the deck. Each edge she meets is a floor to the
+			# capsule (r 0.17, floor 52°); the corner alone was a wall (test_move: the deck, n 56°), and a lip on the slope adds the slope.
+			lb.size = Vector3(0.9, 0.04, 0.32); lc.shape = lb; lip.add_child(lc); add_child(lip)
+			lip.rotation.x = atan2(0.6221, 0.7829)
+			lip.global_position = Vector3(10.85 - 4.8, -0.0892, 5.9926 - 6.3)
 		for o in S.props:
 			if SCENE == "house" and _stand_gone() and absf(float(o[0]) - FRESNEL_AT[0]) < 0.05 and absf(float(o[1]) - FRESNEL_AT[1]) < 0.05: continue
 			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()

@@ -1191,7 +1191,7 @@ func _kiryu_grab():
 			hm.position = Vector3(0.10, -0.13, -0.42)
 			hk.position = hm.position + dm * 0.10 + dk * 0.075 + Vector3(0, 0.035, 0)
 			hk.set_meta("at", hk.position); hk.set_meta("from", hk.position + dk * 0.3)
-			var fl := OmniLight3D.new(); fl.light_color = Color(1.0, 0.85, 0.7); fl.light_energy = 0.35; fl.omni_range = 0.7
+			var fl := OmniLight3D.new(); fl.light_color = Color(1.0, 0.85, 0.7); fl.light_energy = 0.18; fl.omni_range = 0.7
 			fl.shadow_enabled = false; fl.position = Vector3(0.0, 0.1, -0.15); hm.get_parent().add_child(fl)
 			grab_arms = [hm, hk, fl]
 	if grab_arms.size() == 3:

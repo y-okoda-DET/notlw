@@ -224,10 +224,11 @@ func _window_tick(dt: float):
 		var cam: Camera3D = player.get_node("Head/Camera")
 		var to := gp(SLIT[0], SLIT[1], SLIT[2]) - cam.global_position
 		var k := 1.0 - exp(-dt * 5.0)
+		player.auto_path = []   # (a walk left over from before sets the view each frame)
 		player.yaw = lerp_angle(player.yaw, atan2(-to.x, -to.z), k)
 		player.pitch = lerpf(player.pitch, asin(clampf(to.normalized().y, -1.0, 1.0)), k)
 		if win_t > 7.0 and _slit_looked(): _window_seen()
-		elif win_t > 14.0: DEMO_FAILS += 1; print("DEMO FAIL h21: cannot look at the slit from ", player.global_position); _window_seen()
+		elif win_t > 14.0: DEMO_FAILS += 1; print("DEMO FAIL h21: cannot look at the slit from ", player.global_position, " look=", rad_to_deg(player.yaw), "/", rad_to_deg(player.pitch), " to=", to); _window_seen()
 
 func _window_seen():
 	if stage != "window": return
