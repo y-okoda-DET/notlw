@@ -57,7 +57,9 @@ STATE = {
     # 第7章「去年の夏」(docs/資料/第7章の設計_2026-11-19.md): a year before, the same house on a clear summer night. The mains
     # are on, nothing is boarded, none of tonight's film gear stands in the hall (gear=False). y21: the party, every room
     # downstairs lit. y02: all asleep but two; the porch lamp, the living room's stand lamp, the lobby bulb left on low
-    'y21':   dict(boards=False, front=0, cord=False, exp=1.4, amb=[.2, .25, .36], ambe=.03, sky=.12, skyc=[.5, .6, .85], fog=.03, slip=False, crew=False, gear=False),
+    # 試作232（全体レビュー9「21時半、窓の外が昼のように明るい」）: sky .12 and the moon .12 lit the clearing like an overcast
+    # day through the living room's windows. Both brought to 2:00's (the moon still casts, the trees go dark beyond it)
+    'y21':   dict(boards=False, front=0, cord=False, exp=1.4, amb=[.2, .25, .36], ambe=.03, sky=.06, skyc=[.5, .6, .85], fog=.03, slip=False, crew=False, gear=False),
     'y02':   dict(boards=False, front=0, cord=False, exp=1.3, amb=[.2, .25, .36], ambe=.025, sky=.1, skyc=[.5, .6, .85], fog=.035, slip=False, crew=False, gear=False),
 }
 GEAR = ('fresnel', 'fres_lens', 'barndoor', 'yoke', 'cscol', 'csleg', 'tpd_', 'vcam_', 'lcd', 'recled', 'ledface', 'cable', 'tapebox')   # tonight's film gear that stands apart from the lightmapped mesh: not rendered into a bake whose state has gear=False (the apple box, the blue panel and the tape mark are part of the baked mesh: ch7.gd covers them)
@@ -181,7 +183,7 @@ def lights(t):
         L.append(_g(lib.point('lamp_living', P_LIVING, 186, k=2800, radius=.1), kind='omni', e=5.0, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(_g(lib.point('lamp_dining', P_DINING, 60, k=2800, radius=.1), kind='omni', e=1.8, r=5.0, att=1.3, sh=1, fog=0, size=.08))
         L.append(_g(lib.point('lamp_kitchen', P_KITCHEN, 70, k=2900, radius=.08), kind='omni', e=1.8, r=5.0, att=1.3, sh=1, fog=0, size=.08))
-        L.append(porch()); L.append(moon(.12))
+        L.append(porch()); L.append(moon(.07))
     elif t == 'y02':
         # 去年の夏、二時: the porch lamp is what he steers by through the trees; in the living room only the stand lamp
         # (the two who are still up); the lobby bulb is off, the door's sidelight shows the living room's light across the hall

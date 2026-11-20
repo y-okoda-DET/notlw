@@ -740,7 +740,10 @@ func _do(what: String):
 			# the door swings out: he steps to its latch side, out of the doorway's sight, and
 			# waits. She opens it and leans out to look for him
 			var side := gp(SIDE_AT[0], SIDE_AT[1], 0.0); side.y = player.global_position.y
-			var to := gp(DOOR[0], 0.25, 1.35) - Vector3(side.x, side.y + EYE, side.z)
+			# 試作232（全体レビュー2・8「廊下の正面」「字幕2行が顎に重なる」）: he looked through the door down the hall, and her face
+			# came to the foot of the picture under the lines. He looks to where she will lean out, a little under her face: the
+			# face above the middle, the hall at a slant behind her
+			var to := gp(DOOR[0] - 0.05, 0.18, 1.18) - Vector3(side.x, side.y + EYE, side.z)
 			var tw := create_tween().set_parallel(true)
 			tw.tween_property(player, "global_position", side, 0.7).set_trans(Tween.TRANS_SINE)
 			tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.8).set_trans(Tween.TRANS_SINE)
@@ -917,7 +920,12 @@ void fragment() {
 	float hand = smoothstep(-0.05, 0.08, along);          // the sleeve and the forearm stay clean, but for runs
 	// the coat: thick on the fingers and the knuckles, broken patches on the back, little at the wrist
 	float f = fbm(p * 38.0);
-	float coat = smoothstep(0.62 - 0.30 * along, 0.66 - 0.30 * along, f) * hand;
+	// 試作232（全体レビュー7「陽太の手が白い手袋のように見え、血糊とラテックスの傷に読めない」）: more of the hand coated, a
+	// latex gash across the back of the hand (a raised pale-pink lip round a dark split), and the skin itself a shade down
+	float coat = smoothstep(0.52 - 0.30 * along, 0.57 - 0.30 * along, f) * hand;
+	float gx = p.x * 1.0 + (p.z + 0.07) * 0.55;
+	float gash = step(0.0, p.y) * smoothstep(0.012, 0.004, abs(gx)) * smoothstep(0.02, 0.05, along) * smoothstep(0.75, 0.55, along);
+	float lip = step(0.0, p.y) * smoothstep(0.022, 0.012, abs(gx)) * (1.0 - gash) * smoothstep(0.02, 0.05, along) * smoothstep(0.75, 0.55, along);
 	// runs toward the wrist (+Z): thin lines in the cross-section, each starting somewhere on the hand and of its own length
 	float cx = p.x * 110.0 + (p.y > 0.0 ? 0.0 : 37.0);
 	float id = floor(cx); float fx = fract(cx);
@@ -933,7 +941,10 @@ void fragment() {
 	float wet = smoothstep(0.7, 0.85, fbm(p * 70.0 + 3.0));
 	vec3 blood = mix(vec3(0.15, 0.003, 0.002), vec3(0.26, 0.005, 0.003), wet);   // linear (sRGB about 0.42 and 0.55 red)
 	a *= 0.97;
-	ALBEDO = mix(base, blood, a);
+	vec3 skin = base * 0.8;
+	skin = mix(skin, vec3(0.55, 0.3, 0.28), lip * 0.8);
+	ALBEDO = mix(skin, blood, a);
+	ALBEDO = mix(ALBEDO, vec3(0.05, 0.002, 0.002), gash);
 	if (dbg > 0.5) ALBEDO = vec3(fract(p.x * 20.0), fract(-p.z * 6.67), step(0.0, p.y));
 	ROUGHNESS = mix(0.8, mix(0.35, 0.12, wet), a);
 	SPECULAR = mix(0.5, 0.6, a);

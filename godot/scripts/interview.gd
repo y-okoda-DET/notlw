@@ -312,7 +312,10 @@ func _process(dt: float):
 		# 証言 三：the camera goes round the table and does not stop, stepping at the print's 12 a second
 		orbit_a += dt * 360.0 / orbit
 		var a := deg_to_rad(snappedf(orbit_a, 360.0 / orbit / FPS))
-		_set_cam({"loc": [1.30 * sin(a), 0.10 - 1.30 * cos(a), 0.50], "at": [0, 0.10, 0.50], "lens": 40.0, "shift_y": -0.12, "hide": []})
+		# 試作232（全体レビュー1「回り込むカメラが澪の頭と肩に食い込み、画面の3分の2が髪と袖の内側でふさがる」）: at 0.5 m up
+		# on a 1.3 m ring it went through her where she sits. It goes round over the heads of the two seated (1.15 m) and a
+		# little wider, looking down onto the table
+		_set_cam({"loc": [1.5 * sin(a), 0.10 - 1.5 * cos(a), 1.15], "at": [0, 0.10, 0.55], "lens": 36.0, "shift_y": 0.0, "hide": []})
 
 # ================================================================ the print
 const BLUR := """shader_type canvas_item;
@@ -478,7 +481,7 @@ func _move_pick(d: int):
 func _show_pick():
 	for i in pick_rows.size():
 		var r: Dictionary = pick_rows[i]
-		var a := 1.0 if (r.taken or i == pick_idx) else 0.74
+		var a := 1.0 if (r.taken or i == pick_idx) else 0.86
 		if r.dead: a = 0.5
 		(r.lb as Label).add_theme_color_override("font_color", Color(PAPER.r, PAPER.g, PAPER.b, a))
 
@@ -505,6 +508,10 @@ func _pick(e: Dictionary) -> Array:
 	pick_rows = []
 	for c in e.cards:
 		var lb := _tes_row(String(c.text), 25.0)
+		# 試作232（全体レビュー3「選ぶ行が障子・紙の白に重なり、選んでいない行はほとんど読めない」）: paper-coloured type on the
+		# paper-white shoji. Each row gets the ink's edge round its letters (as the subtitles' shadow reads, 2026-11-18)
+		lb.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.14, 0.9)); lb.add_theme_constant_override("outline_size", maxi(4, int(7.0 * u)))
+		lb.add_theme_color_override("font_shadow_color", Color(0.06, 0.08, 0.14, 0.55)); lb.add_theme_constant_override("shadow_offset_x", 2); lb.add_theme_constant_override("shadow_offset_y", 2)
 		var dead: bool = slipped_cards.has(String(c.text))
 		pick_rows.append({"card": c, "lb": lb, "taken": false, "dead": dead})
 		if dead: _strike(lb, 0.0)

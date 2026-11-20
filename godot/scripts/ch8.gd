@@ -719,12 +719,14 @@ func _night8(dt: float, on: bool):
 	var e: Environment = main.env
 	if e == null: return
 	if fog0.is_empty(): fog0 = [e.fog_density, e.fog_light_color, e.fog_light_energy, e.fog_sky_affect]
-	night_k = move_toward(night_k, 1.0 if on else 0.0, dt * 1.2)
+	# 試作232（全体レビュー5「外に出た直後と山道でファインダーがほぼ白に飛ぶ」）: the house's outside night (bright, for the
+	# windows) stayed on for most of a second after the door, a white fog. The night comes at once outside; it goes slowly
+	night_k = move_toward(night_k, 1.0 if on else 0.0, dt * (8.0 if on else 1.2))
 	if night_k <= 0.0 and not on:
 		e.fog_density = fog0[0]; e.fog_light_color = fog0[1]; e.fog_light_energy = fog0[2]; e.fog_sky_affect = fog0[3]; return
 	var fl := clampf(bolt_e / 5.0, 0.0, 1.0)
 	var dark := Color(0.012, 0.02, 0.035).lerp(Color(0.2, 0.27, 0.36), dawn)
-	e.fog_light_color = (fog0[1] as Color).lerp(dark.lerp(Color(0.34, 0.4, 0.5), fl), night_k)
+	e.fog_light_color = (fog0[1] as Color).lerp(dark.lerp(Color(0.22, 0.26, 0.33), fl), night_k)   # (the flash's fog: 0.34-0.5 burnt the finder white)
 	e.fog_light_energy = lerpf(fog0[2], 1.0, night_k)
 	e.fog_density = lerpf(fog0[0], lerpf(0.075, 0.012, maxf(fl, dawn)), night_k)
 	e.fog_sky_affect = lerpf(fog0[3], 1.0, night_k)
@@ -738,7 +740,9 @@ func _place():
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_porch_ramp()
-	_stand_at(TOP_AT, 20.0, -6.0, F2)
+	# 試作232（全体レビュー2「二階の廊下を真正面から見た一点透視の画で始まる」）: he starts turned across the landing to the
+	# stairwell and its rail (three-quarter), not down the corridor
+	_stand_at(TOP_AT, -38.0, -14.0, F2)
 	player.eye_height = EYE
 	match start8:
 		"take": _stand_at(TAKE_AT, 150.0, -20.0, 0.0)
@@ -781,9 +785,13 @@ func _take_now(quick := false):
 	if quick: return
 	# his eyes on the camera in his hands; her feet come into the bottom of the picture; he tilts up, and stops at her mouth
 	# his eyes on the camera in his hands; then the picture comes up onto her back: she sits at the step, the door before her
+	# 試作232（全体レビュー4「澪を真上から見下ろす画（頭のてっぺん）」）: 0.6 m from her at his chest's height the picture
+	# looked down on her crown. He takes a step back up the hall first: from 1.4 m her back and shoulders, the door past her
+	var back := gp(4.62, 2.95, 0.0); back.y = player.global_position.y
+	create_tween().tween_property(player, "global_position", back, 1.1).set_trans(Tween.TRANS_SINE)
 	var hd := gp(MIO_SIT[0], MIO_SIT[1], 0.62)
-	_turn_to(_yaw_to(hd), deg_to_rad(-58.0), 0.6)
-	_after(0.9, func(): _turn_to(_yaw_to(hd), deg_to_rad(-43.0), 1.8))
+	_turn_to(_yaw_to(hd), deg_to_rad(-40.0), 0.6)
+	_after(1.1, func(): _turn_to(_yaw_to(hd), deg_to_rad(-14.0), 1.8))
 	_after(2.6, func(): _start(B("八.廊下")))
 
 # the picture's top edge at her mouth (the interview cuts its listener at the chest, the chin, the mouth: the same grammar)
