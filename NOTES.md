@@ -662,3 +662,13 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 ## 2026-11-20 裏のデッキの階段は、上りで角に止まる（main.gd に板を足した）
 - 勝手口の裏の階段（house4_ext.back_porch_boxes の ramp）は、上の端がデッキの上面より約5cm下で終わる。上りでカプセル（半径0.17）がデッキの角（plan y 5.9、高さ0）に当たり、その接触は 56° で壁になる（床は52°まで）。test_move で見つけた。試作127 の「勝手口から外に出て家に戻れなくなった」はこれ。
 - いまは main.gd の _colliders で、階段より少し急な板（38.5°）を足して角を覆う（作業ブランチ）。坂の上の段差は坂の角度に足される（坂34°の上の3.5cmの段差は68°で壁）ので、板の足は坂の面に揃える。次の焼き直しで house4_ext の ramp をデッキの上面まで伸ばせば、この板は要らない。
+## 2026-11-20 第1章の頭、行きの車の中（scripts/car.gd、play "ch1car"）
+- 車の道（car.gd PATH）は outside_geo.py の ROAD（南の端 s=179 から私道の口 J まで、2m おき）と DRIVE（下から玄関の手前まで 1.5m おき）を並べた物。Blender の世界座標（x, y, 路面の z）。左側通行で道の中心から 0.9m 左、崩れる前の路肩の三角コーン（slip_props：中心から外へ約0.65m）の所だけ右へ 0.8m よける。作り直すとき：`cd blender && python3 -c "import outside_geo as G"` の ROAD.P/N/z、DRIVE.P/z を同じ間隔で取る。
+- Tripo の車（ext_car、env.glb の駐車した物）を複製して車体にする。Tripo の前は自分の +z（furnish.tripo_prop：Blender の -Y）なので、Y まわり 180° 回して車の -z（前）に合わせる。中から見えないよう、ベルトライン（0.98m）より上と、窓の付け根より後ろはシェーダーで捨てる（ボンネットだけ窓越しに見える）。車の中（ダッシュボード、ハンドル、座席、柱、天井）は car.gd が箱で組む。
+- 夏希の手は、ハンドルの輪の10時・2時へ二本の骨で届かせる（car.gd ReachIK、set_bone_global_pose）。座る形は natsuki_c7.res の sit_idle、真琴は makoto_talk.res の sit_a。一つの AnimationPlayer に多くの動きを持たせると Godot 4.4.1 が落ちるので、車の場面では元の library を外して1本だけにする。
+- ルームミラーは SubViewport のカメラ（目の位置をミラーの面で折り返した所から撮る）。
+- 2026-11-21 車の中はユーザーの Tripo（godot/props/car_dash・car_seat・car_bench、tripo/prep_props.py）。Tripo の GLB は meshopt 圧縮で届くので先に `npx -y @gltf-transform/cli@4.1.1 copy` でほどく。名前は中身で決める（届いた「car seat」2つのうち、先の物が後ろの席だった）。向き：ダッシュボードはモデルの +x が車内側、ハンドルは -z 側 → Y まわり -90°。座席は +x が前 → +90°。ダッシュボードの上の高さは頂点から取ってテープを載せる（car.gd _top_at）。
+- 同じ名前で add_child した2つ目の MeshInstance3D は Godot が名前を変える（「@MeshInstance3D@…」）。名前で隠すと運転席側の箱が残った。部品名は set_meta("part") に持たせて、それで隠す。
+- 第11章の部屋はインタビューの客間（assets/interview/room.glb）を -90° 回して置く。棚（waki_top）の上面と前の端を測って合わせる（最初は棚の手前 37cm に浮いた）。焼いた昼の色に夜の色（0.4 倍、少し青）を掛け、上から弱い月明かり。
+- ジャンプスケア④：二階の洗面所の鏡（rooms2.py wash_mirror）の前に、SubViewport の映り込みを曇らせて重ねる（ch3.gd CLOUD_SH）。鏡は shaded にして、映る物だけ EMISSION で出す（unshaded の灰色は暗い部屋で紙の白に飛んだ）。
+- 確認画の --snaps の行に「+0.0」を書いてから座標を書くと、+0.0 も数として読まれて座標がずれる。座標を書く行には「+待つ秒」を書かない。
