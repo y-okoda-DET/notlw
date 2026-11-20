@@ -1165,9 +1165,16 @@ func _press_peel():
 			# 試作175 A19（ユーザー「剥がす順番はどこからでもよくない？」）: whichever she looks at comes off
 			_peel(gq)
 			peeled_n += 1
+			# 試作231（ユーザー「テープ、最後に勝手口そばを剥がさないと次に進まない」）: the back door's is torn already, so the
+			# other four end it. Looked at before then, it is one line; when the four are off, it counts as off too
+			var four := true
+			for g4 in gaps: if g4.key != "g5" and not g4.peeled: four = false
+			var auto5: bool = four and not _gap("g5").is_empty() and not _gap("g5").peeled
+			if auto5: _peel(_gap("g5"), true); peeled_n = 5
 			var q: Array = []
 			if gq.key == "g5": q = B("はがす.勝手口.最後" if peeled_n == 5 else "はがす.勝手口")
 			elif peeled_n == 1: q = B("はがす.一つ目")
+			if auto5: q.append_array(B("はがす.勝手口.最後"))
 			if peeled_n == 5:
 				q.append_array(B("はがす.五つ目"))
 				_cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")

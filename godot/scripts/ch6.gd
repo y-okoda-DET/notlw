@@ -407,7 +407,10 @@ func _prompt(key: String) -> String:
 	return T(String(D.lines(key)[0]))
 
 func _looks6():
+	# 試作231（ユーザー「このなつきのテープなくす」）: the crew's floor mark is hidden at 4時半 (main.gd _house_state), and with
+	# it 【見る.床のテープ】
 	for it in LOOKS:
+		if it[0] == "mark": continue
 		var pos: Vector3 = gp(it[2][0], it[2][1], it[2][2])
 		if it[1] != "":
 			var found: Array = main.S.env_node.find_children(String(it[1]) + "*", "MeshInstance3D", true, false)
@@ -1119,6 +1122,14 @@ func _cassette(label: String) -> Node3D:
 	return c
 
 func _props6():
+	# 試作231（ユーザー「ラジオないのに選択できる」）: the radio itself, where 【見る.ラジオ】 says it is (the house has it only in
+	# 第1・2章, story.gd). Switched off: no dial lamp
+	if ResourceLoader.exists("res://props/radio.glb"):
+		var rd: Node3D = (load("res://props/radio.glb") as PackedScene).instantiate(); rd.name = "ch6_radio"
+		for mi in rd.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		main.add_child(rd)
+		var ra: Array = LOOKS[3][2]
+		rd.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(200.0)), gp(ra[0], ra[1], ra[2] - 0.07))
 	for mi in main.S.env_node.find_children("bed1b_blanket*", "MeshInstance3D", true, false): (mi as Node3D).visible = false   # it is over Natsuki
 	# the tripod's bag, flat and open, where the crew's things are
 	if ResourceLoader.exists("res://props/tripod_case.glb"):
@@ -1177,8 +1188,9 @@ func _targets6():
 	_add_target("bag", gp(BAG_AT[0], BAG_AT[1], 0.1), 3.2, 34.0, func(): return carrying, func(): return _prompt("三脚.袋"), _tripod_bag)
 	_add_target("cam", fixed_cam.global_position, 2.3, 22.0, func(): return not carrying and not (done6.has("cam") and done6.has("batt")),
 		func(): return "［%s］" % T("カメラ") if not looked.has("cam") else _prompt("カメラ.出す") if not done6.has("cam") else _prompt("カメラ.電池"), _cam_press)
-	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and (phone_st in [0, 1] or (phone_st == 2 and has_pack)),
-		func(): return "［%s］" % T("夏希") if phone_st == 0 else _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ"), _nat_press)
+	# 試作231（ユーザー「夏希を選択できない」）: she can be looked at all the time; between the phone's steps it is one line
+	_add_target("nat", Vector3.ZERO, 2.3, 30.0, func(): return not carrying and act == "",
+		func(): return _prompt("スマホ.取る") if phone_st == 1 else _prompt("スマホ.つなぐ") if (phone_st == 2 and has_pack) else "［%s］" % T("夏希"), _nat_press)
 	_add_target("bag_m", gp(2.55, 3.85, F2 + 0.25), 1.9, 26.0, func(): return phone_st == 2 and not has_pack, func(): return _prompt("鞄.バッテリー"), _pack_take)
 	_add_target("box", gp(2.15, 2.23, 0.43), 1.9, 24.0, func(): return box_st in [1, 3] and not carrying,
 		func(): return _prompt("箱.開ける"), _box_press)
@@ -1672,7 +1684,10 @@ func _nat_press():
 		0:
 			phone_st = 1; _ret_open("夏希.見る")
 		1: _phone_find()
-		2: _phone_plug()
+		2:
+			if has_pack: _phone_plug()
+			else: _start(B("見る.夏希.電池"))
+		_: _start(B("見る.夏希"))
 
 func _blanket_fold(k: float, dur := 0.9):
 	if blanket == null: return

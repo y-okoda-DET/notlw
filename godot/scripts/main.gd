@@ -632,6 +632,8 @@ func _house_state():
 		elif nm.begins_with("crew_"): mi.visible = ST.get("crew", true)   # the crew's lanterns and candles, out from 23:00 (times.py)
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
 		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
+		# 試作231（ユーザー「このなつきのテープなくす」、序章・第6章の4時半）: the crew's floor mark with Natsuki's name is 第1章's
+		elif nm.begins_with("tapeX") or nm.begins_with("tapeN"): mi.visible = TIME != "t0430"
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true

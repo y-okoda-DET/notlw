@@ -170,7 +170,7 @@ def mats2(M):
     M['futon'] = mat_basic('futon', (.78, .74, .64), .95)
     M['mattress'] = mat_basic('mattress', (.6, .58, .53), .95)   # an old sheet: not the paper's white through the print
     M['coat'] = mat_basic('coat', (.2, .17, .14), .9)
-    M['refl'] = mat_basic('refl', (.04, .04, .045), .6)
+    M['refl'] = mat_basic('refl', (.85, .85, .82), .7)   # 試作231: the board itself (it was its dark round bag)
     M['futon2'] = mat_image('futon2', tex_path('plaid'), rough=.95, coords='UV', bump=.03, tint=(.85, .62, .55))
     M['stove'] = mat_basic('stove', (.75, .74, .7), .35)
     M['stovetop'] = mat_basic('stovetop', (.08, .08, .08), .5, metal=.3)
@@ -256,7 +256,13 @@ def hardcase(M, name, x0, y0, x1, y1, z, h, open_lid=False):
 
 def bag(M, x, y, w, d, h, mat, name='bag', rot=0.0, z=0.0, tag=None):
     o = prim('cube', name, loc=(X(x), Y(y), z + h / 2), rot=(0, 0, rot), scale=(w / 2, d / 2, h / 2), mat=mat)
-    bv = o.modifiers.new('bv', 'BEVEL'); bv.width = min(w, d, h) * .3; bv.segments = 3
+    # 試作231（ユーザー「この辺のカバン類、箱にしか見えない」）: a soft bag, not a bevelled box: the cube subdivided round, its top
+    # pinched in to the handles and its sides sagging (a bag full of clothes, set down)
+    me = o.data
+    for v in me.vertices:
+        if v.co.z > 0: v.co.y *= .55; v.co.x *= .9
+        else: v.co.x *= 1.04; v.co.y *= 1.06
+    sd = o.modifiers.new('sd', 'SUBSURF'); sd.levels = 2; sd.render_levels = 2
     lib.tube(f'{name}_handle', [(X(x) - w * .25, Y(y), z + h), (X(x), Y(y), z + h + .08), (X(x) + w * .25, Y(y), z + h)], [.01] * 3, M['plastic'], seg=6, sub=3)
     collide(x - w / 2, y - d / 2, x + w / 2, y + d / 2, z, z + h)
     if tag: tape(M, tag, (X(x) + .1 * math.cos(rot), Y(y) + .1 * math.sin(rot), z + h), (0, 0, 1), .12, up=(-math.sin(rot), math.cos(rot), 0), name=f'{name}_tape')
@@ -413,14 +419,18 @@ def upstairs(M):
     if ch:
         cloth.drop('makoto_jacket', (X(9.5), Y(3.1)), (.62, .5), z + 1.1, M['coat'], [ch], res=.025, frames=60, rumple=.06, seed=33,
                    floor=z, bend=.25, thick=.008)
-    o = prim('cylinder', 'makoto_reflector', loc=(X(9.9), Y(3.75), z + .33), rot=(0, math.pi / 2 - .2, 0), scale=(.33, .33, .025), mat=M['refl'], vertices=32)
+    # 試作231（ユーザー「夕方に持っていたレフ板は四角でした」）: the same square board as at dusk (export_dusk.py, .4 m), leaning on the wall
+    o = prim('cube', 'makoto_reflector', loc=(X(9.84), Y(3.75), z + .22), rot=(0, -.2, 0), scale=(.012, .2, .2), mat=M['refl'])
     apply_bevel(o, .02)
     lived.ghost_frames(M, 'Y', 6, 1, [(2.7, 3.15, z + 1.32, z + 1.7)])
 
     # 洗面・浴室 (x 6..10, y 4.2..8): the washbasin and machine by the door, the tub behind a low tiled step
     box('bath_floor', 6.06, 4.26, 9.94, 7.94, z, z + .015, M['bathtile'], 1.0)
-    box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathtile'], col=True)
-    box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathtile'], col=True)
+    # 試作231（ユーザー「壁がカビだらけに見える」）: the tile picture stretched up the 2 m partition read as mould in the print.
+    # A plain painted board (the floor keeps its tiles)
+    M['bathwall'] = mat_basic('bathwall', (.8, .82, .8), .45)
+    box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathwall'], col=True)
+    box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathwall'], col=True)
     # 2026-11-18 the user's Tripo tub (tiled outside, blue enamel in; front -Y in Blender): 1.32 x .79 x .58 in the NE corner
     if F.tripo_prop('bathtub', (X(9.26), Y(7.53), z), math.pi, (1.35, 1.0, 1.5), name='bath_tub'):
         collide(8.6, 7.13, 9.92, 7.93, z, z + .58)
@@ -435,8 +445,13 @@ def upstairs(M):
     box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
     # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
     # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
-    if F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine'):   # 2026-11-18 the user's Tripo machine, its front to the room
+    wm = F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine')   # 2026-11-18 the user's Tripo machine, its front to the room
+    if wm:
         collide(7.04, 7.29, 7.56, 7.93, z, z + .88)
+        # 試作231（ユーザー「洗濯機、なんかかくかくしてる？」）: Tripo's light mesh came flat-shaded: smooth, keeping its edges
+        for p in wm.data.polygons: p.use_smooth = True
+        try: wm.data.set_sharp_from_angle(angle=math.radians(35))
+        except Exception as e: print('washer smooth', e)
     else:
         box('wash_machine', 7.0, 7.28, 7.6, 7.93, z, z + .85, M['fridge'], col=True)
         cyl('wash_machine_lid', 7.3, 7.6, z + .85, z + .86, .22, M['plastic'], 20)
