@@ -18,7 +18,7 @@ from lib import prim
 OUT = f'{P.RULES}/assets/house'
 os.makedirs(OUT, exist_ok=True)
 E.OUT = OUT
-DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_', 'bed1b_blanket')   # switched per time in Godot: kept out of the joined, lightmapped mesh (bed1b_blanket: 第3章で澪が持っていく)
+DYN = ('board_', 'gencord', 'lampshade_', 'door_', 'door2_', 'crew_', 'bed1b_blanket', 'tapeX', 'tapeN')   # switched per time in Godot: kept out of the joined, lightmapped mesh (bed1b_blanket: 第3章で澪が持っていく)
 E.NO_LM = tuple(E.NO_LM) + DYN
 # Tripo's decimated cloth and rubber split into thousands of tiny lightmap islands, smaller than a texel, and the
 # vest came out in dark patches (試作46). Out of the lightmap it went black (the baked mode has no live bounce), so
@@ -106,6 +106,10 @@ def join_static():
     bpy.context.view_layer.objects.active = statics[0]
     bpy.ops.object.convert(target='MESH')
     boost = []
+    # 試作231（ユーザー「椅子、等間隔に」「椅子が見えないのに当たりがある」）: the dining chairs share one mesh (furnish.chair):
+    # the lmboost index on the shared data was the last chair's, so all six were drawn back to one place. Each its own mesh
+    for o in statics:
+        if o.data.users > 1: o.data = o.data.copy()
     for o in statics:
         if o.name.startswith(TRIPO_LIVED):
             c = o.matrix_world.translation.copy(); boost.append(c)

@@ -255,7 +255,10 @@ def kitchen(M):
     # north run under the window: cabinets, stainless top, the sink in the middle of the window
     nx0, nx1, ny0, ny1 = 6.07, 8.53, 7.33, 7.93
     counter(M, nx0, ny0, nx1, ny1, 'n')
-    box('furn_sink', 7.1, 7.43, 7.75, 7.82, .76, .862, M['steel'])
+    # 試作232（ユーザー「シンクがちらついてる」）: its top lay at the counter's own height (.862): the two faces fought. A
+    # stainless rim 5 mm proud of the counter, and the bowl inside it in shadow
+    box('furn_sink', 7.1, 7.43, 7.75, 7.82, .76, .867, M['steel'])
+    box('furn_sinkbowl', 7.15, 7.48, 7.7, 7.77, .80, .8685, M['plastic'])
     cyl('furn_tap', 7.42, 7.86, .862, 1.12, .012, M['steel'], 8)
     o = prim('cylinder', 'furn_tap', loc=(X(7.42), Y(7.79), 1.12), rot=(math.pi / 2, 0, 0), scale=(.012, .012, .07), mat=M['steel'], vertices=8)
     # south run along the study wall, a tabletop gas stove on it, cupboards over

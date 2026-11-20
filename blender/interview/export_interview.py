@@ -4,7 +4,8 @@ Run: python3 blender/interview/export_interview.py   （Blender の Python。bui
 Out（godot/assets/interview/。git に入れない）:
   room.glb       客間と座卓と小物（テープ、帳面、録音機、湯呑み、掛け軸、椿）。手続きの材質は色の画像に焼く（export_godot と同じ）
   tree.glb       障子の外の庭木の葉。画には映さず、影だけ落とす（障子の葉の影。証言一の長回しで揺らす）
-  kikite_<形>.glb 聞き手の形 5 つ（seiza＝テープに手、pinch＝つまむ、stroke＝ラベルをなでる、write＝書きかけて止まる）。形を焼き込んだ動かない体
+  kikite_rig.glb・mio_rig.glb 骨つきの二人（2026-11-20 第2稿。形は1コマの動きとして中に。people/rig2glb.py）
+  （前の版）kikite_<形>.glb 聞き手の形 5 つ（seiza＝テープに手、pinch＝つまむ、stroke＝ラベルをなでる、write＝書きかけて止まる）。形を焼き込んだ動かない体
   mio_seiza.glb  澪（南の座布団に正座、膝の上に拳）
   portrait_*.png 立ち絵 4 枚（切り抜き。平たくなった画面で使う）
   lights.json    光（空の面光、南の返り光、日）。Blender の値のまま、Godot で組み直す
@@ -77,10 +78,17 @@ def main():
                         'post＝slip（橙の版だけ (-26,14)px／1080 ずれる）、flat（平たくなる。前の slip から約2秒で溶かす。手引きを見る）。'),
               open(f'{OUT}/cuts.json', 'w'), ensure_ascii=False, indent=1)
     shutil.copy(f'{HERE}/cameras.json', OUT)   # 据えたカメラ（＞cam。scripts/interview.gd）
+    # 2026-11-20 第2稿：骨つきの二人（*_rig.glb、people/rig2glb.py）があれば、形を焼いた動かない体と立ち絵（平たい画面）は入れない
+    rigs = os.path.exists(f'{TRIPO}/kikite_rig.glb') and os.path.exists(f'{TRIPO}/mio_rig.glb')
     for f in os.listdir(TRIPO):
-        if f.endswith('.glb') and not f.startswith('recorder'): shutil.copy(f'{TRIPO}/{f}', OUT)
+        if not f.endswith('.glb') or f.startswith('recorder'): continue
+        if rigs and not f.endswith('_rig.glb'):
+            if os.path.exists(f'{OUT}/{f}'): os.remove(f'{OUT}/{f}')
+            continue
+        shutil.copy(f'{TRIPO}/{f}', OUT)
     for f in os.listdir(f'{P.ASSETS}/interview'):
-        if f.startswith('portrait_'): shutil.copy(f'{P.ASSETS}/interview/{f}', OUT)
+        if f.startswith('portrait_') and not rigs: shutil.copy(f'{P.ASSETS}/interview/{f}', OUT)
+        elif f.startswith('portrait_') and os.path.exists(f'{OUT}/{f}'): os.remove(f'{OUT}/{f}')
     print('== DONE', OUT, sorted(os.listdir(OUT)))
 
 if __name__ == '__main__':

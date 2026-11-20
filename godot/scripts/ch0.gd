@@ -201,6 +201,8 @@ func _car():
 		var box := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(1.75, 1.0, 4.4); box.mesh = bm
 		var cm := StandardMaterial3D.new(); cm.albedo_color = Color(0.05, 0.05, 0.06); cm.roughness = 0.4; box.material_override = cm
 		car_body = Node3D.new(); car_body.add_child(box); box.position.y = 0.6; main.add_child(car_body)
+	# 試作231（ユーザー「車が家の中にある」）: until it comes up the drive it stood at the world's origin, in the house's hall
+	car_body.visible = false
 	dawn_fog = FogVolume.new(); dawn_fog.size = Vector3(3.2, 2.6, 4.0)
 	var fm := FogMaterial.new(); fm.density = 0.012; fm.albedo = Color(1, 1, 1); fm.edge_fade = 0.4; dawn_fog.material = fm
 	main.add_child(dawn_fog); dawn_fog.global_position = gp(FRONT_DOOR[0], FRONT_DOOR[1] + 1.6, 1.3)
@@ -260,6 +262,7 @@ func _car_tick(dt: float):
 		l.look_at_from_position(lp, aim + right * float(l.get_meta("side")) * 0.6, Vector3.UP)
 		l.light_energy = LAMP_E * smoothstep(0.0, 1.5, car_t)
 	car_body.global_transform = Transform3D(Basis.looking_at(fw, Vector3.UP), p + Vector3(0, -0.72, 0) - fw * 2.2)   # its foot on the drive (the lamps 0.72 up)
+	car_body.visible = true
 
 # ---------------------------------------------------------------- her print on the door, her feet on the floor
 const HAND_SHADER := """

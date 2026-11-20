@@ -985,8 +985,17 @@ func _do(what: String):
 			var mio := Vector2(player.global_position.x + 4.8, player.global_position.z + 6.3)
 			var mk := mio + (Vector2(7.7, 5.9) - mio).normalized() * 1.2
 			mk.x = clampf(mk.x, 6.9, 9.0); mk.y = clampf(mk.y, 4.6, 6.9)
-			main.walk_to("makoto", [[mk.x, mk.y, 0.0]], func(): main.set_stand("makoto", "talk/think"), _face([mk.x, mk.y], [mio.x, mio.y]))
+			main.walk_to("makoto", [[mk.x, mk.y, 0.0]], func(): main.set_stand("makoto", "talk/think"); _mk_shift(), _face([mk.x, mk.y], [mio.x, mio.y]))
 			gen_want = -30.0
+			# 試作232（ユーザー「真琴の顔がゆがんでる」、3時半）: the look turned her up to 60° about the world's up, through a body
+			# bent over the hand at her temple (think): the neck and jaw sheared. Here she already faces Mio: a little turn, and
+			# the spine takes most of it
+			if looks.has("makoto"):
+				(looks.makoto as Look).max_yaw = 0.35
+				var lm: Look = looks.makoto
+				lm.chain = [["spine_03", 0.6], ["neck_01", 0.25], ["head", 0.15]]
+				lm.bones = []
+				for c in lm.chain: lm.bones.append([lm.get_skeleton().find_bone(c[0]), c[1]])
 		"makoto_hand":
 			hold = true
 			main.stand_anim["makoto"] = "talk/idle"
@@ -1165,9 +1174,16 @@ func _press_peel():
 			# 試作175 A19（ユーザー「剥がす順番はどこからでもよくない？」）: whichever she looks at comes off
 			_peel(gq)
 			peeled_n += 1
+			# 試作231（ユーザー「テープ、最後に勝手口そばを剥がさないと次に進まない」）: the back door's is torn already, so the
+			# other four end it. Looked at before then, it is one line; when the four are off, it counts as off too
+			var four := true
+			for g4 in gaps: if g4.key != "g5" and not g4.peeled: four = false
+			var auto5: bool = four and not _gap("g5").is_empty() and not _gap("g5").peeled
+			if auto5: _peel(_gap("g5"), true); peeled_n = 5
 			var q: Array = []
 			if gq.key == "g5": q = B("はがす.勝手口.最後" if peeled_n == 5 else "はがす.勝手口")
 			elif peeled_n == 1: q = B("はがす.一つ目")
+			if auto5: q.append_array(B("はがす.勝手口.最後"))
 			if peeled_n == 5:
 				q.append_array(B("はがす.五つ目"))
 				_cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")
@@ -1376,3 +1392,16 @@ func _demo_tick(dt):
 func _dfail(what: String):
 	DEMO_FAILS += 1
 	print("DEMO FAIL ch5: %s t=%.1f" % [what, t_now])
+
+
+# 試作232（ユーザー「同じ動きを続けるのも変」、3時半の真琴）: the think loop ran on the whole talk. She goes between the hand
+# at her temple and standing (idle), each for a few seconds, while the talk lasts
+func _mk_shift():
+	if mode != TALK or not main.S.has("makoto_node"): return
+	var cur: String = main.stand_of("makoto")
+	if not cur in ["talk/think", "talk/idle"]: return
+	get_tree().create_timer(randf_range(5.0, 8.0)).timeout.connect(func():
+		if mode != TALK or main.walking("makoto") or not main.stand_of("makoto") in ["talk/think", "talk/idle"]: return
+		main.set_stand("makoto", "talk/idle" if main.stand_of("makoto") == "talk/think" else "talk/think", 0.8)
+		_mk_shift())
+
