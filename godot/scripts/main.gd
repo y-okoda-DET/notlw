@@ -1575,7 +1575,7 @@ func _walk_anims(k: String, inst: Node):
 # Only the clips each one uses go on their player: with all ten (14 animations on one player) Godot 4.4.1 crashed while
 # the house was set up, every time; with five or fewer, never (2026-11-14, tried one set at a time)
 const TALK_CLIPS := {"kiryu": ["sit_b", "idle", "talk_d"], "taiga": ["sit_a", "idle", "talk_b", "crouch"],
-	"natsuki": ["idle", "talk_a"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
+	"natsuki": ["idle", "talk_a", "talk_b", "argue", "think"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
 func _talk_anims(k: String, inst: Node):
 	var tp := "res://assets/dusk/%s_talk.res" % k
 	if not ResourceLoader.exists(tp): return

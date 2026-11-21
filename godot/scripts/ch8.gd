@@ -55,6 +55,9 @@ var zoom_want := -1.0          # the operator's own zoom (the car: in on her, th
 var zoom_v := 0.0
 var zoom_snd_t := 0.0
 var cam_light: OmniLight3D
+var nat_face: OmniLight3D
+var nat_line_i := 0
+var nat_was_speaking := false
 var light_want := 0.0
 var car_dome: OmniLight3D
 var door_gap: OmniLight3D
@@ -1416,8 +1419,24 @@ func _process(dt):
 		# 話している間は話す動き、聞いている間は立ち姿（立ったままの棒立ちに見えた：2026-11-19 ユーザー）
 		if _has("natsuki") and not main.walkers.has("natsuki"):
 			var nap: AnimationPlayer = (main.S.natsuki_node as Node).find_children("*", "AnimationPlayer", true, false)[0]
-			var want := "talk/talk_a" if (mode == TALK and String(cur.get("who", "")) == "夏希") else "talk/idle"
+			# 2026-11-22（全体レビュー 3、まだ棒立ちに見えた）：話す行ごとに手の動きを替え（talk_a・argue・talk_b）、聞く間は
+			# 腕を組んで考える形と立ち姿を替える。寒い外で、じっとしていない
+			var speaking: bool = mode == TALK and String(cur.get("who", "")) == "夏希"
+			if speaking and not nat_was_speaking: nat_line_i += 1
+			nat_was_speaking = speaking
+			var want: String = (["talk/talk_a", "talk/argue", "talk/talk_b"][nat_line_i % 3]) if speaking else ("talk/think" if nat_line_i % 2 == 0 else "talk/idle")
 			if nap.has_animation(want) and nap.current_animation != want: nap.play(want, 0.5)
+			# her face: the camera's lamp, as far as it reaches her (it lit the ground and left her a shape against the car)
+			if nat_face == null:
+				nat_face = OmniLight3D.new(); nat_face.light_color = Color(1.0, 0.86, 0.68); nat_face.omni_range = 1.1; nat_face.omni_attenuation = 1.2
+				nat_face.shadow_enabled = false; nat_face.light_specular = 0.1; nat_face.light_cull_mask = 1 << 15
+				for gi in (main.S.natsuki_node as Node).find_children("*", "GeometryInstance3D", true, false): (gi as GeometryInstance3D).layers |= 1 << 15
+				add_child(nat_face)
+			var hd: Vector3 = main._rig_of("natsuki").global_position + Vector3(0, 1.45, 0)
+			nat_face.global_position = hd + (_cam().global_position - hd).normalized() * 0.6
+			nat_face.light_energy = move_toward(nat_face.light_energy, 0.9 * cam_light.light_energy / 0.55, dt)
+	elif nat_face and nat_face.light_energy > 0.0:
+		nat_face.light_energy = move_toward(nat_face.light_energy, 0.0, dt)
 	if stage == "door": _dflow_tick(dt)
 	if stage == "fall": _fall_tick(dt)
 	if stage == "sky": _sky_tick(dt)
