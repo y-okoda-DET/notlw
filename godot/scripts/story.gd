@@ -217,7 +217,7 @@ func _items():
 
 # 2026-11-20 練り直し（ユーザー 12時56分）：玄関の靴箱の上の宿帳。去年の八月の頁が開きやすい（何度も開かれた癖）。
 # 澪が見て「閉じて、棚に戻す」を選べば消える（guestbook_hidden）。見なかった・そのままにした人には、真琴が先に読んでいる（【真琴.宿帳】）
-const GB_AT := [0.955, 5.60, 0.745]     # house4.genkan_fit: the shoe cabinet's top (plan x 5.6..5.94, y .1..1.3; z ZG + .91)
+const GB_AT := [0.83, 5.62, 0.745]     # house4.genkan_fit: the shoe cabinet's top (plan x 5.6..5.94, y .1..1.3; z ZG + .91)
 var guestbook: Node3D
 func _guestbook():
 	guestbook = Node3D.new(); guestbook.name = "guestbook"; add_child(guestbook)
@@ -233,11 +233,27 @@ func _guestbook():
 	box.call(Vector3(0.155, 0.004, 0.215), Vector3(0.079, 0.002, 0), cover, 0.04)
 	box.call(Vector3(0.145, 0.012, 0.205), Vector3(-0.075, 0.009, 0), paper_m, -0.07)
 	box.call(Vector3(0.145, 0.009, 0.205), Vector3(0.075, 0.008, 0), paper_m, 0.07)
-	# the rows of names (ruled, written in): thin dark strokes on both pages
+	# 2026-11-21（宿帳の画）: the pages written in, readable when she leans over it: ruled rows, last August's names in their
+	# own hands (the five of last year), and under them, in another ink, the caretaker's line. Drawn once into a texture
 	for side in [-1.0, 1.0]:
-		for r in 9:
-			var w := 0.06 + fmod(r * 0.37 + (0.3 if side > 0 else 0.0), 1.0) * 0.06
-			box.call(Vector3(w, 0.0008, 0.0035), Vector3(side * (0.03 + w * 0.5), 0.0165 if side < 0 else 0.0145, -0.085 + r * 0.019), ink_m, side * 0.07)
+		var vp := SubViewport.new(); vp.size = Vector2i(420, 594); vp.transparent_bg = false
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE; guestbook.add_child(vp)
+		var bg := ColorRect.new(); bg.color = Color(0.86, 0.83, 0.74); bg.size = Vector2(420, 594); vp.add_child(bg)
+		for r in 10:   # the ruled lines
+			var ln := ColorRect.new(); ln.color = Color(0.62, 0.66, 0.74); ln.position = Vector2(18, 92 + r * 52); ln.size = Vector2(384, 2); vp.add_child(ln)
+		var rows: Array = ([["八月　十二日", 0.0], ["映画研究会", 0.0], ["桐生", 0.04], ["大河", -0.03], ["夏希", 0.02], ["澪", -0.02], ["陽太", 0.05]] if side < 0
+			else [["八月　十四日　退出", 0.0], ["", 0.0], ["玄関灯、", 0.0], ["朝まで点いていた", 0.0], ["（管理　小野）", 0.0]])
+		for i in rows.size():
+			var lb := Label.new(); lb.text = String(rows[i][0]); lb.add_theme_font_override("font", Type.say())
+			var mgr: bool = side > 0 and i >= 2
+			lb.add_theme_font_size_override("font_size", 44 if i >= 2 or side > 0 else 34)
+			lb.add_theme_color_override("font_color", Color(0.45, 0.12, 0.10) if mgr else Color(0.14, 0.16, 0.26))
+			lb.position = Vector2(30 + (i * 13) % 40, 36 + i * 52); lb.rotation = float(rows[i][1])
+			vp.add_child(lb)
+		var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(0.140, 0.198); q.mesh = qm
+		var pm := StandardMaterial3D.new(); pm.albedo_texture = vp.get_texture(); pm.roughness = 0.95; q.material_override = pm
+		q.position = Vector3(side * 0.075, (0.0156 if side < 0 else 0.0126), 0); q.rotation = Vector3(-PI / 2.0, 0, 0)
+		guestbook.add_child(q)
 	# a ballpoint on a string, beside it
 	box.call(Vector3(0.006, 0.006, 0.13), Vector3(0.19, 0.003, 0.02), ink_m)
 
