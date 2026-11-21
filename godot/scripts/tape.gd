@@ -451,6 +451,8 @@ func _back_light():
 			var fr := "--d11front" in OS.get_cmdline_user_args()
 			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16)
 			look_cam.global_transform = Transform3D(Basis(), cp).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+		# 試作266（ユーザー 2026-11-21 9時「顔にちょいクローズアップは？」）: the same still camera, framed a little closer from the start
+		if _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "30"))
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
