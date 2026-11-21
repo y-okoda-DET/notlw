@@ -137,8 +137,6 @@ def car_radio(sec=8.0):
     return x / (np.abs(x).max() + 1e-9) * 0.4
 
 if __name__ == '__main__':
-    for nm in ('car_drive', 'car_idle', 'car_gravel', 'car_blinker', 'car_radio'): save(nm, globals()[nm]()); print(nm + '.wav')
-    save('c7_stream', c7_stream()); print('c7_stream.wav')
-    save('c7_breath', c7_breath()); print('c7_breath.wav')
-    save('siren_far', siren_far())
-    print('siren_far.wav')
+    # 2026-11-21: car_drive・car_idle・car_gravel・car_blinker・c7_stream・c7_breath・siren_far は本物の音に替えた（cut_1121.py）。
+    # ここで作り直すと .wav が .ogg より先に読まれて戻ってしまうので、作るのは car_radio だけ
+    save('car_radio', car_radio()); print('car_radio.wav')

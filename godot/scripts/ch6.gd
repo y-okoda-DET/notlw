@@ -1610,8 +1610,7 @@ func _cam_batt():
 		_grip(hand_r, "cam_batt", 0.7)
 		_hand_onto(hand_r, _in_rig(fixed_cam.global_position) + Vector3(0.029, -0.0635, 0.106), Vector3(50, 15, 0), 0.7)
 		_fit_dev(hand_r, "cam_batt", [fixed_cam], 0.75, null, true, true, 0.3, true)
-		_after(0.8, func(): Sound.one(self, "lock", -10.0, fixed_cam.global_position))
-		_after(1.7, func(): Sound.one(self, "ch3_lock", -12.0, fixed_cam.global_position))
+		_after(0.8, func(): Sound.one(self, "batt_cover", -8.0, fixed_cam.global_position))   # 2026-11-21: the cover, then the batteries out (cut_1121.py)
 		_after(2.2, func():
 			_hand_away(hand_r, 0.7)
 			done6["batt"] = true
@@ -2118,6 +2117,8 @@ func _sleeve_tick(dt: float):
 
 # a bird, once (no recording: three short falling notes, made here)
 func _bird():
+	# 2026-11-21: one real bird (cut_1121.py); the made chirp below stays only if the file is missing
+	if Sound.one(self, "dawn_bird", -12.0, gp(11.5, 5.0, 3.0)) != null: return
 	var sr := 22050; var n := int(sr * 0.9)
 	var data := PackedByteArray(); data.resize(n * 2)
 	var ph := 0.0
@@ -2303,6 +2304,7 @@ func _do6(what: String):
 		"candle_out":
 			candle_out = true
 			Sound.one(self, "ch3_gapfront", -6.0, gp(FRONT6[0], 0.3, 1.0))
+			Sound.one(self, "candle_out", -14.0)   # 2026-11-21: the flame in her hand goes, in the draught
 		"police_light":
 			# his torch, past her, down the hall she put in order: it stops on the blanket
 			torch6 = SpotLight3D.new(); torch6.light_color = Color(1.0, 0.97, 0.9); torch6.light_energy = 0.0

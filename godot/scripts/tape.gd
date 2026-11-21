@@ -96,7 +96,7 @@ var credits: Label
 var credits_y0 := 0.0
 # the end roll: no picture, the names going up over black, and the one music from outside the story (決定事項 2026-11-13:
 # 「音楽の冗談」をエンドロールで加工なしで流す。sound/credits_joke.ogg = the user's Menuetto, its first minute)
-const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\n\n(placeholder)"
+const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\nSOUND EFFECTS\nOtoLogic\n\n\n\n\n(placeholder)"
 func _credits():
 	var cl := CanvasLayer.new(); cl.layer = 23; add_child(cl)
 	credits = Label.new(); credits.text = CREDITS_TEXT; credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

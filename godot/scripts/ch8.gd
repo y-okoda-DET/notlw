@@ -53,6 +53,7 @@ var cam_h := EYE               # the eye's height now (the camera's once he has 
 var zoom := 0.0                # 0 wide .. 1 tele
 var zoom_want := -1.0          # the operator's own zoom (the car: in on her, thighs up); -1 leaves it to the player
 var zoom_v := 0.0
+var zoom_snd_t := 0.0
 var cam_light: OmniLight3D
 var light_want := 0.0
 var car_dome: OmniLight3D
@@ -1400,8 +1401,12 @@ func _zoom_tick(dt: float):
 	if Input.is_key_pressed(KEY_R) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT): z += 1.0
 	if Input.is_key_pressed(KEY_F): z -= 1.0
 	if z != 0.0 and stage != "hall": zoom_v = z * 0.55
+	zoom_snd_t -= dt
 	if absf(zoom_v) > 0.001:
+		var z0 := zoom
 		zoom = clampf(zoom + zoom_v * dt, 0.0, 1.0); zoom_show = 2.0; zoom_want = -1.0
+		if absf(zoom - z0) > 0.0001 and zoom_snd_t <= 0.0:   # 2026-11-21: the small motor of his zoom (cut_1121.py)
+			Sound.one(self, "cam_zoom", -14.0, _cam().global_position); zoom_snd_t = 0.75
 	elif zoom_want >= 0.0 and absf(zoom - zoom_want) > 0.002:
 		zoom = move_toward(zoom, zoom_want, dt * 0.3); zoom_show = 1.2
 	zoom_show = maxf(0.0, zoom_show - dt)

@@ -1055,7 +1055,7 @@ func _do(what: String):
 		"shutter_slam":   # 2026-11-20 14時8分（ジャンプスケア①）: the next window's storm shutter, not fastened, slams in the wind
 			var at := gp(CELLAR_WIN[0] + 0.05, CELLAR_WIN[1] - 0.6, CELLAR_WIN[2] + 2.3)
 			var SND = preload("res://scripts/sound.gd")
-			SND.one(self, "door_close", 6.0, at); SND.one(self, "ch3_rattle", 3.0, at); SND.one(self, "hit", -4.0, at)
+			SND.one(self, "shutter_slam", 4.0, at); SND.one(self, "ch3_rattle", -4.0, at)   # 2026-11-21: a real slam (WrongRoom), the rattle after it quieter
 			if taiga_aim:   # his light jumps with him
 				var e0 := taiga_aim.light_energy
 				var tw := create_tween()
