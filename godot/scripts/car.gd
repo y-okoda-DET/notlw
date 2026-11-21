@@ -325,6 +325,14 @@ func _inside():
 	var fill2 := OmniLight3D.new(); fill2.name = "car_fill2"; fill2.position = Vector3(0, 1.05, -1.0); fill2.omni_range = 1.4
 	fill2.light_energy = 0.25; fill2.light_color = Color(1.0, 0.95, 0.88); fill2.shadow_enabled = false; fill2.light_specular = 0.0
 	car.add_child(fill2)
+	# 2026-11-21 9時（ユーザー「顔が削れてるように見える」：運転する夏希）: the sun from the side window lit half her face and the
+	# other half went to the blue of the trees behind, so the face read as cut away. The sky through the windshield onto the two
+	# in front: soft, no shadow, from ahead and a little above (it lights the faces, not the roof)
+	for x in [SEAT_MIO.x, SEAT_NAT.x]:
+		var ff := OmniLight3D.new(); ff.name = "face_fill"; ff.position = Vector3(x * 0.85, 1.08, -0.32); ff.omni_range = 0.75
+		ff.omni_attenuation = 1.0; ff.light_energy = float(_carg("facefill", "0.4")); ff.light_color = Color(0.88, 0.92, 1.0)
+		ff.shadow_enabled = false; ff.light_specular = 0.0; ff.light_cull_mask = 16   # the people only (layer 5, _people): not the visor, the wheel
+		car.add_child(ff)
 
 # 2026-11-21 the user's Tripo dash, front seat and rear bench (画像生成とTripo_8回目; tripo/prep_props.py car_dash, car_seat,
 # car_bench). They take the place of the boxes above. Tripo's own axes (measured in Blender, tripo/prep_props.py's import):
@@ -431,6 +439,9 @@ func _people():
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
 	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
+	for k in ["natsuki", "makoto"]:   # layer 5: the face fill (_inside) lights them and nothing else
+		if main.S.has(k + "_node"):
+			for g in (main.S[k + "_node"] as Node).find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).layers |= 16
 	# Makoto sleeps: her eyes stay shut (main.gd _update_faces)
 	if main.faces.has("makoto") and not "--mkopen" in OS.get_cmdline_user_args():
 		var f = main.faces.makoto
@@ -939,3 +950,8 @@ class ReachIK extends SkeletonModifier3D:
 		var gc2 := sk.get_bone_global_pose(c)
 		var q2 := Quaternion((gc2.origin - gb2.origin).normalized(), (C2 - gb2.origin).normalized())
 		sk.set_bone_global_pose(b, Transform3D(Basis(q2) * gb2.basis, gb2.origin))
+
+func _carg(k: String, d: String) -> String:   # check stills: --k=value
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--" + k + "="): return a.substr(k.length() + 3)
+	return d
