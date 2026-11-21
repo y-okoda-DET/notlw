@@ -77,6 +77,7 @@ var c11 := false
 # the reflection between A and C (head and shoulders, the eyes' and nose's shadow faint, no half of the face lit); no key help.
 # The face: a = A as it is, b = B as it is (its own light), d = A's light and shading with B's eyes and mouth, the lid between.
 var face11 := ""
+var d2def := false      # the D2 of 2026-11-21 is the cut by default (straight in front, a little closer)
 var face_mat: StandardMaterial3D
 var face_tex := {}
 var face_now := ""
@@ -121,6 +122,11 @@ func _ready():
 		if a == "--d11b": b11 = true
 		if a == "--d11c": b11 = true; c11 = true
 		if a.begins_with("--d11face="): b11 = true; face11 = a.substr(10)
+	# 2026-11-21 9時7分（ユーザー「寄りのD2で一旦本体に渡しましょう。プレイした感触見ながら調整します」）: the last cut is D2 by default —
+	# her eyes come up to the lens, the picture stops, then black; the set's-side camera straight in front at her eyes, framed a little
+	# closer (fov 24). --d11a keeps the cut as it was before (A); --d11b / --d11c / --d11face=… still pick the trials 260〜264.
+	if not b11 and not "--d11a" in OS.get_cmdline_user_args() and refl == "e":
+		b11 = true; face11 = "d2"; d2def = true
 	if refl == "c": seat_x = 0.17
 	for e in _flow("テープ.流れ"): e[0] = float(e[0]) + NIGHT_AT; LINES.append(e)
 	_room()
@@ -447,12 +453,12 @@ func _back_light():
 		look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 		# 試作265（ユーザー 2026-11-21 8時「いま角度がついてる。それをどうしようか」）: --d11lcx / --d11lcy move the set's-side camera
 		# (now 5 cm to the side and 6 cm under her eyes); --d11front = straight in front, at the height of her eyes
-		if _arg("d11lcx", "") != "" or _arg("d11lcy", "") != "" or "--d11front" in OS.get_cmdline_user_args():
-			var fr := "--d11front" in OS.get_cmdline_user_args()
+		if d2def or _arg("d11lcx", "") != "" or _arg("d11lcy", "") != "" or "--d11front" in OS.get_cmdline_user_args():
+			var fr := d2def or "--d11front" in OS.get_cmdline_user_args()
 			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16)
 			look_cam.global_transform = Transform3D(Basis(), cp).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 		# 試作266（ユーザー 2026-11-21 9時「顔にちょいクローズアップは？」）: the same still camera, framed a little closer from the start
-		if _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "30"))
+		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "24"))
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
