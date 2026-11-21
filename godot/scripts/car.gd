@@ -250,7 +250,7 @@ func _inside():
 	var cloth_d := _mat(Color(0.20, 0.20, 0.21), 1.0)
 	var liner := _mat(Color(0.62, 0.60, 0.56), 1.0)
 	var trim := _mat(Color(0.45, 0.44, 0.42), 0.8)
-	var pillar := _mat(Color(0.25, 0.25, 0.25), 1.0)   # the pillars' grey moulding (darker: the sun behind it, not on it)
+	var pillar := _mat(Color(0.30, 0.29, 0.28), 0.85)   # the pillars' grey moulding (darker: the sun behind it, not on it)
 	var inn := Node3D.new(); inn.name = "inside"; car.add_child(inn)
 	# fitted to the Tripo body (its windshield's foot at z -.95, y .96; its top at z -.30, y 1.32; the roof inside 1.34;
 	# the hatch from z 1.30): the dash from the windshield's foot back over the gauges, its face down to the knees
@@ -276,9 +276,15 @@ func _inside():
 	for x in [-0.37, 0.37]: _box(inn, Vector3(0.40, 0.025, 0.17), Vector3(x, 1.315, -0.20), liner, Vector3(0.25, 0, 0), "visor")
 	# the windshield's frame: the pillars (A, B, C), the roof's front edge, the doors' tops (the belt line) and the doors
 	for sx in [-1.0, 1.0]:
-		_rod(inn, Vector3(sx * 0.72, 0.95, -0.95), Vector3(sx * 0.665, 1.335, -0.30), 0.045, 0.032, pillar, "pillar_a", Vector3(sx, 0, 0))
-		_box(inn, Vector3(0.07, 0.38, 0.10), Vector3(sx * 0.71, 1.16, 0.42), trim, Vector3.ZERO, "pillar_b")
-		_slab(inn, Vector3(sx * 0.72, 0.98, 1.48), Vector3(sx * 0.64, 1.33, 1.24), 0.07, 0.26, trim, "pillar_c")
+		_rod(inn, Vector3(sx * 0.73, 0.94, -0.95), Vector3(sx * 0.68, 1.34, -0.30), 0.040, 0.060, pillar, "pillar_a", Vector3(sx, 0, 0))   # (8時: wider, onto the glass's edge)
+		# (2026-11-21 8時「車、ピラーすべて直して」: B and C were a box and a board. Moulded like A, the same grey: B narrow and
+		# tall from the belt to the roof, a little in at the top; C broad, leaning back to the hatch)
+		_rod(inn, Vector3(sx * 0.74, 0.93, 0.42), Vector3(sx * 0.68, 1.35, 0.44), 0.034, 0.080, pillar, "pillar_b", Vector3(sx, 0, 0))
+		# its seat belt: the anchor high on the pillar, the strap hanging down it to the belt line (what says "car" at a glance)
+		var webbing := _mat(Color(0.09, 0.09, 0.10), 0.9)
+		_rod(inn, Vector3(sx * 0.70, 1.23, 0.385), Vector3(sx * 0.70, 1.16, 0.38), 0.012, 0.028, dash2, "belt_anchor", Vector3(sx, 0, 0))
+		_rod(inn, Vector3(sx * 0.695, 1.20, 0.375), Vector3(sx * 0.715, 0.90, 0.36), 0.004, 0.023, webbing, "belt_strap", Vector3(sx, 0, 0))
+		_rod(inn, Vector3(sx * 0.725, 0.96, 1.46), Vector3(sx * 0.645, 1.345, 1.26), 0.036, 0.120, pillar, "pillar_c", Vector3(sx, 0, 0))
 		_box(inn, Vector3(0.06, 0.70, 1.35), Vector3(sx * 0.80, 0.63, -0.27), cloth_d, Vector3.ZERO, "door_f")
 		_box(inn, Vector3(0.06, 0.70, 0.90), Vector3(sx * 0.80, 0.63, 0.86), cloth_d, Vector3.ZERO, "door_r")
 		_box(inn, Vector3(0.10, 0.04, 2.45), Vector3(sx * 0.77, 0.975, 0.26), trim, Vector3.ZERO, "belt")
@@ -426,10 +432,16 @@ func _people():
 	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
 	# Makoto sleeps: her eyes stay shut (main.gd _update_faces)
-	if main.faces.has("makoto"):
+	if main.faces.has("makoto") and not "--mkopen" in OS.get_cmdline_user_args():
 		var f = main.faces.makoto
 		f.tex = {"open": f.tex.closed, "closed": f.tex.closed, "talk": f.tex.closed}
-	if main.S.has("makoto_node"): _earphone()
+	if main.S.has("makoto_node"):
+		_earphone()
+		if not "--mkroll" in OS.get_cmdline_user_args():   # (--mkroll: the clip's own head, for the before picture)
+			var msk: Skeleton3D = (main.S.makoto_node as Node).find_children("*", "Skeleton3D", true, false)[0]
+			var hr: SkeletonModifier3D = load("res://scripts/headrest.gd").new(); hr.name = "headrest"; msk.add_child(hr)
+			earphone.get_parent().remove_child(earphone); add_child(earphone)
+			hr.set("follow", earphone); hr.set("follow_at", Vector3(0.062, 0.05, 0.01))
 	if main.S.has("natsuki_node"):
 		var sk: Skeleton3D = (main.S.natsuki_node as Node).find_children("*", "Skeleton3D", true, false)[0]
 		nat_ik = ReachIK.new(); nat_ik.name = "reach"; sk.add_child(nat_ik)

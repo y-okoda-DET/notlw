@@ -351,10 +351,15 @@ func _room():
 			var dl := OmniLight3D.new(); dl.light_energy = 3.0; dl.omni_range = 5.0; main.add_child(dl); dl.global_position = ROOM + Vector3(0.6, 1.4, 1.2)
 	# 2026-11-21（ユーザー「客間のテレビが直ってないな」）: the set's foot is at 0.355, the deck's top near 0.25: it hung 10 cm over the
 	# deck. A low wooden AV rack: the set on its top board, the deck in the opening under it, on the cabinet (nothing in the last cut moves)
-	var wood := Color(0.17, 0.13, 0.10)
-	_box(Vector3(0, 0.34, -0.08), Vector3(0.70, 0.03, 0.42), wood, 0.7)                 # the top board, under the set
-	for sx in [-0.335, 0.335]: _box(Vector3(sx, 0.245, -0.08), Vector3(0.03, 0.19, 0.42), wood, 0.7)   # its two sides, down to the cabinet
-	_box(Vector3(0, 0.245, -0.285), Vector3(0.70, 0.19, 0.01), wood, 0.8)               # its back
+	# (2026-11-21 8時「テレビが棚板に乗っているように見えない」: the board stopped 4 cm behind the set's face, so its foot hung over
+	# nothing. Now the board runs 3 cm out in front of the set, a lighter wood with a lit edge, so the set is seen standing on it)
+	var wood := Color(0.30, 0.22, 0.15)
+	_box(Vector3(0, 0.34, -0.045), Vector3(0.72, 0.03, 0.49), wood, 0.6)                # the top board, under the set, out past its face
+	_box(Vector3(0, 0.34, 0.199), Vector3(0.72, 0.03, 0.004), Color(0.42, 0.33, 0.23), 0.5)   # its front edge, a shade lighter
+	for sx in [-0.345, 0.345]: _box(Vector3(sx, 0.245, -0.045), Vector3(0.03, 0.19, 0.49), wood, 0.6)   # its two sides, down to the cabinet
+	_box(Vector3(0, 0.245, -0.285), Vector3(0.72, 0.19, 0.01), wood, 0.8)               # its back
+	for n in main.get_children().slice(main.get_child_count() - 5):   # the rack throws no shadow: the deck under it stays as lit as before (the last cut: the keys, the hand)
+		if n is GeometryInstance3D: (n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen
