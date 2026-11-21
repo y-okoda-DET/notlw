@@ -28,7 +28,7 @@ const STOP_BACK := 24.0              # she stops on the forest road this far sho
 # the cheeks and jaw mixed with the neck's (as Makoto's did, NOTES), so a head turned against its neck drags the lower face behind.
 # The whole turn goes to the neck: the head stays rigid on it
 const NAT_NECK_SHARE := 1.0    # of what is left after the chest
-const NAT_CHEST_SHARE := 0.25
+const NAT_CHEST_SHARE := [0.3, 0.45]   # spine_02, spine_03: shares of what is left (the neck alone at 3/4 of the turn looked thin, ユーザー 11-21 16時半)
 const REVEAL_IN := 3.0               # metres up the drive: the house in the gap of the cedars, ahead
 const END_BACK := 5.0                # it stops here, short of the porch (the cut is before)
 
@@ -895,11 +895,16 @@ class ReachIK extends SkeletonModifier3D:
 	var look_w := 0.0
 	var neck := -1
 	var head := -1
-	var spine := -1
+	var spines: Array[int] = []
+	var spine_share: Array[float] = []
 	var face_v := Vector3.ZERO    # the face's forward in the head bone's frame
 	func setup():
 		var sk := get_skeleton()
-		neck = sk.find_bone("neck_01"); head = sk.find_bone("head"); spine = sk.find_bone("spine_03")
+		neck = sk.find_bone("neck_01"); head = sk.find_bone("head"); var sh: Array = NAT_CHEST_SHARE
+		for u in OS.get_cmdline_user_args(): if u.begins_with("--natsp="): sh = Array(u.substr(8).split(",")).map(func(v): return float(v))
+		for k in 2:
+			var bi := sk.find_bone(["spine_02", "spine_03"][k])
+			if bi >= 0: spines.append(bi); spine_share.append(float(sh[k]))
 		if head >= 0:
 			face_v = (sk.get_bone_global_rest(head).basis.inverse() * Vector3(0, 0, 1)).normalized()
 		for s in ["l", "r"]:
@@ -910,10 +915,11 @@ class ReachIK extends SkeletonModifier3D:
 		if sk == null or wheel == null or not is_instance_valid(wheel): return
 		var inv := sk.global_transform.affine_inverse()
 		# a quarter of the turn in her chest first (before the hands are put on the wheel), so the neck does not twist alone
-		if spine >= 0 and head >= 0 and look_road != Vector3.ZERO:
-			var gs := sk.get_bone_global_pose(spine)
-			var q0 := _look_q(sk, inv)
-			sk.set_bone_global_pose(spine, Transform3D(Basis(Quaternion.IDENTITY.slerp(q0, NAT_CHEST_SHARE)) * gs.basis, gs.origin))
+		if head >= 0 and look_road != Vector3.ZERO:
+			for k in spines.size():   # each takes its share of what is still left, low to high
+				var gs := sk.get_bone_global_pose(spines[k])
+				var q0 := _look_q(sk, inv)
+				sk.set_bone_global_pose(spines[k], Transform3D(Basis(Quaternion.IDENTITY.slerp(q0, spine_share[k])) * gs.basis, gs.origin))
 		for arm in arms:
 			var side: float = arm[3]
 			# the rig's left is the car's... the hands at ten (left) and two (right) of the ring, a little in front of it
