@@ -24,6 +24,11 @@ const SLIP_AT := [67.87, 60.03]      # the shoulder that goes (outside_geo SLIP_
 const HOUSE_AT := [0.2, 4.0, 1.5]    # the front of the house (what she should see at the gap)
 const STOP_BACK := 24.0              # she stops on the forest road this far short of the drive (the house is not seen from there:
                                      # from the drive's foot it is, 試し撮り 2026-11-20)
+# 2026-11-21（ユーザー「夏希の顔が直ってない」）: her face was sheared when she turned to Mio. The head bone's weights run down into
+# the cheeks and jaw mixed with the neck's (as Makoto's did, NOTES), so a head turned against its neck drags the lower face behind.
+# The whole turn goes to the neck: the head stays rigid on it
+const NAT_NECK_SHARE := 1.0    # of what is left after the chest
+const NAT_CHEST_SHARE := 0.25
 const REVEAL_IN := 3.0               # metres up the drive: the house in the gap of the cedars, ahead
 const END_BACK := 5.0                # it stops here, short of the porch (the cut is before)
 
@@ -890,10 +895,11 @@ class ReachIK extends SkeletonModifier3D:
 	var look_w := 0.0
 	var neck := -1
 	var head := -1
+	var spine := -1
 	var face_v := Vector3.ZERO    # the face's forward in the head bone's frame
 	func setup():
 		var sk := get_skeleton()
-		neck = sk.find_bone("neck_01"); head = sk.find_bone("head")
+		neck = sk.find_bone("neck_01"); head = sk.find_bone("head"); spine = sk.find_bone("spine_03")
 		if head >= 0:
 			face_v = (sk.get_bone_global_rest(head).basis.inverse() * Vector3(0, 0, 1)).normalized()
 		for s in ["l", "r"]:
@@ -903,6 +909,11 @@ class ReachIK extends SkeletonModifier3D:
 		var sk := get_skeleton()
 		if sk == null or wheel == null or not is_instance_valid(wheel): return
 		var inv := sk.global_transform.affine_inverse()
+		# a quarter of the turn in her chest first (before the hands are put on the wheel), so the neck does not twist alone
+		if spine >= 0 and head >= 0 and look_road != Vector3.ZERO:
+			var gs := sk.get_bone_global_pose(spine)
+			var q0 := _look_q(sk, inv)
+			sk.set_bone_global_pose(spine, Transform3D(Basis(Quaternion.IDENTITY.slerp(q0, NAT_CHEST_SHARE)) * gs.basis, gs.origin))
 		for arm in arms:
 			var side: float = arm[3]
 			# the rig's left is the car's... the hands at ten (left) and two (right) of the ring, a little in front of it
@@ -913,6 +924,14 @@ class ReachIK extends SkeletonModifier3D:
 			var pole_w: Vector3 = tgt_w + car_basis * Vector3(side * 0.30, -0.45, 0.25)
 			_two_bone(sk, arm[0], arm[1], arm[2], inv * tgt_w, inv * pole_w)
 		if head >= 0 and look_road != Vector3.ZERO:
+			var q := _look_q(sk, inv)
+			if neck >= 0:
+				var gn := sk.get_bone_global_pose(neck)
+				sk.set_bone_global_pose(neck, Transform3D(Basis(Quaternion.IDENTITY.slerp(q, NAT_NECK_SHARE)) * gn.basis, gn.origin))
+				q = _look_q(sk, inv)
+			var gh := sk.get_bone_global_pose(head)
+			sk.set_bone_global_pose(head, Transform3D(Basis(q) * gh.basis, gh.origin))
+	func _look_q(sk: Skeleton3D, inv: Transform3D) -> Quaternion:
 			var e := look_w * look_w * (3.0 - 2.0 * look_w)
 			var tgt: Vector3 = look_road.lerp(look_alt, e) if look_alt != Vector3.ZERO else look_road
 			var gh := sk.get_bone_global_pose(head)
@@ -921,13 +940,7 @@ class ReachIK extends SkeletonModifier3D:
 			var q := Quaternion(f, to)
 			var ang := q.get_angle()
 			if ang > 1.3: q = Quaternion(q.get_axis().normalized(), 1.3)
-			if neck >= 0:
-				var gn := sk.get_bone_global_pose(neck)
-				sk.set_bone_global_pose(neck, Transform3D(Basis(Quaternion.IDENTITY.slerp(q, 0.45)) * gn.basis, gn.origin))
-				gh = sk.get_bone_global_pose(head)
-				f = (gh.basis * face_v).normalized(); to = (inv * tgt - gh.origin).normalized()
-				q = Quaternion(f, to)
-			sk.set_bone_global_pose(head, Transform3D(Basis(q) * gh.basis, gh.origin))
+			return q
 	func _two_bone(sk: Skeleton3D, a: int, b: int, c: int, t: Vector3, pole: Vector3):
 		var ga := sk.get_bone_global_pose(a); var gb := sk.get_bone_global_pose(b); var gc := sk.get_bone_global_pose(c)
 		var A := ga.origin; var Bp := gb.origin; var C := gc.origin
