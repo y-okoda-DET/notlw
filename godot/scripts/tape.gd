@@ -33,12 +33,14 @@ var tape_t := 0.0
 var room_t := 0.0
 var end_t2 := -1.0
 var card11: Control
-var card11_t := 2.5   # 半分に（ユーザー 2026-11-14）
+var card11_t := 0.0   # 2026-11-20: no card (its question went to 証言 三)
 var tline := {}                # the line being written: {lb, text, written, segs, n_all, n_clear}
 var heard_clear := 0
 var heard_all := 0
 var tswing := -1.0
 var tswings := 0
+var tqueue := []       # swing_0330 (第4章で振った通り): [tape clock, "head"|"body"|"miss"], the first blow to her head at the script's strike
+var tswing_what := "head"
 var held_since := -1.0
 var black2: ColorRect
 var demo11 := false
@@ -60,6 +62,30 @@ var tv_glass := Vector2(1.0, 1.0)
 # 2026-11-19（ユーザー「いずれにしてもカメラ横に振ったバージョンが見たい」）: --d11pan. After the set goes off the picture
 # leaves her eyes: a camera on a tripod at her right, on the dead glass, pans across to her
 var pan := false
+# 2026-11-20 試作260（「第11章の最後のカットをB案で試す」、ユーザーの修正指示）: --d11b. The same cut, with: her eyes only rise
+# to the lens about four seconds into the face (a blink before it, none after), the mouth closes as they rise, a small light in
+# each eye; the deck's display lights her weakly from below and in front, the door at her left (screen right) is weaker; the
+# dead glass is the teal solid and only her reflection, in blue; the set's going off is heard and seen; her finger stops over
+# 録画 and 取り出し; no key help at the top of the picture. The face has no rig: its picture is drawn in steps
+# (blender/face/mio_face_states.py, props/mio_face_states/) and the steps are put on its material.
+var b11 := false
+# 2026-11-20 17時23分 試作261 C（ユーザー）：--d11c. The light of A (the side light, the paper of her cheek, the shading as they
+# were). From B only the eyes' rise and the closed mouth; the lid lower than B (between A and B, not wide); one small point of
+# light in one eye; the reflection the dark glass of B, but her face back in it enough to read the eyes' and the nose's shadow;
+# the hand where it hides neither key.
+var c11 := false
+# 2026-11-20 19時24分 試作262（ユーザー「修正指示 その2」）：--d11face=a|b|d. What is common to every face: the hand as near as B,
+# its fingertip just over the gap between 録画 and 取り出し, neither word hidden, the fingers each readable; the glass as dark as C;
+# the reflection between A and C (head and shoulders, the eyes' and nose's shadow faint, no half of the face lit); no key help.
+# The face: a = A as it is, b = B as it is (its own light), d = A's light and shading with B's eyes and mouth, the lid between.
+var face11 := ""
+var d2def := false      # the D2 of 2026-11-21 is the cut by default (straight in front, a little closer)
+var face_mat: StandardMaterial3D
+var face_tex := {}
+var face_now := ""
+var deck_light: SpotLight3D
+var finger: Node3D
+var off_snd := false
 # 2026-11-19（ユーザー案「デッキから上にゆっくりパン→テレビに映り込む澪→ディゾルブでテレビ側からのカメラで澪を捉える→数秒写して
 # 一気に黒味」）: --d11refl=e. The light of b; her eyes rise slowly to the dead glass, she is in it; the picture from the set's
 # side dissolves in over it; a few seconds; black at once
@@ -70,7 +96,7 @@ var credits: Label
 var credits_y0 := 0.0
 # the end roll: no picture, the names going up over black, and the one music from outside the story (決定事項 2026-11-13:
 # 「音楽の冗談」をエンドロールで加工なしで流す。sound/credits_joke.ogg = the user's Menuetto, its first minute)
-const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\n\n(placeholder)"
+const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\nSOUND EFFECTS\nOtoLogic\n\n\n\n\n(placeholder)"
 func _credits():
 	var cl := CanvasLayer.new(); cl.layer = 23; add_child(cl)
 	credits = Label.new(); credits.text = CREDITS_TEXT; credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -86,23 +112,126 @@ const PAN_AT := Vector3(0.95, 0.70, 0.30)
 const MIO_LAYER := 128         # her body: the mirror and the last cut see it, her own eyes do not
 const SCR_LAYER := 4           # the glass itself: the mirror does not see it
 
+# ---------------------------------------------------------------- 2026-11-20: the tape from 0:20 (時刻は 0:20:00 からの秒)
+const N0 := 1200                      # 0:20:00, the head of the second cassette
+const N230 := 7798.0                  # 2:29:58 (【テープ.二時半】 0 s)
+const N330 := 11394.0                 # 3:29:54 (【テープ.流れ】 0 s = 第4章 4 s)
+const N400 := 13200.0                 # 4:00:00 (【テープ.四時】)
+const N_END := 14400.0                # 4:20:00: the tape runs out
+const FF_RATE := 120.0
+const T230_POS := {"sit": [5.0, 1.62], "near": [5.0, 0.86], "ear": [5.0, 0.6]}   # ch3.gd T230_AT
+const SIT_AT := [4.9, 1.62]           # the 框 (ch8.gd MIO_SIT)
+var night_n := 0.0
+var play_room_t := 0.0
+var post := false
+var ff_on := false
+var demo_ff := false
+var jumped := false
+var pre_q := []                       # [n, kind, ...] in night seconds, as _event takes them
+var pre_pos := []                     # [n, "sit"|"near"|"ear"|"gone"]
+var pre_pi := 0
+var mio_h                             # a ch8.gd, not in the tree: its _load_mio/_blanket make her, sitting in the blanket
+var mio_pose := ""
+
+func _pre_build():
+	pre_q = []; pre_pos = []
+	if "--ch11rec" in OS.get_cmdline_user_args() and not (get_flag("door_0230") is Dictionary):   # (this part alone: a night as 第3章's playthrough leaves it; ch8.gd --ch8rec)
+		set_flag("door_0230", {"pos": [[0.0, "sit"], [9.0, "near"], [10.0, "ear"], [25.0, "near"], [44.0, "sit"]], "asks": [[13.0, 0], [30.5, 1]], "silences": [[13.0, 17.5], [30.5, 32.5]], "said_rule": true})
+		set_flag("said_rule")
+	var rec = get_flag("door_0230")
+	if not (rec is Dictionary): rec = {"pos": [[0, "sit"]], "asks": [], "said_rule": has_flag("said_rule")}
+	# where she was: from 1:00 at the door in the blanket; 2:00-2:07 at the cellar door (out of the frame); 2:30 as recorded
+	pre_pos.append([0.0, "gone"]); pre_pos.append([2400.0, "sit"]); pre_pos.append([6000.0, "gone"]); pre_pos.append([6420.0, "sit"])
+	for pp in (rec.get("pos", []) as Array): pre_pos.append([N230 + float(pp[0]), String(pp[1])])
+	pre_pos.append([N230 + 70.0, "sit"])
+	pre_pos.sort_custom(func(a, b): return float(a[0]) < float(b[0]))
+	for e in B("テープ.二時半"):
+		if not e.has("t"): continue
+		if e.has("if") and not has_flag(String(e["if"])): continue
+		var n := N230 + float(e.t)
+		if e.has("do"): continue
+		if e.has("note"): pre_q.append([n, "note", e.note])
+		else: pre_q.append([n, "say", e.get("who", ""), e.text])
+	var ch: Array = D.entries("テープ.問い")
+	for a in (rec.get("asks", []) as Array):
+		if str(a[1]) == "rule" or ch.is_empty(): continue
+		var i := int(a[1])
+		if i >= (ch[0].then as Array).size(): continue
+		var k := 0
+		for e in ((ch[0].then as Array)[i] as Array):
+			var n2 := N230 + float(a[0]) + 2.6 * k; k += 1
+			if e.has("note"): pre_q.append([n2, "note", e.note])
+			elif e.has("text"): pre_q.append([n2, "say", e.get("who", ""), e.text])
+	var k4 := 0
+	for e in B("テープ.四時"):
+		var n4 := N400 + 3.0 * k4; k4 += 1
+		if e.has("note"): pre_q.append([n4, "note", e.note])
+		elif e.has("text"): pre_q.append([n4, "say", e.get("who", ""), e.text])
+	pre_q.sort_custom(func(a, b): return float(a[0]) < float(b[0]))
+	_hall_mio()
+	print("STORY ch11 pre: %d lines, %d places (record %s)" % [pre_q.size(), pre_pos.size(), "yes" if get_flag("door_0230") is Dictionary else "no"])
+
+func _pre_tick(_dt: float):
+	while not pre_q.is_empty() and night_n >= float(pre_q[0][0]):
+		var e: Array = pre_q.pop_front()
+		if ff_on and night_n - float(e[0]) > 2.0: continue   # run past fast: a blur, not words
+		_event(e)
+	var want := "gone"
+	for pp in pre_pos:
+		if night_n >= float(pp[0]): want = String(pp[1])
+	if post: want = "gone"
+	_hall_mio_pose(want)
+
+func _hall_mio():
+	if mio_h != null: return
+	mio_h = load("res://scripts/ch8.gd").new()
+	mio_h.main = main; mio_h.player = player
+	mio_h._load_mio()
+	if not main.S.has("mio_node"): mio_h = null; return
+	_hall_mio_pose("gone")
+
+func _hall_mio_pose(p: String):
+	if mio_h == null or p == mio_pose: return
+	mio_pose = p
+	var rig: Node3D = main._rig_of("mio")
+	rig.visible = p != "gone"
+	if mio_h.blanket: mio_h.blanket.visible = p == "sit"
+	if p == "gone": return
+	var at: Array = SIT_AT if p == "sit" else T230_POS.get(p, SIT_AT)
+	var yaw := atan2(5.0 - float(at[0]), 0.0 - float(at[1]))   # to the door (plan 5.0, 0.0)
+	main.place_person("mio", [float(at[0]) - 4.8, 6.3 - float(at[1]), -0.36 if p == "sit" else 0.0], yaw)
+	main.set_stand("mio", "talk/sit_idle" if p == "sit" else "talk/idle", 0.3)
+	if p == "ear": rig.rotate_object_local(Vector3.RIGHT, 0.22); rig.global_position += Vector3(0, -0.12, 0)
+
 func _init():
 	tape = true
 
 func _ready():
 	super._ready()
+	for a in OS.get_cmdline_user_args():   # checks: --swings=50.0:miss,50.6:head,… stands in for the night's record
+		if a.begins_with("--swings="):
+			var r := []
+			for w in a.substr(9).split(","): r.append([float(w.split(":")[0]), w.split(":")[1]])
+			set_flag("swing_0330", r)
 	load_story("ch11")
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--d11refl="): refl = a.substr(10)
 		if a == "--d11pan": pan = true
+		if a == "--d11b": b11 = true
+		if a == "--d11c": b11 = true; c11 = true
+		if a.begins_with("--d11face="): b11 = true; face11 = a.substr(10)
+	# 2026-11-21 9時7分（ユーザー「寄りのD2で一旦本体に渡しましょう。プレイした感触見ながら調整します」）: the last cut is D2 by default —
+	# her eyes come up to the lens, the picture stops, then black; the set's-side camera straight in front at her eyes, framed a little
+	# closer (fov 24). --d11a keeps the cut as it was before (A); --d11b / --d11c / --d11face=… still pick the trials 260〜264.
+	if not b11 and not "--d11a" in OS.get_cmdline_user_args() and refl == "e":
+		b11 = true; face11 = "d2"; d2def = true
 	if refl == "c": seat_x = 0.17
 	for e in _flow("テープ.流れ"): e[0] = float(e[0]) + NIGHT_AT; LINES.append(e)
 	_room()
 	_screen()
 	_mio_body()
 	_back_light()
-	var c: Array = D.lines("十一.カード")
-	card11 = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
+	card11 = Control.new(); card11.visible = false; add_child(card11)   # 2026-11-20: no card any more
 	black2 = ColorRect.new(); black2.color = Color(0, 0, 0, 0); black2.set_anchors_preset(Control.PRESET_FULL_RECT); black2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bl := CanvasLayer.new(); bl.layer = 22; add_child(bl); bl.add_child(black2)
 	# she sits; she does not walk in this chapter
@@ -127,7 +256,7 @@ func _ready():
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED; fl.add_child(tr)
 			var bg := ColorRect.new(); bg.color = Color.BLACK; bg.set_anchors_preset(Control.PRESET_FULL_RECT); bg.show_behind_parent = true; tr.add_child(bg)
 		if a.begins_with("--d11gain="): (tcam.attributes as CameraAttributesPractical).exposure_multiplier = float(a.substr(10))
-		if a == "--d11end": card11_t = 0.0; call_deferred("_end_tape"); set_meta("endstill", true)
+		if a == "--d11end": card11_t = 0.0; player.pitch = deg_to_rad(-7.0); call_deferred("_end_tape"); set_meta("endstill", true)
 		if a.begins_with("--d11endat="): card11_t = 0.0; set_meta("endat", float(a.substr(11))); call_deferred("_end_tape"); set_meta("endstill", true)   # stills: this many seconds after the tape
 
 # ================================================================ the room
@@ -138,11 +267,50 @@ func _box(at: Vector3, size: Vector3, col: Color, rough := 0.8) -> MeshInstance3
 	main.add_child(mi); mi.global_position = ROOM + at
 	return mi
 
+# 2026-11-20（決定事項 13時7分「第11章の部屋は客間に替える」）: the interview's room (assets/interview/room.glb, 澪の実家の客間), at
+# night. The deck and the set stand where the interview's did, on the low cabinet beside the tokonoma (interview.gd TV_AT, facing
+# east): the room is turned so that east is toward her (+z) and lowered so that the cabinet's top is our board's (0.145).
+# Its textures carry the day they were baked in; at night they are the night's: dark, a little blue, the set's light on them.
+const GUEST_TV_AT := [-1.50, -0.95, 0.42]
+func _guest_room() -> bool:
+	if "--oldroom" in OS.get_cmdline_user_args() or not ResourceLoader.exists("res://assets/interview/room.glb"): return false
+	var r: Node3D = (load("res://assets/interview/room.glb") as PackedScene).instantiate(); main.add_child(r)
+	var rb := Basis(Vector3.UP, -PI / 2.0)
+	var tv_g: Vector3 = rb * (Vector3(GUEST_TV_AT[0], GUEST_TV_AT[2], -GUEST_TV_AT[1]) + Vector3(0.06, 0, 0))
+	# measured (2026-11-21, ユーザー「物が浮いているように見える」): set so, the cabinet's top was 3 cm over our board and its
+	# front 0.37 m behind the deck. Moved so that the deck and the set stand on it, their backs to the tokonoma's wall
+	r.global_transform = Transform3D(rb, ROOM + Vector3(0.0, 0.145, -0.06) - tv_g + Vector3(0.0, -0.03, 0.52))
+	var night := Color(float(_arg("d11night", "0.4")), float(_arg("d11night", "0.4")) * 1.04, float(_arg("d11night", "0.4")) * 1.25)
+	var hide_names := ["tape", "tape_label", "notebook", "notebook_pages", "recorder_tripo", "recorder_display", "rec_time", "cup_i", "cup_i_tea", "cup_m", "cup_m_tea"]
+	for g in r.find_children("*", "MeshInstance3D", true, false):
+		var m := g as MeshInstance3D
+		if String(m.name) in hide_names: m.visible = false; continue
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		for i in m.get_surface_override_material_count():
+			var mat = m.get_active_material(i)
+			if mat is BaseMaterial3D:
+				var nm: BaseMaterial3D = mat.duplicate()
+				nm.albedo_color = nm.albedo_color * night
+				if nm.emission_enabled: nm.emission_energy_multiplier *= 0.1
+				m.set_surface_override_material(i, nm)
+	# the moon through the shoji: a low blue light over the whole room (the set does the rest)
+	var moon := OmniLight3D.new(); moon.light_color = Color(0.55, 0.65, 0.95); moon.light_energy = float(_arg("d11moon", "0.35"))
+	moon.omni_range = 4.0; moon.omni_attenuation = 0.8; moon.shadow_enabled = false; moon.light_specular = 0.0; moon.light_cull_mask = 1
+	main.add_child(moon); moon.global_position = r.global_position + Vector3(0, 2.0, 0)
+	print("TAPE guest room at ", r.global_position)
+	for g in r.find_children("*", "MeshInstance3D", true, false):
+		var nm := String(g.name)
+		if nm.begins_with("waki") or nm.begins_with("toko_floor") or nm.begins_with("tatami0"):
+			var bb: AABB = (g as MeshInstance3D).global_transform * (g as MeshInstance3D).get_aabb()
+			print("TAPE part %s rel %s size %s" % [nm, bb.position - ROOM, bb.size])
+	return true
+
 func _tvbox(at: Vector3, size: Vector3, col: Color, rough := 0.5) -> MeshInstance3D:
 	var mi := _box(at, size, col, rough); mi.layers = 2      # the set does not light its own face
 	return mi
 
 func _room():
+	var n0: int = main.get_child_count()
 	_box(Vector3(0, -0.05, 0.6), Vector3(4.0, 0.1, 4.0), Color(0.42, 0.36, 0.27))             # the floor
 	_box(Vector3(0, 1.2, -0.42), Vector3(4.0, 2.6, 0.1), Color(0.62, 0.60, 0.55))             # the wall behind the set
 	_box(Vector3(-2.0, 1.2, 0.6), Vector3(0.1, 2.6, 4.0), Color(0.62, 0.60, 0.55))
@@ -153,6 +321,9 @@ func _room():
 	_box(Vector3(0, 0.13, -0.08), Vector3(0.95, 0.03, 0.46), Color(0.30, 0.22, 0.15))
 	_box(Vector3(-0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.55, 0.5, 0.42))
 	_box(Vector3(0.36, 0.06, -0.08), Vector3(0.16, 0.12, 0.24), Color(0.45, 0.5, 0.52))
+	var plain: Array = main.get_children().slice(n0)
+	if _guest_room():
+		for b in plain: (b as Node3D).visible = false
 	var deck := _box(Vector3(0, 0.20, -0.06), Vector3(0.43, 0.10, 0.34), Color(0.10, 0.10, 0.11), 0.45)
 	var slot := _box(Vector3(-0.035, 0.215, 0.111), Vector3(0.17, 0.028, 0.004), Color(0.03, 0.03, 0.03), 0.3)   # the slot（2026-11-14：前は「トラッキング」の字の右を隠していた）
 	# 2026-11-14（ユーザー「VHSデッキはモデリングしたい」）: the user's Tripo deck (godot/props/vcr.glb, from tripo/prep_props.py),
@@ -210,6 +381,20 @@ func _room():
 			if "--d11dbgf" in OS.get_cmdline_user_args():   # straight on, orthographic: to measure the glass against the body
 				dc.projection = Camera3D.PROJECTION_ORTHOGONAL; dc.size = 0.8; dc.global_transform = Transform3D(Basis(), ROOM + Vector3(0, 0.6, 1.5))
 			var dl := OmniLight3D.new(); dl.light_energy = 3.0; dl.omni_range = 5.0; main.add_child(dl); dl.global_position = ROOM + Vector3(0.6, 1.4, 1.2)
+	# 2026-11-21（ユーザー「客間のテレビが直ってないな」）: the set's foot is at 0.355, the deck's top near 0.25: it hung 10 cm over the
+	# deck. A low wooden AV rack: the set on its top board, the deck in the opening under it, on the cabinet (nothing in the last cut moves)
+	# (2026-11-21 8時「テレビが棚板に乗っているように見えない」: the board stopped 4 cm behind the set's face, so its foot hung over
+	# nothing. Now the board runs 3 cm out in front of the set, a lighter wood with a lit edge, so the set is seen standing on it)
+	var wood := Color(0.30, 0.22, 0.15)
+	_box(Vector3(0, 0.34, -0.045), Vector3(0.72, 0.03, 0.49), wood, 0.6)                # the top board, under the set, out past its face
+	_box(Vector3(0, 0.34, 0.199), Vector3(0.72, 0.03, 0.004), Color(0.42, 0.33, 0.23), 0.5)   # its front edge, a shade lighter
+	for sx in [-0.345, 0.345]: _box(Vector3(sx, 0.245, -0.045), Vector3(0.03, 0.19, 0.49), wood, 0.6)   # its two sides, down to the cabinet
+	_box(Vector3(0, 0.245, -0.285), Vector3(0.72, 0.19, 0.01), wood, 0.8)               # its back
+	# the set's foot on the board: a darker band just round it (the board's own contact shadow; the rack casts none)
+	var foot := _box(Vector3(0, 0.3555, -0.07), Vector3(0.62, 0.002, 0.50), Color(0.10, 0.075, 0.055), 0.9)
+	foot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for n in main.get_children().slice(main.get_child_count() - 6):   # the rack throws no shadow: the deck under it stays as lit as before (the last cut: the keys, the hand)
+		if n is GeometryInstance3D: (n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label
 	# the only light: the screen
@@ -227,6 +412,18 @@ uniform sampler2D refl_tex : source_color, filter_linear, repeat_disable;   // t
 uniform float rk = 0.0;       // how much of it the glass gives back
 uniform float off_t = 0.0;    // seconds since the set went off
 uniform float bulge = 0.0;   // the tube's face is a dome (the Tripo set's own glass)
+uniform float bmode = 0.0;   // 試作260 B: the dead glass is black (the print's teal solid) and only she is in it, in blue
+uniform vec3 bcol = vec3(0.010, 0.022, 0.065);
+uniform vec3 bhi = vec3(0.035, 0.075, 0.22);
+uniform sampler2D face_tex : source_color, filter_linear, repeat_disable;
+uniform float fk = 0.7;
+uniform float fdbg = 0.0;
+uniform float fk3 = 0.45;
+uniform float fsh = 9.0;
+uniform float ffl = 0.0;
+uniform vec2 fsc = vec2(1.65, 2.2);   // glass to picture: the head about a third of the glass
+uniform vec2 fc = vec2(0.5, 0.40);    // her head in the glass
+uniform vec2 fp = vec2(0.5, 0.45);    // her head in the picture
 void vertex() { vec2 n = UV * 2.0 - 1.0; VERTEX.z += bulge * (1.0 - 0.8 * n.x * n.x) * (1.0 - 0.8 * n.y * n.y); }
 uniform vec2 glass = vec2(1.0, 1.0);   // the set's own glass, as a part of the quad (the Tripo set's opening is a little lower than 4:3)
 float h(float x) { return fract(sin(x * 91.17) * 43758.5453); }
@@ -260,6 +457,24 @@ void fragment() {
 		vec3 r = texture(refl_tex, vec2(1.0 - ru.x, ru.y)).rgb;
 		float edge = 1.0 - smoothstep(0.30, 0.62, length(d * vec2(1.0, 1.25)));
 		c = vec3(0.018, 0.020, 0.022) + rk * r * (0.55 + 0.45 * edge);
+		if (bmode > 0.5) {
+			vec4 r4 = texture(refl_tex, vec2(1.0 - ru.x, ru.y));
+			float L = dot(r4.rgb, vec3(0.3, 0.6, 0.1));
+			c = r4.a * mix(bcol, bhi, clamp(L * rk * 30.0, 0.0, 1.0)) * (0.7 + 0.3 * edge);
+			if (bmode > 2.5) {   // 試作262: between A and C. Her shape faint, the face's lights held down (no lit half), the eyes' and nose's shadow
+				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
+				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
+				float inside = step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
+				vec3 g = f * fk3; g = g / (1.0 + g * fsh);              // the shoulder: a lit cheek does not go bright
+				c = (vec3(0.006, 0.010, 0.022) + g * inside) * r4.a * (0.6 + 0.4 * edge);
+			} else if (bmode > 1.5) {
+				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
+				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
+				float inside = step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
+				c = max(f * fk - vec3(ffl), vec3(0.0)) * inside * r4.a * (0.6 + 0.4 * edge);
+				if (fdbg > 0.5) c = mix(c, vec3(0.0, 0.3, 0.0), r4.a * 0.5 * step(0.5, fract(UV.y * 40.0)));
+			}
+		}
 		// going off: the picture falls to a line, the line to a point, the point fades
 		float ln = exp(-pow((UV.y - 0.5) / max(0.004, 0.5 * (1.0 - off_t / 0.12)), 2.0)) * step(off_t, 0.12);
 		float pt = exp(-dot(d, d) / 0.0009) * (1.0 - smoothstep(0.12, 1.4, off_t)) * step(0.12, off_t);
@@ -304,6 +519,18 @@ func _screen():
 	rcam = Camera3D.new(); rcam.projection = Camera3D.PROJECTION_FRUSTUM; rcam.cull_mask = 0xFFFFF & ~(2 | SCR_LAYER)
 	rcam.far = 8.0; rvp.add_child(rcam)
 	scr_mat.set_shader_parameter("refl_tex", rvp.get_texture())
+	if b11:
+		# C: the glass of A (the room in it as it is), only darker, so that it stays the dark glass and her face is what is read in it
+		# (her alone, drawn on a clear background, came out unlit: her shape only)
+		if not c11 and face11 == "": rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 1.0)
+		elif face11 != "": rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 3.0)
+		# C: in the mirror camera she came out unlit (the door is behind her left; from the glass she is in her own shadow, and the
+		# print lifted the room instead). Her face in the glass is the set's-side picture (face_vp, the same place as the glass),
+		# turned as a mirror turns it, small, dark: the dark glass with her eyes' and nose's shadow faintly in it
+		else: rvp.transparent_bg = true; rcam.cull_mask = MIO_LAYER; scr_mat.set_shader_parameter("bmode", 2.0)   # her shape from the mirror, her face from the set's side
+		for k in ["bcol", "bhi"]:
+			var v := _arg("d11" + k, "")
+			if v != "": var f := v.split(","); scr_mat.set_shader_parameter(k, Vector3(float(f[0]), float(f[1]), float(f[2])))
 
 # where the mirror camera stands for an eye at e (the glass is the plane z = 0.103 in the room, facing +z)
 func _mirror_cam(e: Vector3):
@@ -333,7 +560,21 @@ func _mio_body():
 	mio_n.global_position += ROOM + Vector3(EYE.x + seat_x, EYE.y, EYE.z) - eye
 	for mi in mio_n.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).layers = MIO_LAYER; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	if b11 and face11 != "a": _b_face()
+	if face11 in ["d2", "b2"]: _b_head_up()
 	print("M220 mio head ", _mio_box("mio_head"), " hands ", _mio_box("mio_hands"), " body ", _mio_box("mio_body"))
+
+# 試作263 D2・B2: the chin up a little, the face upright to the lens (the head and hair turn together about the top of the neck)
+func _b_head_up():
+	var hb := _mio_box("mio_head")
+	var piv := Vector3(hb.get_center().x, hb.position.y + hb.size.y * float(_arg("d11hpy", "0.0")), hb.get_center().z + float(_arg("d11hpz", "0.0")))
+	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "10.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
+	for n in ["mio_head", "mio_hair"]:
+		var mi := mio_n.find_child(n, true, false) as Node3D
+		if mi == null: print("B11 no ", n); continue
+		var g := mi.global_transform
+		mi.global_transform = Transform3D(b * g.basis, piv + b * (g.origin - piv))
+	print("B11 head up ", _arg("d11hp", "10.0"), " pivot ", piv)
 
 func _mio_box(n: String) -> AABB:
 	var mi := mio_n.find_child(n, true, false) as MeshInstance3D
@@ -349,10 +590,12 @@ func _back_light():
 	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; main.add_child(mi)
 	mi.global_position = ROOM + at + Vector3(0, sz.y * 0.5, 0)
 	pass_light = OmniLight3D.new(); pass_light.light_color = Color(1.0, 0.84, 0.62)
-	pass_light.light_energy = float(_arg("d11door", "0.8" if refl == "a" else "0.35")); pass_light.omni_range = 4.5; pass_light.omni_attenuation = 1.2
+	pass_light.light_energy = float(_arg("d11door", "0.8" if refl == "a" else ("0.10" if b11 and not c11 and face11 in ["", "b"] else "0.35"))); pass_light.omni_range = 4.5; pass_light.omni_attenuation = 1.2
 	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
 	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
 	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
+	if b11 and not c11 and face11 in ["", "b", "b2"]: _b_deck_light()
+	if b11: _b_finger()
 	# the last cut of d: from the set's side, at her face
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
 	look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
@@ -361,9 +604,21 @@ func _back_light():
 		face_vp = SubViewport.new(); face_vp.size = get_viewport().get_visible_rect().size; face_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		add_child(face_vp); main.remove_child(look_cam); face_vp.add_child(look_cam); look_cam.current = true
 		look_cam.global_transform = Transform3D(Basis(), ROOM + Vector3(seat_x + 0.05, 0.60, 0.16)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+		# 試作265（ユーザー 2026-11-21 8時「いま角度がついてる。それをどうしようか」）: --d11lcx / --d11lcy move the set's-side camera
+		# (now 5 cm to the side and 6 cm under her eyes); --d11front = straight in front, at the height of her eyes
+		if d2def or _arg("d11lcx", "") != "" or _arg("d11lcy", "") != "" or "--d11front" in OS.get_cmdline_user_args():
+			var fr := d2def or "--d11front" in OS.get_cmdline_user_args()
+			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16)
+			look_cam.global_transform = Transform3D(Basis(), cp).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
+		# 試作266（ユーザー 2026-11-21 9時「顔にちょいクローズアップは？」）: the same still camera, framed a little closer from the start
+		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "24"))
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
+		if c11 or face11 != "":
+			scr_mat.set_shader_parameter("face_tex", face_vp.get_texture())
+			for k in ["fk", "ffl", "fdbg", "fk3", "fsh"]:
+				if _arg("d11" + k, "") != "": scr_mat.set_shader_parameter(k, float(_arg("d11" + k, "")))
 	pan_cam = Camera3D.new(); pan_cam.fov = float(_arg("d11panfov", "38")); main.add_child(pan_cam)
 	pan_cam.cull_mask = 0xFFFFF   # it sees the set from outside, and her
 	pan_cam.global_transform = Transform3D(Basis(), ROOM + PAN_AT)
@@ -397,7 +652,20 @@ func _clock(dt: float) -> bool:
 	room_t += dt
 	_room_tick(dt)
 	if st != PLAYING: return false
+	# 2026-11-20: the tape from 0:20 (the second cassette's head). Before 3:29:54 and after the night's 61 s the hall is
+	# still (the 第4章 night does not run): the 2:30 part from the record, Makoto's voice at 4:00. Ｆ held runs it fast.
+	var ff := Input.is_key_pressed(KEY_F) or demo_ff
+	ff_on = ff and not (night_n >= N330 - 1.0 and not post)
+	var rate := FF_RATE if ff_on else 1.0
+	if night_n < N330 or post:
+		night_n += dt * rate
+		if not post and night_n >= N330: night_n = N330; tape_t = 0.0; clock = NIGHT_AT; _hall_mio_pose("gone"); return true
+		_pre_tick(dt)
+		_typing(dt)
+		if post and night_n >= N_END: _end_tape()
+		return false
 	tape_t += dt
+	night_n = N330 + tape_t
 	clock = tape_t + NIGHT_AT; t_now = clock
 	return true
 
@@ -406,11 +674,13 @@ func _room_tick(dt: float):
 	var deck_at := ROOM + Vector3(0, 0.20, 0.11)
 	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(14.0)
 	var e := _err()
+	if ff_on: e = maxf(e, 0.8)   # the picture tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
 	scr_mat.set_shader_parameter("err", e)
 	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
 	scr_mat.set_shader_parameter("on", 1.0 if st == PLAYING else (3.0 if off_t >= 0.0 else 2.0))
 	glow.light_energy = 0.55 if st == PLAYING else (0.0 if off_t > 0.12 else 0.8)
+	if b11 and off_t >= 0.0 and off_t <= 0.12: glow.light_energy = 1.8     # the set going off: the room flares once, then the dark
 	if off_t >= 0.0:
 		off_t += dt
 		scr_mat.set_shader_parameter("off_t", off_t)
@@ -427,19 +697,25 @@ func _room_tick(dt: float):
 				if at_deck and room_t > 5.0: _play()
 		PLAYING:
 			var G: Array = B("テープ.案内")
-			note_lb.text = T(String(G[1].note if on_knob else G[0].note)) if (e > 0.2 or on_knob) else ""
-			osd.visible = tape_t < 4.0
+			# 2026-11-21 (review): the fast-forward was never told; before 3:30 a clear picture shows it
+			if on_knob: note_lb.text = T(String(G[1].note))
+			elif e > 0.2: note_lb.text = T(String(G[0].note))
+			elif night_n < N330 and not ff_on and G.size() > 2: note_lb.text = T(String(G[2].note))
+			else: note_lb.text = ""
 			if tape_t < 1.6:                     # the key pressed, her eyes go back up to the picture
 				var ku := 1.0 - exp(-dt * 4.0)
 				player.yaw = lerp_angle(player.yaw, 0.0, ku); player.pitch = lerp(player.pitch, deg_to_rad(-7.0), ku)
 			osd_trk.text = ("トラッキング " + "-".repeat(int(trk * 16.0)) + "|" + "-".repeat(16 - int(trk * 16.0))) if on_knob else ""
-			var s := 54 + int(tape_t)
-			stamp.text = "AM 3:%02d:%02d" % [29 + s / 60, s % 60]
+			var ns := N0 + int(night_n)
+			stamp.text = "AM %d:%02d:%02d" % [ns / 3600, (ns / 60) % 60, ns % 60]
+			osd.text = "早送り" if ff_on else "再生"
+			osd.visible = ff_on or room_t - play_room_t < 4.0 or (tape_t >= 0.0 and tape_t < 4.0 and not post)
 			_tape_swing(dt)
 			if demo11: _demo11(dt)
 		ENDED:
 			end_t2 += dt
 			note_lb.text = ""
+			if b11: _b_tick()
 			# her eyes go down to the deck's two keys; the set goes off; her eyes come back up to the glass (試作220)
 			if end_t2 > 2.0 and end_t2 < 9.5:
 				var k := 1.0 - exp(-dt * 1.6)
@@ -457,7 +733,14 @@ func _room_tick(dt: float):
 			if refl == "e":
 				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
 				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）
-				if end_t2 > 16.0: face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				var frz := float(_arg("d11freeze", "23.0" if face11 in ["d2", "b2"] else "999"))
+				if end_t2 <= frz and (end_t2 > 16.0 or ((c11 or face11 != "") and off_t >= 0.0)): face_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+				# 試作264（ユーザー 2026-11-21 6時「もっとしっかり見せたい、大人は判ってくれない、みたいな」）: her eyes on the lens, then the
+				# picture stops dead, held into the black (the camera does not move)
+				if end_t2 > frz and face_vp.render_target_update_mode != SubViewport.UPDATE_DISABLED:
+					face_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+					if main.riso: main.riso.set_shader_parameter("print_fps", 0.0)   # the print's grain stops too: a dead still
+					print("B11 freeze t=%.2f" % end_t2)
 				face_tr.modulate.a = smoothstep(16.5, 19.5, end_t2)
 				if end_t2 > CREDITS_AT and black2.color.a < 1.0:
 					black2.color.a = 1.0; print("STORY ch11 black (e)"); _credits()
@@ -474,7 +757,10 @@ func _room_tick(dt: float):
 				if "--demoquit" in OS.get_cmdline_user_args(): get_tree().quit()
 
 func _play():
-	st = PLAYING; tape_t = 0.0
+	st = PLAYING; tape_t = 0.0; play_room_t = room_t
+	if not jumped: night_n = 0.0; tape_t = -1.0; _pre_build()
+	for a in OS.get_cmdline_user_args():   # check stills: the tape from this count on (N230 = 2:30)
+		if a.begins_with("--ch11n="): night_n = float(a.substr(8))
 	note_lb.text = ""
 	print("STORY ch11 play room_t=%.1f" % room_t)
 
@@ -487,13 +773,61 @@ func _end_tape():
 # ================================================================ what the night does on the tape
 func _do4(what: String):
 	match what:
-		"strike", "strike2": tswing = 0.0; tswings += 1
+		"strike", "strike2":
+			if not _swing_rec().is_empty(): return   # the record's own blows are on their way (_tape_queue)
+			tswing = 0.0; tswings += 1; tswing_what = "head"
 		"end": _end_tape()
+		"after": post = true; print("STORY ch11 after t=%.1f" % tape_t)
 		_: super._do4(what)
 
 # Mio is under the camera, out of its frame. The tripod is in her hands from the second she took it up in 第4章;
 # what the tape has of her is the tripod coming into the frame, twice.
+# the night as she played it: her swings at 3:30 (fps.gd rec_swings), placed so her first blow to the head comes when
+# the script's first strike does. Nothing kept (a chapter reached from the menu): the two strikes of the script.
+func _swing_rec() -> Array:
+	var r = get_flag("swing_0330", null)
+	if not (r is Array) or r.is_empty(): return []
+	var first := -1
+	for i in r.size():
+		if String(r[i][1]) == "head": first = i; break
+	return r if first >= 0 else []
+
+var tqueue_made := false
+func _tape_queue():
+	if tqueue_made: return
+	tqueue_made = true
+	var r := _swing_rec()
+	if r.is_empty(): return
+	var t0 := 0.0
+	for e in r:
+		if String(e[1]) == "head": t0 = float(e[0]); break
+	var strike_at := 46.0 + NIGHT_AT
+	for e in LINES:
+		if e.size() > 2 and e[1] == "do" and e[2] == "strike": strike_at = float(e[0]); break
+	# 2026-11-21 (review): the night's gaps squeezed into the tape's minute: at most three swings before her first blow
+	# to the head, within 2.4 s of it, the rest within 4 s after it, never before she has the tripod (TAPE_TAKE);
+	# fewer than two blows to the head (a record cut short): the script's second strike stands in
+	var before := []; var after := []
+	for e in r: (before if float(e[0]) < t0 else after).append(e)
+	before = before.slice(maxi(0, before.size() - 3))
+	var span_a := 0.0
+	for e in after: span_a = maxf(span_a, float(e[0]) - t0)
+	var ka := 1.0 if span_a <= 4.0 else 4.0 / span_a
+	var span_b := 0.0
+	for e in before: span_b = maxf(span_b, t0 - float(e[0]))
+	var kb := 1.0 if span_b <= 2.4 else 2.4 / span_b
+	for e in before: tqueue.append([maxf(TAPE_TAKE + 0.3, strike_at - (t0 - float(e[0])) * kb), String(e[1])])
+	var heads := 0
+	for e in after:
+		tqueue.append([strike_at + (float(e[0]) - t0) * ka, String(e[1])])
+		if String(e[1]) == "head": heads += 1
+	if heads < 2: tqueue.append([strike_at + 1.2, "head"]); tqueue.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+	print("STORY ch11 swings from the night: ", tqueue.size())
+
 func _tape_swing(dt: float):
+	_tape_queue()
+	if not tqueue.is_empty() and tswing < 0.0 and clock >= float(tqueue[0][0]):
+		tswing = 0.0; tswings += 1; tswing_what = String(tqueue[0][1]); tqueue.pop_front()
 	if clock < TAPE_TAKE: return   # 2026-11-14: she takes it up only after Natsuki has caught her sleeve and her hand has hit it
 	if weapon.get_parent() != main:
 		weapon.get_parent().remove_child(weapon); main.add_child(weapon)
@@ -507,12 +841,18 @@ func _tape_swing(dt: float):
 		if k < 0.3: ang = lerp(-0.22, -0.75, smoothstep(0.0, 0.3, k))
 		elif k < 0.5: ang = lerp(-0.75, 1.55, pow((k - 0.3) / 0.2, 2.0))
 		else: ang = lerp(1.55, -0.22, smoothstep(0.5, 1.0, k))
-		if k >= 0.44 and not swing_hit: swing_hit = true; _blow(true)
+		if k >= 0.44 and not swing_hit:
+			swing_hit = true
+			if tswing_what != "miss": _blow(tswing_what == "head")
 		if k >= 1.0: tswing = -1.0; swing_hit = false
 	var axis := Vector3.UP.cross(dir).normalized()
 	weapon.global_transform = Transform3D(Basis(axis, ang) * Basis(Vector3.UP, atan2(dir.x, dir.z)), hands) * Transform3D(Basis(), Vector3(0, -0.42, 0))
 
 func _blow(head: bool):
+	if not head or head_hits >= 2:   # to the body she rocks; once she is down, the tripod comes down on the boards beside her
+		Sound.one(self, "hit", -9.0, _nhead())
+		print("STORY ch11 blow %s tape_t=%.1f" % ["body" if not head else "again", tape_t])
+		return
 	head_hits += 1
 	nap.pause(); nwalk = false
 	if head_hits == 1: hit_base = Transform3D(Basis(Vector3.UP, nrig.global_rotation.y), nrig.global_position)
@@ -568,6 +908,8 @@ func _unhandled_input(e):
 		var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 		if press and note_lb.text != "": _play()
 		return
+	if st == PLAYING and e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E and post:
+		_end_tape(); return   # 2026-11-20: she may stop it once the 3:30 minute has played (2026-11-21: not before it, or the chapter ended without it)
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_RIGHT: on_knob = e.pressed
 	elif e is InputEventMouseMotion and on_knob and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		trk = clampf(trk + e.relative.x * 0.0006, 0.0, 1.0)
@@ -576,6 +918,7 @@ func _unhandled_input(e):
 
 # stills: the tape at t seconds
 func _tape_jump(t: float):
+	jumped = true; night_n = N330 + t
 	_play()
 	player.pitch = deg_to_rad(-7.0)   # 試作220：the chapter starts looking down at the deck; a still of the tape is of the picture
 	trk = float(get_meta("trk", _target_trk(t)))
@@ -606,10 +949,147 @@ func _tape_jump(t: float):
 
 # the unattended run: her hand goes to the knob when the picture tears, and finds the place
 func _demo11(dt: float):
+	demo_ff = (night_n < N230 - 3.0) or (night_n > N230 + 72.0 and night_n < N330 - 4.0) or (post and night_n < N400 - 3.0) or (post and night_n > N400 + 12.0)
 	var want := _target_trk(tape_t)
 	var off := absf(trk - want)
-	if off > 0.05 and held_since < 0.0 and tape_t > 3.0: held_since = tape_t
-	on_knob = held_since >= 0.0 and tape_t - held_since > 1.2
+	if off > 0.05 and held_since < 0.0 and room_t - play_room_t > 3.0: held_since = room_t
+	on_knob = held_since >= 0.0 and room_t - held_since > 1.2
 	if on_knob:
 		trk = move_toward(trk, want, dt * 0.09)
 		if absf(trk - want) < 0.004: held_since = -1.0; on_knob = false
+
+# ================================================================ 試作260 B
+const FACE_SHADER := """shader_type spatial;
+uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D glow_tex : hint_default_black, filter_linear_mipmap;
+uniform sampler2D nrm : hint_normal, filter_linear_mipmap;
+uniform bool has_nrm = false;
+uniform float rough = 0.7;
+uniform float spec = 0.5;
+uniform vec3 glow_col = vec3(0.85, 0.97, 1.0);
+uniform float glow_k = 2.2;
+uniform float white_k = 0.0;   // 試作262 D: the whites of the eyes keep a little light in A's shade, so where she looks is read
+void fragment() {
+	vec4 c = texture(tex, UV);
+	ALBEDO = c.rgb; ROUGHNESS = rough; SPECULAR = spec;
+	if (has_nrm) NORMAL_MAP = texture(nrm, UV).rgb;
+	vec3 gt = texture(glow_tex, UV).rgb;
+	EMISSION = glow_col * (gt.r * glow_k + gt.g * white_k);
+}"""
+var face_sm: ShaderMaterial
+func _b_face():
+	for mi in mio_n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(i) as StandardMaterial3D
+			if src == null or not src.resource_name.contains("face"): continue
+			face_mat = src
+			face_sm = ShaderMaterial.new(); var sh := Shader.new(); sh.code = FACE_SHADER; face_sm.shader = sh
+			face_sm.set_shader_parameter("rough", src.roughness); face_sm.set_shader_parameter("spec", src.metallic_specular)
+			if src.normal_enabled and src.normal_texture: face_sm.set_shader_parameter("nrm", src.normal_texture); face_sm.set_shader_parameter("has_nrm", true)
+			face_sm.set_shader_parameter("glow_k", float(_arg("d11catch", "3.0" if c11 or face11 in ["d", "d2", "b2"] else "6.0")))
+			face_sm.set_shader_parameter("white_k", float(_arg("d11white", ("0.09" if face11 == "d2" else "0.06") if face11 in ["d", "d2", "b2"] else "0.0")))
+			m.set_surface_override_material(i, face_sm)
+	if face_sm == null: print("B11 no face material"); return
+	for k in ["e0", "e1", "e2", "e3", "b1", "b2"]:
+		var pre: String = "c" if c11 else ({"d": "d", "d2": "f", "b2": "g"}.get(face11, ""))
+		var p := "res://props/mio_face_states/%s.png" % ((pre + k.substr(1) if k[0] == "e" else pre + k) if pre != "" else k)
+		if not ResourceLoader.exists(p): print("B11 no ", p); return
+		face_tex[k] = load(p); face_tex[k + "g"] = load(p.replace(".png", "_glow.png"))
+	_b_set_face("e0")
+	print("B11 face states on ", face_mat.resource_name, " rough ", face_mat.roughness, " nrm ", face_mat.normal_enabled)
+
+func _b_set_face(k: String):
+	if face_sm == null or k == face_now or not face_tex.has(k): return
+	face_now = k; face_sm.set_shader_parameter("tex", face_tex[k]); face_sm.set_shader_parameter("glow_tex", face_tex[k + "g"])
+	print("B11 face %s t=%.2f" % [k, end_t2])
+
+# the deck's display: the one light left when the set goes off, low and in front of her
+func _b_deck_light():
+	deck_light = SpotLight3D.new(); deck_light.light_color = Color(0.62, 0.95, 0.88)
+	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
+	deck_light.spot_angle = 24.0; deck_light.spot_angle_attenuation = 1.5
+	deck_light.shadow_enabled = false; deck_light.light_specular = 0.6; deck_light.light_cull_mask = 1 | MIO_LAYER
+	main.add_child(deck_light)
+	# 試作263 B2: a little off the front, toward the door's side, so the nose and one cheek keep a shadow
+	var dx := float(_arg("d11deckx", "-0.30" if face11 == "b2" else "0.0")); var dy := float(_arg("d11decky", "0.10" if face11 == "b2" else "0.0"))
+	deck_light.global_transform = Transform3D(Basis(), ROOM + Vector3(0.005 + dx, 0.205 + dy, 0.13)).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.04, EYE.z), Vector3.UP)
+	# the display's own glow, so the light has a place in the picture
+	var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(0.066, 0.020); q.mesh = qm
+	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(0.55, 0.95, 0.85, 0.08)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	q.material_override = m; q.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; main.add_child(q)
+	q.global_position = ROOM + Vector3(float(_arg("d11dispx", "0.005")), float(_arg("d11dispy", "0.200")), 0.1135)
+
+# her right hand (the arm of 第6章, props/mio_arm_r.glb): the forefinger out, the others in; it comes over the two keys and stops
+var fin_tip := Vector3.ZERO
+var hand_light: OmniLight3D
+func _b_finger():
+	if not ResourceLoader.exists("res://props/mio_arm_r.glb"): print("B11 no arm"); return
+	finger = Node3D.new(); main.add_child(finger)
+	var inst: Node3D = (load("res://props/mio_arm_r.glb") as PackedScene).instantiate(); finger.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	var to_h := Transform3D(); var nd: Node3D = sk
+	while nd != finger: to_h = nd.transform * to_h; nd = nd.get_parent()
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_r" % [f, j + 1])
+			if bi < 0: continue
+			var gb: Basis = (to_h * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = gb.y.cross(Vector3.DOWN).normalized()
+			var a: float
+			var relaxed := "--d11face=" in " ".join(OS.get_cmdline_user_args())
+			if f == "index": a = [0.0, 0.05, 0.05][j]
+			elif relaxed and f != "thumb": a = {"middle": [0.55, 0.65, 0.40], "ring": [0.70, 0.75, 0.45], "pinky": [0.85, 0.85, 0.50]}[f][j]   # 試作262: the fingers each seen, not a fist
+			elif f == "thumb":
+				var o: Vector3 = (to_h * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized(); a = [0.25, 0.45, 0.35][j]
+			else: a = [1.35, 1.45, 0.95][j]
+			var q: Quaternion = sk.get_bone_rest(bi).basis.get_rotation_quaternion()
+			sk.set_bone_pose_rotation(bi, q * Quaternion((gb.inverse() * ax).normalized(), a))
+	var tipb := sk.find_bone("index_03_r")
+	var tb: Transform3D = to_h * sk.get_bone_global_rest(tipb)
+	# the tip: past the last joint by about its length (the pose bends it a little, measured after the pose next frame)
+	fin_tip = tb.origin + tb.basis.y.normalized() * 0.022
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED; (mi as MeshInstance3D).extra_cull_margin = 0.6
+		(mi as MeshInstance3D).layers = 2    # its own share of the screen's light: under the full glow the hand burnt to paper
+	hand_light = OmniLight3D.new(); hand_light.light_color = glow.light_color; hand_light.omni_range = 3.2; hand_light.omni_attenuation = 1.3
+	hand_light.light_cull_mask = 2; hand_light.shadow_enabled = false; main.add_child(hand_light); hand_light.global_position = glow.global_position
+	finger.visible = false
+	print("B11 finger tip (hand frame) ", fin_tip)
+	if "--d11hcam" in OS.get_cmdline_user_args():   # a lit look at the hand from her right, to see its shape
+		var dc := Camera3D.new(); dc.fov = 40.0; main.add_child(dc)
+		var o := ROOM + Vector3(0.11, 0.19, 0.12)
+		dc.global_transform = Transform3D(Basis(), o + Vector3(0.30, 0.12, 0.22)).looking_at(o, Vector3.UP); dc.call_deferred("make_current")
+		var dl := OmniLight3D.new(); dl.light_energy = 2.0; dl.omni_range = 3.0; dl.light_cull_mask = 0xFFFFF; main.add_child(dl); dl.global_position = o + Vector3(0.2, 0.4, 0.4)
+
+func _b_finger_at(k: float):
+	# k 0 = out of the picture (low, at her right), 1 = stopped over the keys
+	if finger == null: return
+	finger.visible = k > 0.001
+	var r2 := face11 != ""   # 試作262: the hand over the gap from above, so neither word under it is hidden
+	var bas := Basis(Vector3.UP, float(_arg("d11fyaw", "0.0" if r2 else "0.35"))) * Basis(Vector3.RIGHT, float(_arg("d11fpitch", "-1.15" if r2 else "-0.10"))) * Basis(Vector3.BACK, float(_arg("d11froll", "0.0" if r2 else "0.5")))
+	var over := ROOM + Vector3(float(_arg("d11fx", "0.115")), 0.178 + float(_arg("d11fh", "0.014")), 0.118)
+	if c11: over = ROOM + Vector3(float(_arg("d11fx", "0.118")), float(_arg("d11cfy", "0.165")), float(_arg("d11cfz", "0.150")))
+	if face11 != "": over = ROOM + Vector3(float(_arg("d11fx", "0.110")), 0.178 + float(_arg("d11fh", "0.028")), float(_arg("d11fz", "0.120")))   # between 録画 and 取り出し, just above
+	var away := over + Vector3(0.32, -0.06, 0.16)
+	var tip := away.lerp(over, k)
+	finger.global_transform = Transform3D(bas, tip - bas * fin_tip)
+
+func _b_tick():
+	main.foot.visible = false
+	# the finger comes in while her eyes go down, stops over the keys; it stays there as the set goes off, and goes as her eyes rise
+	var fk := smoothstep(3.2, 5.6, end_t2) * (1.0 - smoothstep(10.2, 12.2, end_t2))
+	_b_finger_at(fk)
+	if hand_light: hand_light.light_energy = glow.light_energy * float(_arg("d11handk", "0.15" if face11 != "" else "0.05"))
+	if off_t >= 0.0 and not off_snd: off_snd = true; Sound.one(self, "tv_off", float(_arg("d11offdb", "-4"))); print("B11 tv off sound")
+	# the face: down; one blink before her eyes rise; the eyes (only) to the lens about four seconds into the face, the mouth closing
+	# with them; after that no blink until the black
+	var bl := float(_arg("d11blink", "19.2")); var up := float(_arg("d11up", "20.5"))
+	var k := "e0"
+	var tb := end_t2 - bl
+	if tb >= 0.0 and tb < 0.34: k = "b1" if (tb < 0.09 or tb >= 0.25) else "b2"
+	var tu := end_t2 - up
+	if tu >= 0.0: k = "e1" if tu < 0.17 else ("e2" if tu < 0.34 else "e3")
+	_b_set_face(k)

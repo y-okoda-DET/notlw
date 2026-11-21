@@ -78,6 +78,8 @@ var page_clear_t := -1.0
 var end_wait := -1.0
 var look_k := ""
 var demo5 := false
+var demo_hold := false
+var stair_t := -1.0
 var demo_steps: Array = []
 var ds := 0
 var dwait := 0.0
@@ -85,6 +87,8 @@ var start_at := "t4"
 
 func _ready():
 	player = main.player
+	if not ("--keepflags" in OS.get_cmdline_user_args()):
+		for fk in ["went_out", "went_out_4am", "hands_cut"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["真琴（下から）"]
@@ -201,7 +205,8 @@ func _doors():
 		_cellar_ajar(); _cellar_lock("……先に、テープ。" if start_at == "peel" else "下りませんでした。真琴ちゃんが、来ないでって。")
 	# 試作127（ユーザー「一度勝手口から外に出て…家の中に戻れなくなった」）: the door stands ajar, but she never goes out (rule 1):
 	# an unseen wall in the doorway. The door's look and 「［Ｅ　外に出る］」→ the silence stay as they were (they go by where she looks)
-	var sb := StaticBody3D.new(); sb.name = "back_doorway"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
+	# 2026-11-20: until she goes out (_go_out takes it away and opens the door all the way)
+	var sb := StaticBody3D.new(); back_wall = sb; sb.name = "back_doorway"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
 	bx.size = Vector3(0.30, 2.2, 0.95); cs.shape = bx; sb.add_child(cs); main.add_child(sb)
 	sb.global_position = gp(10.0, 4.83, 1.1)
 	if start_at in ["peel", "end"]: get_tree().create_timer(0.8).timeout.connect(_cellar_ajar)
@@ -851,7 +856,7 @@ func _process(dt):
 	_torch()
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.get("text", "")).length()) else ""
 	main.story_talking = (mode == TALK)
-	player.move_enabled = mode == FREE and stage in ["follow", "peel", "done"]
+	player.move_enabled = (mode == FREE and stage in ["follow", "peel", "done"]) or (stage == "back" and not cur.has("silence"))   # 2026-11-20: she follows Makoto through the talk
 	match stage:
 		"follow": _follow_tick()
 		"peel", "done": _peel_tick(dt)
@@ -924,6 +929,7 @@ func _release():
 	if mode == TALK: _next()
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch5 do %s t=%.1f" % [what, t_now])
 	match what:
 		"makoto_down":
@@ -1007,6 +1013,38 @@ func _do(what: String):
 					_stand_up(func():
 						torch_at = Vector3.ZERO
 						get_tree().create_timer(0.8).timeout.connect(_release))), _face(MK_HAND, [HAND_AT[0], HAND_AT[1]]))
+		# 2026-11-20（12時35分 A「真琴を動かす」）: she talks as she goes, back door → the kitchen window → the sink → the hall
+		# (the blanket) → the cellar door; the generator a step louder with each (gen_up)
+		"gen_up":
+			gen_want = minf(gen_want + 4.0, -14.0)
+		"makoto_walk_window":
+			torch_at = Vector3.ZERO
+			main.stand_anim["makoto"] = "talk/idle"
+			var w := _kitchen_window()
+			var wp := [w.x + 4.8, w.z + 6.3]
+			var v := (Vector2(8.0, 6.0) - Vector2(wp[0], wp[1])).normalized()
+			var at := [wp[0] + v.x * 0.55, wp[1] + v.y * 0.55]
+			main.walk_to("makoto", [[at[0], at[1], 0.0]], func(): main.set_stand("makoto", "talk/think"); _mk_shift(), _face(at, wp))
+			_mk_look_spine()
+		"makoto_sink":
+			main.stand_anim["makoto"] = "talk/idle"
+			main.walk_to("makoto", [[7.6, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
+		"makoto_cellar_door":
+			hold = true; talk_with = ""
+			main.stand_anim["makoto"] = "talk/idle"
+			main.walk_to("makoto", [[4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.35, 5.95, 0.0]], func():
+				if dn: dn.open_key("door_cellar")
+				Sound.one(self, "creak3", -12.0, gp(5.5, 5.9, 1.0))
+				get_tree().create_timer(0.7).timeout.connect(_release), _face([5.35, 5.95], [5.5, 4.5]))
+		"makoto_step":
+			# two steps down, and she turns: her eyes on Mio's
+			hold = true; mk_at_cellar = true; talk_with = "makoto"
+			main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 5.0, _ramp_z(5.0)]], func():
+				get_tree().create_timer(0.5).timeout.connect(_release), _face([5.5, 5.0], _plan_of(player)))
+		"go_out":
+			pass
+		"board_off":
+			pass
 		"makoto_candle":
 			# a candle from the kitchen, lit, into her hand: the light on Mio's hands first
 			candle.visible = true; candle_held = true
@@ -1016,10 +1054,22 @@ func _do(what: String):
 			get_tree().create_timer(1.0).timeout.connect(func(): _turn_to(gp(7.3, 6.15, 1.4), 1.5))
 			main.walk_to("makoto", [[8.1, 5.6, 0.0], [7.3, 6.15, 0.0]], func(): _release(), _face([7.3, 6.15], [player.global_position.x + 4.8, player.global_position.z + 6.3]))
 		"makoto_blanket":
-			pass   # on her way down she lays Mio's blanket over her (seen at the end: _cellar_go)
+			# 2026-11-20: in the hall, on the way to the cellar door, the blanket over her shoulders (no line)
+			hold = true; talk_with = ""
+			main.stand_anim["makoto"] = "talk/idle"
+			main.walk_to("makoto", [[7.4, 6.8, 0.0], [6.6, 6.42, 0.0], [5.75, 6.42, 0.0], [5.5, 5.9, 0.0], [5.0, 5.9, 0.0], [4.3, 5.2, 0.0], [MK_BLANKET[0], MK_BLANKET[1], 0.0]], func():
+				_kneel()
+				get_tree().create_timer(0.9).timeout.connect(func():
+					_blanket_on(); Sound.one(self, "ch3_blanket", -10.0, gp(NAT_AT[0], NAT_AT[1], 0.3))
+					get_tree().create_timer(1.4).timeout.connect(func(): _stand_up(func(): _release()))), _face(MK_BLANKET, NAT_AT))
 		"makoto_cellar":
 			talk_with = ""
-			main.walk_to("makoto", [[5.8, 6.2, 0.0], [5.5, 5.9, 0.0]], func():
+			if mk_at_cellar:
+				_cellar_lock("……先に、テープ。")
+				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)
+				main.walk_to("makoto", [[5.5, 2.6, ZBASE], [5.5, 2.15, ZBASE], [6.8, 2.2, ZBASE], [8.2, 4.6, ZBASE], [MK_GEN[0], MK_GEN[1], ZBASE]], func():
+					main.set_stand("makoto", _kneel_anim(), 0.4), _face(MK_GEN, [9.45, 6.3]))
+			else: main.walk_to("makoto", [[5.8, 6.2, 0.0], [5.5, 5.9, 0.0]], func():
 				if dn: dn.open_key("door_cellar")
 				_cellar_lock("……先に、テープ。")
 				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)
@@ -1153,14 +1203,17 @@ func _peel_tick(dt: float):
 	idle_t += dt
 	if idle_t > IDLE_STEP and below_i < BELOW.size() and below_q.is_empty() and stage == "peel":
 		idle_t = 0.0; _below_step()
-	if stage == "done" and end_wait >= 0.0:
+	_out_tick(dt)
+	if stage == "done" and end_wait >= 0.0 and not outside:
 		end_wait += dt
 		if end_wait > 40.0 and mode == FREE: _begin("end"); return
 	if mode != FREE: note_lb.text = ""; return
 	look_k = _what_looked()
+	if outside: look_k = "board" if boards_off < 4 and _looking_at(gp(CWIN[0], CWIN[1], CWIN[2]), 2.6, 35.0) else ""
 	match look_k:
+		"board": note_lb.text = T(String(D.lines("外.板.案内")[0]))
 		"tape": note_lb.text = T(String(D.lines("はがす.案内")[0]))
-		"back": note_lb.text = T(String(D.lines("しない.勝手口")[0]))
+		"back": note_lb.text = T(String(D.lines("しない.勝手口")[0])) if boards_off < 4 else ""
 		"cellar": note_lb.text = T(String(D.lines("しない.地下")[0]))
 		"front": note_lb.text = T(String(D.lines("しない.玄関")[0]))
 		_: note_lb.text = ""
@@ -1189,18 +1242,171 @@ func _press_peel():
 				_cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")
 				stage = "done"; end_wait = 0.0
 			if not q.is_empty(): _start(q)
-			while below_i < BELOW.size() and int(BELOW[below_i][0]) <= peeled_n: _below_step()
-		"back", "cellar", "front":
-			var key: String = {"back": "しない.勝手口", "cellar": "しない.地下", "front": "しない.玄関"}[look_k]
+			while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): _below_step()
+		"back":
+			if boards_off < 4 and not has_flag("went_out_4am"): _go_out()   # 2026-11-21 (review): once out, the door is a door (no second 【外.出る】)
+		"cellar", "front":
+			var key: String = {"cellar": "しない.地下", "front": "しない.玄関"}[look_k]
 			var e: Array = B(key).slice(1)   # the first line is the key's own prompt
-			if look_k == "back":
-				Sound.one(self, "ch3_rattle", -10.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))   # her hand on it: it gives
-				if below_i == 0: _below_step()   # the voice from below, if it has not come yet: she counts with it in her ears
 			if said.has(key): e = e.filter(func(x): return x.has("do"))   # once: the testimony; again, only the silence
 			said[key] = true
 			if e.is_empty(): return
 			_start(e)
 			if stage == "done": end_wait = maxf(end_wait, 22.0)
+
+# ---------------------------------------------------------------- 2026-11-20（12時35分 B）: out by the back door, the cellar window's boards by hand
+# Standing before the back door, the seconds count (the chapter's one counted silence) until she goes out or steps away.
+# Outside, under the porch stair: the four boards she nailed at 20:00, off with her fingers (Ｅ held, 3-4 s each; let go
+# and it settles back a little). Makoto's voice comes through the window, weaker with each. The cellar's steps count the
+# tapes and the boards together; out there, the window's lines take the place of the stair's.
+const CWIN := [10.28, 6.45, -1.4]   # the boards' face (rooms2.boards: x 10 + 0.28, y 6.45, z -1.66..-1.15)
+const MK_SINK := [7.42, 7.28]
+const MK_BLANKET := [4.35, 4.55]
+const BOARD_SEC := 3.4
+var mk_at_cellar := false
+var mk_fell := false
+var outside := false
+var boards5 := []
+var boards_off := 0
+var board_k := 0.0
+var board_creak := 0.0
+var cwin_light: OmniLight3D
+var back_sil := false
+var sil_counted := false   # 2026-11-21 (review): the counted silence is once (each walk back added a row and a rattle)
+var back_wall: StaticBody3D
+var back_sil_t := 0.0
+var back_sil_lb: Label
+
+func _progress() -> int: return peeled_n + boards_off
+
+func _ramp_z(y: float) -> float: return ZBASE * clampf((5.6 - y) / 3.15, 0.0, 1.0)
+
+func _mk_look_spine():
+	if not looks.has("makoto"): return
+	var lm: Look = looks.makoto
+	lm.max_yaw = 0.35
+	lm.chain = [["spine_03", 0.6], ["neck_01", 0.25], ["head", 0.15]]
+	lm.bones = []
+	for c in lm.chain: lm.bones.append([lm.get_skeleton().find_bone(c[0]), c[1]])
+
+func _kitchen_window() -> Vector3:
+	var pts := []
+	for mi in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+		if String(mi.name).begins_with("board_cellar"): continue
+		var q: Vector3 = (mi as Node3D).global_position
+		if q.x + 4.8 < 6.2 or q.x + 4.8 > 10.2 or q.z + 6.3 < 4.3 or q.z + 6.3 > 8.3: continue
+		pts.append(q)
+	if pts.is_empty(): return gp(8.6, 8.0, 1.3)
+	var mk: Vector3 = _rig("makoto").global_position
+	pts.sort_custom(func(a, b): return a.distance_to(mk) < b.distance_to(mk))
+	var c := Vector3.ZERO; var n := 0
+	for q in pts:
+		if (q as Vector3).distance_to(pts[0]) < 0.7: c += q; n += 1
+	return c / n
+
+func _back_near() -> bool:
+	var p: Vector3 = player.global_position; var b := gp(BACK_DOOR[0], BACK_DOOR[1], 0.0)
+	return Vector2(p.x - b.x, p.z - b.z).length() < 1.5 and not outside
+
+func _out_tick(dt: float):
+	outside = player.global_position.x + 4.8 > 10.05
+	# the counted silence before the back door
+	if not back_sil and not sil_counted and mode == FREE and boards_off < 4 and _back_near() and stage in ["peel", "done"] and not has_flag("went_out_4am"):
+		back_sil = true; back_sil_t = 0.0; sil_counted = true
+		var r = _line_row("澪", "（沈黙）"); back_sil_lb = r[1]; page_clear_t = -1.0
+		Sound.one(self, "ch3_rattle", -10.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))   # the draught moves it on its hinge
+		if below_i == 0: _below_step()   # the voice from below, if it has not come yet: she counts with it in her ears
+		if stage == "done": end_wait = maxf(end_wait, 22.0)
+	if back_sil:
+		back_sil_t += dt
+		if is_instance_valid(back_sil_lb): back_sil_lb.text = T("（沈黙・%s秒）") % num(int(back_sil_t))
+		if not _back_near(): _back_sil_close()
+	# out there: crouched to the low window while she looks at it, the boards under her fingers while Ｅ is held
+	if outside:
+		var crouch := look_k == "board" and mode == FREE
+		player.eye_height = move_toward(player.eye_height, 1.0 if crouch else 1.52, dt * 1.6)
+		var held := mode == FREE and look_k == "board" and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or demo_hold)
+		if held:
+			board_k += dt / BOARD_SEC
+			board_creak -= dt
+			if board_creak <= 0.0: board_creak = randf_range(0.5, 0.9); Sound.one(self, "creak3", -14.0 + board_k * 6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			var b = _board_now()
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + sin(t_now * 31.0) * 0.012 * board_k + board_k * 0.05
+			if board_k >= 1.0: _board_off()
+		else:
+			board_k = maxf(0.0, board_k - dt * 0.3)   # let go: it settles back a little
+			var b2 = _board_now()
+			if b2: (b2 as Node3D).rotation.x = (b2 as Node3D).get_meta("rx", 0.0) + board_k * 0.05
+	elif player.eye_height < 1.52 and stage in ["peel", "done"]:
+		player.eye_height = move_toward(player.eye_height, 1.52, dt * 1.6)
+
+func _back_sil_close():
+	back_sil = false
+	page_clear_t = 6.0
+
+func _go_out():
+	_back_sil_close()
+	set_flag("went_out_4am", true)   # (went_out — 外に出て、板を外した — is set at the first board: _board_off)
+	if dn:
+		for k in dn.doors.keys():
+			var s: Dictionary = dn.doors[k]
+			if s.key != "door_back": continue
+			s.is_open = true
+			create_tween().tween_property(s.pivot, "rotation:y", float(s.open), 0.9).set_trans(Tween.TRANS_SINE)
+	Sound.one(self, "creak3", -6.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))
+	_cwin_ready()
+	if is_instance_valid(back_wall): back_wall.queue_free()
+	_start(B("外.出る"))
+
+func _cwin_ready():
+	if not boards5.is_empty() or cwin_light: return
+	for mi in main.S.env_node.find_children("board_cellar*", "MeshInstance3D", true, false):
+		(mi as Node3D).visible = true
+		(mi as Node3D).set_meta("rx", (mi as Node3D).rotation.x)
+		boards5.append(mi)
+	boards5.sort_custom(func(a, b): return (a as Node3D).global_position.y > (b as Node3D).global_position.y)   # the top one first
+	# the bulb by the generator, through the window as the boards come off
+	cwin_light = OmniLight3D.new(); cwin_light.light_color = Color(1.0, 0.78, 0.5); cwin_light.light_energy = 0.0
+	cwin_light.omni_range = 3.2; cwin_light.shadow_enabled = true
+	main.add_child(cwin_light); cwin_light.global_position = gp(CWIN[0] - 0.9, CWIN[1], CWIN[2] - 0.1)
+
+func _board_now():
+	return boards5[boards_off] if boards_off < boards5.size() else null
+
+func _board_off():
+	board_k = 0.0
+	var b = _board_now()
+	boards_off += 1
+	set_flag("went_out", true)
+	var at := gp(CWIN[0], CWIN[1], CWIN[2])
+	Sound.one(self, "ch3_thud", -6.0, at); Sound.one(self, "creak3", -2.0, at)
+	if b:
+		var n := b as Node3D
+		var tw := create_tween()
+		tw.tween_property(n, "global_position", n.global_position + Vector3(0.22, 0.05, 0.0), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(n, "rotation:z", n.rotation.z + 0.9, 0.5)
+		tw.tween_property(n, "global_position", n.global_position + Vector3(0.45, -0.32, 0.12), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_callback(func(): Sound.one(self, "ch3_thud", -16.0, n.global_position))
+	# her fingers on the wood: blood on the next one (from the second it shows)
+	var nb = _board_now()
+	if nb and boards_off >= 1: _blood_on(nb as Node3D, boards_off)
+	gen_want = minf(gen_want + 4.0, -6.0)
+	if cwin_light: create_tween().tween_property(cwin_light, "light_energy", 0.35 * boards_off, 0.6)
+	# out here the window's lines are the cellar's: the stair's steps go by unheard
+	while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): below_i += 1
+	if boards_off >= 4: below_i = BELOW.size()
+	var q: Array = B("外.板." + ["一", "二", "三", "四"][boards_off - 1])
+	if mk_fell: q = q.filter(func(e): return not String(e.get("who", "")).begins_with("真琴") and not String(e.get("note", "")).contains("咳"))   # she fell already (地下.四): only the generator
+	_start(q)
+
+func _blood_on(n: Node3D, k: int):
+	var m := MeshInstance3D.new(); var bx := BoxMesh.new()
+	bx.size = Vector3(0.026, 0.05 + 0.03 * k, 0.02 + 0.012 * k); m.mesh = bx
+	var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.32, 0.03, 0.03, 0.55 + 0.12 * k); mt.roughness = 0.35
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.material_override = mt
+	n.add_child(m)   # 2026-11-21 (review): on the board, so it goes with the board when that comes off
+	m.global_position = n.global_position + Vector3(0.008, 0.035, randf_range(-0.12, 0.12))
 
 # ---------------------------------------------------------------- the cellar: heard, not seen
 func _below_start():
@@ -1217,7 +1423,7 @@ func _below_step():
 	for e in B(k):
 		var e2: Dictionary = e.duplicate(); e2["t"] = t0 + 0.8 + i * 3.2; i += 1
 		below_q.append(e2)
-	if k == "地下.四": gen_want = -7.0
+	if k == "地下.四": gen_want = -7.0; mk_fell = true
 
 func _below_tick(dt: float):
 	if below_q.is_empty() and stage != "peel" and stage != "done": return
@@ -1225,6 +1431,7 @@ func _below_tick(dt: float):
 	while not below_q.is_empty() and below_t >= float(below_q[0].t):
 		if mode == TALK and not cur.has("silence") and not below_q[0].has("do"): below_t = float(below_q[0].t); break   # after what she is saying
 		var e: Dictionary = below_q.pop_front()
+		if e.has("if") and not has_flag(String(e["if"])): continue
 		if e.has("do"):
 			match String(e.do):
 				"push": Sound.one(self, "creak3", -6.0, gp(5.5, 2.6, ZBASE + 1.0))
@@ -1324,11 +1531,35 @@ func _demo_script() -> Array:
 	for k in ["g1", "g2", "g3", "g4", "g5"]:
 		st.append(["walk", routes[k]]); st.append(["tape", k]); st.append(["wait_free"])
 	st.append(["walk", [[8.2, 4.9], [6.6, 6.42], [5.7, 6.42], [5.5, 6.1]]]); st.append(["aim", gp(CELLAR_DOOR[0], CELLAR_DOOR[1], CELLAR_DOOR[2])]); st.append(["press"]); st.append(["wait_free"])
-	st.append(["walk", [[5.75, 6.42], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["press"])
+	st.append(["walk", [[5.75, 6.42], [8.0, 6.2], [9.3, 4.9]]]); st.append(["aim", gp(BACK_DOOR[0], BACK_DOOR[1], BACK_DOOR[2])]); st.append(["wait", 2.5])
+	if not "--ch5stay" in OS.get_cmdline_user_args():   # 2026-11-20: out, and the four boards (--ch5stay: she stays in, the seconds count)
+		st.append(["press"]); st.append(["wait_free"])
+		st.append(["walk", [[10.55, 4.9], [10.88, 5.8], [10.88, 8.5], [10.88, 8.95], [10.25, 8.7], [10.45, 7.75]]])
+		for i in 4: st.append(["board"]); st.append(["wait_free"])
+		for w in [[[10.25, 8.7], [10.88, 8.95], [10.88, 8.5]], [[10.88, 7.2]], [[10.88, 5.6]], [[10.6, 5.0], [9.9, 4.9]], [[9.3, 4.9], [8.4, 5.4]]]: st.append(["walk", w])   # up the porch stair a leg at a time (slower up it than the timed path)
 	st.append(["wait_stage", "end"])
 	return st
 
 func _demo_tick(dt):
+	if "--ch5stair" in OS.get_cmdline_user_args():   # (a test: up the back porch stair)
+		if t_now > 6.0 and stair_t < 0.0:
+			stair_t = 0.0; player.global_position = gp(10.88, 7.2, -0.9); player.velocity = Vector3.ZERO
+			var p0: Vector3 = player.global_position
+			player.auto_path = [[0.0, p0.x, p0.z, 0.0, 0.0], [3.0, p0.x, gp(0, 4.9, 0).z, 0.0, 0.0]]; player.auto_t = 0.0
+		if stair_t >= 0.0:
+			stair_t += dt
+			if fmod(stair_t, 0.25) < dt:
+				print("STAIR t=%.2f plan=%s y=%.3f floor=%s vel=%s" % [stair_t, _plan_of(player), player.global_position.y, player.is_on_floor(), player.velocity])
+				for i in player.get_slide_collision_count():
+					var kc: KinematicCollision3D = player.get_slide_collision(i)
+					print("  HIT ", (kc.get_collider() as Node).get_path() if kc.get_collider() is Node else "", " n=", kc.get_normal(), " at=", kc.get_position() + Vector3(4.8, 0, 6.3))
+			if stair_t > 2.6 and stair_t < 2.65:
+				for dv in [Vector3(0, 0, -0.1), Vector3(0, 0.05, -0.1), Vector3(0, 0.15, 0)]:
+					var r := KinematicCollision3D.new()
+					var hit: bool = player.test_move(player.global_transform, dv, r)
+					print("TEST ", dv, " hit=", hit, " ", (r.get_collider() as Node).get_path() if hit and r.get_collider() is Node else "", " n=", r.get_normal() if hit else Vector3.ZERO, " at=", (r.get_position() + Vector3(4.8, 0, 6.3)) if hit else Vector3.ZERO)
+			if stair_t > 5.0: get_tree().quit()
+		return
 	if demo_steps.is_empty():
 		demo_steps = _demo_script(); ds = 0
 		if start_at == "peel":
@@ -1363,7 +1594,11 @@ func _demo_tick(dt):
 				var at: Vector3 = gp(last[0], last[1], 0.0)
 				var off := Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length()
 				if off > 0.3 and player.auto_t < float(s[2]) + 12.0: return
-				if off > 0.6: _dfail("walk: stuck at %s on the way to %s" % [_plan_of(player), last])
+				if off > 0.6:
+					_dfail("walk: stuck at %s on the way to %s" % [_plan_of(player), last])
+					for i in player.get_slide_collision_count():
+						var kc: KinematicCollision3D = player.get_slide_collision(i)
+						print("C5HIT ", (kc.get_collider() as Node).get_path() if kc.get_collider() is Node else "", " n=", kc.get_normal(), " at=", kc.get_position() + Vector3(4.8, 0, 6.3), " y=", player.global_position.y)
 				player.auto_path = []; done = true
 		"aim":
 			var cam: Camera3D = player.get_node("Head/Camera")
@@ -1374,6 +1609,18 @@ func _demo_tick(dt):
 			done = (-cam.global_basis.z).angle_to(to) < deg_to_rad(4.0) or dwait > 4.0
 		"press":
 			if mode == FREE: _press_peel(); done = true
+		"wait":
+			done = dwait > float(s[1])
+		"board":
+			var cam3: Camera3D = player.get_node("Head/Camera")
+			var to3: Vector3 = gp(CWIN[0], CWIN[1], CWIN[2]) - cam3.global_position
+			var k3 := 1.0 - exp(-dt * 6.0)
+			player.yaw = lerp_angle(player.yaw, atan2(-to3.x, -to3.z), k3)
+			player.pitch = lerpf(player.pitch, asin(clampf(to3.normalized().y, -1.0, 1.0)), k3)
+			if s.size() < 2: s.append(boards_off)
+			demo_hold = dwait > 1.0 and mode == FREE
+			if boards_off > int(s[1]): demo_hold = false; done = true
+			if dwait > 25.0: demo_hold = false; _dfail("board: not coming off (Mio %s, looking %s)" % [_plan_of(player), look_k]); done = true
 		"tape":
 			var gq := _gap(s[1])
 			if gq.peeled and s.size() < 3: ds += 1; dwait = 0.0; return   # taken off already (any order)

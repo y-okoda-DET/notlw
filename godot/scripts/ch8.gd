@@ -53,6 +53,7 @@ var cam_h := EYE               # the eye's height now (the camera's once he has 
 var zoom := 0.0                # 0 wide .. 1 tele
 var zoom_want := -1.0          # the operator's own zoom (the car: in on her, thighs up); -1 leaves it to the player
 var zoom_v := 0.0
+var zoom_snd_t := 0.0
 var cam_light: OmniLight3D
 var light_want := 0.0
 var car_dome: OmniLight3D
@@ -293,10 +294,13 @@ func _load_mio():
 	var col := StaticBody3D.new(); var cs := CollisionShape3D.new(); var cy := CylinderShape3D.new()
 	cy.radius = 0.16; cy.height = 1.8; cs.shape = cy; cs.position.y = 0.9; col.add_child(cs); main.add_child(col)
 	main.S["mio_col"] = col
-	main.set_stand("mio", "talk/sit_idle", 0.0)
+	main.set_stand("mio", "talk/idle", 0.0)
 	mio_shake = Shake.new(); sk.add_child(mio_shake); mio_shake.setup()
 	_blanket()
-	_put("mio", MIO_SIT, _face(MIO_SIT, [MIO_SIT[0], 0.0]), -SIT_DROP)
+	# 2026-11-20 練り直し：澪は框に座っていない。二時、地下の扉（地下へ下りる階段の下、閂の扉）を押そうとしている。桐生が手首を
+	# つかみ、話は廊下で、澪は地下の扉の前に立って（第3章 to_hall と同じ所）。座った形の毛布は立ち姿に合わないので出さない
+	blanket.visible = false
+	_put("mio", MIO_WAIT, _face(MIO_WAIT, TAKE_AT))
 
 # the blanket round her shoulders (ch3: she sat at the door wrapped in it, and got up with it on). A shell that hangs from the
 # shoulders to the thighs, closed at the front where her hands hold it from inside; the checks follow the folds
@@ -664,13 +668,16 @@ func _begin(st: String):
 	print("STORY ch8 %s t=%.1f" % [st, t_now])
 	match st:
 		"top":
+			if cel8 == "":
+				_put("mio", CEL_MIO, _face(CEL_MIO, [5.5, 2.2]), CEL_Z)
+				if dn: dn.open_key("door_cellar")
 			_start(B("八.二階"))
 			_one("ch3_moan", -16.0, gp(5.5, 2.6, -1.4))
 			_after(2.6, func(): _one("ch3_cough", -12.0, gp(8.5, 1.5, F2 + 0.8)))
 		"to_car":
 			_set_mission(String(D.lines("八.録画")[-1]).substr(1))
 		"door":
-			knock_ready = true
+			knock_ready = true; d_on = false; d_t = 0.0
 		"road":
 			_road_start()
 		"corner":
@@ -697,14 +704,14 @@ func _take_now(quick := false):
 	# looked down on her crown. He takes a step back up the hall first: from 1.4 m her back and shoulders, the door past her
 	var back := gp(4.62, 2.95, 0.0); back.y = player.global_position.y
 	create_tween().tween_property(player, "global_position", back, 1.1).set_trans(Tween.TRANS_SINE)
-	var hd := gp(MIO_SIT[0], MIO_SIT[1], 0.62)
+	var hd := gp(MIO_WAIT[0], MIO_WAIT[1], 1.05)
 	_turn_to(_yaw_to(hd), deg_to_rad(-40.0), 0.6)
 	_after(1.1, func(): _turn_to(_yaw_to(hd), deg_to_rad(-14.0), 1.8))
 	_after(2.6, func(): _start(B("八.廊下")))
 
 # the picture's top edge at her mouth (the interview cuts its listener at the chest, the chin, the mouth: the same grammar)
 func _talk_pitch() -> float:
-	var mouth := 1.325   # 澪の頭の骨の付け根が 1.26（--ch8probe）
+	var mouth := 1.45    # 2026-11-20 立った澪の口元（座っていたときは 1.325：頭の骨の付け根が 1.26、--ch8probe）
 	var d := 1.6
 	if _has("mio"):
 		var r: Node3D = main._rig_of("mio"); d = Vector2(r.global_position.x - player.global_position.x, r.global_position.z - player.global_position.z).length()
@@ -716,6 +723,7 @@ func _set_rec_now():
 
 # ================================================================ what the lines set off
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch8 do %s t=%.1f" % [what, t_now])
 	match what:
 		"mio_shake":
@@ -746,6 +754,10 @@ func _do(what: String):
 			_knock()
 		"knock_ready":
 			knock_ready = true
+		"grab_mio":
+			_grab_arm()
+		"cel_done":
+			_cel_done()
 		"to_road":
 			script_q.clear(); mode = FREE
 			_begin("road")
@@ -844,14 +856,168 @@ func _way(pts: Array) -> Array:
 
 # ---------------------------------------------------------------- 扉を外から叩く（三度）
 func _knock_press():
-	if stage != "door" or not knock_ready or mode != FREE: return
+	if stage != "door": return
 	if not (_near_door(1.5) and _plan()[1] < -0.2): return
-	if knocks >= KNOCKS:
-		_start(B("八.扉.もう")); return
-	knocks += 1; knock_ready = false
+	if t_now - knock_last < 1.4: return
+	knock_last = t_now
+	_knock()   # his own: as often as he likes. Nothing comes back for it
+	if not d_on: _dflow_start()
+
+# ---------------------------------------------------------------- 2026-11-20 二時半を外から（第3章の記録 door_0230 で組む）
+# The seconds are 第3章's (扉の番.二時半), from his first knock. Her questions come at the times she asked them, from inside,
+# a little muffled, and his answer at once (he does not choose it). Where she kept still nothing comes back. While she was at
+# the door the light under it is less (her shadow, the blanket). The set knocks (2, 11, 38) are his hand's if he does not knock.
+var d_on := false
+var d_t := 0.0
+var d_flow: Array = []
+var d_fi := 0
+var d_q: Array = []            # her question and his answer, being said (his side waits)
+var d_hold := 0.0
+var d_rec := {}
+var d_asks: Array = []
+var knock_last := -9.0
+func _dflow_start():
+	d_on = true; d_t = 0.0; d_fi = 0; d_q = []; d_hold = 0.0
 	_set_mission("")
-	if knocks == 1: clock = 2.0 * 3600.0 + 31.0 * 60.0
-	_start(B("八.扉." + ["一", "二", "三"][knocks - 1]))
+	clock = 2.0 * 3600.0 + 31.0 * 60.0
+	d_flow = []
+	for e in D.entries("八.扉.流れ"): if e.has("t"): d_flow.append(e)
+	var r = get_flag("door_0230", null)
+	d_rec = r if r is Dictionary else {}
+	if d_rec.is_empty() and "--ch8rec" in OS.get_cmdline_user_args():   # (the check of this part alone: a night as the playthrough of 第3章 leaves it)
+		d_rec = {"pos": [[0.0, "sit"], [9.0, "near"], [10.0, "ear"], [25.0, "near"], [44.0, "sit"]], "asks": [[13.0, 0], [30.5, 1]], "silences": [[13.0, 17.5], [30.5, 32.5]], "said_rule": true}
+		set_flag("said_rule")
+	d_asks = []
+	for a in d_rec.get("asks", []):
+		if a is Array and a.size() >= 2 and not (a[1] is String): d_asks.append([float(a[0]), int(a[1])])
+	print("CH8 door record asks=%s pos=%s" % [d_asks, d_rec.get("pos", [])])
+	_clear_page()
+
+func _dflow_tick(dt: float):
+	if not d_on:
+		return
+	if not d_q.is_empty() or d_hold > 0.0:
+		if cur.has("text") and typed < String(cur.text).length(): pass
+		else:
+			d_hold -= dt
+			if d_hold <= 0.0 and not d_q.is_empty():
+				var e: Dictionary = d_q.pop_front(); _dline(e)
+				d_hold = 0.9 + String(e.get("text", e.get("note", ""))).length() * 0.05
+	else:
+		d_t += dt
+		if not d_asks.is_empty() and d_t >= float(d_asks[0][0]):
+			var a: Array = d_asks.pop_front()
+			var ch: Array = D.entries("八.扉.問い")
+			if not ch.is_empty() and int(a[1]) < (ch[0].then as Array).size(): d_q = ((ch[0].then as Array)[int(a[1])] as Array).duplicate(true)
+			print("CH8 door ask %d at %.1f" % [int(a[1]), d_t])
+		else:
+			while d_fi < d_flow.size() and d_t >= float(d_flow[d_fi].t):
+				var e: Dictionary = d_flow[d_fi]; d_fi += 1
+				if e.has("if") and not has_flag(String(e["if"])): continue
+				if e.has("do"):
+					match String(e.do):
+						"knock":
+							if t_now - knock_last > 1.0: knock_last = t_now; _knock()
+						"to_road":
+							d_on = false; _begin("road")
+							return
+						_: _do(String(e.do))
+				else: _dline(e)
+	if cur.has("text") and typed < String(cur.text).length():
+		if not is_instance_valid(cur_lb): cur = {}; return
+		typed = minf(float(String(cur.text).length()), typed + dt * 15.0)
+		_type(cur_lb, String(cur.text), int(typed))
+
+func _dline(e: Dictionary):
+	if demo8: print("SAY %.1f %s" % [d_t, (String(e.who) + "：" + String(e.text)) if e.has("who") else String(e.get("note", ""))])
+	if e.has("note"):
+		_line_row("", String(e.note), 22, "note"); cur = {}
+		if String(e.note).contains("咳"): _one("ch3_cough", -6.0, gp(5.72, -1.05, 1.0))
+		return
+	cur = {"who": e.who, "text": _wrap_row(Tw(String(e.text))), "who_key": WHO_KEY.get(e.who, "")}
+	typed = 0.0
+	var r = _line_row(String(e.who), "", SAY_SIZE, "say")
+	cur_lb = r[1]
+	if String(e.who).begins_with("澪"): (cur_lb as Label).modulate = Color(1, 1, 1, 0.8)   # from inside, through the wood
+
+# where she was at this second (第3章): at the door, the light under it is less
+func _gap_k() -> float:
+	if stage != "door" or not d_on: return 1.0
+	var at := "sit"
+	for pq in d_rec.get("pos", []):
+		if pq is Array and float(pq[0]) <= d_t: at = String(pq[1])
+	return 0.55 if at in ["near", "ear"] else 1.0
+
+# ---------------------------------------------------------------- 2026-11-20 地下の扉（ここだけファインダーでない）
+# Down the stair: behind the open cellar door, at the foot of the cellar stair, Mio pushes at the barred door. E: his hand
+# on her wrist. Then the hall (a cut: 第3章 to_hall), and the camera off its tripod as before.
+const CEL_MIO := [5.5, 3.05]
+const CEL_Z := -1.95                 # the cellar stair's ramp there (rooms2.climb_boxes: y 5.6 at 0 down to y 2.45 at -2.45)
+const MIO_WAIT2 := [4.95, 5.05]
+var cel8 := ""                       # "" | heard | grabbing | done
+var grab8: Node3D
+func _cel_parts() -> Array:
+	var before := []; var prompt := ""; var after := []
+	for e in D.entries("八.地下の扉"):
+		if prompt == "" and e.has("note") and String(e.note).begins_with("［Ｅ"): prompt = String(e.note); continue
+		if prompt == "": before.append(e)
+		else: after.append(e)
+	return [before, prompt, after]
+
+func _cel_heard():
+	cel8 = "heard"
+	_one("ch3_thud", -2.0, gp(5.5, 2.45, -1.6)); _one("body_fall", -8.0, gp(5.5, 2.45, -1.6))
+	_set_mission("")
+	_start(_cel_parts()[0])
+
+func _cel_look() -> bool:
+	if mode != FREE or not _has("mio"): return false
+	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
+	var to := hd - _cam().global_position
+	if not (to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)): return false
+	# 2026-11-21 (review): not through the floor from the hall. At the stair head (plan 5.0, 5.9) she is seen down the stairwell, whose
+	# edge the ray clips (試作238: a height limit, then a plain ray, stopped the demo there), so there it is let through
+	var p := _plan()
+	if Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.9: return true
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(_cam().global_position, hd))
+	return hit.is_empty() or (hit.position as Vector3).distance_to(hd) < 0.6
+
+func _cel_grab():
+	cel8 = "grabbing"; note_lb.text = ""
+	var q: Array = (_cel_parts()[2] as Array).duplicate(true)
+	q.append({"do": "cel_done"})
+	_start(q)
+
+# his hand comes down from the lower right onto her wrist (she reaches for the door: her hand at her chest's height, before her)
+func _grab_arm():
+	if grab8 == null:
+		grab8 = _fp_arm("kiryu", "r", Vector3(0.35, -0.55, 0.76), Vector3(0, 1, 0.15), 0.8)
+	if grab8 == null: return
+	var rig: Node3D = main._rig_of("mio")
+	var fwd := Vector3(sin(rig.rotation.y), 0, cos(rig.rotation.y))
+	var wr: Vector3 = rig.global_position + Vector3(0, 1.05, 0) + fwd * 0.3 + rig.global_basis.x * -0.18
+	var loc := _cam().to_local(wr)
+	if loc.length() > 0.75: loc = loc.normalized() * 0.75
+	grab8.position = Vector3(0.32, -0.5, -0.15); grab8.visible = true
+	var tw := create_tween()
+	tw.tween_property(grab8, "position", loc, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(2.2)
+	tw.tween_property(grab8, "position", Vector3(0.32, -0.55, -0.1), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func(): grab8.visible = false)
+	_one("ch3_blanket", -4.0, wr)
+
+# a cut: the hall, she by the cellar door, he a few steps toward the tripod
+func _cel_done():
+	cel8 = "done"
+	player.auto_path = []; demo_goal = []; demo_route = []
+	if grab8: grab8.visible = false
+	var cl := CanvasLayer.new(); cl.layer = 11; add_child(cl)
+	var bk := ColorRect.new(); bk.color = Color(0, 0, 0, 1); bk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bk.set_anchors_preset(Control.PRESET_FULL_RECT); cl.add_child(bk)
+	var tw := create_tween(); tw.tween_interval(0.25); tw.tween_property(bk, "color:a", 0.0, 0.9); tw.tween_callback(cl.queue_free)
+	_put("mio", MIO_WAIT2, _face(MIO_WAIT2, TAKE_AT))
+	_stand_at([4.75, 3.7], rad_to_deg(atan2(-(TRIPOD[0] - 4.75), -(TRIPOD[1] - 3.7))), -10.0, 0.0)
+	_set_mission("")
 
 func _knock():
 	# 試作232（ユーザー「ここ、叩いてる動きを入れたい」）: his free hand comes into the picture from the lower right and strikes
@@ -947,7 +1113,7 @@ func _road_start():
 	clock = 2.0 * 3600.0 + 34.0 * 60.0
 	batt = 2
 	nat_way = _way(DRIVE + ROAD + [CORNER_AT]); nat_i = 0
-	_set_mission(String(D.lines("八.扉.三")[-1]).substr(1))
+	_set_mission(String(D.lines("八.扉.流れ")[-1]).substr(1))
 	nat_phone_want = 1.0
 
 func _nat_tick():
@@ -1070,6 +1236,7 @@ func _sky_tick(dt: float):
 	F.drops = F.drops.filter(func(d): return d[2] < 9.0 and d[0].y < 1.0)
 	while sky_i < sky_q.size() and t_stage >= float(sky_q[sky_i].get("t", 0.0)):
 		var e: Dictionary = sky_q[sky_i]; sky_i += 1
+		if e.has("if") and not has_flag(String(e["if"])): continue
 		if demo_on: print("SAY %s%s" % [(String(e.who) + "：") if e.has("who") else "", str(e.get("text", e.get("note", e.get("do", ""))))])
 		if e.has("do"): _do(String(e.do)); continue
 		if e.has("note"):
@@ -1149,7 +1316,7 @@ func _process(dt):
 			card.visible = false; player.look_enabled = true
 			_loop8("rain_out", -40.0); _loop8("ch8_wind", -40.0)
 			match start8:
-				"take": stage = "top"
+				"take": stage = "top"; cel8 = "done"
 				"rec": stage = "rec_wait"
 				"out": _left()
 				"car": _begin("to_car")
@@ -1184,7 +1351,9 @@ func _process(dt):
 		match stage:
 			"top":
 				var p := _plan()
-				if player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.5: note = String(D.lines("八.三脚")[0])
+				if cel8 == "" and player.global_position.y < 0.4 and Vector2(p[0] - 5.5, p[1] - 4.0).length() < 2.6: _cel_heard()
+				elif cel8 == "heard" and _cel_look(): note = String(_cel_parts()[1])
+				elif cel8 == "done" and player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.5: note = String(D.lines("八.三脚")[0])
 			"rec_wait":
 				note = String(D.lines("八.録画.案内")[0])
 			"to_door":
@@ -1198,7 +1367,7 @@ func _process(dt):
 			"to_knock":
 				if _near_door(2.2): _begin("door"); clock = maxf(clock, 2.0 * 3600.0 + 30.0 * 60.0 + 40.0)
 			"door":
-				if knock_ready and _near_door(1.5) and _plan()[1] < -0.2 and knocks < KNOCKS: note = String(D.lines("八.扉")[0])
+				if _near_door(1.5) and _plan()[1] < -0.2: note = String(D.lines("八.扉")[0])
 			"road":
 				_nat_tick(); _road_tick()
 			"corner":
@@ -1212,6 +1381,7 @@ func _process(dt):
 			var nap: AnimationPlayer = (main.S.natsuki_node as Node).find_children("*", "AnimationPlayer", true, false)[0]
 			var want := "talk/talk_a" if (mode == TALK and String(cur.get("who", "")) == "夏希") else "talk/idle"
 			if nap.has_animation(want) and nap.current_animation != want: nap.play(want, 0.5)
+	if stage == "door": _dflow_tick(dt)
 	if stage == "fall": _fall_tick(dt)
 	if stage == "sky": _sky_tick(dt)
 	if stage == "lapse": _sky_tick(dt)
@@ -1231,8 +1401,12 @@ func _zoom_tick(dt: float):
 	if Input.is_key_pressed(KEY_R) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT): z += 1.0
 	if Input.is_key_pressed(KEY_F): z -= 1.0
 	if z != 0.0 and stage != "hall": zoom_v = z * 0.55
+	zoom_snd_t -= dt
 	if absf(zoom_v) > 0.001:
+		var z0 := zoom
 		zoom = clampf(zoom + zoom_v * dt, 0.0, 1.0); zoom_show = 2.0; zoom_want = -1.0
+		if absf(zoom - z0) > 0.0001 and zoom_snd_t <= 0.0:   # 2026-11-21: the small motor of his zoom (cut_1121.py)
+			Sound.one(self, "cam_zoom", -14.0, _cam().global_position); zoom_snd_t = 0.75
 	elif zoom_want >= 0.0 and absf(zoom - zoom_want) > 0.002:
 		zoom = move_toward(zoom, zoom_want, dt * 0.3); zoom_show = 1.2
 	zoom_show = maxf(0.0, zoom_show - dt)
@@ -1246,7 +1420,7 @@ func _light_tick(dt: float):
 	elif stage in ["taking", "hall", "rec_wait", "flash", "rec", "to_door", "opening"]: light_want = 0.4
 	cam_light.light_energy = move_toward(cam_light.light_energy, 0.55 * light_want, dt * 2.0)
 	if car_dome: car_dome.light_energy = move_toward(car_dome.light_energy, 3.0 if stage == "car" else 0.0, dt * 4.0)
-	if door_gap: door_gap.light_energy = move_toward(door_gap.light_energy, 2.2 if stage in ["out", "to_knock", "door"] else 0.0, dt * 2.0)
+	if door_gap: door_gap.light_energy = move_toward(door_gap.light_energy, (2.2 * _gap_k()) if stage in ["out", "to_knock", "door"] else 0.0, dt * 2.0)
 	bolt8.light_energy = bolt_e
 	_night8(dt, out or stage in ["fall", "sky", "lapse"])
 	rain_on = move_toward(rain_on, 1.0 if (out or stage in ["sky"]) else (rain_on if stage == "lapse" else 0.0), dt * 2.0)
@@ -1292,7 +1466,8 @@ func _press8():
 	match stage:
 		"top":
 			var p := _plan()
-			if player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.5: _take()
+			if cel8 == "heard" and _cel_look(): _cel_grab(); return
+			if cel8 == "done" and player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.5: _take()
 		"to_door": _open_front()
 		"door": _knock_press()
 
@@ -1373,9 +1548,20 @@ func _demo8_tick(dt: float):
 		"top":
 			if mode != FREE: return
 			var p := _plan()
+			if cel8 == "heard":
+				if _cel_look(): player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8(); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty(): _demo_go([[5.3, 1.95], [4.7, 2.2], [4.3, 2.9], [4.3, 3.7], [4.8, 4.2], [5.0, 5.9]])   # off the stair foot, round by the hall (ch3.gd walks it the other way)
+				else: _demo_there(0.3)
+				return
+			if cel8 == "":
+				if demo_goal.is_empty(): _demo_go([[5.5, 5.75], [5.5, 2.5]])
+				else: _demo_there(0.3)
+				return
+			if cel8 != "done": return
 			if player.global_position.y < 0.4 and Vector2(p[0] - TRIPOD[0], p[1] - TRIPOD[1]).length() < 1.4:
 				player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8()
-			elif demo_goal.is_empty(): _demo_go([[5.5, 5.75], [5.5, 2.5], [4.85, 2.25]])
+			elif demo_goal.is_empty(): _demo_go([[4.6, 3.0], [4.85, 2.25]])   # from where _cel_done leaves her, in the hall
 			else: _demo_there(0.3)
 		"rec_wait":
 			if t_stage > 1.5: demo_wait = 1.0; _press8()
@@ -1401,7 +1587,7 @@ func _demo8_tick(dt: float):
 				return
 			player.auto_path = []; demo_goal = []; demo_route = []
 			_demo_look(gp(DOOR[0], DOOR[1], 1.3))
-			if stage == "door" and knock_ready: demo_wait = 1.5; _press8()
+			if stage == "door" and not d_on: demo_wait = 1.5; _press8()
 		"road", "corner":
 			if stage == "corner" and mode == TALK: player.auto_path = []; demo_goal = []; demo_route = []; return
 			if demo_goal.is_empty(): _demo_go(DRIVE + ROAD + [[CORNER_AT[0] - 1.6, CORNER_AT[1] + 2.2]], true)

@@ -115,9 +115,29 @@ var follow_t := 0.0
 var wind_dim := {}             # gap key -> fading out (s)
 var look_at_k := ""
 var start_at := "t0"
+# 2026-11-20 練り直し（docs/資料/台本下書き_2026-11-20/ch3.txt）
+var nail_lb: Label             # 0時: the line she can say in the silence
+var cel_segs: Array = []       # 2時: at the barred door, [prompt, entries] in turn
+var cel_i := 0
+var barred: Dictionary = {}    # the barred door (out of doors.gd while she is at it: E is the story's here)
+var grab_arms: Array = []
+var ask_on := false            # 2時半: the questions through the door
+var ask_left: Array = []       # indices into 【二時半.問い】's choose
+var ask_sel := 0
+var ask_q: Array = []          # what is said for the one asked (the flow waits)
+var ask_hold := 0.0
+var rule_on := false
+var door_pos3 := "sit"         # sit | near | ear
+var pos_tw: Tween
+var rec230 := {}               # door_0230: the record 第8章 and 第11章 give back
+var last_ask_t := 8.0
+var doze_rect: ColorRect
+var mirror_done := false
 
 func _ready():
 	player = main.player
+	if not ("--keepflags" in OS.get_cmdline_user_args()):
+		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
@@ -143,6 +163,7 @@ func _ready():
 	demo_on = demo3
 	start_at = "t0"; var start := "t0"
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--ch3pose="): pose_dbg = Array(a.substr(10).split(",")).map(func(x): return float(x))   # check stills: upstairs, she stands here (plan x, y, yaw°)
 		if a.begins_with("--ch3at="): start = a.substr(8); start_at = start     # check stills and the playthrough of one part: t0 | seal | up | watch | t2 | t230 | t3
 	var c: Array = D.lines("三.カード")
 	card = main.make_card(self, [[c[0], 46, 40], [c[1], 150, 90], [c[2], 36, 0]], Type.card())
@@ -470,19 +491,25 @@ func _begin(st: String):
 		"t2":
 			# 試作127（B7、ユーザー「ここ、立ち上がった方がいいかな」）: she gets up, the blanket on her shoulders, to see the
 			# cellar door; Kiryu comes down the stair as she goes
-			stage = "t2walk"; kiryu_sent = false
+			stage = "t2walk"; kiryu_sent = true   # (2026-11-20: he comes only when she pushes the barred door)
 			_stand_up(); _blanket_view(true, false)
+			_cellar_ready()
 			_start(B("二時.地下へ"))
 		"t230":
 			_sit()
+			_t230_start()
 			_flow_start("扉の番.二時半", "t3card")
 		"t3":
+			# 2026-11-21 (review): a lean held over the card stayed: she is back on the step, her head upright
+			if door_pos3 != "sit" and door_pos3 != "": _door_to("sit")
+			player.get_node("Head").rotation.z = 0.0
 			_flow_start("扉の番.三時", "end")
 		"end":
 			_end()
 
 # ---------------------------------------------------------------- 零時
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch3 do %s t=%.1f" % [what, t_now])
 	match what:
 		"taiga_arm":
@@ -518,6 +545,27 @@ func _do(what: String):
 			Sound.one(self, "ch3_murmur", -10.0, gp(5.5, 5.4, -0.6)); _hear("cellar")
 		"silence":
 			_silence_open()
+		"silence_nail":   # 2026-11-20 12時31分④: the silence, and the one line she could say in it (E)
+			_silence_open(); silence_len = 12.0
+			var nr = _line_row("", String(D.lines("零時.釘")[0]), SAY_SIZE, "choose")
+			nail_lb = nr[1]; cur["nail"] = true
+			for c in lines_box.get_children(): (c as Control).modulate.a = 1.0
+			foot_was = main.foot.text if main.foot else ""
+			_foot("マウス 見る　Ｅ 言う")
+		"cellar_knob":
+			_cellar_jolt()
+		"kiryu_grab":
+			_kiryu_grab()
+		"mirror_pass":
+			pass
+		"to_hall":   # 2026-11-20: up from the cellar stair; the talk in the hall (第8章 films it there), he by the tripod with the camera
+			_shade().color.a = 1.0
+			create_tween().tween_property(_shade(), "color:a", 0.0, 0.9).set_delay(0.25)
+			for a in grab_arms: (a as Node3D).visible = false
+			player.global_position = gp(MIO_WAIT[0], MIO_WAIT[1], 0.0); player.velocity = Vector3.ZERO
+			player.get_node("Head").rotation.z = 0.0
+			_look_from(MIO_WAIT, TAKE_AT, STAND_EYE, 1.45)
+			_put("kiryu", TAKE_AT, _face(TAKE_AT, MIO_WAIT)); main.set_stand("kiryu", "talk/idle", 0.0)
 		"shake":
 			var y0: float = player.yaw
 			var tw := create_tween()
@@ -575,7 +623,11 @@ func _talk_tick(dt):
 	if cur.has("silence"):
 		silence_t += dt
 		if is_instance_valid(silence_lb): silence_lb.text = T("（沈黙・%s秒）") % num(int(silence_t))
-		if silence_t >= silence_len: silence_t = -1.0; _next()
+		if demo3 and cur.has("nail") and "--ch3nail" in OS.get_cmdline_user_args() and silence_t > 3.0: _say_nail(); return
+		if silence_t >= silence_len:
+			silence_t = -1.0
+			if cur.has("nail"): _strike_nail()
+			_next()
 		return
 	if demo3 and cur.has("choose") and not cur.get("chosen", false):
 		read_t += dt
@@ -584,8 +636,39 @@ func _talk_tick(dt):
 	super._talk_tick(dt)
 
 func _advance():
-	if cur.has("silence"): return   # the silence is not hers to cut short
+	if cur.has("silence"):
+		if cur.has("nail") and silence_t >= 0.0: _say_nail()
+		return   # the silence is not hers to cut short (but the line she could say, she can)
 	super._advance()
+
+var foot_was := ""
+func _foot_back():
+	if main.foot: (main.foot as Label).text = foot_was
+
+func _foot(t: String):
+	var f: Label = main.foot
+	if f: f.text = T(t + "　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
+
+# 0時: she says it. The silence ends; the "next" it held goes; the lines of 【零時.釘】 come in its place
+func _say_nail():
+	silence_t = -1.0
+	if not script_q.is_empty() and script_q[0].get("do", "") == "next": script_q.pop_front()
+	var q: Array = D.entries("零時.釘"); q.remove_at(0)   # (the first is the line as she could say it)
+	for i in range(q.size() - 1, -1, -1): script_q.push_front(q[i])
+	_clear_page(); nail_lb = null
+	cur = {}; _foot_back()
+	print("STORY ch3 said_nail t=%.1f" % t_now)
+	_next()
+
+# not said: the transcriber's double line through it, as through the choices not taken
+func _strike_nail():
+	_foot_back()
+	if not is_instance_valid(nail_lb): return
+	var st := Strike.new(); st.u = u
+	st.w = font.get_string_size(nail_lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
+	st.size = nail_lb.size; st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nail_lb.add_child(st)
+	nail_lb.add_theme_color_override("font_color", Color(paper.r, paper.g, paper.b, 0.38))
 
 # ---------------------------------------------------------------- the tape in the small camera
 func _cam_near() -> bool:
@@ -737,6 +820,7 @@ func _item_looked() -> String:
 
 func _up_tick(_dt: float):
 	if car_glow: car_glow.light_energy = 0.9 + 0.1 * sin(t_now * 0.7)
+	_wash_mirror_tick()
 	if mode != FREE: return
 	var k := _item_looked()
 	look_at_k = k
@@ -747,6 +831,80 @@ func _up_tick(_dt: float):
 	elif k != "": note_lb.text = T("［%s］" % up_items[k].name)
 	elif has_blanket and _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], 0.6), 2.4, 30.0) and player.global_position.y < 0.5: note_lb.text = T(String(D.lines("二階.戻る")[0]))
 	else: note_lb.text = ""
+
+# ---------------------------------------------------------------- 2026-11-20 ジャンプスケア④：二階の洗面所の鏡
+# The basin's mirror (rooms2.py wash_mirror: plan x 6.08, y 4.95..5.65, F2 + 1.05..1.75, facing east) is clouded (B3, 2026-11-17):
+# it shows the room behind her as a grey haze and never her. The first time she stands at it and looks in, someone crosses
+# the room behind her in the glass (Kiryu, sealing the tub's window), one board of the floor sounds; she turns and it is him.
+const WASH_MIRROR := [6.085, 5.30, 1.40]   # its middle (z above F2)
+const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.7, 5.95]]
+var pose_dbg := []
+var wm_vp: SubViewport
+var wm_cam: Camera3D
+var wm_quad: MeshInstance3D
+const CLOUD_SH := """shader_type spatial;
+render_mode cull_back;
+uniform sampler2D refl : source_color, filter_linear;
+void fragment() {
+	vec2 uv = vec2(1.0 - UV.x, UV.y);
+	vec3 c = vec3(0.0);
+	for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) c += texture(refl, uv + vec2(float(i), float(j)) * 0.006).rgb;
+	c /= 25.0;
+	float edge = smoothstep(0.0, 0.25, min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y)));
+	ALBEDO = vec3(0.16, 0.17, 0.17);            // the fogged glass: only as light as the room is
+	ROUGHNESS = 0.6;
+	EMISSION = c * 0.75 * edge;                  // what it shows, already lit by the room's own light
+}"""
+func _wash_mirror_make():
+	wm_vp = SubViewport.new(); wm_vp.size = Vector2i(192, 192); wm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(wm_vp)
+	wm_cam = Camera3D.new(); wm_cam.near = 0.1; wm_cam.far = 12.0
+	wm_cam.cull_mask = 0xFFFFF & ~128   # (Mio's own body/shadow layers are not in it: she is never in the glass)
+	wm_vp.add_child(wm_cam)
+	wm_quad = MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(0.68, 0.68); wm_quad.mesh = q
+	var sm := ShaderMaterial.new(); var sh := Shader.new(); sh.code = CLOUD_SH; sm.shader = sh
+	sm.set_shader_parameter("refl", wm_vp.get_texture()); wm_quad.material_override = sm
+	wm_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	main.add_child(wm_quad)
+	wm_quad.global_transform = Transform3D(Basis(Vector3.UP, PI / 2.0), gp(WASH_MIRROR[0] + 0.006, WASH_MIRROR[1], F2 + WASH_MIRROR[2]))   # its face to the east (+x)
+
+func _wash_mirror_tick():
+	if not pose_dbg.is_empty() and mode == FREE:
+		player.global_position = gp(pose_dbg[0], pose_dbg[1], F2); player.velocity = Vector3.ZERO
+		player.yaw = deg_to_rad(pose_dbg[2]); player.pitch = deg_to_rad(-6.0)
+		if mirror_done: pose_dbg = []
+	var at := gp(WASH_MIRROR[0], WASH_MIRROR[1], F2 + WASH_MIRROR[2])
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var near: bool = player.global_position.y > F2 - 0.6 and cam.global_position.distance_to(at) < 3.2
+	if not near:
+		if wm_vp: wm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		return
+	if wm_vp == null: _wash_mirror_make()
+	wm_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var n := Vector3(1, 0, 0)
+	var e := cam.global_position
+	var refl := e - 2.0 * (e - at).dot(n) * n
+	wm_cam.global_transform = Transform3D(Basis.looking_at((at - refl).normalized(), Vector3.UP), refl)
+	wm_cam.fov = clampf(rad_to_deg(2.0 * atan(0.34 / maxf(refl.distance_to(at), 0.2))), 10.0, 90.0)
+	if mirror_done or mode != FREE: return
+	var looking: bool = (-cam.global_basis.z).angle_to(at - e) < deg_to_rad(22.0) and e.distance_to(at) < 1.6
+	if not looking: return
+	mirror_done = true
+	print("STORY ch3 mirror t=%.1f" % t_now)
+	var r := _rig("kiryu")
+	if r:
+		r.visible = true
+		r.global_transform = Transform3D(Basis(Vector3.UP, _face(WASH_PATH[0], WASH_PATH[1])), gp(WASH_PATH[0][0], WASH_PATH[0][1], F2))
+		# his torch, low in his hand: what the glass catches of him is the light going by
+		if not r.has_node("wm_torch"):
+			var tl := OmniLight3D.new(); tl.name = "wm_torch"; tl.light_color = Color(1.0, 0.86, 0.66); tl.light_energy = 1.4
+			tl.omni_range = 2.6; tl.shadow_enabled = false; tl.position = Vector3(0.25, 1.0, -0.3); r.add_child(tl)
+		var pts := []
+		for p in WASH_PATH.slice(1): pts.append([p[0], p[1], F2])
+		main.walk_to("kiryu", pts, Callable(), _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
+	get_tree().create_timer(0.9).timeout.connect(func():
+		Sound.one(self, "creak2", -4.0, gp(7.4, 6.2, F2 + 0.1))
+		if mode == FREE and stage in ["up", "back"]: _start(B("二階.鏡")))   # (not over a talk begun in that second)
 
 # 一時: whom she can talk to, once each (T1_TALK keeps who: 第10章・第11章)
 const ONE_NAME := {"makoto": "真琴", "kiryu": "桐生", "taiga": "地下の扉"}
@@ -836,7 +994,8 @@ func _hear(k: String):
 
 func _watch_look():
 	if not stage in ["watch", "flow", "t2", "lock"]: return
-	if stage == "lock" or mode == TALK: return
+	if stage in ["lock", "t2walk"] or mode == TALK: return
+	if stage == "flow" and flow_key == "扉の番.二時半" and (ask_on or rule_on): return   # (the question she can ask is there)
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var best := ""; var ba := 99.0
 	for k in SOUNDS:
@@ -859,7 +1018,7 @@ func _press_watch():
 # the timed parts (扉の番.*): lines at their second, the sounds with them
 func _flow_start(key: String, after: String):
 	flow = []
-	for e in B(key):
+	for e in D.entries(key):   # not B(): a ［flag］ line is judged when its second comes (said_rule is set during the flow)
 		if not e.has("t"): continue
 		flow.append(e)
 	fi = 0; flow_key = key; flow_after = after; t_stage = 0.0
@@ -867,6 +1026,10 @@ func _flow_start(key: String, after: String):
 	_clear_page()
 
 func _flow_tick(_dt: float):
+	if flow_key == "扉の番.二時半": _t230_tick(_dt)
+	if not ask_q.is_empty() or ask_hold > 0.0:
+		t_stage -= _dt   # 2026-11-20: his side waits while she asks and he answers
+		_ask_tick(_dt)
 	while fi < flow.size() and t_stage >= float(flow[fi].t):
 		_flow_event(flow[fi]); fi += 1
 	if cur.has("text") and typed < String(cur.text).length():
@@ -875,8 +1038,10 @@ func _flow_tick(_dt: float):
 		_type(cur_lb, String(cur.text), int(typed))
 
 func _flow_event(e: Dictionary):
+	if e.has("if") and not has_flag(String(e["if"])): return
 	if demo3: print("SAY %.1f %s" % [float(e.t), (String(e.who) + "：" + String(e.text)) if e.has("who") else ("＞" + String(e.do)) if e.has("do") else String(e.get("note", ""))])
 	if e.has("do"):
+		if _flag_do(String(e.do)): return
 		match String(e.do):
 			"next":
 				match flow_after:
@@ -911,6 +1076,12 @@ func _flow_event(e: Dictionary):
 				pass
 			"rattle":
 				Sound.one(self, "ch3_rattle", -9.0, gp(9.8, 4.9, 1.0)); _hear("back")
+			"ask_open": ask_on = true; last_ask_t = t_stage
+			"ask_close": ask_on = false; _t230_record(true)
+			"rule_open": rule_on = true
+			"rule_close": rule_on = false
+			"doze": _doze()
+			"slam": _slam()
 			"silence":
 				_line_row("澪", "（沈黙）")
 			_: print("CH3 unknown do ", e.do)
@@ -941,7 +1112,10 @@ func _knock_tick():
 const KIRYU_DOWN := [[5.0, 6.3, F2], [5.5, 5.7, F2], [5.5, 2.55, 0.0]]
 var kiryu_sent := false
 func _t2walk_tick():
-	if kiryu_sent or mode != FREE: return
+	if mode != FREE: note_lb.text = ""; return
+	if cel_i < cel_segs.size() and _looking_at(_cellar_at(), 1.7, 30.0): note_lb.text = T(String(cel_segs[cel_i][0]))
+	else: note_lb.text = ""
+	if kiryu_sent: return
 	# 試作232（ユーザー「地下を見に行こうとしたらここで会話が始まった。変」）: he set off only once she had walked 0.9 m, and
 	# reached the hall when she was already at the cellar door: the talk caught her there, out of nowhere. He comes down as soon
 	# as she stands, so she meets him on the stair on her way, and he stops at its foot
@@ -1017,6 +1191,242 @@ func _next():
 		super._next(); return
 	super._next()
 
+# ---------------------------------------------------------------- 二時 (2026-11-20 12時31分①、13時35分、14時8分): the barred door
+# She goes down the cellar stair to the barred door (the bar on Taiga's side; he took it off at half past one). E, in turn:
+# she calls him, turns the knob (the door is heavy; behind it something slides down against it), pushes, and Kiryu, come
+# down behind her, takes her wrist. The talk is there, on the stair.
+func _cellar_ready():
+	cel_segs = []; cel_i = 0
+	var seg = null
+	for e in D.entries("二時.地下の扉"):
+		if e.has("note") and String(e.note).begins_with("［Ｅ"): seg = [String(e.note), []]; cel_segs.append(seg)
+		elif seg != null: seg[1].append(e)
+	if dn and barred.is_empty():
+		for k in dn.doors.keys():
+			if dn.doors[k].key == "door_barred":
+				barred = dn.doors[k]; barred["leaf"] = k; dn.doors.erase(k); break   # E here is the story's (doors.gd said 「開かない。」)
+
+func _cellar_at() -> Vector3:
+	if not barred.is_empty() and is_instance_valid(barred.leaf): return (barred.leaf as MeshInstance3D).global_transform * (barred.leaf as MeshInstance3D).get_aabb().get_center()
+	return gp(5.5, 2.45, ZBASE + 1.0)
+
+func _press_cellar():
+	if cel_i >= cel_segs.size() or not _looking_at(_cellar_at(), 1.7, 30.0): return
+	note_lb.text = ""
+	var q: Array = (cel_segs[cel_i][1] as Array).duplicate(true)
+	cel_i += 1
+	if cel_i == cel_segs.size():
+		q.append({"do": "to_hall"}); q.append({"do": "kiryu_look"})
+		q.append_array(B("扉の番.二時"))
+	print("STORY ch3 cellar %d t=%.1f" % [cel_i, t_now])
+	_start(q)
+
+# the knob turns; the door gives a finger's width and is heavy; behind it a weight slides and knocks against it
+func _cellar_jolt():
+	var at := _cellar_at()
+	get_tree().create_timer(0.35).timeout.connect(func():
+		Sound.one(self, "body_fall", -8.0, at)
+		Sound.one(self, "ch3_thud", -1.0, at))
+	if barred.is_empty(): return
+	var piv: Node3D = barred.pivot
+	var r0: float = piv.rotation.y
+	var dir := signf(float(barred.open) - float(barred.rest))
+	if absf(float(barred.open) - float(barred.rest)) < 0.1: dir = 1.0
+	var tw := create_tween()
+	tw.tween_property(piv, "rotation:y", r0 + dir * 0.045, 0.35).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(piv, "rotation:y", r0 + dir * 0.01, 0.06)
+	tw.tween_property(piv, "rotation:y", r0 + dir * 0.02, 0.25).set_trans(Tween.TRANS_SINE)
+
+const MIO_WAIT := [4.75, 5.0]   # (ch8.gd: at the cellar door, the hall before her)
+const TAKE_AT := [5.05, 2.45]    # (by the tripod, the camera off it; not behind its pole from where she stands)
+func _shade() -> ColorRect:
+	if doze_rect == null:
+		var cl := CanvasLayer.new(); cl.layer = 11; add_child(cl)
+		doze_rect = ColorRect.new(); doze_rect.color = Color(0, 0, 0, 0); doze_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		doze_rect.set_anchors_preset(Control.PRESET_FULL_RECT); cl.add_child(doze_rect)
+	return doze_rect
+
+func _cellar_z(y: float) -> float:
+	return ZBASE * clampf((5.55 - y) / 2.9, 0.0, 1.0)
+
+# she pushes: her hand on the door; from behind, his on her wrist. The camera stays (the hand comes into the foot of the frame)
+func _kiryu_grab():
+	_set_mission("")
+	for mi in main.S.env_node.find_children("*", "MeshInstance3D", true, false):   # the big camera is off its tripod (第4章: the tripod stays)
+		var nm := String(mi.name)
+		if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
+	var me := _plan_of(player)
+	var ky := minf(float(me[1]) + 0.75, 5.2)
+	_put("kiryu", [5.5, ky], _face([5.5, ky], me), _cellar_z(ky))
+	main.set_stand("kiryu", "talk/idle", 0.0)
+	Sound.one(self, "ch3_blanket", -4.0, player.global_position)
+	if barred.has("pivot"):   # the door goes back as her hand is pulled from it
+		var piv: Node3D = barred.pivot
+		create_tween().tween_property(piv, "rotation:y", float(barred.rest), 0.3)
+	if grab_arms.is_empty():
+		var dm := Vector3(0.30, -0.50, 0.81).normalized()
+		var hm := _fp_arm("mio", "r", dm, Vector3(0, 0.35, 1), 0.15)
+		var dk := Vector3(0.62, -0.42, 0.66).normalized()
+		var hk := _fp_arm("kiryu", "r", dk, Vector3(0, 1, 0.1), 0.85)
+		if hm and hk:
+			hm.position = Vector3(0.10, -0.13, -0.42)
+			hk.position = hm.position + dm * 0.10 + dk * 0.075 + Vector3(0, 0.035, 0)
+			hk.set_meta("at", hk.position); hk.set_meta("from", hk.position + dk * 0.3)
+			var fl := OmniLight3D.new(); fl.light_color = Color(1.0, 0.85, 0.7); fl.light_energy = 0.18; fl.omni_range = 0.7
+			fl.shadow_enabled = false; fl.position = Vector3(0.0, 0.1, -0.15); hm.get_parent().add_child(fl)
+			grab_arms = [hm, hk, fl]
+	if grab_arms.size() == 3:
+		var hm: Node3D = grab_arms[0]; var hk: Node3D = grab_arms[1]
+		hm.visible = true; hk.visible = true; (grab_arms[2] as Node3D).visible = true
+		hk.position = hk.get_meta("from")
+		var tw := create_tween()
+		tw.tween_property(hk, "position", hk.get_meta("at") as Vector3, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(2.4)
+		tw.tween_property(hm, "position", hm.position + Vector3(0.05, -0.12, 0.1), 0.5).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(hk, "position", (hk.get_meta("at") as Vector3) + Vector3(0.05, -0.12, 0.1), 0.5).set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(func():
+			for a in grab_arms: (a as Node3D).visible = false)
+	talk_with = "kiryu"; stage = "t2"
+	print("STORY ch3 kiryu_grab t=%.1f" % t_now)
+
+# ---------------------------------------------------------------- 二時半 (2026-11-20 12時、14時8分、14時14分): through the door
+# Kiryu's voice is clear; only Natsuki's comes broken, from a little off the door. She can ask (each once, in any order),
+# keep still, go to the door, lay her ear on it. All of it is kept (door_0230): 第8章 plays it back from his side of the door,
+# 第11章 from the tape.
+const T230_AT := {"sit": [5.0, 1.62], "near": [5.0, 0.86], "ear": [5.0, 0.6]}
+func _t230_start():
+	ask_left = []
+	var ch: Array = D.entries("二時半.問い")
+	if not ch.is_empty(): for i in (ch[0].choose as Array).size(): ask_left.append(i)
+	ask_sel = 0; ask_q = []; ask_hold = 0.0; ask_on = false; rule_on = false
+	door_pos3 = "sit"; last_ask_t = 8.0
+	rec230 = {"pos": [[0.0, "sit"]], "asks": [], "silences": [], "said_rule": false, "ear_voice": 0.0}
+	set_flag("lean", false)
+	_foot("マウス 見る　Ｗ 扉に寄る　Ｓ 下がる　右ボタン 耳を当てる　ホイール 選ぶ　Ｅ 問う")
+
+func _t230_input(e) -> bool:
+	if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		if ask_left.size() > 1: ask_sel = posmod(ask_sel + (-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1), ask_left.size())
+		return true
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.keycode in [KEY_W, KEY_UP]: _door_to("near" if door_pos3 == "sit" else door_pos3); return true
+		if e.keycode in [KEY_S, KEY_DOWN]: _door_to("sit"); return true
+		if e.keycode in [KEY_A, KEY_D, KEY_LEFT, KEY_RIGHT] and ask_left.size() > 1:
+			ask_sel = posmod(ask_sel + (-1 if e.keycode in [KEY_A, KEY_LEFT] else 1), ask_left.size()); return true
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_RIGHT:
+		if e.pressed and door_pos3 != "ear": _door_to("ear")
+		elif not e.pressed and door_pos3 == "ear": _door_to("near")
+		return true
+	return false
+
+# where she is: sat on the step, at the door on her knees, her ear on it (the head turned, the cheek to the wood)
+func _door_to(p: String):
+	if p == door_pos3: return
+	var was := door_pos3
+	door_pos3 = p
+	(rec230.pos as Array).append([snappedf(t_stage, 0.1), p])
+	if p == "ear": set_flag("leaned", true)
+	if p == "ear" or was == "ear": set_flag("lean", p == "ear")
+	if pos_tw and pos_tw.is_valid(): pos_tw.kill()
+	var at: Array = T230_AT[p]
+	var to: Vector3 = gp(at[0], at[1], 0.0); to.y = player.global_position.y
+	var head: Node3D = player.get_node("Head")
+	var yaw_door := atan2(0.0, 1.0)   # (facing the door: plan -y)
+	var cam_to := gp(5.0, 0.0, 0.8) - (to + Vector3(0, SIT_EYE, 0))
+	yaw_door = atan2(-cam_to.x, -cam_to.z)
+	pos_tw = create_tween().set_parallel(true)
+	pos_tw.tween_property(player, "global_position", to, 0.9 if was == "sit" or p == "sit" else 0.5).set_trans(Tween.TRANS_SINE)
+	pos_tw.tween_property(head, "rotation:z", 0.22 if p == "ear" else 0.0, 0.5).set_trans(Tween.TRANS_SINE)
+	pos_tw.tween_property(player, "yaw", yaw_door + (deg_to_rad(62.0) if p == "ear" else 0.0), 0.6).set_trans(Tween.TRANS_SINE)
+	pos_tw.tween_property(player, "pitch", 0.0 if p == "ear" else asin(clampf(cam_to.normalized().y, -1.0, 1.0)), 0.6).set_trans(Tween.TRANS_SINE)
+	Sound.one(self, "ch3_blanket", -14.0, player.global_position)
+	print("STORY ch3 door %s t=%.1f" % [p, t_stage])
+
+func _t230_tick(dt: float):
+	if door_pos3 == "ear" and t_stage >= 16.0 and t_stage <= 24.0: rec230.ear_voice = float(rec230.ear_voice) + dt
+	if demo3: _t230_demo()
+	if mode == TALK or stage != "flow": return
+	var ch: Array = D.entries("二時半.問い")
+	if not ask_q.is_empty() or ask_hold > 0.0: note_lb.text = ""
+	elif rule_on: note_lb.text = T("［Ｅ　言う］　") + Tw(String(D.entries("二時半.ルール")[0].choose[0]))
+	elif ask_on and not ask_left.is_empty() and not ch.is_empty():
+		var more := ("　‹ %s/%s ›" % [num(ask_sel + 1), num(ask_left.size())]) if ask_left.size() > 1 else ""
+		note_lb.text = T("［Ｅ　問う］　") + Tw(String(ch[0].choose[ask_left[ask_sel]])) + more
+	elif ask_on: note_lb.text = ""
+
+func _ask() -> bool:
+	if not ask_q.is_empty() or ask_hold > 0.0: return true
+	if rule_on:
+		rule_on = false; rec230.said_rule = true
+		ask_q = ((D.entries("二時半.ルール")[0].then as Array)[0] as Array).duplicate(true)
+		(rec230.asks as Array).append([snappedf(t_stage, 0.1), "rule"])
+		print("STORY ch3 ask rule t=%.1f" % t_stage)
+		return true
+	if not ask_on or ask_left.is_empty(): return false
+	var ch: Dictionary = D.entries("二時半.問い")[0]
+	var idx: int = ask_left[ask_sel]
+	ask_q = ((ch.then as Array)[idx] as Array).duplicate(true)
+	ask_left.remove_at(ask_sel); ask_sel = 0
+	var gap := t_stage - last_ask_t
+	if gap >= 6.0: (rec230.silences as Array).append([snappedf(last_ask_t, 0.1), snappedf(gap, 0.1)])
+	last_ask_t = t_stage
+	(rec230.asks as Array).append([snappedf(t_stage, 0.1), idx])
+	print("STORY ch3 ask %d %s t=%.1f" % [idx, ch.choose[idx], t_stage])
+	return true
+
+# what she asked and what he answered, one line after another; his side of the door goes on after
+func _ask_tick(dt: float):
+	if cur.has("text") and typed < String(cur.text).length(): return
+	ask_hold -= dt
+	if ask_hold > 0.0 or ask_q.is_empty(): return
+	var e: Dictionary = (ask_q.pop_front() as Dictionary).duplicate()
+	e["t"] = t_stage
+	_flow_event(e)
+	ask_hold = 0.9 + String(e.get("text", e.get("note", ""))).length() * 0.05
+	if e.has("do"): ask_hold = 0.0
+
+func _t230_record(final: bool):
+	if final:
+		var gap := 63.0 - last_ask_t
+		if gap >= 6.0: (rec230.silences as Array).append([snappedf(last_ask_t, 0.1), snappedf(gap, 0.1)])
+		last_ask_t = 63.0
+	rec230["said_rule"] = has_flag("said_rule")
+	set_flag("door_0230", rec230.duplicate(true))
+	print("STORY ch3 door_0230 ", JSON.stringify(rec230))
+
+# the unattended playthrough: to the door, the ear on it for Natsuki's voice, two questions, (with --ch3rule) the rule
+var d230 := 0
+func _t230_demo():
+	var plan := [[9.0, "near"], [10.0, "ear"], [13.0, "ask"], [25.0, "near"], [30.5, "ask"], [44.0, "sit"], [50.0, "rule"]]
+	if d230 >= plan.size() or t_stage < float(plan[d230][0]): return
+	var a: String = plan[d230][1]; d230 += 1
+	match a:
+		"ask": _ask()
+		"rule": if "--ch3rule" in OS.get_cmdline_user_args(): _ask()
+		_: _door_to(a)
+
+# ---------------------------------------------------------------- 三時 (2026-11-20 13時35分 ③): she dozes; the back door slams
+func _doze():
+	_shade()
+	var tw := create_tween()   # the lids: heavy, up again, heavier
+	tw.tween_property(doze_rect, "color:a", 0.55, 1.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(doze_rect, "color:a", 0.25, 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(doze_rect, "color:a", 0.86, 2.0).set_trans(Tween.TRANS_SINE)
+	doze_rect.set_meta("tw", tw)
+	var p0: float = player.pitch
+	create_tween().tween_property(player, "pitch", p0 - 0.08, 3.9).set_trans(Tween.TRANS_SINE)
+
+func _slam():
+	var at := gp(9.96, 5.3, 1.0)
+	Sound.one(self, "door_close", 6.0, at)
+	Sound.one(self, "ch3_rattle", 2.0, at)
+	Sound.one(self, "body_fall", -6.0, at)
+	_hear("back")
+	if doze_rect:
+		var tw0 = doze_rect.get_meta("tw") if doze_rect.has_meta("tw") else null
+		if tw0 and (tw0 as Tween).is_valid(): (tw0 as Tween).kill()
+		create_tween().tween_property(doze_rect, "color:a", 0.0, 0.07)
+
 # ---------------------------------------------------------------- the end: the chapter's question again, then 第四章
 func _end():
 	stage = "end"
@@ -1035,6 +1445,7 @@ static var SEAL_ORDER: Array = []   # 第5章 peels the tape in the order she pu
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
 	if card_t > 0.0 or stage == "end": return
+	if stage == "flow" and flow_key == "扉の番.二時半" and _t230_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if mode == TALK:
 		if cur.has("choose") and e is InputEventKey and e.pressed and e.keycode in [KEY_W, KEY_UP, KEY_A, KEY_LEFT]: _move_choice(-1); return
@@ -1070,7 +1481,12 @@ func _press():
 				mk_seal_said = true; talk_with = "makoto"; _start(B("目張り.真琴")); return
 		"up", "back":
 			_press_up()
-		"watch", "flow", "t2":
+		"t2walk":
+			_press_cellar()
+		"flow":
+			if flow_key == "扉の番.二時半" and _ask(): return
+			_press_watch()
+		"watch", "t2":
 			_press_watch()
 		"lock":
 			if _looking_at(gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2]), 2.3, 25.0): _lock_now()
@@ -1116,8 +1532,13 @@ func _demo_script():
 	# 一時から: turn to each sound as it comes, and press
 	steps.append(["wait_stage", "flow"])
 	for k in ["door", "gen", "car", "cellar", "cough", "steps"]: steps.append(["hear", k])
-	steps.append(["wait_stage", "t2walk"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [4.7, 3.3]]])
-	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"]); steps.append(["walk", [[4.8, 1.9], [5.0, 1.3]]])
+	# 二時 (2026-11-20): down the cellar stair to the barred door; call, the knob, push; Kiryu's hand; then up to the front door
+	steps.append(["wait_stage", "t2walk"]); steps.append(["wait_free"])
+	steps.append(["walk", [[4.8, 1.9], [4.6, 2.6], [4.3, 2.9], [4.3, 3.2], [4.2, 3.4], [4.3, 3.7], [4.8, 4.2], [4.8, 5.7], [5.0, 5.9]]])
+	steps.append(["open", "door_cellar"]); steps.append(["sleep", 1.2]); steps.append(["walk", [[5.5, 5.9], [5.5, 5.5], [5.5, 3.0]]])
+	for i in 3: steps.append(["cellar", i])
+	steps.append(["wait_stage", "lock"]); steps.append(["wait_free"])
+	steps.append(["walk", [[4.8, 4.2], [4.3, 3.7], [4.3, 2.9], [4.6, 2.5], [4.8, 1.9], [5.0, 1.3]]])
 	steps.append(["aim", gp(FRONT_DOOR[0], FRONT_DOOR[1], FRONT_DOOR[2])]); steps.append(["press"])
 	steps.append(["wait_stage", "flow"]); steps.append(["hear", "knock"])
 	steps.append(["wait_card", "t3"]); steps.append(["hear", "back"])
@@ -1172,7 +1593,10 @@ func _demo_tick(dt):
 			player.pitch = lerpf(player.pitch, asin(clampf(to.normalized().y, -1.0, 1.0)), k)
 			done = (-cam.global_basis.z).angle_to(to) < deg_to_rad(4.0) or dwait > 4.0
 		"press":
-			if mode == FREE: _press(); done = true
+			if mode == FREE:
+				var st0 := stage
+				_press(); done = true
+				if stage == st0 and st0 == "lock": _dfail("lock: not taken from %s" % [_plan_of(player)])
 		"press_if":
 			if mode == FREE:
 				if stage == s[1]: _press()
@@ -1193,6 +1617,19 @@ func _demo_tick(dt):
 		"open":
 			if dn: dn.open_key(s[1])
 			done = true
+		"sleep":
+			done = dwait >= float(s[1])
+		"cellar":
+			var cam6: Camera3D = player.get_node("Head/Camera")
+			var to6: Vector3 = _cellar_at() - cam6.global_position
+			var k6 := 1.0 - exp(-dt * 6.0)
+			player.yaw = lerp_angle(player.yaw, atan2(-to6.x, -to6.z), k6)
+			player.pitch = lerpf(player.pitch, asin(clampf(to6.normalized().y, -1.0, 1.0)), k6)
+			if dwait > 1.0 and mode == FREE and cel_i == int(s[1]):
+				_press_cellar()
+				if cel_i == int(s[1]): _dfail("cellar %d: cannot reach the barred door from %s (%.1f m)" % [s[1], _plan_of(player), to6.length()])
+				done = true
+			elif dwait > 30.0: _dfail("cellar %d: the talk did not end" % s[1]); done = true
 		"one":
 			var tp: Vector3 = gp(CELLAR_DOOR[0], CELLAR_DOOR[1], 1.0) if s[1] == "taiga" else _rig(s[1]).global_position + Vector3(0, 1.3, 0)
 			var cam5: Camera3D = player.get_node("Head/Camera")

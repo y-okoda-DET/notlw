@@ -166,7 +166,7 @@ func _ready():
 	if play == "ch1" and not ARGS.has("nochars"): _ch1_set()
 	if play == "door" and not ARGS.has("nochars"): _door_set()
 	if SCENE == "house" and play in ["ch0", "h21", "ch3", "door"]: _tripod_clear.call_deferred()
-	if play in ["h21", "ch3", "ch5", "ch7", "ch7n"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）
+	if play in ["h21", "ch3", "ch5", "ch7", "ch7n", "ch1car"] and not ARGS.has("nochars"): _t20_people()   # ステップ E: 21時・22時, the people of 20:00 (ch2_21.gd places them); ステップ F: 第3章も（ch3.gd の _ready で呼ぶと、扉や当たりより後になって廊下で詰まった）。ch1car: 行きの車の夏希と真琴（car.gd が座らせる）
 	if play == "h21":   # every board is up by then
 		for mi in S.env_node.find_children("board_*", "MeshInstance3D", true, false): mi.visible = true
 	if ch2_house and "--taigagen" in OS.get_cmdline_user_args() and S.has("taiga_node"):
@@ -206,6 +206,7 @@ func _ready():
 	_print_layer()
 	if (SCENE == "dusk" or play == "ch1") and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 2.5   # 章カードは半分に（ユーザー 2026-11-14）
+		if FROM_CAR: CARD_TIME = 0.0; FROM_CAR = false   # 2026-11-20: 第1章のカードは行きの車の頭で出した（car.gd）。着いて、そのまま夕方
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	if (play == "door" or (SCENE == "night" and (FROM_STORY or ARGS.has("door")))) and not checking:
@@ -215,6 +216,9 @@ func _ready():
 	if play in ["ch4", "ch11"] and not checking:   # ステップ D: 3:30 の廊下 (scripts/fps.gd) and the same night on the tape (scripts/tape.gd); each has its own chapter card
 		CARD_TIME = 0.0
 		story = (load("res://scripts/fps.gd") if play == "ch4" else load("res://scripts/tape.gd")).new(); story.main = self; add_child(story)
+	if play == "ch1car" and not checking:   # 2026-11-20 第1章の頭：行きの車の中（scripts/car.gd。章のカードも car.gd が出す）
+		CARD_TIME = 0.0
+		story = load("res://scripts/car.gd").new(); story.main = self; add_child(story)
 	if play in ["ch0", "h21", "ch3", "ch5", "ch6", "ch7", "ch7n", "ch7b", "ch8"] and not checking:   # ステップ E: 序章（5時の玄関）and 第2章の残り（21時・22時）, each with its own card; ステップ F: 第3章・第5章・第6章
 		CARD_TIME = 0.0
 		story = (load("res://scripts/ch0.gd") if play == "ch0" else load("res://scripts/ch3.gd") if play == "ch3" else load("res://scripts/ch5.gd") if play == "ch5" else load("res://scripts/ch6.gd") if play == "ch6" else load("res://scripts/ch8.gd") if play == "ch8" else load("res://scripts/ch7.gd") if play.begins_with("ch7") else load("res://scripts/ch2_21.gd")).new(); story.main = self; add_child(story)
@@ -365,7 +369,7 @@ func _faces():
 		head.set_surface_override_material(si, m)
 		var tex := {}
 		for st in ["open", "closed", "talk"]:
-			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1" or play == "h21") and k == "natsuki") else k   # her indoor head has its own UV layout
+			var fk: String = "natsuki_s" if ((SCENE == "dusk" or ch2_house or play == "ch1" or play == "h21" or play == "ch1car") and k == "natsuki") else k   # her indoor head has its own UV layout
 			var pj := "res://assets/faces/%s_%s.jpg" % [fk, st]
 			tex[st] = load(pj if ResourceLoader.exists(pj) else "res://assets/faces/%s_%s.png" % [k, st]) as Texture2D
 		m.albedo_texture = tex.open
@@ -751,6 +755,17 @@ func _colliders():
 				sb.global_position = b2g(b.c); sb.rotation.x = b.rx
 			else:
 				_box(b.c, b.s)
+		if SCENE == "house":
+			# 2026-11-20（試作127「一度勝手口から外に出て…家の中に戻れなくなった」）: the back porch stair's ramp meets the deck
+			# about 5 cm under its top (house4_ext.back_porch_boxes), a lip the capsule cannot climb: walking up, she stopped
+			# at the top step. A short wedge from the deck's top edge onto the ramp. (Plan x 10.4..11.3, the deck's edge at y 5.9.)
+			var lip := StaticBody3D.new(); var lc := CollisionShape3D.new(); var lb := BoxShape3D.new()
+			# A plank a little steeper than the ramp (38.5° to its 34°): its foot in the ramp's plane at y 6.13, it passes 1 cm over
+			# the deck's corner (y 5.9, height 0) and ends at y 5.88, 2.6 cm over the deck. Each edge she meets is a floor to the
+			# capsule (r 0.17, floor 52°); the corner alone was a wall (test_move: the deck, n 56°), and a lip on the slope adds the slope.
+			lb.size = Vector3(0.9, 0.04, 0.32); lc.shape = lb; lip.add_child(lc); add_child(lip)
+			lip.rotation.x = atan2(0.6221, 0.7829)
+			lip.global_position = Vector3(10.85 - 4.8, -0.0892, 5.9926 - 6.3)
 		for o in S.props:
 			if SCENE == "house" and _stand_gone() and absf(float(o[0]) - FRESNEL_AT[0]) < 0.05 and absf(float(o[1]) - FRESNEL_AT[1]) < 0.05: continue
 			var s2 := StaticBody3D.new(); var c2 := CollisionShape3D.new(); var cy := CylinderShape3D.new()
@@ -1273,7 +1288,7 @@ func _shot_tick() -> float:
 # 試作127（ユーザー「開発段階では●●章から始める的な機能もつけたい」）: F5 opens a list of the chapters; a number key starts that
 # one from its card (the same way playing reaches it). Esc or F5 again closes it. The list: CHAPTERS
 static var DEV_STATE := ""   # story.gd _state() to jump to once the chapter is up (第2章 = 第1章's "card2")
-const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
+const CHAPTERS := [["序章　夜明け（5時）", "ch0", ""], ["第1章　行きの車", "ch1car", ""], ["第1章　夕方", "ch1", ""], ["第2章　20時（停電から）", "ch1", "card2"],
 	["第2章　21時・22時", "h21", ""], ["第2章　23時の扉", "door", ""], ["第3章　零時〜2時", "ch3", ""],
 	["第4章　3時半", "ch4", ""], ["第5章　地下（4時）", "ch5", ""], ["第6章　片づけ（4時20分）", "ch6", ""], ["証言 一", "i1", ""], ["2時　監督", "ch8", ""], ["証言 二", "i2", ""],
 	["去年の夏", "ch7", ""], ["証言 三", "i3", ""], ["第11章　再生", "ch11", ""]]   # 後半の並び：scripts/order.gd
@@ -1389,6 +1404,7 @@ static var SCENES_RUN := 0        # how many scenes this run has started (the fr
 var f0 := 0
 static var CH2 := false            # 試作91: the house was reached from 第1章's power cut (第2章 runs in it, at 20:00)
 var ch2_house := false
+static var FROM_CAR := false       # 2026-11-20: 第1章の夕方は行きの車（car.gd）から来た：章のカードはもう出た
 static var FROM_STORY := false     # 段階1: the night was reached by playing (the door scene runs), not by N
 
 func to_house_ch2():
@@ -1878,7 +1894,7 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
-const PLAY_TIME := {"ch0": "t0430", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch8": "t02", "ch11": "t0330", "ch7": "dusk", "ch7n": "y21", "ch7b": "y02"}
+const PLAY_TIME := {"ch0": "t0430", "ch1car": "dusk", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch8": "t02", "ch11": "t0330", "ch7": "dusk", "ch7n": "y21", "ch7b": "y02"}
 # 後半の章の終わり：並び（scripts/order.gd の LATE_ORDER）の次へ。まだ無い章は仮のカード
 func next_chapter(cur: String):
 	_save_settings()

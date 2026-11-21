@@ -13,5 +13,6 @@ blender/*.json.tmp
 tripo/*.blend1
 tripo/*_head_bakecol.png
 tripo/*_head_bakenrm.png
+tripo/*_socks.png
 paths.local.env
 godot/lang/*.translation

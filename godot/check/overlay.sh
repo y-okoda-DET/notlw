@@ -30,6 +30,8 @@ func _ready():
 	m.set_script(load("res://ov_main.gd"))
 	add_child(m)   # under this scene, so that the game's reload_current_scene comes back through here
 GD
+mkdir -p $O/ui; cp $S/ui/title_logo.png $O/ui/ 2>/dev/null || true   # 2026-11-20 行きの車の題名（car.gd）
+mkdir -p $O/props; cp $S/props/car_dash.glb $S/props/car_seat.glb $S/props/car_bench.glb $O/props/ 2>/dev/null || true   # 2026-11-21 行きの車の中（ユーザーの Tripo：ダッシュボード、前の座席、後ろの座席）
 # フォント（pck に無い新しい書体も試せるように。.import は Godot に作らせる）
 mkdir -p $O/fonts; cp $S/fonts/*.ttf $S/fonts/*.ttf.import $O/fonts/ 2>/dev/null || true
 N=$(cd $S/scripts && ls *.gd | sed 's/\.gd$//' | tr '\n' '|' | sed 's/|$//')

@@ -106,6 +106,7 @@ func _ready():
 	RESTS[0] = ["rail", [0.30, 3.65, a + 0.065], [0.30, 0.95, b + 0.065]]
 	if house: RESTS[1] = ["point", [0.30, 3.65, _rail_z(3.75) + 0.10], 0.09]   # 試作125: the newel ends at the rail now (house4.stairs_up)
 	_items()
+	if main.SCENE == "house": _guestbook()
 	_page()
 	_board()
 	_finder()
@@ -125,7 +126,75 @@ func _rail_z(Y: float) -> float:
 
 const D := preload("res://scripts/daihon.gd")   # the words: godot/story/*.txt (書式は godot/story/README.md)
 func B(key: String, arg := "") -> Array:
-	return D.entries(key, arg)
+	return D.entries(key, arg)   # a ［flag］ line stays in and is judged when it comes (_next, and each chapter's own timed lines)
+
+# 2026-11-20 練り直し：その夜にしたこと（記録）。Engine の meta "night_flags"（証言・監督の章・第11章が読む）。
+# 台本の「［名前］ 行」は has_flag(名前) のときだけ、「［not_名前］」は無いときだけ出る
+static func set_flag(k: String, v = true):
+	var f: Dictionary = Engine.get_meta("night_flags", {})
+	f[k] = v; Engine.set_meta("night_flags", f)
+	print("STORY flag ", k, "=", v)
+
+static func has_flag(k: String) -> bool:
+	if k.begins_with("not_"): return not has_flag(k.substr(4))
+	var f: Dictionary = Engine.get_meta("night_flags", {})
+	return f.has(k) and f[k] != null and f[k] != false
+
+static func get_flag(k: String, def = null):
+	return (Engine.get_meta("night_flags", {}) as Dictionary).get(k, def)
+
+func _only_if(es: Array) -> Array:
+	var out := []
+	for e in es:
+		if e is Dictionary and e.has("if") and not has_flag(String(e["if"])): continue
+		if e is Dictionary and e.has("then"):
+			var t2 := []
+			for sub in e.then: t2.append(_only_if(sub))
+			e = e.duplicate(); e.then = t2
+		out.append(e)
+	return out
+
+# a ＞name that is only a mark in the night's record (said_nail, talked_kiryu_1am, ...): set it, and say it was one
+const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen"]
+func _flag_do(d: String) -> bool:
+	if d in FLAG_DOS: set_flag(d); return true
+	return false
+
+# 2026-11-20 a hand in the first person (blender/export_mio_arms.py: the wrist at the origin, the fingers -Z, the palm -Y,
+# the sleeve +Z): who's arm, along d (the sleeve's way, in the camera's frame), the back of the hand toward up; fingers curled
+# by k (0 open .. 1 a fist). Under the camera, hidden until shown (ch8's knocking fist; ch3's hand on her wrist)
+func _fp_arm(who: String, side: String, d: Vector3, up: Vector3, k: float) -> Node3D:
+	var path := "res://props/%s_arm_%s.glb" % [who, side]
+	if not ResourceLoader.exists(path): return null
+	var root := Node3D.new(); root.name = "%s_arm_%s" % [who, side]
+	var inst: Node3D = (load(path) as PackedScene).instantiate()
+	d = d.normalized()
+	var yb := (up - d * up.dot(d)).normalized()
+	inst.basis = Basis(yb.cross(d), yb, d)
+	root.add_child(inst)
+	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.extra_cull_margin = 0.6
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var to_h := Transform3D(); var nd: Node3D = sk
+	while nd != root: to_h = nd.transform * to_h; nd = nd.get_parent()
+	var to_a := inst.transform.affine_inverse() * to_h
+	var pose := []
+	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+		for j in 3:
+			var bi := sk.find_bone("%s_0%d_%s" % [f, j + 1, side])
+			if bi < 0: continue
+			var gb: Basis = (to_a * sk.get_bone_global_rest(bi)).basis.orthonormalized()
+			var ax: Vector3 = (gb.y.cross(Vector3.DOWN)).normalized()
+			if f == "thumb":
+				var o: Vector3 = (to_a * sk.get_bone_global_rest(bi)).origin
+				ax = gb.y.cross((Vector3(0.0, -0.035, -0.075) - o).normalized()).normalized()
+			var ang: float = k * ((1.3 * 0.6 * [0.30, 0.55, 0.40][j]) if f == "thumb" else (1.65 * [0.80, 1.05, 0.70][j]))
+			pose.append([bi, sk.get_bone_rest(bi).basis.get_rotation_quaternion() * Quaternion((gb.inverse() * ax).normalized(), ang)])
+	player.get_node("Head/Camera").add_child(root); root.visible = false
+	for b in pose: sk.set_bone_pose_rotation(b[0], b[1])   # once it is in the tree (a pose set before was reset)
+	return root
 
 func g(v: Array) -> Vector3:
 	return Vector3(v[0], v[2], -v[1])
@@ -144,6 +213,49 @@ func _items():
 	add.call("shoes", [0.30, 5.55, -0.12], 0.35, "look", "靴")
 	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
 	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
+	if main.SCENE == "house": add.call("guestbook", GB_AT, 0.16, "look", "宿帳")
+
+# 2026-11-20 練り直し（ユーザー 12時56分）：玄関の靴箱の上の宿帳。去年の八月の頁が開きやすい（何度も開かれた癖）。
+# 澪が見て「閉じて、棚に戻す」を選べば消える（guestbook_hidden）。見なかった・そのままにした人には、真琴が先に読んでいる（【真琴.宿帳】）
+const GB_AT := [0.83, 5.62, 0.745]     # house4.genkan_fit: the shoe cabinet's top (plan x 5.6..5.94, y .1..1.3; z ZG + .91)
+var guestbook: Node3D
+func _guestbook():
+	guestbook = Node3D.new(); guestbook.name = "guestbook"; add_child(guestbook)
+	guestbook.position = g(GB_AT); guestbook.rotation = Vector3(0, deg_to_rad(84.0), 0)
+	var cover := StandardMaterial3D.new(); cover.albedo_color = Color(0.13, 0.20, 0.17); cover.roughness = 0.7
+	var paper_m := StandardMaterial3D.new(); paper_m.albedo_color = Color(0.86, 0.83, 0.74); paper_m.roughness = 0.95
+	var ink_m := StandardMaterial3D.new(); ink_m.albedo_color = Color(0.25, 0.27, 0.35); ink_m.roughness = 0.9
+	var box = func(sz: Vector3, at: Vector3, m: Material, rz := 0.0):
+		var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = sz; mi.mesh = bm; mi.material_override = m
+		mi.position = at; mi.rotation = Vector3(0, 0, rz); guestbook.add_child(mi)
+	# open, the spine down the middle: the two covers, the two blocks of pages bowed up a little toward the spine
+	box.call(Vector3(0.155, 0.004, 0.215), Vector3(-0.079, 0.002, 0), cover, -0.04)
+	box.call(Vector3(0.155, 0.004, 0.215), Vector3(0.079, 0.002, 0), cover, 0.04)
+	box.call(Vector3(0.145, 0.012, 0.205), Vector3(-0.075, 0.009, 0), paper_m, -0.07)
+	box.call(Vector3(0.145, 0.009, 0.205), Vector3(0.075, 0.008, 0), paper_m, 0.07)
+	# 2026-11-21（宿帳の画）: the pages written in, readable when she leans over it: ruled rows, last August's names in their
+	# own hands (the five of last year), and under them, in another ink, the caretaker's line. Drawn once into a texture
+	for side in [-1.0, 1.0]:
+		var vp := SubViewport.new(); vp.size = Vector2i(420, 594); vp.transparent_bg = false
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE; guestbook.add_child(vp)
+		var bg := ColorRect.new(); bg.color = Color(0.86, 0.83, 0.74); bg.size = Vector2(420, 594); vp.add_child(bg)
+		for r in 10:   # the ruled lines
+			var ln := ColorRect.new(); ln.color = Color(0.62, 0.66, 0.74); ln.position = Vector2(18, 92 + r * 52); ln.size = Vector2(384, 2); vp.add_child(ln)
+		var rows: Array = ([["八月　十二日", 0.0], ["映画研究会", 0.0], ["桐生", 0.04], ["大河", -0.03], ["夏希", 0.02], ["澪", -0.02], ["陽太", 0.05]] if side < 0
+			else [["八月　十四日　退出", 0.0], ["", 0.0], ["玄関灯、", 0.0], ["朝まで点いていた", 0.0], ["（管理　小野）", 0.0]])
+		for i in rows.size():
+			var lb := Label.new(); lb.text = String(rows[i][0]); lb.add_theme_font_override("font", Type.say())
+			var mgr: bool = side > 0 and i >= 2
+			lb.add_theme_font_size_override("font_size", 44 if i >= 2 or side > 0 else 34)
+			lb.add_theme_color_override("font_color", Color(0.45, 0.12, 0.10) if mgr else Color(0.14, 0.16, 0.26))
+			lb.position = Vector2(30 + (i * 13) % 40, 36 + i * 52); lb.rotation = float(rows[i][1])
+			vp.add_child(lb)
+		var q := MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(0.140, 0.198); q.mesh = qm
+		var pm := StandardMaterial3D.new(); pm.albedo_texture = vp.get_texture(); pm.roughness = 0.95; q.material_override = pm
+		q.position = Vector3(side * 0.075, (0.0156 if side < 0 else 0.0126), 0); q.rotation = Vector3(-PI / 2.0, 0, 0)
+		guestbook.add_child(q)
+	# a ballpoint on a string, beside it
+	box.call(Vector3(0.006, 0.006, 0.13), Vector3(0.19, 0.003, 0.02), ink_m)
 
 # ================================================================ the words, in the player's language
 # Every string on screen is written here in Japanese and looked up in lang/text.csv (keys = the Japanese, one column
@@ -577,6 +689,7 @@ func _rest_for(eye: Vector3, dir: Vector3) -> Dictionary:
 
 # ================================================================ per frame
 func _process(dt):
+	if guestbook and guestbook.visible and has_flag("guestbook_hidden"): guestbook.visible = false   # 閉じて、棚の奥に戻した
 	t_now += dt
 	if main.card.visible: return
 	_demo_tick(dt)
@@ -758,7 +871,12 @@ func _conversation(key: String) -> Array:
 			if not holding_cam and not cam_placed: return B("桐生.カメラは箱")
 			return B("桐生.探して")
 		"natsuki": return B("夏希.一回目" if n == 0 else "夏希.二回目から")
-		"makoto": return B(["真琴.一回目", "真琴.二回目", "真琴.三回目から"][min(n, 2)])
+		"makoto":
+			# 2026-11-20: if the guestbook is still out, she has read it: the first time Mio speaks to her, that comes first
+			if main.SCENE == "house" and not has_flag("guestbook_hidden") and not has_flag("mk_guestbook"):
+				set_flag("mk_guestbook"); talked[key] = n
+				return B("真琴.宿帳")
+			return B(["真琴.一回目", "真琴.二回目", "真琴.三回目から"][min(n, 2)])
 		"taiga": return B("大河.一回目" if n == 0 else "大河.二回目から")
 		"tape": return B("調べる.テープ")
 		"camcorder": return B("調べる.桐生のカメラ")
@@ -766,6 +884,9 @@ func _conversation(key: String) -> Array:
 		"note": return B("調べる.貼り紙")
 		"shoes": return B("調べる.靴")
 		"radio": return B("調べる.ラジオ")
+		"guestbook":
+			items.erase("guestbook"); focus = ""   # one look: the page is read once
+			return B("宿帳.見る")
 	return []
 
 const WHO_KEY := {"桐生": "kiryu", "夏希": "natsuki", "真琴": "makoto", "大河": "taiga"}
@@ -794,6 +915,7 @@ func _next():
 			fade_tw.chain().tween_callback(func(): _clear_page(); lines_box.modulate.a = 1.0; tes_box.modulate.a = 1.0)
 		return
 	cur = script_q.pop_front()
+	if cur is Dictionary and cur.has("if") and not has_flag(String(cur["if"])): _next(); return
 	if demo_on: print("SAY %s%s" % [(String(cur.who) + "：") if cur.has("who") else "", str(cur.get("text", cur.get("note", cur.get("choose", cur.get("do", ("◇" + String(cur.mission)) if cur.has("mission") else "")))))])   # the unattended playthrough leaves what was said in the log
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
@@ -900,6 +1022,7 @@ func _advance():
 	_next()
 
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY do ", what, " t=%.1f" % t_now)
 	match what:
 		"house_lights": main.generator(true); _gen_flicker()
@@ -929,6 +1052,15 @@ func _do(what: String):
 			# 試作232（ユーザー「第一章の最後、カメラの赤いランプ消す」）: the dot that stayed lit in the dark (2026-11-14) goes out
 			# a beat after the power, with the camera
 			get_tree().create_timer(1.2).timeout.connect(func(): if fixed_cam: _set_rec(false))
+		"shutter_slam":   # 2026-11-20 14時8分（ジャンプスケア①）: the next window's storm shutter, not fastened, slams in the wind
+			var at := gp(CELLAR_WIN[0] + 0.05, CELLAR_WIN[1] - 0.6, CELLAR_WIN[2] + 2.3)
+			var SND = preload("res://scripts/sound.gd")
+			SND.one(self, "shutter_slam", 4.0, at); SND.one(self, "ch3_rattle", -4.0, at)   # 2026-11-21: a real slam (WrongRoom), the loose shutter shaking under it, quieter
+			if taiga_aim:   # his light jumps with him
+				var e0 := taiga_aim.light_energy
+				var tw := create_tween()
+				for k in [0.4, 1.6, 0.7, 1.2]: tw.tween_property(taiga_aim, "light_energy", e0 * k, 0.06)
+				tw.tween_property(taiga_aim, "light_energy", e0, 0.2)
 		"ch2_cut":
 			# a cut, not a fade: the next thing is the card for 23:00 (the hours between are not told)
 			mode = END; script_q.clear(); end_t = 100.0; _set_mission("")

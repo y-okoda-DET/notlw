@@ -716,6 +716,7 @@ func _door_end():
 
 # ================================================================ what the lines set off
 func _do(what: String):
+	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch7 do %s t=%.1f" % [what, t_now])
 	match what:
 		"hands":
@@ -829,9 +830,99 @@ func _do(what: String):
 			_fade(1.0, 0.0)
 			_set_mission(""); _clear_page()
 			_after(1.0, func(): _start_end())
+		# 2026-11-20（12時54分②、12時56分）: the slip on the slope, and the ravine's floor
+		"back_slip":
+			_one("c7_slip", -2.0)
+			_loop_db("c7_party", -60.0, 0.6)
+			var cam2 := _cam()
+			var tw2 := create_tween().set_parallel(true)
+			tw2.tween_property(cam2, "rotation:z", deg_to_rad(52.0), 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw2.tween_property(cam2, "position:y", -0.9, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw2.tween_property(player, "pitch", deg_to_rad(-55.0), 0.7)
+			var fw := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
+			tw2.tween_property(player, "global_position", player.global_position + fw * 0.9 + Vector3(0, -0.5, 0), 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		"fall_cut":
+			script_q.clear(); mode = END
+			_set_mission(""); _clear_page()
+			_after(0.75, func():
+				_fade(1.0, 0.0)   # a cut: the branches, the water, and black
+				_one("body_fall", -2.0); _one("ch3_thud", -8.0))
+			_after(1.3, func(): _one("body_fall", -12.0))
+			_after(4.0, _ravine)
+		"lie_still":
+			pass
+		"upstairs_off":
+			# 20 s after she came to (whether or not he is looking at it)
+			script_q.clear(); mode = END
+			_after(maxf(0.5, 20.0 - (t_now - ravine_t0)), func():
+				if is_instance_valid(rv_win): rv_win.visible = false
+				if is_instance_valid(rv_win_l): rv_win_l.light_energy = 0.0
+				print("STORY ch7 upstairs_off t=%.1f" % t_now)
+				_after(5.0, _insects_fade))
+		"insects_fade":
+			pass
 		"end":
 			pass
 		_: super._do(what)
+
+# ---------------------------------------------------------------- the ravine's floor (2026-11-20)
+# On his back down the slope east of the house; the porch light below, the upstairs window above it, small, through
+# the trees. He cannot move; his head turns a little. The crickets, the water, his breath.
+const RV_AT := [17.0, 3.0]          # plan: down the east slope, below the back porch
+const RV_WIN := [10.06, 1.9, 4.1]   # the upstairs east window (house4 F2_WALLS: y 1.2..2.6, sill F2 + 0.8)
+const RV_PORCH := [10.15, 4.86, 2.2]   # over the back door
+var ravine_on := false
+var ravine_t0 := 0.0
+var rv_base := Vector2.ZERO
+var rv_win: MeshInstance3D
+var rv_win_l: OmniLight3D
+
+func _ravine():
+	stage = "ravine"
+	var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(gp(RV_AT[0], RV_AT[1], 6.0), gp(RV_AT[0], RV_AT[1], -12.0)))
+	var gy: float = (hit.position as Vector3).y if not hit.is_empty() else -2.9
+	player.fly = true; player.velocity = Vector3.ZERO; player.auto_path = []
+	player.global_position = Vector3(gp(RV_AT[0], RV_AT[1], 0.0).x, gy, gp(RV_AT[0], RV_AT[1], 0.0).z)
+	player.eye_height = 0.22; player.get_node("Head").position.y = 0.22
+	var cam := _cam(); cam.rotation.z = 0.0; cam.position.y = 0.0
+	var mid: Vector3 = (gp(RV_WIN[0], RV_WIN[1], RV_WIN[2]) + gp(RV_PORCH[0], RV_PORCH[1], RV_PORCH[2])) * 0.5
+	var to: Vector3 = mid - (player.global_position + Vector3(0, 0.22, 0))
+	player.yaw = atan2(-to.x, -to.z) + 0.12
+	player.pitch = asin(clampf(to.normalized().y, -1.0, 1.0)) + 0.1
+	rv_base = Vector2(player.yaw, player.pitch)
+	# the two lights (the house's own are this night's bake; these are what reaches the ravine)
+	rv_win = MeshInstance3D.new(); var qm := QuadMesh.new(); qm.size = Vector2(1.3, 1.0); rv_win.mesh = qm
+	var wm := StandardMaterial3D.new(); wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; wm.albedo_color = Color(1.0, 0.82, 0.55)
+	rv_win.material_override = wm; main.add_child(rv_win)
+	rv_win.global_position = gp(RV_WIN[0], RV_WIN[1], RV_WIN[2]); rv_win.rotation.y = PI / 2
+	rv_win_l = OmniLight3D.new(); rv_win_l.light_color = Color(1.0, 0.8, 0.55); rv_win_l.light_energy = 0.6; rv_win_l.omni_range = 4.0
+	main.add_child(rv_win_l); rv_win_l.global_position = gp(RV_WIN[0] + 0.5, RV_WIN[1], RV_WIN[2])
+	var pb := MeshInstance3D.new(); var sm := SphereMesh.new(); sm.radius = 0.07; sm.height = 0.14; pb.mesh = sm
+	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.albedo_color = Color(1.0, 0.9, 0.7)
+	pb.material_override = pm; main.add_child(pb); pb.global_position = gp(RV_PORCH[0], RV_PORCH[1], RV_PORCH[2])
+	var pl := OmniLight3D.new(); pl.light_color = Color(1.0, 0.85, 0.6); pl.light_energy = 0.9; pl.omni_range = 5.0
+	main.add_child(pl); pl.global_position = pb.global_position + Vector3(0.25, -0.1, 0)
+	_loop_db("c7_crickets", -7.0, 0.1)
+	_loop7("c7_stream", -16.0, gp(RV_AT[0] + 1.2, RV_AT[1] + 0.6, (player.global_position.y + 0.1)))
+	_loop7("c7_breath", -14.0)
+	ravine_on = true; ravine_t0 = t_now
+	_fade(0.0, 3.0)
+	_after(1.0, func(): _start(B("七.沢")))
+	print("STORY ch7 ravine at y=%.2f t=%.1f" % [gy, t_now])
+
+func _ravine_tick(_dt: float):
+	if not ravine_on: return
+	player.move_enabled = false
+	player.yaw = rv_base.x + clampf(wrapf(player.yaw - rv_base.x, -PI, PI), -0.5, 0.5)
+	player.pitch = clampf(player.pitch, rv_base.y - 0.3, rv_base.y + 0.3)
+
+func _insects_fade():
+	# one by one: the crickets go down in steps, and stop; the breath has stopped before them
+	_loop_db("c7_breath", -60.0, 6.0)
+	for i in 4: _after(1.5 + i * 2.2, func(): _loop_db("c7_crickets", -10.0 - 9.0 * (i + 1), 1.2))
+	_after(10.5, func(): _loop_db("c7_crickets", -80.0, 0.6); _loop_db("c7_stream", -60.0, 3.0))
+	_after(12.0, func(): _fade(1.0, 2.5))
+	_after(15.5, func(): _start_end())
 
 func _start_end():
 	# black. The crickets go on, and stop
@@ -1189,6 +1280,7 @@ func _process(dt):
 	main.talk_now = wk if mode == TALK and cur.has("who") and typed < float(String(cur.get("text", "")).length()) else ""
 	main.story_talking = (mode == TALK)
 	player.move_enabled = mode == FREE and stage in ["to_window", "to_door", "party", "outside", "climb", "door2", "to_back"]
+	_ravine_tick(dt)
 	_gait_tick(dt)
 	_party_tick(dt)
 	# main.gd's stand-in for the sky in the open doorway (lights.doorsky) is a spot just outside the door, aimed in: with the
