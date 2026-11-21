@@ -1347,17 +1347,21 @@ func _palm_off():
 	tw.tween_callback(rc.queue_free)
 
 func _wb_near() -> bool:
-	return _looking_at(wb_at, 1.8, 35.0)
+	# (review: from where she stands at the back door the board was in reach, and the E that moves the lines on ended
+	# the wait before she ever stood at it and heard the generator): only up at the board
+	var p: Vector3 = player.global_position
+	return Vector2(p.x - wb_at.x, p.z - wb_at.z).length() < WB_CLOSE and _looking_at(wb_at, 1.8, 40.0)
+const WB_CLOSE := 1.15
 
 func _wb_tick(dt: float):
 	if wb_t < 0.0: return
 	wb_t += dt
 	var p: Vector3 = player.global_position
-	var close := Vector2(p.x - wb_at.x, p.z - wb_at.z).length() < 1.3
+	var close := Vector2(p.x - wb_at.x, p.z - wb_at.z).length() < WB_CLOSE + 0.1
 	if not wb_done:
 		gen_want = -8.0 if close else wb_gen0
 		note_lb.text = T(String(D.lines("台所.板.案内")[0])) if _wb_near() else ""
-		if demo5 and wb_t > 2.5: _wb_end(false)     # the unattended run: one Ｅ
+		if demo5 and wb_t > 2.5 and not "--ch5wb60" in OS.get_cmdline_user_args(): _wb_end(false)     # the unattended run: one Ｅ (--ch5wb60: it waits, as a player who does nothing)
 		elif wb_t > 60.0: _wb_end(true)
 
 func _wb_end(by_herself: bool):
@@ -1731,6 +1735,10 @@ func _mk_shift():
 	if not cur in ["talk/think", "talk/idle"]: return
 	get_tree().create_timer(randf_range(5.0, 8.0)).timeout.connect(func():
 		if mode != TALK or main.walking("makoto") or not main.stand_of("makoto") in ["talk/think", "talk/idle"]: return
+		if is_instance_valid(mk_palm): _mk_shift(); return   # her palm on the board: she keeps still
 		main.set_stand("makoto", "talk/idle" if main.stand_of("makoto") == "talk/think" else "talk/think", 0.8)
 		_mk_shift())
 
+
+func _exit_tree():
+	if is_instance_valid(mk_palm): mk_palm.queue_free()   # (on Makoto's own skeleton, which outlives the chapter)
