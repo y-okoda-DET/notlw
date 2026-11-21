@@ -78,6 +78,12 @@ var page_clear_t := -1.0
 var end_wait := -1.0
 var look_k := ""
 var demo5 := false
+# 2026-11-22（筋のスレッド、人物表・決定事項 5時8分）: by the kitchen window's board, the player is the one who sees it
+var wb_t := -1.0               # >= 0: waiting for her to look at the board (＞wait_board)
+var wb_at := Vector3.ZERO
+var wb_gen0 := -40.0
+var wb_done := false
+var mk_palm: Node = null       # Makoto's hand on the board (reach.gd)
 var demo_hold := false
 var stair_t := -1.0
 var demo_steps: Array = []
@@ -630,7 +636,7 @@ func _gen_fore():
 	if gen_fore.stream: gen_fore.play()
 
 func _gen_tick(dt: float):
-	gen_db = move_toward(gen_db, gen_want, dt * 2.5)
+	gen_db = move_toward(gen_db, gen_want, dt * (7.0 if wb_t >= 0.0 else 2.5))
 	gen_fore.volume_db = gen_db
 
 func _gen_loud():
@@ -851,6 +857,7 @@ func _process(dt):
 	_update_looks()
 	_candle_tick(dt)
 	_wind_tick(dt)
+	_wb_tick(dt)
 	_gen_tick(dt)
 	_blanket_tick(dt)
 	_torch()
@@ -1017,6 +1024,24 @@ func _do(what: String):
 		# (the blanket) → the cellar door; the generator a step louder with each (gen_up)
 		"gen_up":
 			gen_want = minf(gen_want + 4.0, -14.0)
+		"makoto_palm_board":
+			# she steps up to the board and lays her palm flat on it, and waits (no line)
+			var b := _kitchen_window()
+			var bp := [b.x + 4.8, b.z + 6.3]
+			var r0: Vector3 = _rig("makoto").global_position
+			var v0 := Vector2(r0.x + 4.8 - bp[0], r0.z + 6.3 - bp[1])
+			v0 = v0.normalized() if v0.length() > 0.05 else Vector2(0.0, -1.0)
+			var at0 := [bp[0] + v0.x * 0.34, bp[1] + v0.y * 0.34]
+			var pb := _board_near(Vector3(b.x, 1.2, b.z)) + Vector3(v0.x, 0.0, v0.y) * 0.035   # on one board's face, not in a gap
+			main.stand_anim["makoto"] = "talk/idle"
+			main.walk_to("makoto", [[at0[0], at0[1], 0.0]], func():
+				main.set_stand("makoto", "talk/idle", 0.6)
+				var r := _rig("makoto")
+				if is_instance_valid(mk_palm): mk_palm.queue_free()
+				mk_palm = _palm(r, pb), _face(at0, bp))
+		"wait_board":
+			hold = true; talk_with = ""
+			wb_at = _kitchen_window(); wb_t = 0.0; wb_gen0 = gen_want; wb_done = false
 		"makoto_walk_window":
 			torch_at = Vector3.ZERO
 			main.stand_anim["makoto"] = "talk/idle"
@@ -1027,6 +1052,7 @@ func _do(what: String):
 			main.walk_to("makoto", [[at[0], at[1], 0.0]], func(): main.set_stand("makoto", "talk/think"); _mk_shift(), _face(at, wp))
 			_mk_look_spine()
 		"makoto_sink":
+			_palm_off()
 			main.stand_anim["makoto"] = "talk/idle"
 			main.walk_to("makoto", [[7.6, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
 		"makoto_cellar_door":
@@ -1289,6 +1315,59 @@ func _mk_look_spine():
 	lm.bones = []
 	for c in lm.chain: lm.bones.append([lm.get_skeleton().find_bone(c[0]), c[1]])
 
+# ---------------------------------------------------------------- the kitchen window's board (＞wait_board)
+# Makoto's palm on it, and she says nothing. While Mio stands at it the generator is louder (through the wall, from
+# below); away from it, as before. Ｅ on it goes on; after 60 s Mio reaches for it herself (the same next line).
+func _palm(r: Node3D, at: Vector3) -> Node:
+	if not main.S.has("makoto_node"): return null
+	var sk: Skeleton3D = main.S.makoto_node.find_children("*", "Skeleton3D", true, false)[0]
+	var rc: Node = load("res://scripts/reach.gd").new()
+	rc.side = "l"   # (the phone, its light on, is in her right)
+	var b := r.global_basis
+	rc.target = at
+	rc.pole = b * Vector3(1.0, -1.0, 0.2)
+	sk.add_child(rc)
+	create_tween().tween_property(rc, "w", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
+	return rc
+
+func _board_near(to: Vector3) -> Vector3:
+	var best := to; var bd := 99.0
+	for mi in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+		if String(mi.name).begins_with("board_cellar"): continue
+		var c: Vector3 = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).get_center()
+		var d := c.distance_to(to)
+		if d < bd: bd = d; best = c
+	return best
+
+func _palm_off():
+	if not is_instance_valid(mk_palm): return
+	var rc := mk_palm; mk_palm = null
+	var tw := create_tween()
+	tw.tween_property(rc, "w", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(rc.queue_free)
+
+func _wb_near() -> bool:
+	return _looking_at(wb_at, 1.8, 35.0)
+
+func _wb_tick(dt: float):
+	if wb_t < 0.0: return
+	wb_t += dt
+	var p: Vector3 = player.global_position
+	var close := Vector2(p.x - wb_at.x, p.z - wb_at.z).length() < 1.3
+	if not wb_done:
+		gen_want = -8.0 if close else wb_gen0
+		note_lb.text = T(String(D.lines("台所.板.案内")[0])) if _wb_near() else ""
+		if demo5 and wb_t > 2.5: _wb_end(false)     # the unattended run: one Ｅ
+		elif wb_t > 60.0: _wb_end(true)
+
+func _wb_end(by_herself: bool):
+	wb_done = true; note_lb.text = ""
+	print("STORY ch5 board %s t=%.1f" % ["herself" if by_herself else "E", t_now])
+	_turn_to(wb_at + Vector3(0.0, -0.05, 0.0), 1.2)
+	get_tree().create_timer(1.6).timeout.connect(func():
+		wb_t = -1.0; gen_want = wb_gen0; talk_with = "makoto"
+		_release())
+
 func _kitchen_window() -> Vector3:
 	var pts := []
 	for mi in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
@@ -1507,6 +1586,9 @@ func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["end_card", "fin"]: return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if not press: return
+	if wb_t >= 0.0:
+		if not wb_done and _wb_near(): _wb_end(false)
+		return
 	if mode == TALK: _advance(); return
 	if stage in ["peel", "done"]: _press_peel()
 
