@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://eo4wwctfh3x"
-path="res://.godot/imported/car_idle.wav-78e8a6369a133cbb2569910d215f10d9.sample"
+uid="uid://ciobr1dw4dqp1"
+path="res://.godot/imported/c7_laugh.wav-765cbd4fd27fabe51acf8a93dfd09f97.sample"
 
 [deps]
 
-source_file="res://sound/car_idle.wav"
-dest_files=["res://.godot/imported/car_idle.wav-78e8a6369a133cbb2569910d215f10d9.sample"]
+source_file="res://sound/c7_laugh.wav"
+dest_files=["res://.godot/imported/c7_laugh.wav-765cbd4fd27fabe51acf8a93dfd09f97.sample"]
 
 [params]
 

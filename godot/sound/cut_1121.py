@@ -103,9 +103,10 @@ save("car_blinker", peak(cut(x, a, a + 2.04, 0.002, 0.01), -10.0))
 x = load(S21 + "Ambulance-Siren03-3Far.mp3")
 save("siren_far", peak(filt(cut(x, 0.0, len(x) / SR, 0.8, 2.5), lo=200, hi=2200, order=3), -6.0))
 
-# ---- 3時: the back door in the wind (two shakes of a wooden door)
+# ---- 3時: the back door in the wind. Only the first of its two shakes (0〜1.4 s): ch3_rattle is also the locked door on every E press
+# (doors.gd) and the water's clank (ch6.gd), which must stay short (the whole 6.8 s stacked when pressed again)
 x = load(M + "freesound_community-door-rattles-wood-2011-94336.mp3")
-save("ch3_rattle", peak(filt(cut(x, 0.0, len(x) / SR, 0.01, 0.3), lo=60), -4.0))
+save("ch3_rattle", peak(filt(cut(x, 0.0, 1.4, 0.01, 0.3), lo=60), -4.0))
 
 # ---- 第4章: she falls onto the wooden floor
 x = load(KR + "Fall Wood Body Close-001.wav")

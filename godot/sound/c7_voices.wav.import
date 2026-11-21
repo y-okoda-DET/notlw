@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://b58xnw75yojxk"
-path="res://.godot/imported/car_drive.wav-67c61355a04802337f7fa6f2f8182345.sample"
+uid="uid://brhgrp248l7sm"
+path="res://.godot/imported/c7_voices.wav-b2f9913f1ae9e345e95980194f9838e1.sample"
 
 [deps]
 
-source_file="res://sound/car_drive.wav"
-dest_files=["res://.godot/imported/car_drive.wav-67c61355a04802337f7fa6f2f8182345.sample"]
+source_file="res://sound/c7_voices.wav"
+dest_files=["res://.godot/imported/c7_voices.wav-b2f9913f1ae9e345e95980194f9838e1.sample"]
 
 [params]
 

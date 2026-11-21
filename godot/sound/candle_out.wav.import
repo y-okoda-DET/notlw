@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://b5l43k1blsr06"
-path="res://.godot/imported/c7_stream.wav-c65ba4992426c2e6d0bc594ce8981a29.sample"
+uid="uid://il48ibvosb1s"
+path="res://.godot/imported/candle_out.wav-b0c2b774ae905ebb24f39af3a8ab3ceb.sample"
 
 [deps]
 
-source_file="res://sound/c7_stream.wav"
-dest_files=["res://.godot/imported/c7_stream.wav-c65ba4992426c2e6d0bc594ce8981a29.sample"]
+source_file="res://sound/candle_out.wav"
+dest_files=["res://.godot/imported/candle_out.wav-b0c2b774ae905ebb24f39af3a8ab3ceb.sample"]
 
 [params]
 
