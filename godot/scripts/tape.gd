@@ -390,7 +390,10 @@ func _room():
 	_box(Vector3(0, 0.34, 0.199), Vector3(0.72, 0.03, 0.004), Color(0.42, 0.33, 0.23), 0.5)   # its front edge, a shade lighter
 	for sx in [-0.345, 0.345]: _box(Vector3(sx, 0.245, -0.045), Vector3(0.03, 0.19, 0.49), wood, 0.6)   # its two sides, down to the cabinet
 	_box(Vector3(0, 0.245, -0.285), Vector3(0.72, 0.19, 0.01), wood, 0.8)               # its back
-	for n in main.get_children().slice(main.get_child_count() - 5):   # the rack throws no shadow: the deck under it stays as lit as before (the last cut: the keys, the hand)
+	# the set's foot on the board: a darker band just round it (the board's own contact shadow; the rack casts none)
+	var foot := _box(Vector3(0, 0.3555, -0.07), Vector3(0.62, 0.002, 0.50), Color(0.10, 0.075, 0.055), 0.9)
+	foot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for n in main.get_children().slice(main.get_child_count() - 6):   # the rack throws no shadow: the deck under it stays as lit as before (the last cut: the keys, the hand)
 		if n is GeometryInstance3D: (n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the tape's case on the floor, its label to her
 	_box(Vector3(0.52, 0.010, 0.42), Vector3(0.070, 0.020, 0.106), Color(0.12, 0.12, 0.13), 0.5).rotation.y = 0.5   # the small cassette's box (106 × 70 × 20 mm), no label

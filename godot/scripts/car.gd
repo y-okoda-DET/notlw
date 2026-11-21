@@ -452,7 +452,7 @@ func _people():
 			var msk: Skeleton3D = (main.S.makoto_node as Node).find_children("*", "Skeleton3D", true, false)[0]
 			var hr: SkeletonModifier3D = load("res://scripts/headrest.gd").new(); hr.name = "headrest"; msk.add_child(hr)
 			earphone.get_parent().remove_child(earphone); add_child(earphone)
-			hr.set("follow", earphone); hr.set("follow_at", Vector3(0.062, 0.05, 0.01))
+			hr.set("follow", earphone); hr.set("follow_at", Vector3(0.066, 0.015, 0.015))
 	if main.S.has("natsuki_node"):
 		var sk: Skeleton3D = (main.S.natsuki_node as Node).find_children("*", "Skeleton3D", true, false)[0]
 		nat_ik = ReachIK.new(); nat_ik.name = "reach"; sk.add_child(nat_ik)
