@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://bsir0u018loif"
+path="res://.godot/imported/car_seat_Color_94172c84-6d80-46bf-81d7-d0650be7ac0e.jpg-2a55c7533020f7f2d3879d4ae8f87a55.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "bef12a3a57511e11375a5496a0ec7152"
+}
+
+[deps]
+
+source_file="res://props/car_seat_Color_94172c84-6d80-46bf-81d7-d0650be7ac0e.jpg"
+dest_files=["res://.godot/imported/car_seat_Color_94172c84-6d80-46bf-81d7-d0650be7ac0e.jpg-2a55c7533020f7f2d3879d4ae8f87a55.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1
