@@ -984,6 +984,9 @@ func _card():
 	if SCENE == "house": rows = [[String(TIME_LABEL.get(TIME, TIME)), 52, 0]]
 	if SCENE == "dusk" or play == "ch1": rows = [["第 一 章", 46, 40], ["ルール", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]]
 	card = make_card(self, rows, Type.card())
+	# 2026-11-22（全体レビュー 1）: with no card (CARD_TIME 0: 第1章 from the car) it must not show while the first frames load.
+	# It was made visible and only hidden by the first _process, ~2 s later on the house: 第1章's card came twice
+	card.visible = CARD_TIME > 0.0
 	# the keys: not on the card (the card is the interviewer's), but along the top once the scene has begun
 	var layer := CanvasLayer.new(); layer.layer = 12; add_child(layer)
 	foot = Label.new()
@@ -1572,7 +1575,7 @@ func _walk_anims(k: String, inst: Node):
 # Only the clips each one uses go on their player: with all ten (14 animations on one player) Godot 4.4.1 crashed while
 # the house was set up, every time; with five or fewer, never (2026-11-14, tried one set at a time)
 const TALK_CLIPS := {"kiryu": ["sit_b", "idle", "talk_d"], "taiga": ["sit_a", "idle", "talk_b", "crouch"],
-	"natsuki": ["idle", "talk_a"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
+	"natsuki": ["idle", "talk_a", "talk_b", "argue", "think"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
 func _talk_anims(k: String, inst: Node):
 	var tp := "res://assets/dusk/%s_talk.res" % k
 	if not ResourceLoader.exists(tp): return

@@ -55,6 +55,9 @@ var zoom_want := -1.0          # the operator's own zoom (the car: in on her, th
 var zoom_v := 0.0
 var zoom_snd_t := 0.0
 var cam_light: OmniLight3D
+var nat_face: OmniLight3D
+var nat_line_i := 0
+var nat_was_speaking := false
 var light_want := 0.0
 var car_dome: OmniLight3D
 var door_gap: OmniLight3D
@@ -472,6 +475,7 @@ class Finder8 extends Control:
 		var x0: float = (s.x - w) / 2.0; var y0: float = (s.y - h) / 2.0
 		var lc := Color(0.92, 0.92, 0.88)
 		# the lens's water (after the fall): each drop a pale ring that spreads and runs
+		var wet: Array = []
 		for d in drops:
 			# 試作232（ユーザー「ここの雨粒、急に安っぽい」）: crisp rings with a white glint read as drawn bubbles. Water on the
 			# lens is out of focus: a soft pale smear, a little long, its lower edge darker, and a faint wet trail when it runs
@@ -487,13 +491,12 @@ class Finder8 extends Control:
 					var pt := c0.lerp(c, t) + Vector2(sin(ph + t * 5.0) * r * 0.12 * (1.0 - t), 0.0)
 					draw_line(prev, pt, Color(0.8, 0.84, 0.88, 0.006 + 0.03 * t * t), r * (0.12 + 0.5 * t))
 					prev = pt
-			draw_set_transform(c, 0.0, Vector2(1.0, 1.18))
-			for k in 7:
-				var f := 1.0 - k * 0.11
-				draw_circle(Vector2.ZERO, r * f, Color(0.8, 0.85, 0.9, 0.028))
-			draw_arc(Vector2(0, r * 0.08), r * 0.92, deg_to_rad(25.0), deg_to_rad(155.0), 14, Color(0.02, 0.03, 0.05, 0.16), r * 0.16)
-			draw_arc(Vector2(0, -r * 0.05), r * 0.8, deg_to_rad(205.0), deg_to_rad(335.0), 14, Color(0.9, 0.93, 0.96, 0.07), r * 0.12)
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			wet.append(Vector4(c.x, c.y, r, float(d[3]) * 91.0))   # the drop itself: refracted in st.lens_water (2026-11-22)
+		if st.lens_water:
+			var lm: ShaderMaterial = st.lens_water.material
+			var arr: Array = []
+			for i in 18: arr.append(wet[i] if i < wet.size() else Vector4.ZERO)
+			lm.set_shader_parameter("drops", arr); lm.set_shader_parameter("n", mini(wet.size(), 18))
 		# the tumble: the picture tears in bands
 		if glitch > 0.01:
 			rng.seed = int(Time.get_ticks_msec() / 60)
@@ -545,10 +548,47 @@ func _finder8():
 	flash_tex.visible = false; layer.add_child(flash_tex)
 	white = ColorRect.new(); white.color = Color(0.93, 0.92, 0.88, 0.0); white.set_anchors_preset(Control.PRESET_FULL_RECT)
 	white.mouse_filter = Control.MOUSE_FILTER_IGNORE; layer.add_child(white)
+	# 2026-11-22（全体レビュー 5、ユーザー「急に安っぽい」）：レンズの水は、描いた丸では刷りで同じ円盤になった。
+	# 本物のレンズの水滴は、その奥の画を逆さに小さく映してぼかす。画そのものを水滴の中で屈折させる
+	lens_water = ColorRect.new(); lens_water.set_anchors_preset(Control.PRESET_FULL_RECT); lens_water.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lsh := Shader.new(); lsh.code = LENS_WATER; var lm := ShaderMaterial.new(); lm.shader = lsh; lens_water.material = lm
+	layer.add_child(lens_water)
 	var f := Finder8.new(); f.st = self; f.fnt = Type.cam(); f.u = u
 	f.set_anchors_preset(Control.PRESET_FULL_RECT); f.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(f); finder8 = f
 	if "--ch8nofin" in OS.get_cmdline_user_args(): layer.visible = false   # 確認用：ファインダーの枠なしで見る
+
+var lens_water: ColorRect
+const LENS_WATER := """
+shader_type canvas_item;
+uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
+uniform vec4 drops[18];      // x, y (pixels), radius (pixels), shape seed
+uniform int n = 0;
+void fragment() {
+	vec2 vs = 1.0 / SCREEN_PIXEL_SIZE;
+	vec2 p = SCREEN_UV * vs;
+	vec4 o = vec4(0.0);
+	for (int i = 0; i < 18; i++) {
+		if (i >= n) break;
+		vec4 d = drops[i];
+		vec2 q = (p - d.xy) / vec2(d.z, d.z * 1.22);
+		float a = atan(q.y, q.x);
+		float edge = 1.0 + 0.10 * sin(a * 3.0 + d.w) + 0.06 * sin(a * 5.0 + d.w * 2.3);   // not a circle
+		float r = length(q) / edge;
+		if (r < 1.0) {
+			// the scene behind, upside down and small, out of focus (a lens in the lens)
+			vec2 s = (d.xy - (p - d.xy) * 0.55) / vs;
+			vec3 c = textureLod(scr, s, 2.5).rgb;
+			c *= mix(1.05, 0.55, smoothstep(0.55, 1.0, r) * smoothstep(-0.2, 0.9, q.y));   // its lower edge dark
+			c += vec3(0.035) + vec3(0.22) * smoothstep(0.72, 0.95, r) * smoothstep(0.3, -0.8, q.y);   // the water lifts the dark a little; a thin light on its upper rim
+			c += vec3(0.25) * smoothstep(0.16, 0.0, length(q - vec2(-0.35, -0.45)));              // the camera's lamp caught in it, a speck
+			float al = smoothstep(1.0, 0.86, r) * 0.85;
+			o = mix(o, vec4(c, 1.0), al);
+		}
+	}
+	COLOR = o;
+}
+"""
 
 func _fin8(on: bool):
 	fin_on = on
@@ -1379,8 +1419,24 @@ func _process(dt):
 		# 話している間は話す動き、聞いている間は立ち姿（立ったままの棒立ちに見えた：2026-11-19 ユーザー）
 		if _has("natsuki") and not main.walkers.has("natsuki"):
 			var nap: AnimationPlayer = (main.S.natsuki_node as Node).find_children("*", "AnimationPlayer", true, false)[0]
-			var want := "talk/talk_a" if (mode == TALK and String(cur.get("who", "")) == "夏希") else "talk/idle"
+			# 2026-11-22（全体レビュー 3、まだ棒立ちに見えた）：話す行ごとに手の動きを替え（talk_a・argue・talk_b）、聞く間は
+			# 腕を組んで考える形と立ち姿を替える。寒い外で、じっとしていない
+			var speaking: bool = mode == TALK and String(cur.get("who", "")) == "夏希"
+			if speaking and not nat_was_speaking: nat_line_i += 1
+			nat_was_speaking = speaking
+			var want: String = (["talk/talk_a", "talk/argue", "talk/talk_b"][nat_line_i % 3]) if speaking else ("talk/think" if nat_line_i % 2 == 0 else "talk/idle")
 			if nap.has_animation(want) and nap.current_animation != want: nap.play(want, 0.5)
+			# her face: the camera's lamp, as far as it reaches her (it lit the ground and left her a shape against the car)
+			if nat_face == null:
+				nat_face = OmniLight3D.new(); nat_face.light_color = Color(1.0, 0.86, 0.68); nat_face.omni_range = 1.1; nat_face.omni_attenuation = 1.2
+				nat_face.shadow_enabled = false; nat_face.light_specular = 0.1; nat_face.light_cull_mask = 1 << 15
+				for gi in (main.S.natsuki_node as Node).find_children("*", "GeometryInstance3D", true, false): (gi as GeometryInstance3D).layers |= 1 << 15
+				add_child(nat_face)
+			var hd: Vector3 = main._rig_of("natsuki").global_position + Vector3(0, 1.45, 0)
+			nat_face.global_position = hd + (_cam().global_position - hd).normalized() * 0.6
+			nat_face.light_energy = move_toward(nat_face.light_energy, 0.9 * cam_light.light_energy / 0.55, dt)
+	elif nat_face and nat_face.light_energy > 0.0:
+		nat_face.light_energy = move_toward(nat_face.light_energy, 0.0, dt)
 	if stage == "door": _dflow_tick(dt)
 	if stage == "fall": _fall_tick(dt)
 	if stage == "sky": _sky_tick(dt)
