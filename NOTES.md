@@ -677,3 +677,9 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - （試作264）画を止める（フリーズ）には、face_vp の更新を止めるだけでは足りない。刷り（riso2）の粒が print_fps で動き続けて「止まって」見えないので、main.riso の print_fps を 0 にして粒も止める。
 
 - 配る版の書き出し（2時間半）を `setsid nohup` で切り離して回し、ターンを終えたら、作業の入れ物ごと止められて書き出しも消えた（2026-11-21、274。night の段で止まり、ログに何も残らない）。切り離すなら、同時に `run_in_background` で終わりの印（ファイル）を待つ見張りを回しておく（見張りが動いている間は止められない。2時間で切れるので、続くなら見張りを張り直す）。
+
+## 章を直に開いて画を撮る（2026-11-22、SSR のレビューで）
+- `snap.sh` の `--play=chX` は、`--scene=house --time=<PLAY_TIME の時刻> --nocard` も付けないと効かず、序章（ch0）から始まる（main.gd 149 行：SCENE が house のときだけ play を読む）。証言は `--play=i1` だけでよい（Order.direct）。SARGS で渡す。
+- snap.sh の `--quit-after 40000` は 24fps で約1666秒。通し全体（第11章まで）を1本で撮るなら足りない（第4章の頭で止まる）。
+- 画つきの通しは CPU の Vulkan で実時間の3分の1ほど。Godot 1本で約6GB 使う。16GB の環境で3本並べると OOM で落ちた。2本まで。第11章のテープは特に遅い（40秒進むのに15分ほど）。
+- この環境（notlw）は github.com と huggingface.co を許していなかった。2026-11-22 に、Godot（github.com、objects/release-assets.githubusercontent.com）と埋め込みの模型（huggingface.co、cdn-lfs.hf.co、cdn-lfs-us-1.hf.co、cas-bridge.xethub.hf.co、us.aws.cdn.hf.co、cas-server.xethub.hf.co）をユーザーの承認で足した。mesa-vulkan-drivers は apt-get update のあとで入る。
