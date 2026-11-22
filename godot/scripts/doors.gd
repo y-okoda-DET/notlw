@@ -116,21 +116,38 @@ func _looked() -> MeshInstance3D:
 	var m = hit.collider.get_meta("door")
 	return m if doors.has(m) else null
 
+# 試作277（ユーザー「扉一回選択したら、左下、消す」）：一度動かした扉には、もう案内を出さない
+var used := {}
+# 試作277（ユーザー「ここの扉、選択できるように。開かない。みたいなテキストを出す」）：書斎のふすま（開かない）
+func _fusuma() -> bool:
+	var from := cam.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * REACH)
+	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty(): return false
+	var c: Node = hit.collider
+	return String(c.name).to_lower().contains("fusuma") or (c.get_parent() != null and String(c.get_parent().name).to_lower().contains("fusuma"))
+
 func _process(dt):
 	t += dt
 	cam = main.player.get_node_or_null("Head/Camera") if main.player else null
 	if cam == null: return
 	var d := _looked()
 	if t < say_until: return
-	label.text = "［扉｜Ｅ］" if d else ""
+	label.text = "［扉｜Ｅ］" if d and not used.has(d) else ("［ふすま｜Ｅ］" if d == null and _fusuma() else "")
 
 func _unhandled_input(e):
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E)
 	if not press: return
 	if cam == null: return
 	var d := _looked()
-	if d == null: return
+	if d == null:
+		if _fusuma():
+			get_viewport().set_input_as_handled()
+			Sound.one(self, "ch3_rattle", -16.0, cam.global_position - cam.global_basis.z * 0.8)
+			label.text = "［開かない］"; say_until = t + 2.2
+		return
 	get_viewport().set_input_as_handled()
+	used[d] = true
 	toggle(d)
 
 func toggle(d: MeshInstance3D):

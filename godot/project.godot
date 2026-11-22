@@ -5,6 +5,8 @@ config_version=5
 config/name="RULES - 23:00"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
+run/flush_stdout_on_print=true
+run/flush_stdout_on_print.debug=true
 
 [display]
 

@@ -699,18 +699,28 @@ func _clear(b: Container):
 # a spoken line at the foot of the frame; the speaker's name in small type when the speaker changes (story.gd)
 func _say_row(who: String, text: String) -> Label:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u)); row.alignment = BoxContainer.ALIGNMENT_CENTER
-	if who != last_who:
+	if who != last_who or lines_box.get_child_count() == 0:
 		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
 	last_who = who
 	var lb := _label(SAY_SIZE); lb.text = wrap_ja(T(text), 30); lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	row.add_child(lb)
 	lines_box.add_child(row)
-	while lines_box.get_child_count() > 2:
+	# 字幕は折り返しを含めて3行まで（試作277、story.gd _fit_lines と同じ決まり。docs/字幕の決まり.md）
+	while lines_box.get_child_count() > 1:
+		var total := 0
+		for r in lines_box.get_children(): total += _row_lines(r)
+		if total <= 3: break
 		var c := lines_box.get_child(0); lines_box.remove_child(c); c.queue_free()
 	for i in range(lines_box.get_child_count()):
 		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.5
 	return lb
+
+static func _row_lines(row: Node) -> int:
+	var n := 0
+	for c in row.get_children():
+		if c is Label and (c as Label).text != "" and not String((c as Label).text).ends_with("　"): n = maxi(n, String((c as Label).text).count("\n") + 1)
+	return maxi(n, 1)
 
 # type a line in, then hold it; E / click finishes the typing, then goes on
 func _type(lb: Label, cps := 22.0, hold := 1.4):

@@ -671,6 +671,10 @@ func _drive(dt: float):
 			if _looking_at_house() and t_stage > 0.4:
 				stage = "title"; t_stage = 0.0; title_t = 0.0
 				print("CAR title t=%.1f" % t_now)
+				# 試作277（ユーザー「左上テキスト、タイトルバックが出る時点ではなしに」）：題名の前に、左上の証言と案内を消す
+				note_lb.text = ""; dlook = {}
+				var tw0 := create_tween(); tw0.tween_property(tes_box, "modulate:a", 0.0, 0.8)
+				tw0.tween_callback(func(): _clear_box(tes_box); tes_box.modulate.a = 1.0)
 		"title":
 			v = move_toward(v, 0.0 if d > d_end - 1.0 else 0.6, dt * 0.5)
 			if t_stage > 9.5:
@@ -809,6 +813,7 @@ func _item_at(k: String) -> Vector3:
 
 func _inspect(_dt: float):
 	focus_k = ""
+	if stage in ["title", "out", "done"]: note_lb.text = ""; return
 	if stage in ["title", "out", "done", "card"]: note_lb.text = ""; return
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var fwd := -cam.global_basis.z

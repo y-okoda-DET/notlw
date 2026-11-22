@@ -385,7 +385,7 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		var rule := ColorRect.new(); rule.color = Color(paper.r, paper.g, paper.b, 0.85)
 		rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(rule)
-	elif who != "" and kind == "say" and (who in offscreen or not named.has(who) or who != last_who):
+	elif who != "" and kind == "say" and (who in offscreen or not named.has(who) or who != last_who or lines_box.get_child_count() == 0):   # 字幕の決まり：話す人が替わったとき、字幕が空から始まるときは名前を付ける
 		named[who] = true
 		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
@@ -397,25 +397,50 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 	box.add_child(row)
 	if kind == "say" and who != "": last_who = who
 	if kind == "choose": row.set_meta("choice", true)
-	if not tes:
-		# two lines at most; but the choices (the struck-through ones too) stay with the first line that follows them
-		while lines_box.get_child_count() > 2:
-			var c := lines_box.get_child(0)
-			var after := 0
-			for k in range(lines_box.get_child_count() - 1, -1, -1):
-				if lines_box.get_child(k).has_meta("choice"): break
-				after += 1
-			if c.has_meta("choice") and after <= 1: break
-			lines_box.remove_child(c); c.queue_free()
-		for i in range(lines_box.get_child_count()):   # the line before fades back
-			(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
+	if not tes: _fit_lines()
 	return [row, t]
+
+# 字幕の決まり（試作277、ユーザー「表示する台詞行数は最大3行にしよう」。docs/字幕の決まり.md）：足もとの字幕は、折り返しを
+# 含めて3行まで。新しい行は必ず残し、古い行から消す。選択肢（線を引いた物も）は、そのあとの最初の一行と一緒に残す。
+# The subtitles at the foot: three printed lines at most, the wrapped lines counted. Called when a row comes and when
+# a typed row gets its full text (the rows are laid out before they are typed in).
+const MAX_SUB_LINES := 3
+static func row_lines(row: Node) -> int:
+	var n := 0
+	for c in row.get_children():
+		if c is Label and (c as Label).text != "" and not String((c as Label).text).ends_with("　"): n = maxi(n, String((c as Label).text).count("\n") + 1)
+	return maxi(n, 1)
+func _fit_lines():
+	if lines_box == null: return
+	while lines_box.get_child_count() > 1:
+		var total := 0
+		for c in lines_box.get_children(): total += row_lines(c)
+		if total <= MAX_SUB_LINES: break
+		var c0 := lines_box.get_child(0)
+		var after := 0
+		for k in range(lines_box.get_child_count() - 1, -1, -1):
+			if lines_box.get_child(k).has_meta("choice"): break
+			after += 1
+		if c0.has_meta("choice") and after <= 1: break
+		lines_box.remove_child(c0); c0.queue_free()
+	for i in range(lines_box.get_child_count()):   # the line before fades back
+		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
 
 # type a line in: the whole line is laid out from the start, the characters show one by one
 func _type(lb: Label, full: String, n: int):
 	if not is_instance_valid(lb): return
-	if lb.text != full: lb.text = full
+	if lb.text != full:
+		lb.text = full
+		if lines_box and lb.get_parent() and lb.get_parent().get_parent() == lines_box: _fit_lines()
 	lb.visible_characters = -1 if n >= full.length() else n
+	# 左上の証言（試作277、ユーザー「左上の表示、適度なタイミングで消えるように」）：打ち終えたら、読める長さだけ置いて消える。
+	# 場面の会話が続いていても残らない（docs/字幕の決まり.md）。The testimony at the top left goes once it has been read.
+	if n >= full.length() and full != "" and tes_box and lb.get_parent() and lb.get_parent().get_parent() == tes_box and not lb.has_meta("going"):
+		lb.set_meta("going", true)
+		var row := lb.get_parent() as Control
+		var hold := clampf(full.length() / 7.0 + 2.0, 4.0, 9.0)
+		var tw := create_tween(); tw.tween_interval(hold); tw.tween_property(row, "modulate:a", 0.0, 1.2)
+		tw.tween_callback(func(): if is_instance_valid(row) and row.get_parent() == tes_box: tes_box.remove_child(row); row.queue_free())
 
 func _clear_box(b: Container):
 	for c in b.get_children(): b.remove_child(c); c.queue_free()

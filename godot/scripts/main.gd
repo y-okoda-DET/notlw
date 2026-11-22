@@ -968,7 +968,24 @@ static func make_card(parent: Node, rows: Array, font: Font, centred := true) ->
 	var sh := Shader.new(); sh.code = CARD_GRAIN
 	var gm := ShaderMaterial.new(); gm.shader = sh; grain.material = gm
 	c.add_child(grain)
+	var hush := CardHush.new(); hush.card = c; layer.add_child(hush)
 	return c
+
+# 試作277（ユーザー「章カードが表示されている間は音を鳴らさない」）：カードが見えているあいだ、全部の音を下げる。
+# 見えなくなる（消える・薄れる・外される）と戻る。While any card is up, the master bus is down; it comes back after.
+class CardHush extends Node:
+	static var cards_up := 0
+	var card: ColorRect
+	var up := false
+	func _process(_dt):
+		var vis := is_instance_valid(card) and card.is_visible_in_tree() and card.modulate.a > 0.5 and card.color.a > 0.5
+		if vis != up: _hush(vis)
+	func _hush(v: bool):
+		up = v
+		cards_up = maxi(0, cards_up + (1 if v else -1))
+		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), cards_up > 0)
+	func _exit_tree():
+		if up: _hush(false)
 
 static func _card_label(text: String, fs: int, font: Font, col: Color) -> Label:
 	var lb := Label.new(); lb.text = text

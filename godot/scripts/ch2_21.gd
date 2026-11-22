@@ -280,7 +280,12 @@ func _do(what: String):
 		"after21":
 			pass
 		"siren_far":   # 12時31分②: far off, once, not coming nearer (another accident, near; the game does not say)
-			Sound.one(self, "siren_far", -10.0)
+			# 試作277（ユーザー「救急車の音、フェードインからフェードアウトで」）：遠くから寄って、また遠のく（音の長さに合わせて）
+			var sp = Sound.one(self, "siren_far", -40.0)
+			if sp:
+				var ln: float = (sp as AudioStreamPlayer).stream.get_length()
+				var tw := create_tween(); tw.tween_property(sp, "volume_db", -10.0, ln * 0.4).set_trans(Tween.TRANS_SINE)
+				tw.tween_property(sp, "volume_db", -42.0, ln * 0.55).set_trans(Tween.TRANS_SINE)
 		"window22":
 			script_q.clear(); mode = FREE
 			_window22()
