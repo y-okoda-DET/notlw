@@ -519,7 +519,7 @@ func _do(what: String):
 			# back to Mio. She goes round to his west side: from Mio's place she is seen side on, her hands on his arm
 			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], Callable(), _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
 		"makoto_wipe":
-			main.set_stand("makoto", "talk/think")
+			main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 		"taiga_down":
 			talk_with = ""
 			if dn: dn.open_key("door_cellar"); dn.open_key("door_barred")
@@ -736,7 +736,9 @@ func _makoto_near(p: Vector3) -> bool:
 const SEAL_ORDER_FIXED := ["g1", "g2", "g3", "g4", "g5"]
 const MK_WAY := {
 	"g1": [[4.95, 5.4], [4.8, 3.95], [4.3, 3.6], [3.6, 3.7], [2.7, 2.8], [2.7, 1.2], [1.95, 0.75]],
-	"g2": [[2.7, 1.2], [2.7, 2.8], [2.6, 3.5], [1.6, 4.6], [1.25, 5.1]],
+	# 試作277（ユーザー「1つ目のテープを貼ったら、真琴がこちらに向かってくる。向かって左側の方の通路から」）: by the west passage
+	# (x 1.0〜1.3 on the --ch3map), not up the east one where Mio stands after the first tape
+	"g2": [[1.17, 1.05], [1.2, 2.6], [1.45, 2.85], [1.6, 3.4], [1.6, 4.6], [1.25, 5.1]],
 	"g3": [[1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [6.6, 6.8]],
 	"g4": [[7.4, 6.6], [7.9, 6.3], [8.95, 6.0]],
 	"g5": [[8.85, 4.9]],
@@ -1063,7 +1065,7 @@ func _flow_event(e: Dictionary):
 				main.walk_to("makoto", [[4.7, 2.6, 0.0]], Callable(), _face([4.7, 2.6], SIT_AT))
 				talk_with = "makoto"
 			"makoto_head":
-				main.set_stand("makoto", "talk/think")
+				main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 			"makoto_up":
 				talk_with = ""
 				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
@@ -1695,3 +1697,18 @@ func _map():
 			print("MAP %5.2f %s" % [y, row])
 			y -= 0.1
 	get_tree().quit()
+
+
+# 試作277（ユーザー「ここの真琴、短いスパンで同じような動きを繰り返す」、23時）: "think" is a short Mixamo clip; looped, the same
+# gesture came every few seconds. Once through, then the plain stand for 4〜7 s, then again, while nothing else is set on her
+func _vary(k: String, a: String, b: String):
+	if not main.S.has(k + "_node"): return
+	var ap: AnimationPlayer = main.S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
+	if not ap.has_animation(a) or not ap.has_animation(b): return
+	var len_a: float = ap.get_animation(a).length
+	get_tree().create_timer(len_a).timeout.connect(func():
+		if main.stand_anim.get(k, "") != a: return
+		main.set_stand(k, b, 0.6); main.stand_anim[k] = a   # (still "think" for the next turn; the body stands meanwhile)
+		get_tree().create_timer(randf_range(4.0, 7.0)).timeout.connect(func():
+			if main.stand_anim.get(k, "") != a or main.walkers.has(k): return
+			main.set_stand(k, a, 0.6); _vary(k, a, b)))

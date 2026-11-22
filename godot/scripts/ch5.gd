@@ -974,11 +974,21 @@ func _do(what: String):
 			var tw := create_tween()
 			tw.tween_property(r, "global_rotation:y", r.global_rotation.y + wrapf(atan2(to.x, to.z) - r.global_rotation.y, -PI, PI) * 0.6, 1.2).set_trans(Tween.TRANS_SINE)
 			tw.tween_interval(1.4)
+			# 試作277（ユーザー「真琴、廊下の方を一回見るアニメーションを追加」）: then once down the hall, to its far end (the wind)
+			var hall := gp(5.4, 6.2, 0.0) - r.global_position
+			tw.tween_property(r, "global_rotation:y", r.global_rotation.y + wrapf(atan2(hall.x, hall.z) - r.global_rotation.y, -PI, PI) * 0.8, 1.1).set_trans(Tween.TRANS_SINE)
+			tw.tween_interval(1.6)
 			tw.tween_property(r, "global_rotation:y", r.global_rotation.y, 1.0).set_trans(Tween.TRANS_SINE)
 		"makoto_back":
 			talk_with = ""
 			stage = "follow"
-			_stand_up(func(): main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
+			# 試作277（ユーザー「真琴が立って移動するとき、澪に一度ぶつかるのやめる」）: Mio stood in the one-body gap of the hall
+			# (x 4.3, y 3.0〜3.2 on the --ch3map) that Makoto goes through. She steps back out of it, west, as Makoto gets up
+			var mp: Vector3 = player.global_position
+			if Vector2(mp.x + 4.8 - MIO_AT[0], mp.z + 6.3 - MIO_AT[1]).length() < 0.7:
+				var aside := gp(3.75, 3.55, 0.0); aside.y = mp.y
+				create_tween().tween_property(player, "global_position", aside, 1.3).set_trans(Tween.TRANS_SINE)
+			_stand_up(func(): main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.45, 2.95, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
 				Callable(), _face(MK_BACK, [BACK_DOOR[0], BACK_DOOR[1]])))
 		"makoto_light":
 			# the light goes low, onto the torn tape and the hand under it, and Mio's eyes go with it (2026-11-17: the first
@@ -1054,7 +1064,9 @@ func _do(what: String):
 		"makoto_sink":
 			_palm_off()
 			main.stand_anim["makoto"] = "talk/idle"
-			main.walk_to("makoto", [[7.6, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
+			# 試作277（ユーザー「この直前、真琴が壁をすり抜けていく」）: from the window straight to (7.6, 6.9) went through the wall's
+			# end at x 7.8〜8.0, y 6.4〜6.7 (the --ch3map). Round it on the open side
+			main.walk_to("makoto", [[7.5, 6.3, 0.0], [7.5, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
 		"makoto_cellar_door":
 			hold = true; talk_with = ""
 			main.stand_anim["makoto"] = "talk/idle"

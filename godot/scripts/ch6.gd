@@ -706,9 +706,9 @@ func _cellar_shoe():
 	if shoe6: return
 	# 試作277（ユーザー「このタイミングって地下に行けていいんだっけ？」）: no. Two steps down she stops (step_down, the cough);
 	# below them an unseen wall across the stair, the whole chapter
-	var sb := StaticBody3D.new(); sb.name = "cellar_stair6"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
-	bx.size = Vector3(1.1, 3.0, 0.2); cs.shape = bx; sb.add_child(cs); main.add_child(sb)
-	sb.global_position = gp(5.5, 4.9, 0.0)
+	var wall := StaticBody3D.new(); wall.name = "cellar_stair6"; var wcs := CollisionShape3D.new(); var wbx := BoxShape3D.new()
+	wbx.size = Vector3(1.1, 3.0, 0.2); wcs.shape = wbx; wall.add_child(wcs); main.add_child(wall)
+	wall.global_position = gp(5.5, 4.9, 0.0)
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_cellar")
 	# her torch, rolled to the foot of the stair, lighting the ceiling (第5章: she went down with it)
