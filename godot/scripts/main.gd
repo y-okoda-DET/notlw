@@ -2038,7 +2038,11 @@ func _shadow_budget(dt: float):
 		if not l.get_meta("want_shadow"): continue
 		if not l.is_visible_in_tree() or l.light_energy <= 0.0: l.shadow_enabled = false; continue
 		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
-		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
+		var rank: float = l.global_position.distance_to(e) - 0.5 * r
+		# 試作277（ユーザー「立つ位置によってりんご箱に当たる光が違う」、夕方）: the crew's key light (the fresnel on the mark and
+		# the apple box) is the set's light: it is never the one cut for the budget
+		if l == lights.get("fresnel_key"): rank -= 1000.0
+		cand.append([rank, l])
 	cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作175 A3（ユーザー「場所によって、明るさが変わってしまっている」、第1章 夕方、127・166 に続いて3度目）: at (4.45, 5.2) the
 	# living room's lamp was past the budget but in sight through the door, so it kept its light without its shadow and lit
@@ -2051,7 +2055,7 @@ func _shadow_budget(dt: float):
 			var lc: Light3D = c[1]
 			var to0 := lc.global_position + (e - lc.global_position).normalized() * minf(0.4, e.distance_to(lc.global_position) * 0.5)
 			var q0 := PhysicsRayQueryParameters3D.create(e, to0); q0.collide_with_areas = false
-			if not space0.intersect_ray(q0).is_empty(): c[0] += 1000.0
+			if not space0.intersect_ray(q0).is_empty() and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
 		cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
