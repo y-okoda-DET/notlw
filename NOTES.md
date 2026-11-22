@@ -683,3 +683,11 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - snap.sh の `--quit-after 40000` は 24fps で約1666秒。通し全体（第11章まで）を1本で撮るなら足りない（第4章の頭で止まる）。
 - 画つきの通しは CPU の Vulkan で実時間の3分の1ほど。Godot 1本で約6GB 使う。16GB の環境で3本並べると OOM で落ちた。2本まで。第11章のテープは特に遅い（40秒進むのに15分ほど）。
 - この環境（notlw）は github.com と huggingface.co を許していなかった。2026-11-22 に、Godot（github.com、objects/release-assets.githubusercontent.com）と埋め込みの模型（huggingface.co、cdn-lfs.hf.co、cdn-lfs-us-1.hf.co、cas-bridge.xethub.hf.co、us.aws.cdn.hf.co、cas-server.xethub.hf.co）をユーザーの承認で足した。mesa-vulkan-drivers は apt-get update のあとで入る。
+
+## 2026-11-23 第7章が開いてすぐ落ちる（試作276、ユーザーのPC Intel Arc 130V）の原因
+- 落ちる場所：RULES.exe+0x1b28fe1（0xC0000005）。4.4.1 の Windows 書き出しの雛形（windows_release_x86_64.exe、ImageBase 0x140000000）を objdump で開くと、0x141b28fc0 からの関数で、近くの文字列は scene/animation/animation_player.cpp。`playback.current.from`（this+0x5b8）→ `->animation`（+0x8）→ インスタンスID（+0x58）を読む所＝ AnimationPlayer::_blend_pre_process の `playback.current.from->animation->get_instance_id()`。from が解放済みの AnimationData を指している。
+- なぜ：AnimationPlayer は再生中の動きを自分の表（animation_set）の中を指すポインタで持つ。再生中にライブラリを足す・外すと表が作り直され、ポインタが残る。次のフレームで読んで落ちる（メモリが再利用されたかどうかで、落ちたり落ちなかったりする）。第7章は始まりに ch7.gd `_c7_libs` が座っている3人の player から walk を外し c7 を足す（再生中）。
+- 「一つの player に動きが多いと落ちる」（main.gd TALK_CLIPS の注、上の試作230/231）も、たぶん同じ物：表が大きいほど作り直しで場所が変わりやすい。
+- 直し：main.gd `lib_set(ap, 名前, lib)`（null で外す）。止めて（stop はポインタを消す）から変え、同じ動き・同じ位置から再生し直す。ライブラリを足す・外すのは必ずこれを通す。
+- 落ちる場所を絞るのに効いたこと：exe の隣に override.cfg（[application] run/flush_stdout_on_print=true）を置いて --verbose --log-file で起動すると、print が落ちる直前まで残る。落ちた回は「CAR wheel」の後、「STORY ch7 hands t=2.8」の前（章カードの 2.75 秒の間）。
+- 配った版に直しだけを重ねて試す：直したスクリプトを別名の .gd（テキスト）で入れ、`res://scripts/<名前>.gd.remap` をそれに向けた小さい pck を PCKPacker で作る。`RULES.exe -s fix7.gd` の SceneTree スクリプトが `ProjectSettings.load_resource_pack(pck, true)` してから `change_scene_to_file("res://main.tscn")`。リポジトリの外 /home/claude/work/fix7/。
