@@ -122,13 +122,26 @@ def fresnel(base, head_h, aim, M, energy=260, k=3200, size=24):
     cyl_between('yoke', (bx, by, head_h), hp, .01, M['metal'], 6)
     body_ = cyl_between('fresnel', hp - d * .14, hp + d * .1, .085, M['black'], 18)
     lensm = mat_basic('fres_lens', (1, .9, .7), .3, emit=kelvin(k), estr=30)
-    lens_ = cyl_between('fres_lens', hp + d * .1, hp + d * .105, .07, lensm, 18); lens_.visible_shadow = False
-    for kk in range(4):   # barn doors
+    lens_ = cyl_between('fres_lens', hp + d * .1, hp + d * .105, .08, lensm, 24); lens_.visible_shadow = False
+    for rr in (.062, .044, .026):   # the fresnel's steps: thin darker rings on the glowing face
+        ring = cyl_between('fres_lens', hp + d * .1055, hp + d * .1065, rr, mat_basic('fres_ring', (.6, .5, .38), .3, emit=kelvin(k), estr=14), 24)
+        ring.visible_shadow = False
+        inner = cyl_between('fres_lens', hp + d * .1065, hp + d * .1075, rr - .006, lensm, 24); inner.visible_shadow = False
+    # 試作277（ユーザー「このライト、光源がいまは細い長方形だけど、ソレは変。実際のライトの光源のように」）：4枚の羽根が
+    # みな同じ向きで十字に重なり、丸いレンズを隠して細い隙間だけが光っていた。羽根は口の四辺に蝶番で付き、外へ35度開く。
+    # レンズは口いっぱいの丸（同心の段がうっすら見える）
+    from mathutils import Matrix
+    x, y = _perp(d)
+    for kk in range(4):   # barn doors, one on each side of the mouth, opened out
         a = kk / 4 * math.tau
-        x, y = _perp(d)
-        off = (x * math.cos(a) + y * math.sin(a)) * .095
-        bd = prim('cube', 'barndoor', loc=hp + d * .16 + off, scale=(.09, .002, .05), mat=M['black'])
-        bd.rotation_euler = (d.to_track_quat('Y', 'Z')).to_euler()
+        o_dir = (x * math.cos(a) + y * math.sin(a)).normalized()
+        t_dir = d.cross(o_dir).normalized()
+        op = math.radians(35)
+        dd = (d * math.cos(op) + o_dir * math.sin(op)).normalized()      # the flap's length, opened out
+        nn = t_dir.cross(dd).normalized()
+        hinge = hp + d * .105 + o_dir * .085
+        bd = prim('cube', 'barndoor', loc=hinge + dd * .05, scale=(1, 1, 1), mat=M['black'])
+        bd.matrix_world = Matrix.LocRotScale(hinge + dd * .05, Matrix((t_dir, nn, dd)).transposed().to_quaternion(), Vector((.085, .002, .05)))
     return lib.spot('fresnel_key', tuple(hp + d * .12), aim, energy, k=k, size=size, blend=.18, radius=.05)
 
 def _perp(d):

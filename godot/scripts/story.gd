@@ -929,7 +929,9 @@ func _start(entries: Array):
 	radio_up = false
 	_next()
 
+var nod_hold := false
 func _next():
+	if nod_hold: return
 	if script_q.is_empty():
 		mode = FREE; cur = {}
 		if ch2 and holding_radio: return
@@ -946,6 +948,14 @@ func _next():
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
 	if cur.has("do"):
 		_do(cur.do)
+		# 試作277（ユーザー「首を振ってから「そっか」にする」「首を振ってから、真琴の台詞を表示」）：首を振る・うなずくは、
+		# 振り終えてから次の行へ。The head's shake or nod is over before the next line comes.
+		if String(cur.do) in ["shake", "nod"]:
+			nod_hold = true
+			get_tree().create_timer(0.95).timeout.connect(func():
+				nod_hold = false
+				if mode != END: _next())
+			return
 		if mode != END: _next()
 		return
 	if cur.has("mission"):

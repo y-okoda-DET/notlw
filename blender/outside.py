@@ -67,7 +67,7 @@ def mats(M):
         return {'a': a, 'n': X.src('brown_mud_rocks_01', 'nor_gl', (S, S))}
     p = X.cached({'roadbase': 1}, ('a', 'n'), base)
     M['ext_roadbase'] = X.mat_maps('ext_roadbase', p['a'], p['n'], rough=.95)
-    p = X.cached({'kenchi': 3}, ('a', 'n'), kenchi_image)
+    p = X.cached({'kenchi': 4}, ('a', 'n'), kenchi_image)
     M['ext_kenchi'] = X.mat_maps('ext_kenchi', p['a'], p['n'], rough=.9)
     M['ext_gutter'] = M.get('ext_concrete') or X.concrete_mat(M)
     M['ext_rail'] = mat_basic('ext_rail', (.6, .6, .58), .45, metal=.2)          # white paint: .6 (paper-white at .75)
@@ -94,11 +94,15 @@ def kenchi_image():
     ip, iq = np.floor(p).astype(int) % 12, np.floor(q).astype(int) % 12
     jitter = rng.normal(0, 1, (12, 12))
     edge = np.minimum(np.minimum(fp, 1 - fp), np.minimum(fq, 1 - fq))   # 0 at the joints
-    mortar = edge < .035
-    dome = np.clip(edge / .2, 0, 1) ** .5
     gl = X.lum(X.src('concrete_moss', 'diff', (S, S))); gl = (gl - gl.mean()) / gl.std()
-    base = .44 + .035 * jitter[ip, iq] + .025 * gl
-    base = np.where(mortar, .3, base)
+    # 試作277（ユーザー「この網目のやつ、もっとリアルにしたい」）：線を引いた網に見えていた。目地を広く深く、欠けた縁で
+    # 不揃いにし、石ごとの色の差を大きく、面のふくらみと目地ぎわの陰を強くする（一つずつ積んだ石に見えるように）
+    chip = X.tileable_noise(rng, S, 90)
+    mortar = edge < (.05 + .025 * np.clip(chip, -1, 1))
+    dome = np.clip(edge / .28, 0, 1) ** .6
+    base = .42 + .085 * jitter[ip, iq] + .05 * gl
+    base = base * (.72 + .28 * dome)                                  # the face rounds off into the joint
+    base = np.where(mortar, .17 + .03 * gl, base)
     # damp from the top down (the wall is under the slope's water), streaks
     streak = X.tileable_noise(rng, S, 22)
     streak = np.clip(np.repeat(streak[:1, :], S, 0) * .5 + X.tileable_noise(rng, S, 120) * .5, 0, None)
@@ -114,8 +118,8 @@ def kenchi_image():
     c = c * (1 - .45 * stain[..., None])
     c = np.where((r < .045)[..., None], .03, c)
     c = np.where(((r >= .045) & (r < .06))[..., None], .32, c)
-    hgt = dome * 1.0 - mortar * .6 + .05 * gl - (r < .05) * 1.5
-    return {'a': c, 'n': X.normal_from_height(hgt, 3.0)}
+    hgt = dome * 1.0 - mortar * 1.2 + .12 * gl - (r < .05) * 1.5
+    return {'a': c, 'n': X.normal_from_height(hgt, 6.0)}
 
 def sign_image():
     """the road board: 「路肩注意」 in red on white, written down the board (the old municipal kind, a red border)"""
@@ -278,12 +282,24 @@ def roads(M):
             if k: F.append((len(V) - 4, len(V) - 3, len(V) - 1, len(V) - 2))
         o = _mesh(name, V, F, mat=M['ext_spray']); _up(o); return o
     mi = [i for i in sl if abs(float(G.slip_u(i))) < 5.2]
-    mark_line('ext_slipmark', mi, lambda i: float(G.scarp_edge(G.slip_u(i))) - .3 if abs(float(G.slip_u(i))) < 4.6 else
-              float(G.scarp_edge(G.slip_u(i))) - .3)
+    # 試作277（ユーザー「白線がぐにゃぐにゃになるのは不自然か。わかりやすくはあるんだけど」）：ひびのぎざぎざをそのまま
+    # なぞらず、手で吹いた線のように、ひびの内側をなめらかに通す（前後 1.6m でいちばん内側を取り、ならす）
+    _raw = {i: float(G.scarp_edge(G.slip_u(i))) - .3 for i in mi}
+    _win = max(1, int(1.6 / R.step))
+    _sm = {}
+    for k, i in enumerate(mi):
+        lo, hi = max(0, k - _win), min(len(mi), k + _win + 1)
+        _sm[i] = min(_raw[j] for j in mi[lo:hi])   # the innermost: the line never crosses the crack
+    _win2 = max(1, _win // 2)
+    _sm2 = {}
+    for k, i in enumerate(mi):
+        lo, hi = max(0, k - _win2), min(len(mi), k + _win2 + 1)
+        _sm2[i] = sum(_sm[j] for j in mi[lo:hi]) / (hi - lo)
+    mark_line('ext_slipmark', mi, lambda i: _sm2[i])
     mark_line('ext_slipok_mark', mi, lambda i: hw - .35)
     for ie in (mi[0], mi[-1]):   # the ends, across the lane
         V = []; F = []
-        a0_ = float(G.scarp_edge(G.slip_u(ie))) - .3; a1_ = hw - .35
+        a0_ = _sm2[ie]; a1_ = hw - .35
         for k, a in enumerate(np.linspace(min(a0_, a1_), max(a0_, a1_), 6)):
             for w in (-.03, .03):
                 p = R.P[ie] + R.N[ie] * out * a + R.T[ie] * w; V.append((p[0], p[1], R.z[ie] + ok_z(ie, a * out) + .005))
@@ -455,7 +471,8 @@ def slip_props(M):
     # the cone: before, on the crack; after, down the slumped bank on its side
     i = i0 - int(1.5 / R.step)
     e = float(G.scarp_edge(G.slip_u(i)))
-    p = R.P[i] + R.N[i] * out * (e + .25)
+    # 試作277（ユーザー「もう少し三角コーンを崖側に置いて」）：ひび（e）の外へ 0.25 → 0.6 m。車はこれを避ける（car.gd _curve）
+    p = R.P[i] + R.N[i] * out * (e + .6)
     cone('ext_slipok_cone', M, (p[0], p[1], R.z[i]), (0, 0, .3))
     p = R.P[i0] + R.N[i0] * out * (hw + 5.5)
     z = float(np.ravel(G.final(p[0], p[1], 'ok') - G.slip_depth(p[0], p[1]))[0])

@@ -124,15 +124,41 @@ func _line_of(e: Dictionary, arr: Array, ifs: Array):
 # ---------------------------------------------------------------- the way
 func _curve():
 	curve = Curve3D.new(); curve.bake_interval = 0.25
+	var pts0 := []
+	for p in PATH: pts0.append(main.b2g(p))
+	# 試作277（ユーザー「道の三角コーンを突き抜ける。…車は避けるような動きを入れる」）：道の点を細かくして、コーンの横を
+	# ハンドルで避けて通る（前後 7m かけて寄り、コーンから 1.8m あける）。The way goes round the cone, eased in and out.
 	var pts := []
-	for p in PATH: pts.append(main.b2g(p))
+	for i in pts0.size():
+		pts.append(pts0[i])
+		if i + 1 < pts0.size() and i + 1 != DRIVE_I:
+			for k in [1, 2, 3]: pts.append((pts0[i] as Vector3).lerp(pts0[i + 1], k / 4.0))
+	var drive_pt: Vector3 = pts0[DRIVE_I]
+	var cone: Node3D = null
+	if main.S.has("env_node"):
+		var cs: Array = (main.S.env_node as Node).find_children("ext_slipok_cone*", "MeshInstance3D", true, false)
+		if cs.size() > 0: cone = cs[0]
+	if cone:
+		var c: Vector3 = (cone as MeshInstance3D).global_transform * (cone as MeshInstance3D).get_aabb().get_center()
+		for i in range(1, pts.size() - 1):
+			var p: Vector3 = pts[i]
+			var tg: Vector3 = (pts[i + 1] - pts[i - 1]); tg.y = 0.0; tg = tg.normalized()
+			var nrm := Vector3(-tg.z, 0.0, tg.x)
+			var rel := c - p; rel.y = 0.0
+			var along := rel.dot(tg); var side := rel.dot(nrm)
+			if absf(along) > 7.0 or absf(side) > 1.8: continue
+			var w := 0.5 + 0.5 * cos(PI * along / 7.0)
+			# move across so the cone is 1.8 m to the side (staying on the side of it the car is already on)
+			var shift := -(1.8 - side) if side >= 0.0 else (side + 1.8)
+			pts[i] = p + nrm * shift * w
+		print("CAR cone at ", c)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)]; var b: Vector3 = pts[mini(i + 1, pts.size() - 1)]
 		var t: Vector3 = (b - a) * 0.22
 		curve.add_point(pts[i], -t, t)
 	var L := curve.get_baked_length()
 	d_slip = curve.get_closest_offset(main.b2g([SLIP_AT[0], SLIP_AT[1], -11.0]))
-	d_drive = curve.get_closest_offset(pts[DRIVE_I])
+	d_drive = curve.get_closest_offset(drive_pt)
 	d_stop = d_drive - STOP_BACK
 	d_end = L - END_BACK
 	d_reveal = d_drive + REVEAL_IN
@@ -443,6 +469,7 @@ func _people():
 		if main.S.has(k + "_node"): (main.S[k + "_node"] as Node3D).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
 	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
+	main.phones(false)   # 試作277（ユーザー「夏希の手持ちのスマホなくす」）：夏希のスマホは吹き出し口の一台だけ。手の中の物は消す
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
 	for k in ["natsuki", "makoto"]:   # layer 5: the face fill (_inside) lights them and nothing else
 		if main.S.has(k + "_node"):
