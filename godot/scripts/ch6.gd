@@ -433,7 +433,8 @@ func _looks6():
 				pos = bb.get_center() + Vector3(0, bb.size.y * 0.3, 0)
 			else: print("CH6 look %s: no node %s, at the plan point" % [it[0], it[1]])
 		var k: String = it[0]; var nm: String = it[3]; var block: String = it[4]
-		var reach := 2.4 if k in ["screen", "window", "back", "cellar"] else 1.9
+		var reach := 2.4 if k in ["screen", "window", "back"] else 1.9
+		if k == "cellar": reach = 1.3   # 試作277（ユーザー「ここから地下の扉が選択できるのなしに」、4時半の廊下の奥から）
 		_add_target(k, pos, reach, 24.0, func(): return true, func(): return "［%s］" % T(nm), _look_press.bind(k, block))
 
 func _look_press(k: String, block: String):
@@ -703,6 +704,11 @@ var shoe6: MeshInstance3D
 var cel_torch6: SpotLight3D
 func _cellar_shoe():
 	if shoe6: return
+	# 試作277（ユーザー「このタイミングって地下に行けていいんだっけ？」）: no. Two steps down she stops (step_down, the cough);
+	# below them an unseen wall across the stair, the whole chapter
+	var sb := StaticBody3D.new(); sb.name = "cellar_stair6"; var cs := CollisionShape3D.new(); var bx := BoxShape3D.new()
+	bx.size = Vector3(1.1, 3.0, 0.2); cs.shape = bx; sb.add_child(cs); main.add_child(sb)
+	sb.global_position = gp(5.5, 4.9, 0.0)
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_cellar")
 	# her torch, rolled to the foot of the stair, lighting the ceiling (第5章: she went down with it)
@@ -1748,10 +1754,8 @@ class PhoneDraw extends Control:
 				draw_string(f, Vector2(W - 78, 40), st.T("圏外"), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
 				draw_string(f, Vector2(0, 190), st.T("8月14日"), HORIZONTAL_ALIGNMENT_CENTER, W, 50, ink)
 				draw_line(Vector2(W / 2 - 60, 214), Vector2(W / 2 + 60, 214), ink, 2.0)
-				for i in 4:
-					var p := Vector2(W / 2 - 66 + 44 * i, 360)
-					if i < int(st.ph_code): draw_circle(p, 11, ink)
-					else: draw_arc(p, 11, 0, TAU, 24, ink, 2.5)
+				# 試作277（ユーザー「スマホ、パスコード無しで」）: no code. Swiped up, it opens
+				draw_line(Vector2(W / 2 - 40, H - 60), Vector2(W / 2 + 40, H - 60), ink, 4.0)
 			"chat":
 				draw_string(f, Vector2(0, 50), st.T("澪"), HORIZONTAL_ALIGNMENT_CENTER, W, 28, ink)
 				draw_string(f, Vector2(W - 78, 40), st.T("圏外"), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ink)
@@ -1761,8 +1765,14 @@ class PhoneDraw extends Control:
 					var text: String = st.T(String(m[1]))
 					var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
 					var x := (W - 22 - w) if m[0] else 22.0
-					draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink, false, 1.6)
-					draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
+					# 試作277（ユーザー「チャット欄、どっちがどっちかよくわからない」）: hers (Natsuki's, it is her phone) are filled, on the
+					# right; Mio's are open boxes on the left
+					if m[0]:
+						draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink)
+						draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(paper.r, paper.g, paper.b, lit))
+					else:
+						draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink, false, 1.6)
+						draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
 					y += 58.0
 				# what she wrote and did not send (no signal): in the box at the foot, the cursor after it
 				draw_rect(Rect2(14, 430, W - 28, 200), ink, false, 3.0)
@@ -1947,9 +1957,8 @@ func _phone_open():
 	step = 5; note_lb.text = ""
 	_phone_in_hand()
 	_after(1.1, func():
-		for i in 4:
-			_after(0.45 * i + 0.3, func(): ph_code += 1; Sound.one(self, "dial_tick", -12.0))
-		_after(2.6, func():
+		Sound.one(self, "dial_tick", -14.0)   # (試作277: no code; one swipe)
+		_after(0.7, func():
 			ph_mode = "chat"
 			# she reads it. The half-heard voice of half past two comes back on the page, and the gaps in it fill
 			_after(3.2, func():

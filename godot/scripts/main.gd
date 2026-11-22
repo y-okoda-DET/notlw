@@ -206,7 +206,7 @@ func _ready():
 	_print_layer()
 	if (SCENE == "dusk" or play == "ch1") and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 2.5   # 章カードは半分に（ユーザー 2026-11-14）
-		if FROM_CAR: CARD_TIME = 0.0; FROM_CAR = false   # 2026-11-20: 第1章のカードは行きの車の頭で出した（car.gd）。着いて、そのまま夕方
+		if FROM_CAR: FROM_CAR = false   # 試作277: 第1章のカードは着いた家の頭に戻した（2026-11-20 は行きの車の頭で出していた。car.gd）
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	if (play == "door" or (SCENE == "night" and (FROM_STORY or ARGS.has("door")))) and not checking:

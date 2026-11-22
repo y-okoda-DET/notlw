@@ -104,7 +104,9 @@ func _ready():
 	_black()
 	# the chapter's card, as the old 第1章 had it (main.gd _card), here at the car's start
 	card = main.make_card(self, [["第 一 章", 46, 40], ["ルール", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]], Type.card())
-	card_t = 0.0 if "--nocard" in OS.get_cmdline_user_args() else 3.2
+	# 試作277（ユーザー「序章が終わって車内シーンにいく瞬間に1章の章カードが表示される。本来の位置に戻す」）: the card is back where
+	# it was before 2026-11-20, on the house after the drive (main.gd FROM_CAR). The car opens on the road itself
+	card_t = 0.0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--cart="): call_deferred("_jump", float(a.substr(7)))   # check stills: the drive from this second
 		if a == "--carstop": call_deferred("_jump_stop")

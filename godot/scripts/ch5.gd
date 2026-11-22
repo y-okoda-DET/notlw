@@ -1239,7 +1239,7 @@ func _peel_tick(dt: float):
 	match look_k:
 		"board": note_lb.text = T(String(D.lines("外.板.案内")[0]))
 		"tape": note_lb.text = T(String(D.lines("はがす.案内")[0]))
-		"back": note_lb.text = T(String(D.lines("しない.勝手口")[0])) if boards_off < 4 else ""
+		"back": note_lb.text = ""   # 試作277: no Ｅ at the back door: she walks out (_out_tick)
 		"cellar": note_lb.text = T(String(D.lines("しない.地下")[0]))
 		"front": note_lb.text = T(String(D.lines("しない.玄関")[0]))
 		_: note_lb.text = ""
@@ -1400,6 +1400,10 @@ func _out_tick(dt: float):
 		Sound.one(self, "ch3_rattle", -10.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))   # the draught moves it on its hinge
 		if below_i == 0: _below_step()   # the voice from below, if it has not come yet: she counts with it in her ears
 		if stage == "done": end_wait = maxf(end_wait, 22.0)
+	# 試作277（ユーザー「ここ、Eじゃなくて、普通に外に出られるように」）: walking on into the doorway takes her out (no Ｅ)
+	if mode == FREE and boards_off < 4 and stage in ["peel", "done"] and not has_flag("went_out_4am") and not outside:
+		var pp: Vector3 = player.global_position; var bd := gp(BACK_DOOR[0], BACK_DOOR[1], 0.0)
+		if Vector2(pp.x - bd.x, pp.z - bd.z).length() < 0.75: _go_out()
 	if back_sil:
 		back_sil_t += dt
 		if is_instance_valid(back_sil_lb): back_sil_lb.text = T("（沈黙・%s秒）") % num(int(back_sil_t))

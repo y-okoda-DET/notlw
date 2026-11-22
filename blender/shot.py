@@ -38,7 +38,9 @@ GENKAN_SCANS = {'genkan_mat': (.2, 4.55, 0), 'genkan_shoe1': (-.28, 5.14, 90 - 1
 # The crew's break on the up-stair's 2nd tread (top z = 2 * F2 / 13): the snacks on the wall side, the mugs on the open
 # side, a roll of packing tape on the 3rd tread. The living room has no furniture and is out of both shots.
 STEP = H4.F2 / H4.NSTEP
-MORE_SCANS = {'genkan_umbrella': (St.HALL[0] + .2, 5.15, Hm.ZG + .002, 0),
+# 試作277（ユーザー「傘の取っ手が壁にのめり込んでる」）: the scan is .30 wide (x -.15..+.15) and the wall's face is .06 in: .2 put
+# the handles 1cm into it. At .3 they clear it by 9cm
+MORE_SCANS = {'genkan_umbrella': (St.HALL[0] + .3, 5.15, Hm.ZG + .002, 0),
               'hall_slippers': (.42, 4.70, .005, -90 - 130),
               'hall_backpack': (.93, 4.66, 0, 0),
               'stair_snacks': (.86, 3.355, 2 * STEP, 8),
