@@ -709,8 +709,8 @@ func _begin(st: String):
 	match st:
 		"top":
 			if cel8 == "":
+				# 試作277（ユーザー「ここ、扉はしまっている状態で」）: the cellar door is shut; he opens it (Ｅ) and sees her below
 				_put("mio", CEL_MIO, _face(CEL_MIO, [5.5, 2.2]), CEL_Z)
-				if dn: dn.open_key("door_cellar")
 			_start(B("八.二階"))
 			_one("ch3_moan", -16.0, gp(5.5, 2.6, -1.4))
 			_after(2.6, func(): _one("ch3_cough", -12.0, gp(8.5, 1.5, F2 + 0.8)))
@@ -1014,11 +1014,8 @@ func _cel_look() -> bool:
 	if mode != FREE or not _has("mio"): return false
 	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
 	var to := hd - _cam().global_position
-	if not (to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)): return false
-	# 2026-11-21 (review): not through the floor from the hall. At the stair head (plan 5.0, 5.9) she is seen down the stairwell, whose
-	# edge the ray clips (試作238: a height limit, then a plain ray, stopped the demo there), so there it is let through
-	var p := _plan()
-	if Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.9: return true
+	# 試作277（ユーザー「澪に近づいてから止める」）: not from the stair head: he goes down to her (within arm's reach and a step)
+	if not (to.length() < 1.9 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(40.0)): return false
 	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(_cam().global_position, hd))
 	return hit.is_empty() or (hit.position as Vector3).distance_to(hd) < 0.6
 
@@ -1075,8 +1072,10 @@ func _knock():
 		tw.tween_property(arm, "position", back, 0.33).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(arm, "position", rest, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func(): arm.visible = false)
-	_after(0.31, func(): _one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
+	# 試作277（ユーザー「叩くモーションと叩く音をあわせたい」）: knock.wav has its own spacing (0.04, 0.52 s ...), not the hand's
+	# (0.31, 0.73, 1.15). One knock (knock1.wav, its onset at 0.02 s) at each strike
 	for i in 3:
+		_after(0.29 + 0.42 * i, func(): _one("knock1", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
 		_after(0.31 + 0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
 
 var knock_arm: Node3D
@@ -1606,7 +1605,11 @@ func _demo8_tick(dt: float):
 			var p := _plan()
 			if cel8 == "heard":
 				if _cel_look(): player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8(); return
-				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.5, p[1] - 4.1).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4:
+					var dn8 = main.get_node_or_null("Doors")
+					if dn8: dn8.open_key("door_cellar")
+					_demo_go([[5.5, 5.75], [5.5, 5.2], [5.5, 4.1]]); demo_wait = 1.0; return   # (試作277: down the cellar stair to her)
 				if demo_goal.is_empty(): _demo_go([[5.3, 1.95], [4.7, 2.2], [4.3, 2.9], [4.3, 3.7], [4.8, 4.2], [5.0, 5.9]])   # off the stair foot, round by the hall (ch3.gd walks it the other way)
 				else: _demo_there(0.3)
 				return

@@ -457,9 +457,21 @@ void fragment() {
 		c = vec3(0.07 + 0.16 * door + floor_) * band + (n - 0.5) * 0.07;
 		c *= vec3(0.92, 0.96, 1.0);
 	}
-	// the tube's curve: darker to the corners
-	vec2 d = uv - 0.5; c *= 1.0 - dot(d, d) * 1.2;
-	ALBEDO = c;
+	// 試作277（ユーザー「テレビに表示されているように」、証言 一）: it read as a card stuck on the glass. A tube's picture: scan
+	// lines, the phosphor's three stripes, a soft glow, rounded dark corners, and the glass's own sheen over it
+	if (on > 0.5) {
+		float scan = 0.72 + 0.28 * sin(uv.y * 480.0 * 3.14159);
+		float tri = mod(floor(FRAGCOORD.x), 3.0);
+		vec3 ph = tri < 1.0 ? vec3(1.12, 0.94, 0.94) : (tri < 2.0 ? vec3(0.94, 1.12, 0.94) : vec3(0.94, 0.94, 1.12));
+		c = c * scan * ph * 1.25 + c * 0.18;
+		c *= 0.96 + 0.04 * sin(tm * 50.0);
+	}
+	vec2 d = uv - 0.5;
+	c *= 1.0 - dot(d, d) * 2.2;
+	float corner = smoothstep(0.5, 0.44, max(abs(d.x) * 1.04, abs(d.y) * 1.08) + 0.06 * dot(d, d));
+	c *= corner;
+	float sheen = smoothstep(0.35, 0.0, length(uv - vec2(0.3, 0.22))) * 0.06;
+	ALBEDO = c + vec3(sheen);
 }"""
 
 func _tv():
