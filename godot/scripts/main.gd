@@ -637,7 +637,9 @@ func _house_state():
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
 		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
 		# 試作231（ユーザー「このなつきのテープなくす」、序章・第6章の4時半）: the crew's floor mark with Natsuki's name is 第1章's
-		elif nm.begins_with("tapeX") or nm.begins_with("tapeN"): mi.visible = TIME != "t0430"
+		elif nm.begins_with("tapeX"): mi.visible = TIME != "t0430"
+		# 試作277（ユーザー「テープ、「なつき」の文字なくす」、23時）: the strip with her name is off at 23時 too; the X stays
+		elif nm.begins_with("tapeN"): mi.visible = TIME != "t0430" and TIME != "t23"
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true
