@@ -177,7 +177,7 @@ func _load_mio():
 	var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
 	for ap in inst.find_children("*", "AnimationPlayer", true, false):
 		# (試作231: no "t20/loop" for her: she stands in "talk/idle" from the start, and every clip on one player counts. See NO_WALK7)
-		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"): (ap as AnimationPlayer).add_animation_library("talk", _few(load("res://assets/dusk/mio_talk.res"), MIO_USE))
+		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"): main.lib_set(ap, "talk", _few(load("res://assets/dusk/mio_talk.res"), MIO_USE))
 	main._walk_anims("mio", inst)
 	if FileAccess.file_exists("res://assets/dusk/ch7.json"):
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/ch7.json"))
@@ -348,13 +348,13 @@ func _c7_libs():
 		if not _has(k) or not ResourceLoader.exists(p): continue
 		for ap in (main.S[k + "_node"] as Node).find_children("*", "AnimationPlayer", true, false):
 			# 試作230（取り込んだ版）：大河の player が14本になり、21時半の始まりで毎回落ちた（画面なしでも）。この章で歩かない2人は歩きの5本を外す
-			if k in NO_WALK7 and (ap as AnimationPlayer).has_animation_library("walk"): (ap as AnimationPlayer).remove_animation_library("walk")
+			if k in NO_WALK7 and (ap as AnimationPlayer).has_animation_library("walk"): main.lib_set(ap, "walk", null)
 			if not (ap as AnimationPlayer).has_animation_library("c7"):
 				var lib: AnimationLibrary = load(p)
 				var few := _few(lib, C7_USE[k])
 				var mix := _sit_mix(lib, "drink")
 				if mix != null and k in NO_WALK7: few.add_animation("sit_drink", mix)   # only the two on the sofa drink (_party_tick)
-				(ap as AnimationPlayer).add_animation_library("c7", few)
+				main.lib_set(ap, "c7", few)
 
 # Godot 4.4.1 crashes (signal 11, with a window; never headless) when one AnimationPlayer holds many animations: main.gd's
 # TALK_CLIPS note (14 crashed every time, five or fewer never). With all ten of Mio's and all nine of the party's it crashed

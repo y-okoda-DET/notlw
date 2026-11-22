@@ -284,12 +284,12 @@ func _load_mio():
 		if names.size() > 0:
 			var an: Animation = (ap as AnimationPlayer).get_animation(names[0]).duplicate()
 			an.loop_mode = Animation.LOOP_LINEAR; lib.add_animation("loop", an)
-		(ap as AnimationPlayer).add_animation_library("t20", lib)
+		main.lib_set(ap, "t20", lib)
 		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"):
 			var src: AnimationLibrary = load("res://assets/dusk/mio_talk.res"); var tl := AnimationLibrary.new()
 			for cn in ["idle", "sit_idle"]:
 				if src.has_animation(cn): tl.add_animation(cn, src.get_animation(cn))
-			(ap as AnimationPlayer).add_animation_library("talk", tl)
+			main.lib_set(ap, "talk", tl)
 	main._walk_anims("mio", inst)
 	if FileAccess.file_exists("res://assets/dusk/ch7.json"):
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/ch7.json"))

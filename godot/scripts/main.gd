@@ -1454,7 +1454,7 @@ func _t20_people():
 		_talk_anims(k, inst)
 		for ap in inst.find_children("*", "AnimationPlayer", true, false):
 			ap.stop(); sk.reset_bone_poses()
-			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); ap.add_animation_library("t20", lib); ap.play("t20/loop")
+			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); lib_set(ap, "t20", lib); ap.play("t20/loop")
 		for ba in mv.find_children("*", "BoneAttachment3D", true, false):
 			# 試作97: the phone and its screen come in as bones of their own (k_t20phone, _scr: glTF made the hand's mesh
 			# children into bones). Moved onto the body's skeleton their index pointed at lowerarm_twist_r and neck_01: the
@@ -1585,7 +1585,7 @@ func _walk_anims(k: String, inst: Node):
 		var an: Animation = src.get_animation(nm).duplicate()
 		an.loop_mode = Animation.LOOP_LINEAR if clip in ["walk", "up", "down"] else Animation.LOOP_NONE
 		lib.add_animation(clip, an)
-	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("walk", lib)
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): lib_set(ap, "walk", lib)
 	mv.free()
 
 # 2026-11-14（ユーザー「居間、みんな内側を向いて会話している感じに」）: standing, sitting, talking, crouching (export_talk.py:
@@ -1595,6 +1595,21 @@ func _walk_anims(k: String, inst: Node):
 # the house was set up, every time; with five or fewer, never (2026-11-14, tried one set at a time)
 const TALK_CLIPS := {"kiryu": ["sit_b", "idle", "talk_d"], "taiga": ["sit_a", "idle", "talk_b", "crouch"],
 	"natsuki": ["idle", "talk_a", "talk_b", "argue", "think"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
+# 試作277（第7章が開いてすぐ落ちた。ユーザーのPCで5回中2〜3回、RULES.exe+0x1b28fe1）: Godot 4.4.1 の AnimationPlayer は、
+# 再生中の動きを自分の表（animation_set）の中を指すポインタで持つ（playback.current.from と blend）。ライブラリを足す・外すと
+# 表が作り直され、ポインタは解放された所を指したまま残り、次のフレームの AnimationPlayer::_blend_pre_process が読んで落ちる
+# （4.4.1 の書き出しの雛形を逆アセンブルして確かめた）。「一つの player に動きが多いと落ちる」（TALK_CLIPS の注、NOTES）も同じ物：
+# 多いほど表が大きく作り直される。足す・外すときは止めてから変え、同じ所から再生し直す。lib が null なら外す
+static func lib_set(ap: AnimationPlayer, nm: String, lib: AnimationLibrary):
+	var cur := String(ap.current_animation) if ap.is_playing() else ""
+	var pos := ap.current_animation_position if cur != "" else 0.0
+	var spd := ap.get_playing_speed() / ap.speed_scale if ap.speed_scale != 0.0 else 1.0
+	ap.stop(true)   # (also a paused player: stop clears the pointer; it is left stopped, as nothing here pauses one)
+	if ap.has_animation_library(nm): ap.remove_animation_library(nm)
+	if lib != null: ap.add_animation_library(nm, lib)
+	if cur != "" and ap.has_animation(cur):
+		ap.play(cur, 0.0, spd); ap.seek(pos, true)
+
 func _talk_anims(k: String, inst: Node):
 	var tp := "res://assets/dusk/%s_talk.res" % k
 	if not ResourceLoader.exists(tp): return
@@ -1602,7 +1617,7 @@ func _talk_anims(k: String, inst: Node):
 	var tlib := AnimationLibrary.new()
 	for c in TALK_CLIPS.get(k, []):
 		if src.has_animation(c): tlib.add_animation(c, src.get_animation(c))
-	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("talk", tlib)
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): lib_set(ap, "talk", tlib)
 	# (made from export_talk.py's <k>_talk.glb by godot/check/talk_lib.gd: instancing the glb here, next to the house's
 	# loading, crashed Godot 4.4.1 now and then)
 
