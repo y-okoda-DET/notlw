@@ -947,10 +947,11 @@ func _next():
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
 	if cur.has("do"):
-		_do(cur.do)
+		var d := String(cur.do)   # (_do may start another block and replace cur: 試作277 の通しで silence_nail・silence)
+		_do(d)
 		# 試作277（ユーザー「首を振ってから「そっか」にする」「首を振ってから、真琴の台詞を表示」）：首を振る・うなずくは、
 		# 振り終えてから次の行へ。The head's shake or nod is over before the next line comes.
-		if String(cur.do) in ["shake", "nod"]:
+		if d in ["shake", "nod"]:
 			nod_hold = true
 			get_tree().create_timer(0.95).timeout.connect(func():
 				nod_hold = false
