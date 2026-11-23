@@ -2152,6 +2152,19 @@ func _hammer_start():
 		var n := b as Node3D
 		ham_rest.append(n.global_position); n.visible = false
 	_ham_show(0)
+	# 試作278（独立レビュー「板も窓も金づちも判別できない」）: the demo's look stood over the window looking down on the dark
+	# ground. She crouches to the low window and faces it while she nails (the mouse does not turn her: the swing is
+	# the thing to watch); up again when the last board is in
+	var mid := Vector3.ZERO
+	for r in ham_rest: mid += r as Vector3
+	mid /= maxf(1.0, float(ham_rest.size()))
+	player.look_enabled = false
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(player, "eye_height", 1.05, 0.8).set_trans(Tween.TRANS_SINE)
+	var head_at := Vector3(player.global_position.x, player.global_position.y + 1.05, player.global_position.z)
+	var to := mid - head_at
+	tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.8).set_trans(Tween.TRANS_SINE)
 
 func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
 	var cam: Camera3D = player.get_node("Head/Camera")
@@ -2205,6 +2218,8 @@ func _hammer_end():
 	ham_on = false
 	if is_instance_valid(ham): ham.queue_free()
 	player.move_enabled = true
+	player.look_enabled = true
+	create_tween().tween_property(player, "eye_height", 1.52, 0.6).set_trans(Tween.TRANS_SINE)
 	set_flag("nails_bent", ham_bent)
 	print("STORY boards hammer done bent=%d t=%.1f" % [ham_bent, t_now])
 	_start(B("板.地下の窓"))
