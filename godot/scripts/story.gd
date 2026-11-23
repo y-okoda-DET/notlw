@@ -721,6 +721,7 @@ func _process(dt):
 	(finder_ui as FinderFrame).tc = "0:%02d:%02d" % [int(t_now / 60.0) % 60, int(t_now) % 60]
 	finder_ui.queue_redraw()
 	if mode == END: _end_tick(dt); return
+	if ham_on: _ham_tick(dt)
 	if house: _house_tick(dt)
 	if ch2: _radio_tick(dt)
 	# the head and the camera
@@ -821,6 +822,7 @@ func _set_finder(on: bool):
 	finder_rest = {}
 
 func _press():
+	if ham_on: _ham_press(); return
 	if mode == TALK: _advance(); return
 	if mode != FREE: return
 	if finder and holding_cam:
@@ -1259,6 +1261,7 @@ func _demo_tick(dt):
 		"board": board_up = s[1]; done = true
 		"until_free":
 			if mode == TALK: _demo_read()
+			elif ham_on: demo_t = 0.0   # (the hammer: _ham_tick strikes in time)
 			else:
 				done = demo_t > 0.3
 		"until_end": done = false
@@ -2063,8 +2066,7 @@ func _board_use(key: String):
 		if player.global_position.x < gp(CELLAR_WIN[0] + 0.15, 0.0, 0.0).x:
 			_start(B("板.地下の窓.届かない")); return
 		cellar_done = true; items.erase("w_cellar")
-		for b in cellar_boards: (b as Node3D).visible = true
-		_start(B("板.地下の窓"))
+		_hammer_start()
 		return
 	var w: Dictionary = wins[int(key.substr(2))]
 	items.erase(key)
@@ -2075,6 +2077,93 @@ func _board_use(key: String):
 		talk_with = "taiga"
 		k += B("板.残りはみんなが")
 	_start(k)
+
+# ---------------------------------------------------------------- 手の遊び①：地下の小窓の板打ち＝拍子（決定事項 2026-11-23 7時33分）
+# 金づちは澪の右手で、上がって落ちるのをくり返す（約1秒）。落ちきる瞬間に Ｅ で釘が入る。ずれると釘が曲がって、板は寄らない。
+# 1枚に3本。4枚目の最後の1本は、どう打っても沈みきらない（その下で排気のホースが潰れている：第5章の答え）。ゲージも文字も出さない。
+var ham_on := false
+var ham: Node3D
+var ham_t := 0.0
+var ham_board := 0
+var ham_hits := 0
+var ham_miss := 0
+var ham_bent := 0
+var ham_pressed_t := -9.0
+var ham_rest := []
+const HAM_PERIOD := 1.05
+func _hammer_start():
+	ham_on = true; ham_board = 0; ham_hits = 0; ham_miss = 0; ham_t = 0.0; ham_bent = 0
+	player.move_enabled = false
+	var cam: Camera3D = player.get_node("Head/Camera")
+	ham = Node3D.new(); ham.name = "hammer"; cam.add_child(ham)
+	ham.position = Vector3(0.2, -0.26, -0.42)
+	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.42, 0.3, 0.2); wood.roughness = 0.8
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.32, 0.32, 0.34); steel.metallic = 0.7; steel.roughness = 0.4
+	var hd := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.013; cy.bottom_radius = 0.015; cy.height = 0.3
+	hd.mesh = cy; hd.material_override = wood; hd.position = Vector3(0, 0.0, -0.15); hd.rotation.x = -PI / 2; ham.add_child(hd)
+	var hh := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.035, 0.11, 0.035)
+	hh.mesh = bx; hh.material_override = steel; hh.position = Vector3(0, 0.0, -0.29); ham.add_child(hh)
+	ham_rest = []
+	for b in cellar_boards:
+		var n := b as Node3D
+		ham_rest.append(n.global_position); n.visible = false
+	_ham_show(0)
+
+func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var o: Vector3 = cam.global_position - (ham_rest[i] as Vector3); o.y = 0.0
+	return o.normalized()
+
+func _ham_show(i: int):
+	if i >= cellar_boards.size(): return
+	var n := cellar_boards[i] as Node3D
+	n.visible = true; n.global_position = (ham_rest[i] as Vector3) + _ham_out(i) * 0.03
+
+func _ham_tick(dt: float):
+	ham_t += dt
+	var ph := fmod(ham_t, HAM_PERIOD) / HAM_PERIOD
+	# up slowly (0 → 0.72), then down fast to the nail (0.72 → 1.0)
+	var a := (ph / 0.72) if ph < 0.72 else (1.0 - (ph - 0.72) / 0.28)
+	if is_instance_valid(ham): ham.rotation.x = deg_to_rad(65.0) * smoothstep(0.0, 1.0, a)
+	if demo_on and ph > 0.96 and ham_t - ham_pressed_t > 0.5: _ham_press()
+
+func _ham_press():
+	if ham_board >= cellar_boards.size(): return
+	var ph := fmod(ham_t, HAM_PERIOD) / HAM_PERIOD
+	var good := (ph > 0.9 or ph < 0.07) and ham_t - ham_pressed_t > 0.45
+	ham_pressed_t = ham_t
+	if not good and ham_miss < 2:
+		ham_miss += 1; ham_bent += 1
+		preload("res://scripts/sound.gd").one(self, "tripod_bump", -8.0, ham_rest[ham_board])
+		_ham_bent_nail(ham_board)
+		return
+	ham_miss = 0; ham_hits += 1
+	var last := ham_board == cellar_boards.size() - 1 and ham_hits == 3
+	preload("res://scripts/sound.gd").one(self, "ch3_thud" if last else "hit", -6.0, ham_rest[ham_board])
+	var n := cellar_boards[ham_board] as Node3D
+	var left := 0.03 * (3 - ham_hits) / 3.0
+	if last: left = 0.006   # the last nail does not go home
+	create_tween().tween_property(n, "global_position", (ham_rest[ham_board] as Vector3) + _ham_out(ham_board) * left, 0.08)
+	if ham_hits >= 3:
+		ham_hits = 0; ham_board += 1
+		if ham_board < cellar_boards.size(): get_tree().create_timer(0.4).timeout.connect(_ham_show.bind(ham_board))
+		else: get_tree().create_timer(0.6).timeout.connect(_hammer_end)
+
+func _ham_bent_nail(i: int):
+	var n := cellar_boards[i] as Node3D
+	var m := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0025; cy.bottom_radius = 0.0025; cy.height = 0.035
+	m.mesh = cy; var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.45, 0.42, 0.4); mt.metallic = 0.6; m.material_override = mt
+	n.get_parent().add_child(m)
+	m.global_position = n.global_position + _ham_out(i) * 0.02 + Vector3(0, randf_range(-0.04, 0.04), 0) + _ham_out(i).cross(Vector3.UP) * randf_range(-0.12, 0.12)
+	m.look_at(m.global_position + _ham_out(i), Vector3.UP); m.rotate_object_local(Vector3.RIGHT, PI / 2 + deg_to_rad(randf_range(40.0, 60.0)))
+
+func _hammer_end():
+	ham_on = false
+	if is_instance_valid(ham): ham.queue_free()
+	player.move_enabled = true
+	set_flag("nails_bent", ham_bent)
+	print("STORY boards hammer done bent=%d t=%.1f" % [ham_bent, t_now])
+	_start(B("板.地下の窓"))
 
 func _boards_show_rest():
 	for i in range(wins.size()):
