@@ -643,6 +643,15 @@ func _house_state():
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true
+	# 試作277: the fresnel's lens glows only while its light is on (with the barn doors open it is seen)
+	for mi in S.env_node.find_children("fres_lens*", "MeshInstance3D", true, false):
+		for i in range((mi as MeshInstance3D).mesh.get_surface_count()):
+			var lm := (mi as MeshInstance3D).get_active_material(i) as StandardMaterial3D
+			if lm == null: continue
+			var ld := lm.duplicate() as StandardMaterial3D
+			ld.emission_enabled = lit.has("fresnel_key")
+			if not ld.emission_enabled: ld.albedo_color = ld.albedo_color * Color(0.35, 0.35, 0.35, 1.0)
+			(mi as MeshInstance3D).set_surface_override_material(i, ld)
 	for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
 		var key := String(mi.name).substr(10).get_slice(".", 0).get_slice("_0", 0)
 		if key in S.get("crew_keys", []): mi.visible = ST.get("crew", true)

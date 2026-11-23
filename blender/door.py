@@ -142,6 +142,11 @@ def fresnel(base, head_h, aim, M, energy=260, k=3200, size=24):
         hinge = hp + d * .105 + o_dir * .085
         bd = prim('cube', 'barndoor', loc=hinge + dd * .05, scale=(1, 1, 1), mat=M['black'])
         bd.matrix_world = Matrix.LocRotScale(hinge + dd * .05, Matrix((t_dir, nn, dd)).transposed().to_quaternion(), Vector((.085, .002, .05)))
+    # 試作277: with the barn doors open the glowing lens (estr 30) and its rings lit the whole hall in the light bake, at every
+    # time (the hall went orange at 4時半 too). The glow is for the eye only: no light from it into the bake. Godot puts its
+    # glow on only when the fresnel is lit (main.gd _house_state)
+    for o in [o for o in bpy.data.objects if o.name.startswith('fres_lens')]:
+        o.visible_diffuse = False; o.visible_glossy = False; o.visible_transmission = False; o.visible_volume_scatter = False
     return lib.spot('fresnel_key', tuple(hp + d * .12), aim, energy, k=k, size=size, blend=.18, radius=.05)
 
 def _perp(d):
