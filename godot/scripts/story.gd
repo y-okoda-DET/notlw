@@ -2133,8 +2133,8 @@ func _hammer_start():
 	var cam: Camera3D = player.get_node("Head/Camera")
 	ham = Node3D.new(); ham.name = "hammer"; cam.add_child(ham)
 	ham.position = Vector3(0.2, -0.26, -0.42)
-	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.42, 0.3, 0.2); wood.roughness = 0.8
-	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.32, 0.32, 0.34); steel.metallic = 0.7; steel.roughness = 0.4
+	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.7, 0.55, 0.38); wood.roughness = 0.7   # 試作278: at .42 it sank into the night (the snap showed no hammer)
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.55, 0.55, 0.58); steel.metallic = 0.5; steel.roughness = 0.35
 	var hd := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.013; cy.bottom_radius = 0.015; cy.height = 0.3
 	hd.mesh = cy; hd.material_override = wood; hd.position = Vector3(0, 0.0, -0.15); hd.rotation.x = -PI / 2; ham.add_child(hd)
 	var hh := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.035, 0.11, 0.035)
