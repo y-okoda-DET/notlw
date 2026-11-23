@@ -28,7 +28,7 @@ const LOOKS := [
 	["screen", "furn_screen", [0.42, 2.0, 1.3], "スクリーン", "見る.スクリーン"],
 	["back", "", [9.87, 4.88, 1.0], "勝手口", "見る.勝手口"],
 	["peeled", "", [6.6, 7.55, 0.93], "テープ", "見る.はがしたテープ"],
-	["lantern", "", [4.97, 3.50, 1.50], "ランタン", "見る.ランタン"],
+	["lantern", "", [5.10, 3.50, 1.42], "ランタン", "見る.ランタン"],
 	["hoodie", "natsuki_hoodie", [1.25, 0.6, F2 + 0.66], "上着", "見る.上着"],
 	["bag_n", "bag_natsuki", [2.75, 0.55, F2 + 0.15], "鞄", "見る.夏希の鞄"],
 	["window", "", [1.5, 0.06, F2 + 1.3], "窓", "見る.窓"],
@@ -460,7 +460,12 @@ func _pick_target() -> Dictionary:
 		if not (t.ok as Callable).call(): continue
 		var to: Vector3 = (t.pos as Vector3) - cam.global_position
 		var a := (-cam.global_basis.z).angle_to(to)
-		if to.length() < float(t.reach) and a < deg_to_rad(float(t.deg)) and a < ba: ba = a; best = t
+		# 試作277（ユーザー「二階のオブジェクト、Eが表示されない時がある」）: the bags, the case, the crate upstairs lie on the
+		# floor, 1.3-1.4 m under her eye, and the straight distance used most of the 1.9 m reach: she had to stand over them,
+		# looking down. The height counts for less now, and a thing low by the floor takes a wider look (it is small in the eye)
+		var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+		var deg := float(t.deg) + (6.0 if to.y < -0.8 else 0.0)
+		if dist < float(t.reach) and a < deg_to_rad(deg) and a < ba: ba = a; best = t
 	return best
 
 # ---------------------------------------------------------------- the night going: one step for each thing put right

@@ -274,6 +274,15 @@ def kitchen(M):
         gz = .985
     cyl('furn_pot', 7.7, 3.98, gz, gz + .165, .13, M['steel'], 20)
     box('furn_upper', sx0, 3.67, sx1, 4.0, 1.5, 2.2, M['cabinet'])
+    # 試作277: the cupboards over, doors and pulls (they were one box): the doors face plan +y, at 4.0
+    nu = max(1, int((sx1 - sx0) / .45))
+    for i in range(nu):
+        xa = sx0 + i * (sx1 - sx0) / nu; xb = sx0 + (i + 1) * (sx1 - sx0) / nu
+        if i > 0: box('furn_cabgap', xa - .003, 3.998, xa + .003, 4.002, 1.52, 2.18, M['plastic'])
+        box('furn_cabframe', xa + .03, 4.0, xb - .03, 4.01, 1.53, 1.57, M['cabinet'])
+        box('furn_cabframe', xa + .03, 4.0, xb - .03, 4.01, 2.13, 2.17, M['cabinet'])
+        box('furn_pull', (xa + xb) / 2 - .05, 4.012, (xa + xb) / 2 + .05, 4.03, 1.584, 1.596, M['steel'])
+    box('furn_upperlip', sx0, 3.67, sx1, 4.02, 1.48, 1.5, M['cabinet'])
     # fridge in the corner, short of the back door
     # its doors face into the kitchen, not into the end of the counter (ユーザー 2026-11-14「冷蔵庫、ドアがキッチン台に向かっている。
     # 反時計回りに90度回転して設置」: in the game's top view, which is the plan's +y). The user's Tripo fridge (front -Y in
@@ -302,14 +311,36 @@ def kitchen(M):
 def counter(M, x0, y0, x1, y1, wall):
     box('furn_cab', x0, y0 + (.05 if wall == 'n' else 0), x1, y1 - (.05 if wall == 's' else 0), .1, .82, M['cabinet'])
     box('furn_kick', x0, y0 + (.1 if wall == 'n' else 0), x1, y1 - (.1 if wall == 's' else 0), 0, .1, M['plastic'])
-    box('furn_top', x0, y0, x1, y1, .82, .862, M['steel'])
+    # 試作277（ユーザー「箱物感が強い。」、20時の台所）: the runs were a box, a slab and a few slits. The top overhangs the
+    # doors by 2 cm with a rolled front edge; a backsplash along the wall; a drawer under the top; each door a raised frame
+    # and a pull. All 1 cm or more (smaller than a lightmap texel and it would mottle)
+    oy = -1 if wall == 'n' else 1                       # the side the doors face
+    ty0, ty1 = (y0 - .02, y1) if wall == 'n' else (y0, y1 + .02)
+    box('furn_top', x0, ty0, x1, ty1, .82, .862, M['steel'])
+    fe = ty0 if wall == 'n' else ty1                     # the top's front edge
+    box('furn_topedge', x0, min(fe, fe + oy * .012), x1, max(fe, fe + oy * .012), .805, .866, M['steel'])
+    by0, by1 = (y1 - .015, y1) if wall == 'n' else (y0, y0 + .015)
+    box('furn_splash', x0, by0, x1, by1, .862, .97, M['steel'])
     collide(x0, y0, x1, y1, 0, .9)
-    # door gaps on the cabinet front
-    fy = y0 + .049 if wall == 'n' else y1 - .049
+    fy = y0 + .05 if wall == 'n' else y1 - .05          # the doors' face
+    def proud(xa, xb, za, zb, d=.01):                    # a strip on the face, d out of it
+        ya, yb = sorted((fy, fy + oy * d))
+        box('furn_cabframe', xa, ya, xb, yb, za, zb, M['cabinet'])
+    def pull(xc, zc, w=.1):
+        ya, yb = sorted((fy + oy * .012, fy + oy * .03))
+        box('furn_pull', xc - w / 2, ya, xc + w / 2, yb, zc - .006, zc + .006, M['steel'])
     n = max(1, int((x1 - x0) / .45))
-    for i in range(1, n):
-        x = x0 + i * (x1 - x0) / n
-        box('furn_cabgap', x - .003, fy - .002, x + .003, fy + .002, .12, .8, M['plastic'])
+    gya, gyb = sorted((fy - oy * .002, fy + oy * .002))
+    box('furn_cabgap', x0, gya, x1, gyb, .655, .665, M['plastic'])   # the drawer line
+    for i in range(n):
+        xa = x0 + i * (x1 - x0) / n; xb = x0 + (i + 1) * (x1 - x0) / n
+        if i > 0: box('furn_cabgap', xa - .003, gya, xa + .003, gyb, .12, .8, M['plastic'])
+        pull((xa + xb) / 2, .735)                                     # the drawer's pull
+        # the door below: a frame 4 cm wide standing 1 cm proud, the pull across its top
+        fa, fb = xa + .03, xb - .03
+        proud(fa, fb, .58, .62); proud(fa, fb, .16, .2)
+        proud(fa, fa + .04, .2, .58); proud(fb - .04, fb, .2, .58)
+        pull((xa + xb) / 2, .54, .12)
 
 def furnish(M):
     COL.clear(); mats(M)

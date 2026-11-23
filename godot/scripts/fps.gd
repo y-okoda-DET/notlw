@@ -211,7 +211,10 @@ func _stage():
 # this light only in the last two metres; the small camera, its gain up, has a face from the genkan on (第11章).
 # (On the newel's cap it stood in the middle of the small camera's picture. On the stairs' treads it lit nothing: the stairs are boarded in on the hall's side. On the floor behind her, Mio's
 # own shadow covered whoever stood before her.)
-const LANTERN_AT := [4.97, 3.50, 1.40]     # plan x, y; z its foot: hung on the stair's boarding under the handrail camera, below its frame
+# 試作277（ユーザー「ランタンが変な位置にある」、3時半）: at x 4.97 it hung 13 cm out in the hall from the rail, on nothing
+# (the boarding under the stair stops under the treads). Its bail is over the handrail now (x 5.1, the rail's underside
+# 1.615 at y 3.5), between two balusters (y 3.41 and 3.64)
+const LANTERN_AT := [5.10, 3.50, 1.31]     # plan x, y; z its foot: hung by its bail on the handrail under the handrail camera
 var lantern: OmniLight3D
 func _lantern():
 	var src: Light3D = main.lights.get("lantern_stair")

@@ -398,6 +398,27 @@ func _pencil(p: Dictionary):
 		if g.distance_to(pg) < bd: bd = g.distance_to(pg); best = h
 	p.pen_hand = best
 	var hg: Transform3D = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(best))
+	# 試作277（ユーザー「鉛筆の位置が変。」）: where the write file had it, it lay over the back of the hand, the fingers
+	# curled under it. It is moved (not turned) so that its axis passes between the thumb's and the forefinger's last
+	# joints, those 3.5 cm from its point: held as one holds a pencil
+	var side := best.substr(best.length() - 2)
+	var gpt := func(b: String) -> Vector3: return (sk.global_transform * sk.get_bone_global_pose(sk.find_bone(b + side))).origin
+	if sk.find_bone("thumb_03" + side) >= 0 and sk.find_bone("index_03" + side) >= 0:
+		var grip: Vector3 = (gpt.call("thumb_03") + gpt.call("index_03")) * 0.5
+		var w0: Transform3D = (pencil[0] as Node3D).global_transform
+		var ab0: AABB = (pencil[0] as MeshInstance3D).get_aabb()
+		var ax0 := Vector3.RIGHT if ab0.size.x >= maxf(ab0.size.y, ab0.size.z) else (Vector3.UP if ab0.size.y >= ab0.size.z else Vector3.BACK)
+		var c: Vector3 = w0 * ab0.get_center()
+		var Lt: Vector3 = (w0.basis * ax0).normalized()
+		var half: float = (w0.basis * (ax0 * ab0.size)).length() * 0.5
+		for n in pencil:   # the point's end: toward the tip mesh
+			if String(n.name).contains("tip"):
+				var t: Vector3 = (n as Node3D).global_transform * (n as MeshInstance3D).get_aabb().get_center()
+				if Lt.dot(t - c) < 0.0: Lt = -Lt
+		var to_c := grip - Lt * (half - 0.035)
+		var off := to_c - c
+		for n in pencil: (n as Node3D).global_position += off
+		print("IV pencil moved ", off.length())
 	# lying on the notebook: the same pencil, its long axis turned flat and across the page
 	var gw: Transform3D = (pencil[0] as Node3D).global_transform
 	var ab: AABB = (pencil[0] as MeshInstance3D).get_aabb()

@@ -874,9 +874,20 @@ func _natsuki_out():
 	var pl := func(v: Vector3) -> Array: return [v.x + 4.8, v.z + 6.3]
 	if car_dome: car_dome.global_position = c + side * 0.95 + Vector3(0, car_at.y + 0.5, 0)
 	_show("natsuki")
-	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
+	_put("natsuki", pl.call(p0), _face(pl.call(p0), pl.call(p1)), _ground(pl.call(p0)[0], pl.call(p0)[1]))
+	# 試作277（ユーザー「パッと、夏希が急に現れるように見える。自然なスピードで扉開けて出てくるように見せたい」）: she stood
+	# beside the car at once. Now she comes up out of her seat: from inside the car's side, low (the car hides her legs), up
+	# and out to where she stood over 1.3 s, a breath after the door's sound; then she walks
+	var r: Node3D = main._rig_of("natsuki")
+	var out_at := r.global_position
+	r.global_position = out_at - side * 0.75 + Vector3(0, -0.5, 0)
+	main.set_stand("natsuki", "talk/idle", 0.0)
+	var tw := create_tween()
+	tw.tween_interval(0.5)
+	tw.tween_property(r, "global_position", out_at - side * 0.3 + Vector3(0, -0.12, 0), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(r, "global_position", out_at, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# 試作232（全体レビュー6「約50秒の会話の間、腕を下ろした棒立ち」）: where she stops she talks with her hands (talk_a), not idle
-	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan()))
+	tw.tween_callback(func(): main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan())))
 	talk_with = "natsuki"
 
 # the operator keeps her in the picture: her face a little above the middle
