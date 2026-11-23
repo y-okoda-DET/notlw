@@ -236,7 +236,9 @@ func _place_for(st: String):
 		"t0", "tape":
 			for k in AT0:
 				var to: Array = MIO0
-				if k == "taiga": to = AT0.makoto
+				# 試作278（独立レビュー「大河の顔は暗い塊」）: he faced Makoto square, his face away from Mio and from Kiryu's
+				# light; half toward the hall (Mio, the light), he still talks to Makoto
+				if k == "taiga": to = [(AT0.makoto[0] + MIO0[0]) * 0.5, (AT0.makoto[1] + MIO0[1]) * 0.5]
 				elif k == "makoto": to = AT0.taiga
 				_put(k, AT0[k], _face(AT0[k], to))
 				main.set_stand(k, "talk/idle" if k != "makoto" else "talk/think", 0.0)
@@ -245,7 +247,7 @@ func _place_for(st: String):
 			# them lit nothing, snap 試作278); it falls on Taiga's face and on Makoto's at his arm. Gone at 零時半 (the candle)
 			if face_lights.is_empty():
 				main.phones(true, ["kiryu"])
-				for k in [["taiga", 0.9], ["makoto", 0.7]]:
+				for k in [["taiga", 1.4], ["makoto", 0.7]]:
 					var fl = _face_light(k[0], k[1], "kiryu")
 					if fl: face_lights.append(fl)
 		"seal":
@@ -888,7 +890,7 @@ func _trace_start(gq: Dictionary):
 	var mi := MeshInstance3D.new(); var bm := BoxMesh.new()
 	var along_x: bool = gq.n[0] == 0
 	bm.size = Vector3(0.34 if along_x else 0.004, 0.05, 0.004 if along_x else 0.34); mi.mesh = bm
-	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.62, 0.62, 0.6); m.roughness = 0.55; m.metallic = 0.1
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.8, 0.8, 0.78); m.roughness = 0.45; m.metallic = 0.1   # 試作278: lighter, it was lost on the wall
 	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)

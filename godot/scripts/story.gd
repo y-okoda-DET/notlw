@@ -988,7 +988,7 @@ func _next():
 func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
-		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.5))   # 試作278: .38 → .5 (read over the bright glass)
+		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.42))   # 試作278: .38 → .42 with the darker pool under it (Type.Soft kk): read over the bright glass, and still apart from the one picked
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
