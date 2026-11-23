@@ -625,6 +625,13 @@ func _body_shadow():
 
 func _process(dt):
 	t_now += dt; t_stage += dt
+	# (試作277) the sleeve's continuation only while the hand is out at arm's length: near the eye its tube would pass the camera
+	for hh in [hand_l, hand_r]:
+		if hh and is_instance_valid(hh):
+			var so := (hh as Node3D).get_node_or_null("sleeve_on")
+			if so:
+				var tip: Vector3 = (hh as Node3D).transform * ((so as Node3D).position + Vector3(0, 0, 0.275))
+				(so as Node3D).visible = (hh as Node3D).position.length() > 0.42 and tip.length() > 0.12
 	if body_sh:
 		body_sh.global_position = player.global_position; body_sh.rotation.y = player.yaw
 		body_sh.scale = Vector3(1.0, clampf(player.eye_height / 1.52, 0.5, 1.0), 1.0)
@@ -1009,6 +1016,14 @@ func _mk_arm(left: bool) -> Node3D:
 	tb["rad"] = (tgb.inverse() * yax).normalized()
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	var cf := Node3D.new(); cf.name = "cuff"; h.add_child(cf)
+	# 試作277（ユーザー「腕、途中で消えている」、4時半の定点カメラ）: the arm's model ends 33 cm behind the wrist; reached up and
+	# out, its open end came into the picture. The sleeve goes on back, past the eye, to where her shoulder would be
+	var ext := MeshInstance3D.new(); ext.name = "sleeve_on"
+	var em := CylinderMesh.new(); em.top_radius = 0.058; em.bottom_radius = 0.068; em.height = 0.55; em.radial_segments = 20
+	em.cap_top = false; em.cap_bottom = false; ext.mesh = em
+	var xm := StandardMaterial3D.new(); xm.albedo_color = CLOTH.darkened(0.08); xm.roughness = 0.95; xm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	ext.material_override = xm; ext.layers = 2; ext.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; ext.extra_cull_margin = 0.6
+	h.add_child(ext); ext.position = Vector3(0.022, -0.032, 0.30 + 0.27); ext.rotation = Vector3(PI / 2.0, 0, 0)
 	_curl(h, 0.25)
 	return h
 
