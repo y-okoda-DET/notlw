@@ -396,7 +396,12 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 	row.add_child(t)
 	box.add_child(row)
 	if kind == "say" and who != "": last_who = who
-	if kind == "choose": row.set_meta("choice", true)
+	if kind == "choose":
+		row.set_meta("choice", true)
+		# 試作278（独立レビュー「車の選択肢が白い窓の上で灰色に重なって読めない」）: the pool under a choice is three times as dark,
+		# so the one not picked (paper at .38) still reads over the bright glass
+		var sf = t.get_node_or_null("soft")
+		if sf: sf.kk = 3.0
 	if not tes: _fit_lines()
 	return [row, t]
 
@@ -983,7 +988,7 @@ func _next():
 func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
-		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.38))
+		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.5))   # 試作278: .38 → .5 (read over the bright glass)
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
@@ -996,11 +1001,14 @@ class FaceLight extends SpotLight3D:
 	var sk: Skeleton3D
 	var head := -1
 	var src: Node3D
-	func _process(_dt):
+	var said := 0.0
+	func _process(dt):
 		if not is_instance_valid(sk) or not is_instance_valid(src) or head < 0: visible = false; return
-		var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(head).origin + Vector3(0, 0.06, 0)
+		var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(head).origin + Vector3(0, 0.1, 0)
 		var from: Vector3 = src.global_position
 		visible = src.is_visible_in_tree() and from.distance_to(hp) > 0.05
+		said += dt
+		if said > 5.0: said = -1e9; print("STORY face_light on=%s from=%s head=%s" % [visible, from, hp])
 		if visible: look_at_from_position(from, hp, Vector3.UP if absf((hp - from).normalized().y) < 0.95 else Vector3.RIGHT)
 
 # by: whose phone it is (default: k's own; 23時 Taiga has none in his hands, Kiryu holds his up to him)
@@ -1019,7 +1027,7 @@ func _face_light(k: String, energy := 0.35, by := "") -> FaceLight:
 	f.head = sk.find_bone("head")
 	if f.head < 0: f.head = sk.find_bone("mixamorig_Head")
 	var d: float = scr.global_position.distance_to(sk.global_position + Vector3(0, 1.6, 0))
-	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy * maxf(1.0, d / 0.6); f.spot_range = maxf(0.9, d + 0.4); f.spot_angle = 16.0 if d < 1.0 else 9.0
+	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy * maxf(1.0, d * d / 0.36); f.spot_range = maxf(0.9, d + 0.6); f.spot_angle = 16.0 if d < 1.0 else 12.0   # (inverse square from the phone: the face gets what it would at 0.6 m)
 	f.spot_attenuation = 0.8; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.08
 	main.add_child(f)
 	print("STORY face_light %s by %s head=%d d=%.2f" % [k, bk, f.head, d])

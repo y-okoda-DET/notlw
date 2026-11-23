@@ -241,15 +241,18 @@ func _place_for(st: String):
 				_put(k, AT0[k], _face(AT0[k], to))
 				main.set_stand(k, "talk/idle" if k != "makoto" else "talk/think", 0.0)
 			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, MIO0_LOOK)
-			# 点検3: their phones light their faces (Taiga's line, Makoto's hands at his arm); gone at 零時半 (the candle)
+			# 点検3: Kiryu holds his phone's light up to the bite (their own phones are in their pockets at 0時: a light from
+			# them lit nothing, snap 試作278); it falls on Taiga's face and on Makoto's at his arm. Gone at 零時半 (the candle)
 			if face_lights.is_empty():
-				for k in ["taiga", "makoto"]:
-					var fl = _face_light(k)
+				main.phones(true, ["kiryu"])
+				for k in [["taiga", 0.9], ["makoto", 0.7]]:
+					var fl = _face_light(k[0], k[1], "kiryu")
 					if fl: face_lights.append(fl)
 		"seal":
 			for fl in face_lights:
 				if is_instance_valid(fl): fl.queue_free()
 			face_lights.clear()
+			main.phones(false, ["kiryu"])
 			_hide("taiga"); _put("kiryu", [1.6, 1.2], _face([1.6, 1.2], [1.9, 1.85]))   # in the living room by the lantern
 			main.set_stand("kiryu", "talk/sit_b", 0.0)
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
