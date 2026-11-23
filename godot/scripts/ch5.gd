@@ -1296,13 +1296,30 @@ func _press_peel():
 
 # ---------------------------------------------------------------- 2026-11-20（12時35分 B）: out by the back door, the cellar window's boards by hand
 # Standing before the back door, the seconds count (the chapter's one counted silence) until she goes out or steps away.
-# Outside, under the porch stair: the four boards she nailed at 20:00, off with her fingers (Ｅ held, 3-4 s each; let go
-# and it settles back a little). Makoto's voice comes through the window, weaker with each. The cellar's steps count the
+# Outside, under the porch stair: the four boards she nailed at 20:00, off with her fingers (Ｅ held while the wind pushes the board out: 手の遊び③ below; let go
+# and it stays where it was). Makoto's voice comes through the window, weaker with each. The cellar's steps count the
 # tapes and the boards together; out there, the window's lines take the place of the stair's.
 const CWIN := [10.28, 6.45, -1.4]   # the boards' face (rooms2.boards: x 10 + 0.28, y 6.45, z -1.66..-1.15)
 const MK_SINK := [7.42, 7.28]
 const MK_BLANKET := [4.35, 4.55]
 const BOARD_SEC := 3.4
+# 手の遊び③（決定事項 2026-11-23 7時33分）：風に合わせて引く。風が板を外へ押す間（約1秒、2.6〜4秒おき）に Ｅ を
+# 押さえていれば、板が浮く。風のない間に引いても、釘が持って動かない（乾いたきしみだけ）。ゲージも文字も出さない。
+# 風は、板のがたつき（ch3_rattle）と、板の端が壁から浮くのとで分かる。一枚に二回の風ほど。
+const GUST_PULL := 1.7       # s of pulling inside gusts per board
+var gust_k := 0.0            # 0..1: how hard the wind pushes now
+var gust_next := 2.0
+var gust_left := 0.0
+func _gust_tick(dt: float):
+	if gust_left > 0.0:
+		gust_left -= dt
+		gust_k = move_toward(gust_k, 1.0, dt * 6.0)
+	else:
+		gust_k = move_toward(gust_k, 0.0, dt * 3.0)
+		gust_next -= dt
+		if gust_next <= 0.0:
+			gust_left = randf_range(0.9, 1.2); gust_next = randf_range(2.6, 4.0)
+			Sound.one(self, "ch3_rattle", -6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
 var mk_at_cellar := false
 var mk_fell := false
 var outside := false
@@ -1427,17 +1444,22 @@ func _out_tick(dt: float):
 		var crouch := look_k == "board" and mode == FREE
 		player.eye_height = move_toward(player.eye_height, 1.0 if crouch else 1.52, dt * 1.6)
 		var held := mode == FREE and look_k == "board" and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or demo_hold)
-		if held:
-			board_k += dt / BOARD_SEC
+		_gust_tick(dt)
+		var b = _board_now()
+		var lift := gust_k * 0.07   # the gust pushes the board's free end out from the wall (seen, and heard as the rattle)
+		if held and gust_k > 0.5:
+			board_k += dt / GUST_PULL
 			board_creak -= dt
-			if board_creak <= 0.0: board_creak = randf_range(0.5, 0.9); Sound.one(self, "creak3", -14.0 + board_k * 6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
-			var b = _board_now()
-			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + sin(t_now * 31.0) * 0.012 * board_k + board_k * 0.05
+			if board_creak <= 0.0: board_creak = randf_range(0.25, 0.45); Sound.one(self, "creak3", -10.0 + board_k * 6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06 + sin(t_now * 31.0) * 0.01
 			if board_k >= 1.0: _board_off()
+		elif held:
+			# against the nails, between gusts: it does not move. A dry squeak now and then, the board trembles
+			board_creak -= dt
+			if board_creak <= 0.0: board_creak = randf_range(0.7, 1.1); Sound.one(self, "creak3", -22.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06 + sin(t_now * 43.0) * 0.004
 		else:
-			board_k = maxf(0.0, board_k - dt * 0.3)   # let go: it settles back a little
-			var b2 = _board_now()
-			if b2: (b2 as Node3D).rotation.x = (b2 as Node3D).get_meta("rx", 0.0) + board_k * 0.05
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06
 	elif player.eye_height < 1.52 and stage in ["peel", "done"]:
 		player.eye_height = move_toward(player.eye_height, 1.52, dt * 1.6)
 
@@ -1723,9 +1745,9 @@ func _demo_tick(dt):
 			player.yaw = lerp_angle(player.yaw, atan2(-to3.x, -to3.z), k3)
 			player.pitch = lerpf(player.pitch, asin(clampf(to3.normalized().y, -1.0, 1.0)), k3)
 			if s.size() < 2: s.append(boards_off)
-			demo_hold = dwait > 1.0 and mode == FREE
+			demo_hold = dwait > 1.0 and mode == FREE and gust_k > 0.3   # it pulls with the wind, as asked of the player
 			if boards_off > int(s[1]): demo_hold = false; done = true
-			if dwait > 25.0: demo_hold = false; _dfail("board: not coming off (Mio %s, looking %s)" % [_plan_of(player), look_k]); done = true
+			if dwait > 40.0: demo_hold = false; _dfail("board: not coming off (Mio %s, looking %s)" % [_plan_of(player), look_k]); done = true
 		"tape":
 			var gq := _gap(s[1])
 			if gq.peeled and s.size() < 3: ds += 1; dwait = 0.0; return   # taken off already (any order)

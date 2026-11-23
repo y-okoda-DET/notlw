@@ -462,6 +462,7 @@ func _process(dt):
 	player.move_enabled = mode == FREE and free_walk
 	match stage:
 		"tape": _tape_tick()
+		"swap": _swap_tick(dt)
 		"seal": _seal_tick(dt)
 		"up", "back": _up_tick(dt)
 		"flow": _flow_tick(dt)
@@ -680,13 +681,89 @@ func _tape_tick():
 	if mode != FREE: return
 	note_lb.text = T(String(D.lines("零時.テープ")[0])) if _cam_near() else ""
 
+# 手の遊び④（決定事項 2026-11-23 7時33分）：定点のカメラのテープ替え＝手順。暗がりで、手が震える。
+# 一、横のふたを押す（ふたが開いて、古いテープが少し出る）。二、古いテープを抜く。三、新しいテープを差す。四、裏の録画を押す。
+# 三と四は、ふたの口・ボタンを見て Ｅ。外れると、テープがカメラに当たって鳴り、手の震えが少し増える。ゲージも文字も出さない。
+var swap := {}
 func _swap_tape():
 	note_lb.text = ""
-	Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
-	_rec3(false)   # already out since cam_stop (the tape ran out); on again once the new one is in
-	get_tree().create_timer(1.4).timeout.connect(func(): _rec3(true))
-	stage = "tape_done"
-	_start(B("零時.替えた"))
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var sx := 1.0 if (fixed_cam.global_basis.x).dot(cam.global_position - fixed_cam.global_position) > 0.0 else -1.0
+	swap = {"step": 0, "sx": sx, "shake": 1.0, "t": 0.0, "hand": null, "old": null, "cool": 0.0}
+	stage = "swap"
+	_swap_do()   # 一（ふた）は、カメラを見て押した Ｅ で開く
+
+func _swap_point(step: int) -> Vector3:
+	var lp := Vector3(0.03 * float(swap.sx), 0.0, 0.0) if step == 2 else Vector3(0.012, 0.046, 0.067)
+	return fixed_cam.global_transform * lp
+
+func _swap_aimed(step: int) -> bool:
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := _swap_point(step) - cam.global_position
+	var f := -cam.global_basis.z
+	var off := (to - f * to.dot(f)).length()   # how far the point sits from the line of sight
+	return to.dot(f) > 0.0 and off < 0.035
+
+func _cassette() -> MeshInstance3D:
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.062, 0.012, 0.047); mi.mesh = bm
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.08, 0.08, 0.085); m.roughness = 0.4; mi.material_override = m
+	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	return mi
+
+func _swap_press():
+	if float(swap.cool) > 0.0: return
+	var st := int(swap.step)
+	if st >= 2 and not _swap_aimed(st):
+		# off the slot / the button: the tape knocks the camera, the hand shakes more
+		swap.shake = minf(3.0, float(swap.shake) + 0.5); swap.cool = 0.5
+		Sound.one(self, "tripod_bump", -16.0, fixed_cam.global_position)
+		if swap.hand: (swap.hand as Node3D).position.x += randf_range(-0.01, 0.01)
+		print("STORY ch3 swap miss step %d" % st)
+		return
+	_swap_do()
+
+func _swap_do():
+	var st := int(swap.step)
+	var cam: Camera3D = player.get_node("Head/Camera")
+	swap.cool = 0.6
+	match st:
+		0:   # the lid: it springs, the old tape shows
+			Sound.one(self, "tape_clunk", -8.0, fixed_cam.global_position)
+			var o := _cassette(); fixed_cam.add_child(o); o.position = Vector3(0.018 * float(swap.sx), 0.0, 0.0); o.rotation.z = PI / 2.0
+			create_tween().tween_property(o, "position:x", 0.04 * float(swap.sx), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			swap.old = o
+		1:   # the old one out, into her pocket (it holds 0時 and before)
+			var o: Node3D = swap.old
+			if o: create_tween().tween_property(o, "position:x", 0.12 * float(swap.sx), 0.3).finished.connect(o.queue_free)
+			Sound.one(self, "cassette_in", -16.0, fixed_cam.global_position)
+			var h := _cassette(); cam.add_child(h); h.position = Vector3(0.06, -0.11, -0.3); h.rotation = Vector3(0.3, 0.2, PI / 2.0)
+			swap.hand = h
+		2:   # the new one in
+			var h: Node3D = swap.hand
+			if h: h.queue_free(); swap.hand = null
+			Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
+		3:   # the button on the back: it records again
+			Sound.one(self, "tape_clunk", -12.0, fixed_cam.global_position)
+			_rec3(false)   # already out since cam_stop (the tape ran out); on again once the button is in
+			get_tree().create_timer(0.5).timeout.connect(func(): _rec3(true))
+			cam.rotation = Vector3.ZERO
+			swap = {}
+			stage = "tape_done"
+			_start(B("零時.替えた"))
+			return
+	swap.step = st + 1
+
+func _swap_tick(dt: float):
+	if swap.is_empty(): return
+	swap.t = float(swap.t) + dt
+	swap.cool = maxf(0.0, float(swap.cool) - dt)
+	# the hand shakes: the view with it (small, uneven; more after each miss)
+	var t := float(swap.t); var a := float(swap.shake) * 0.0035
+	var cam: Camera3D = player.get_node("Head/Camera")
+	cam.rotation = Vector3(a * (sin(t * 23.0) + 0.6 * sin(t * 37.0 + 1.3)), a * (sin(t * 19.0 + 0.4) + 0.5 * sin(t * 41.0)), 0.0)
+	if swap.hand: (swap.hand as Node3D).position.y = -0.11 + a * 2.0 * sin(t * 29.0)
+	if demo_on and float(swap.cool) <= 0.0 and t > 0.9 * float(swap.step):
+		_swap_do()   # the unattended run: each step in turn, a hand that does not miss
 
 # ---------------------------------------------------------------- 零時半: the gaps
 func _near_gap() -> Dictionary:
@@ -776,17 +853,77 @@ func _makoto_follow(_dt: float):
 func _wind_for(k: String):
 	for gq in gaps:
 		var p: AudioStreamPlayer3D = gq.player
-		if gq.sealed or wind_dim.has(gq.key): continue
+		if gq.sealed or wind_dim.has(gq.key) or gq.get("weak", false): continue
 		if gq.key == k:
 			p.volume_db = -6.0
 			if p.stream and not p.playing: p.play(randf() * 4.0)
 		else:
 			p.volume_db = -60.0; p.stop()
 
+# ---------------------------------------------------------------- 手の遊び②：0時半のテープ貼り＝速さ／なぞる（決定事項 2026-11-23 7時33分）
+# 隙間の前で Ｅ を押したまま、マウスを横に動かしてテープを伸ばす（約 550 px で一本）。速く動かしすぎるとテープがよれ、
+# 貼り終えても風が少し残る。よれたら、もう一度 Ｅ で貼り直す。ゲージも文字も出さない（テープの伸びと、風の音だけ）。
+var trace := {}
+const TRACE_PX := 550.0
+const TRACE_FAST := 1500.0     # px/s: faster than this, it wrinkles
+func _trace_start(gq: Dictionary):
+	if not trace.is_empty(): return
+	if gq.has("crumpled") and is_instance_valid(gq.crumpled): (gq.crumpled as Node).queue_free(); gq.erase("crumpled")
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new()
+	var along_x: bool = gq.n[0] == 0
+	bm.size = Vector3(0.34 if along_x else 0.004, 0.05, 0.004 if along_x else 0.34); mi.mesh = bm
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.62, 0.62, 0.6); m.roughness = 0.55; m.metallic = 0.1
+	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
+	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
+	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
+	trace = {"gq": gq, "mi": mi, "p": 0.0, "wr": 0.0, "along_x": along_x}
+	player.look_enabled = false
+	Sound.one(self, "ch3_tape", -10.0, gq.at)
+
+func _trace_move(px: float, dt: float):
+	if trace.is_empty(): return
+	var sp := absf(px) / maxf(dt, 1.0 / 60.0)
+	trace.p = minf(1.0, float(trace.p) + absf(px) / TRACE_PX)
+	if sp > TRACE_FAST: trace.wr = float(trace.wr) + absf(px) / TRACE_PX
+	var mi := trace.mi as MeshInstance3D
+	var k: float = maxf(0.02, float(trace.p))
+	if (trace.gq as Dictionary).key == "g5": mi.scale = Vector3(1, k, 1)
+	elif trace.along_x: mi.scale = Vector3(k, 1, 1)
+	else: mi.scale = Vector3(1, 1, k)
+	if sp > TRACE_FAST: mi.rotation.z = randf_range(-0.18, 0.18); mi.rotation.y = randf_range(-0.12, 0.12)   # it wrinkles as it goes
+	if float(trace.p) >= 1.0: _trace_end()
+
+func _trace_end():
+	var gq: Dictionary = trace.gq
+	var wr := float(trace.wr)
+	player.look_enabled = true
+	if wr > 0.3:
+		# よれた：風が細く残る。もう一度 Ｅ で貼り直す
+		gq["crumpled"] = trace.mi
+		gq["weak"] = true          # 細い風が、貼り直すまで鳴り続ける（_wind_for はこの隙間に触らない）
+		var wp: AudioStreamPlayer3D = gq.player
+		wp.volume_db = -20.0
+		if wp.stream and not wp.playing: wp.play(randf() * 4.0)
+		Sound.one(self, "ch3_tape", -14.0, gq.at)
+		print("STORY ch3 tape %s wrinkled %.2f" % [gq.key, wr])
+		trace = {}
+		return
+	(trace.mi as Node).queue_free()
+	trace = {}
+	_seal_done(gq)
+
 func _press_seal():
 	var gq := _near_gap()
 	if gq.is_empty() or not _makoto_near(gq.at): return false
+	_trace_start(gq)
+	return true
+
+func _seal_done(gq: Dictionary):
+	var was_weak: bool = gq.get("weak", false)
+	gq.erase("weak")
 	_seal(gq)
+	if was_weak: wind_dim[gq.key] = 0.8   # the thin wind fades from where it was, not from full
 	sealed_n += 1
 	talk_with = "makoto"
 	var q: Array = []
@@ -795,7 +932,6 @@ func _press_seal():
 	if sealed_n == 3: q.append_array(B("目張り.問い"))
 	if sealed_n == 5: q.append_array(B("目張り.五つ"))
 	_start(q)
-	return true
 
 func _wind_tick(dt: float):
 	for k in wind_dim.keys():
@@ -1447,6 +1583,9 @@ static var SEAL_ORDER: Array = []   # 第5章 peels the tape in the order she pu
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
 	if card_t > 0.0 or stage == "end": return
+	if not trace.is_empty():
+		if e is InputEventMouseMotion and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)): _trace_move(e.relative.x, get_process_delta_time())
+		return
 	if stage == "flow" and flow_key == "扉の番.二時半" and _t230_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if mode == TALK:
@@ -1463,6 +1602,7 @@ func _press():
 	match stage:
 		"tape":
 			if _cam_near(): _swap_tape()
+		"swap": _swap_press()
 		"seal":
 			if _press_seal(): return
 			if _looking_at(gp(FRONT_GAP[0], FRONT_GAP[1], 0.4), 2.2, 30.0):
@@ -1613,7 +1753,8 @@ func _demo_tick(dt):
 			var k2 := 1.0 - exp(-dt * 6.0)
 			player.yaw = lerp_angle(player.yaw, atan2(-to2.x, -to2.z), k2)
 			player.pitch = lerpf(player.pitch, asin(clampf(to2.normalized().y, -1.0, 1.0)), k2)
-			if dwait > 1.2 and mode == FREE and not gq.sealed: _press()
+			if dwait > 1.2 and mode == FREE and not gq.sealed and trace.is_empty(): _press()
+			if not trace.is_empty(): _trace_move(700.0 * dt, dt)   # (the run draws it at an even 700 px/s)
 			if gq.sealed and mode == FREE: done = true
 			if dwait > 25.0: _dfail("gap %s: cannot seal (Mio %s, candle %s)" % [s[1], _plan_of(player), _plan_of(candle) if candle else []]); _seal(gq); sealed_n += 1; done = true
 		"open":
