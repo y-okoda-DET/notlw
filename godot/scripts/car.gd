@@ -119,6 +119,9 @@ func _ready():
 
 func _line_of(e: Dictionary, arr: Array, ifs: Array):
 	ifs.append(String(e.get("if", "")))
+	# 試作276 の感想（ユーザー「4はこちらで返答も選べるようにしたいな。より参加してる感、その場にいる感を出したい」）: her
+	# answers to Natsuki are choices (？ in ch1.txt, no time of their own: 4 s after the line before)
+	if e.has("choose"): arr.append([(float(arr.back()[0]) + 4.0) if not arr.is_empty() else 0.0, "choose", e.choose, e.then]); return
 	if e.has("do"): arr.append([e.t, e.do])
 	elif e.has("note"): arr.append([e.t, "note", e.note])
 	else: arr.append([e.t, e.who, e.text, "testimony" if e.get("testimony", false) else ""])
@@ -761,7 +764,21 @@ func _lines(dt: float):
 			if LIF[li] == "" or has_flag(LIF[li]): _event(LINES[li])
 			li += 1
 	if stage == "parked":
-		while si < STOP_LINES.size() and t_stage >= float(STOP_LINES[si][0]):
+		# 試作276 の感想（相談2「夏希は澪がよそを見ると話を止める」）: she waits for Mio's eyes between her lines, and for her answer
+		var cam: Camera3D = player.get_node("Head/Camera")
+		var nat_head: Vector3 = car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))
+		var eyes := rad_to_deg((-cam.global_basis.z).angle_to(nat_head - cam.global_position)) < 50.0
+		var between: bool = not (cur.has("text") and typed < String(cur.text).length())
+		if choice_wait:
+			t_stage -= dt
+			if demo_car:
+				choice_t += dt
+				if choice_t > 2.0: choice_idx = 0; _show_choice(); _car_choose()
+		elif between and not eyes:
+			t_stage -= dt
+			if not nat_paused: nat_paused = true; print("CAR natsuki waits t=%.1f" % t_now)
+		else: nat_paused = false
+		while not choice_wait and si < STOP_LINES.size() and t_stage >= float(STOP_LINES[si][0]):
 			if SIF[si] == "" or has_flag(SIF[si]): _event(STOP_LINES[si])
 			si += 1
 	if cur.has("text") and typed < String(cur.text).length() and is_instance_valid(cur_lb):
@@ -787,6 +804,15 @@ func _event(e: Array):
 		"note":
 			_line_row("", e[2], 22, "note"); cur = {}
 			if String(e[2]).contains("ラジオ"): _radio()
+		"choose":
+			cur = {"choose": e[2], "then": e[3]}
+			choice_lbs = []; choice_idx = 0; choice_wait = true; choice_t = 0.0
+			lines_box.modulate.a = 1.0
+			for i in range(e[2].size()):
+				var rc = _line_row("", e[2][i], SAY_SIZE, "choose")
+				choice_lbs.append(rc[1])
+			for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
+			_show_choice()
 		"drive_on":
 			stage = "drive_on"; t_stage = 0.0
 			_blinker(5)
@@ -801,6 +827,32 @@ func _event(e: Array):
 			var r = _line_row(who, "", SAY_SIZE, "say")
 			cur_lb = r[1]
 			if who == "夏希": _nat_glance()
+
+var choice_wait := false
+var choice_t := 0.0
+var nat_paused := false
+func _car_choose():
+	if not choice_wait: return
+	choice_wait = false; cur["chosen"] = true
+	for i in range(choice_lbs.size()):
+		if i == choice_idx: continue
+		var lb: Label = choice_lbs[i]
+		var st := Strike.new(); st.u = u
+		st.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
+		st.size = lb.size; st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lb.add_child(st)
+	if demo_car: print("SAY 選ぶ ", cur.choose[choice_idx])
+	# what follows the answer goes into the stop's lines here, 4 s apart; the rest of her talk after it
+	var then: Array = cur.then[choice_idx]
+	var at := t_stage + 1.6
+	var add := []; var adf := []
+	for e in then:
+		if e.has("text"): add.append([at, e.who, e.text, ""]); adf.append(String(e.get("if", ""))); at += 4.0
+		elif e.has("do"): add.append([at, e.do]); adf.append("")
+	var shift := maxf(0.0, at + 1.5 - float(STOP_LINES[si][0])) if si < STOP_LINES.size() else 0.0   # (the next of her lines waits till the answer's talk is over)
+	for k in range(si, STOP_LINES.size()): STOP_LINES[k][0] = float(STOP_LINES[k][0]) + shift
+	for k in range(add.size() - 1, -1, -1): STOP_LINES.insert(si, add[k]); SIF.insert(si, adf[k])
+	cur = {}
 
 func _radio():
 	if car_radio_on: return
@@ -871,6 +923,12 @@ func _look(k: String):
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["title", "out", "done"]: return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if choice_wait:
+		if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_W, KEY_UP]: _move_choice(-1); return
+		if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1); return
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_UP: _move_choice(-1); return
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_DOWN: _move_choice(1); return
+		if press: _car_choose(); return
 	if press and focus_k != "": _look(focus_k)
 
 # ---------------------------------------------------------------- check stills and the unattended run
@@ -907,6 +965,7 @@ func _demo_car(dt: float):
 	for a in demo_aims:
 		if aim == Vector3.ZERO and t_now >= float(a[0]) and t_now < float(a[1]) and stage == "parked":
 			aim = (car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))) if a[2] == "natsuki" else mirror_mesh.global_position
+	if aim == Vector3.ZERO and stage == "parked": aim = car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))   # (she waits for Mio's eyes)
 	if aim == Vector3.ZERO: return
 	# turn her head (yaw/pitch are the head's, in the car's frame)
 	var to_l: Vector3 = (player.global_basis.inverse() * (aim - cam.global_position)).normalized()   # her head is levelled (_follow), not the car's frame
