@@ -989,6 +989,36 @@ func _move_choice(d: int):
 	if cur.get("chosen", false): return
 	choice_idx = posmod(choice_idx + d, choice_lbs.size()); _show_choice()
 
+# 試作278（ユーザー点検3「顔は作品の中の明かりで照らす」2026-11-23）: at night the faces fell to silhouettes. The phone in
+# the hand is the light: a narrow cone from its screen up to the face only (the screen's own omni at 0.025 stays: wider,
+# it lit the whole body white, 試作97). It follows the hand and the head each frame. No phone in the hand: nothing.
+class FaceLight extends SpotLight3D:
+	var sk: Skeleton3D
+	var head := -1
+	var src: Node3D
+	func _process(_dt):
+		if not is_instance_valid(sk) or not is_instance_valid(src) or head < 0: visible = false; return
+		var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(head).origin + Vector3(0, 0.06, 0)
+		var from: Vector3 = src.global_position
+		visible = src.is_visible_in_tree() and from.distance_to(hp) > 0.05
+		if visible: look_at_from_position(from, hp, Vector3.UP if absf((hp - from).normalized().y) < 0.95 else Vector3.RIGHT)
+
+func _face_light(k: String, energy := 0.35) -> FaceLight:
+	if not main.S.has(k + "_node"): print("STORY face_light %s: no rig" % k); return null
+	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
+	if sks.is_empty(): print("STORY face_light %s: no skeleton" % k); return null
+	var sk: Skeleton3D = sks[0]
+	var scr := sk.find_child("screen", true, false) as Node3D
+	if scr == null: print("STORY face_light %s: no phone in the hand" % k); return null
+	var f := FaceLight.new(); f.sk = sk; f.src = scr
+	f.head = sk.find_bone("head")
+	if f.head < 0: f.head = sk.find_bone("mixamorig_Head")
+	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy; f.spot_range = 0.9; f.spot_angle = 16.0
+	f.spot_attenuation = 0.8; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.08
+	main.add_child(f)
+	print("STORY face_light %s head=%d" % [k, f.head])
+	return f
+
 class Strike extends Control:
 	# the transcriber's double line through what she did not say
 	var w := 0.0

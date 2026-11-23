@@ -15,7 +15,12 @@ const F2 := 2.75                       # the upstairs floor (house4: H1 2.45 + .
 const ZBASE := -2.45                   # the cellar's floor
 # where they stand at midnight (plan metres), and whom they face
 const AT0 := {"taiga": [5.2, 5.7], "makoto": [4.6, 5.15], "kiryu": [4.4, 6.5]}   # 2026-11-17 夜（ユーザー「大河の姿を見せたい。真琴と向かい合う感じで」）: he was in the cellar doorway, out of sight; now a step out of it, Makoto before him
-const MIO0 := [4.55, 4.25]
+# 試作278（ユーザー点検2「零時・23時・3時半の構図を、一点透視の廊下から外す」2026-11-23）: she stood in the hall's middle
+# (4.55, 4.25) and looked up it: the walls ran to a point behind Taiga. Now at the west wall, a step from Makoto, turned to
+# the cellar doorway at 45°: the doorway and the two in it side on, the hall only a sliver at the right
+const MIO0 := [4.4, 4.75]
+var face_lights := []
+const MIO0_LOOK := [4.95, 5.6]
 const TAIGA_DOWN := [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 2.65, ZBASE], [5.5, 2.1, ZBASE]]
 const CAM_Y := 2.85                    # the small camera on the handrail (story.gd _house_ready)
 # the gaps (plan x, y, z of the tape; the sound comes from there) and what the transcript calls them
@@ -235,8 +240,16 @@ func _place_for(st: String):
 				elif k == "makoto": to = AT0.taiga
 				_put(k, AT0[k], _face(AT0[k], to))
 				main.set_stand(k, "talk/idle" if k != "makoto" else "talk/think", 0.0)
-			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, [4.9, 5.45])
+			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, MIO0_LOOK)
+			# 点検3: their phones light their faces (Taiga's line, Makoto's hands at his arm); gone at 零時半 (the candle)
+			if face_lights.is_empty():
+				for k in ["taiga", "makoto"]:
+					var fl = _face_light(k)
+					if fl: face_lights.append(fl)
 		"seal":
+			for fl in face_lights:
+				if is_instance_valid(fl): fl.queue_free()
+			face_lights.clear()
 			_hide("taiga"); _put("kiryu", [1.6, 1.2], _face([1.6, 1.2], [1.9, 1.85]))   # in the living room by the lantern
 			main.set_stand("kiryu", "talk/sit_b", 0.0)
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
