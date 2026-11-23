@@ -19,9 +19,10 @@ const MIO_AT := [4.4, 3.1]                        # her feet: by the stair's foo
 # she starts low (crouched by the newel), turned up the hall toward the kitchen door at a slant, not down it to the
 # front door; she rises to her full height once she moves or something takes her (before: [4.55, 3.0], yaw 0, eye 1.52)
 # 試作278（ユーザー点検2、2026-11-23）: -166 looked almost along the hall's axis (it runs 8° east of north from her): a
-# one-point hall with Natsuki coming down its middle. Turned 30° west, the hall's far end sits in the right third, the
-# corner of the living room's opening near at the left; she still comes into view from the first look (2026-11-18)
-const START_YAW := 164.0
+# one-point hall with Natsuki coming down its middle. Turned 21° toward the stair (yaw grows to the left), the hall's far
+# end sits in the right third and the stair's underside and handrail cut across the left; she still comes into view
+# from the first look (2026-11-18). (164 turned the other way, into the dark of the living room's wall: snap 試作278)
+const START_YAW := -145.0
 const START_PITCH := 2.0
 const LOW_EYE := 1.36
 const TAPE_MIO := [4.35, 3.15]                    # on the tape she stands a step further left: all of her, and the tripod at her shoulder, outside the small camera's frame

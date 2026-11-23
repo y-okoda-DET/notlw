@@ -51,7 +51,7 @@ func _ready():
 	_night_cam()
 	_end_card()
 	call_deferred("_strike_walk")
-	get_tree().create_timer(0.5).timeout.connect(func(): _face_light("taiga", 0.3))   # 点検3: his phone lights his face against the door
+	get_tree().create_timer(0.5).timeout.connect(func(): _face_light("taiga", 0.3, "kiryu"))   # 点検3: Kiryu holds his phone up to him: his face against the door
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)

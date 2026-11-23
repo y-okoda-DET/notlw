@@ -1003,20 +1003,26 @@ class FaceLight extends SpotLight3D:
 		visible = src.is_visible_in_tree() and from.distance_to(hp) > 0.05
 		if visible: look_at_from_position(from, hp, Vector3.UP if absf((hp - from).normalized().y) < 0.95 else Vector3.RIGHT)
 
-func _face_light(k: String, energy := 0.35) -> FaceLight:
+# by: whose phone it is (default: k's own; 23時 Taiga has none in his hands, Kiryu holds his up to him)
+func _face_light(k: String, energy := 0.35, by := "") -> FaceLight:
 	if not main.S.has(k + "_node"): print("STORY face_light %s: no rig" % k); return null
 	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
 	if sks.is_empty(): print("STORY face_light %s: no skeleton" % k); return null
 	var sk: Skeleton3D = sks[0]
-	var scr := sk.find_child("screen", true, false) as Node3D
+	var scr: Node3D = null
+	var bk := k if by == "" else by
+	if main.S.has(bk + "_node"):
+		scr = main.S[bk + "_node"].find_child("screen", true, false) as Node3D
+		if scr == null: scr = main.S[bk + "_node"].find_child(bk.substr(0, 1) + "phone", true, false) as Node3D   # the 23時 rigs: kphone, nphone
 	if scr == null: print("STORY face_light %s: no phone in the hand" % k); return null
 	var f := FaceLight.new(); f.sk = sk; f.src = scr
 	f.head = sk.find_bone("head")
 	if f.head < 0: f.head = sk.find_bone("mixamorig_Head")
-	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy; f.spot_range = 0.9; f.spot_angle = 16.0
+	var d: float = scr.global_position.distance_to(sk.global_position + Vector3(0, 1.6, 0))
+	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy * maxf(1.0, d / 0.6); f.spot_range = maxf(0.9, d + 0.4); f.spot_angle = 16.0 if d < 1.0 else 9.0
 	f.spot_attenuation = 0.8; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.08
 	main.add_child(f)
-	print("STORY face_light %s head=%d" % [k, f.head])
+	print("STORY face_light %s by %s head=%d d=%.2f" % [k, bk, f.head, d])
 	return f
 
 class Strike extends Control:
