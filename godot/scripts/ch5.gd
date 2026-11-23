@@ -42,7 +42,9 @@ const MK_GEN := [8.45, 6.3]            # 試作176: Makoto at the generator in t
 const MK_HAND := [9.5, 5.85]          # where Makoto goes down on her knee to lay her hand on it (Mio at the door sees both)
 const IDLE_STEP := 90.0               # nothing done for this long: the cellar goes on one step
 # the cellar's steps, by the tapes peeled: 1 → 地下.一, 3 → 地下.三, 4 → 地下.四, 5 → 地下.五
-const BELOW := [[1, "地下.一"], [3, "地下.三"], [4, "地下.四"], [5, "地下.五"]]
+# 試作276 の感想（点検1、ユーザー OK 2026-11-23）: she falls at the third board outside, always (地下.四 inside came at the fourth
+# tape, and if the tapes went first her voice at the boards was never heard). The fall is in 外.板.三 now
+const BELOW := [[1, "地下.一"], [3, "地下.三"], [5, "地下.五"]]
 
 var stage := "card"     # card | t4 | follow | back | peel | done | end
 var card: Control
@@ -1495,6 +1497,7 @@ func _board_off():
 	while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): below_i += 1
 	if boards_off >= 4: below_i = BELOW.size()
 	var q: Array = B("外.板." + ["一", "二", "三", "四"][boards_off - 1])
+	if boards_off == 3: get_tree().create_timer(3.6).timeout.connect(func(): gen_want = -7.0; mk_fell = true)   # (the fall at the end of 外.板.三)
 	if mk_fell: q = q.filter(func(e): return not String(e.get("who", "")).begins_with("真琴") and not String(e.get("note", "")).contains("咳"))   # she fell already (地下.四): only the generator
 	_start(q)
 
