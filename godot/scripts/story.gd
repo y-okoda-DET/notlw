@@ -989,6 +989,10 @@ func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
 		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.42))   # 試作278: .38 → .42 with the darker pool under it (Type.Soft kk): read over the bright glass, and still apart from the one picked
+		# 試作279（独立レビュー「車の選択肢、どれを選んでいるか見分けられない」）: over the bright windscreen the letters' own
+		# brightness does not tell; the pool under them does: the one picked sits in a dark pool, the others in a light one
+		var sf = lb.get_node_or_null("soft")
+		if sf: sf.kk = 4.0 if i == choice_idx else 1.8
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
