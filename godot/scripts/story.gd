@@ -1032,6 +1032,9 @@ func _talk_tick(dt):
 		if cur.get("chosen", false):
 			wait_after -= dt
 			if wait_after <= 0.0: _next()
+		elif demo_on:   # 試作277: the unattended run takes the first answer (every chapter, now that all her replies are choices)
+			read_t += dt
+			if read_t > 2.0: read_t = 0.0; choice_idx = 0; _show_choice(); _choose()
 		return
 	if cur.has("text"):
 		var n: int = String(cur.text).length()
