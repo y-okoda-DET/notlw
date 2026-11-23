@@ -75,7 +75,9 @@ def cellar(e=2.6):   # 1.6 left the cellar unreadable through the print (試作4
     return _g(lib.point('lamp_cellar', P_CELLAR, 60 * e / 1.6, k=2600, radius=.03), kind='omni', e=e, r=7.0, att=1.3, sh=1, fog=.5, size=.03, flick='gen')
 
 def fresnel(e=9.0, w=520):
-    return _g(lib.spot('fresnel_key', FRES_P, tuple(FRES_AIM), w, k=3200, size=30, blend=.18, radius=.05), kind='spot', e=e, ang=15, sh=1, fog=3.0, size=.06, flick='fres')
+    # 試作277 の画（独立レビュー「23時の廊下の床が青から橙に」）: 276 までは羽根が口の前で十字に重なり、30度の光の大半を
+    # 塞いでいた。羽根を開いて口を見せたので、光の円錐そのものを 30 → 20 度に絞り、276 の光だまりの広さに戻す
+    return _g(lib.spot('fresnel_key', FRES_P, tuple(FRES_AIM), w, k=3200, size=20, blend=.18, radius=.05), kind='spot', e=e, ang=10, sh=1, fog=3.0, size=.06, flick='fres')
 
 P_LANTERN = (X(1.85), Y(1.6), .55)
 P_CANDLE = (X(8.76), Y(7.62), 1.0)
