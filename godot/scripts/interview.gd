@@ -889,7 +889,10 @@ func _pick(e: Dictionary):
 			await _hold(3.2)
 		ppl.kikite.pen = ""
 	# 受けの画
-	_still(RECEIVE[which])
+	# 試作276 の感想（点検5「本当の答えのとき、聞き手の口元が笑って見える」、ユーザー OK 2026-11-23）: the head has no mouth that
+	# moves (one Tripo mesh, its smile in it). On a true answer the receiving cut stays at her chest, the pen in it: the mouth
+	# out of the picture. On a lie it goes down to the chin and the mouth, as before (the smile then reads as knowing)
+	_still(RECEIVE[which] if lie else RECEIVE[1])
 	if lie: get_tree().create_timer(3.0 / demo_k).timeout.connect(_unfist)
 	for r in card.reply:
 		if String(r.get("do", "")) in ["pen_stop", "pen_write"]: continue

@@ -1017,6 +1017,15 @@ func _choose():
 	var then: Array = cur.then[choice_idx]
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
+	_note_pick()
+
+# 試作276 の感想（決定事項 2026-11-23「選んだ答えは記録し、証言で拾えるようにする」）: what she answered, by its words, in the
+# night's record (said:<答えの言葉> = true), for the testimonies and the tape to pick up
+func _note_pick():
+	var words := String(cur.choose[choice_idx]).strip_edges()
+	set_flag("said:" + words)
+	var all: Array = (get_flag("said_all", []) as Array).duplicate()
+	all.append(words); set_flag("said_all", all)
 
 func _set_mission(words: String):
 	mission = words

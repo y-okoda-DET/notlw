@@ -842,6 +842,7 @@ func _car_choose():
 		st.size = lb.size; st.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		lb.add_child(st)
 	if demo_car: print("SAY 選ぶ ", cur.choose[choice_idx])
+	_note_pick()
 	# what follows the answer goes into the stop's lines here, 4 s apart; the rest of her talk after it
 	var then: Array = cur.then[choice_idx]
 	var at := t_stage + 1.6
