@@ -247,6 +247,7 @@ def pose_kiryu(k, t):
 
 TAIGA_LAT = {'l': .38, 'r': .32}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
 TAIGA_HAND_UP = -.24   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead; 試作281（ユーザー「大河の腕、なんかねじれてる？」）: at shoulder height the raised upper arm stretched the sleeve into a wing over Mio's view; at the chest, elbows bent, the weight goes into the door)
+TAIGA_TIP = 35.0   # degrees the hands lean back off the door (fingers toward him), the heel of the hand on the wood
 TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
 
 def pose_taiga(tg, t):
@@ -276,8 +277,12 @@ def pose_taiga(tg, t):
         sh_z = C.bone_head(tg, f'upperarm_{side}').z
         w = o + ax * (sx * TAIGA_LAT[side]) + Vector((0, 0, sh_z + TAIGA_HAND_UP + .015 * press - .008 * sx * noise1(t, 2, .4) - o.z))
         w += n * ((door - w.y) / n.y - .004 * j)
-        up = Vector((0, 0, 1))   # fingers straight up (the photo); a 10 deg outward splay read as a twisted wrist
-        pz = n * C.palm_sign(tg, side)
+        # fingers up, but the hand tipped back from the door by TAIGA_TIP: the heel of the hand pushes, the fingers lean
+        # off the wood. 試作282（ユーザー「大河の腕、手首がきゅっと細くなっている」）: palm flat on the door with the forearm
+        # level bent the wrist a right angle back, and the skin there pinched to a waist. (a 10 deg outward splay read as a twisted wrist)
+        tip = math.radians(TAIGA_TIP)
+        up = Vector((0, 0, 1)) * math.cos(tip) - n * math.sin(tip)
+        pz = (n * math.cos(tip) + Vector((0, 0, 1)) * math.sin(tip)) * C.palm_sign(tg, side)
         C.arm_hand(tg, side, w, up, pz, sx, drop=(0, 10, 20, 30))   # elbows down (the photo); the twist bones spread the forearm roll
         C.grip(tg, side, .0, thumb=.0)
         for f, a in (('index', -6), ('middle', 0), ('ring', 5), ('pinky', 11)):

@@ -845,6 +845,7 @@ func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	return _aim_ok(to, reach, deg)   # 試作281 (story.gd)
 
 func _seal_tick(dt: float):
+	if not trace.is_empty(): _trace_tick(dt); return
 	_makoto_follow(dt)
 	# 試作127（ユーザー「虚空に向かって話している。変。直す。」）: when she speaks (or Mio does) she turns to Mio
 	if mode == TALK and not main.walking("makoto"):
@@ -925,12 +926,15 @@ func _wind_for(k: String):
 		else:
 			p.volume_db = -60.0; p.stop()
 
-# ---------------------------------------------------------------- 手の遊び②：0時半のテープ貼り＝速さ／なぞる（決定事項 2026-11-23 7時33分）
-# 隙間の前で Ｅ を押したまま、マウスを横に動かしてテープを伸ばす（約 550 px で一本）。速く動かしすぎるとテープがよれ、
-# 貼り終えても風が少し残る。よれたら、もう一度 Ｅ で貼り直す。ゲージも文字も出さない（テープの伸びと、風の音だけ）。
+# ---------------------------------------------------------------- 手の遊び②：0時半のテープ貼り（試作283 で遊び方から作り直し）
+# 試作282（ユーザー「窓にテープを貼るあそび、まだ微妙に直ってない。視点が動いて貼れない。遊び方から考え直したほうが早いかも」）:
+# 281 は澪の目のまま視点を止め、マウスを動かした量でテープを伸ばした。視点は澪の頭なので、ほかの動き（向きを合わせる動き、
+# 震え、話の始まり）がそのまま画を揺らし、マウスは「見る」と「貼る」の二役で、どちらに効いているか分からなかった。
+# いま：Ｅ で、隙間の寄りの画に切り替わる（澪の目ではない、据えたカメラ。マウスは何もしない）。Ｅ（か左ボタン）を押しているあいだ、
+# テープが一定の速さで隙間に沿って伸び、ロールのはがれる音が続く。伸びたぶんだけ、その隙間の風の音が細くなり、真琴の炎が起き上がる。
+# 離すと止まり、また押すと続きから。失敗はない（手は失敗させない、第6章と同じ）。貼り終えると「ビッ」と切る音で、澪の目に戻る。
 var trace := {}
-const TRACE_PX := 550.0
-const TRACE_FAST := 1500.0     # px/s: faster than this, it wrinkles
+const TRACE_SECS := 1.7        # holding, one strip (the back door's long edge: twice that)
 func _trace_start(gq: Dictionary):
 	if not trace.is_empty(): return
 	if gq.has("crumpled") and is_instance_valid(gq.crumpled): (gq.crumpled as Node).queue_free(); gq.erase("crumpled")
@@ -942,69 +946,58 @@ func _trace_start(gq: Dictionary):
 	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
-	trace = {"gq": gq, "mi": mi, "p": 0.0, "wr": 0.0, "along_x": along_x, "snd": 0.0}
+	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false}
 	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
-	# 試作281（ユーザー「テープ貼るのもミニゲームとしてうまくいってない（視点が動いて貼れないし、気持ちよさがない）」）: the
-	# view goes to the gap and stays (a low one: she kneels to it). The strip runs the way it runs on the screen: the mouse
-	# along it lays it, whichever way (the back door's edge is up and down; before, only sideways counted)
-	var a0: Vector3; var a1: Vector3
-	if gq.key == "g5": a0 = mi.global_position + Vector3(0, -0.9, 0); a1 = mi.global_position + Vector3(0, 0.9, 0)
-	elif along_x: a0 = mi.global_position - Vector3(0.17, 0, 0); a1 = mi.global_position + Vector3(0.17, 0, 0)
-	else: a0 = mi.global_position - Vector3(0, 0, 0.17); a1 = mi.global_position + Vector3(0, 0, 0.17)
-	trace["eye0"] = player.eye_height
-	var low: bool = (gq.at as Vector3).y < player.global_position.y + 0.5 and gq.key != "g5"
-	var tw := create_tween().set_parallel(true)
-	if low: tw.tween_property(player, "eye_height", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
-	var head: Vector3 = player.global_position + Vector3.UP * (1.0 if low else float(player.eye_height))
-	var to: Vector3 = (gq.at as Vector3) - head
-	tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.5).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.5).set_trans(Tween.TRANS_SINE)
-	tw.chain().tween_callback(func():
-		if trace.is_empty(): return
-		var cam: Camera3D = player.get_node("Head/Camera")
-		var d2 := cam.unproject_position(a1) - cam.unproject_position(a0)
-		trace["dir"] = d2.normalized() if d2.length() > 4.0 else Vector2.RIGHT)
-	trace["dir"] = Vector2.RIGHT
-	note_lb.text = T("［マウス　なぞって貼る］")
+	# the close shot: a set camera a little off the gap's face, slightly from above and from the side the strip starts on
+	var n3 := Vector3(float(gq.n[0]), 0.0, float(gq.n[1]))
+	if n3.length() < 0.1: n3 = (player.global_position - (gq.at as Vector3)) * Vector3(1, 0, 1)
+	n3 = n3.normalized()
+	var mid: Vector3 = mi.global_position
+	var side := n3.cross(Vector3.UP).normalized()
+	var dist := 1.25 if gq.key == "g5" else 0.62
+	var cc := Camera3D.new(); cc.fov = 50.0; cc.near = 0.02
+	add_child(cc)
+	var eye: Vector3 = mid + n3 * dist + Vector3.UP * (0.0 if gq.key == "g5" else 0.16) - side * dist * 0.25
+	# never below the floor (the gaps by the floor) nor inside a wall: the eye stays in the room
+	eye.y = maxf(eye.y, player.global_position.y + 0.18)
+	cc.look_at_from_position(eye, mid, Vector3.UP)
+	cc.make_current()
+	trace["cc"] = cc
+	note_lb.text = T("［Ｅ（押したまま）　貼る］")
 
-func _trace_move(px: float, dt: float):
+# holding E (or the left button) lays the strip at an even pace; the gap's wind thins as it goes
+func _trace_tick(dt: float):
 	if trace.is_empty(): return
-	var sp := absf(px) / maxf(dt, 1.0 / 60.0)
-	# the roll's sound as it comes off, a little at every few centimetres (pitched by the speed)
-	trace.snd = float(trace.snd) + absf(px) / TRACE_PX
-	if float(trace.snd) > 0.12:
+	var held: bool = bool(trace.hold) or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if not held: return
+	var gq: Dictionary = trace.gq
+	var step := dt / (TRACE_SECS * (2.0 if gq.key == "g5" else 1.0))
+	trace.p = minf(1.0, float(trace.p) + step)
+	trace.snd = float(trace.snd) + step
+	if float(trace.snd) > 0.14:
 		trace.snd = 0.0
-		var pl := Sound.one(self, "ch3_tape", -16.0 if sp < TRACE_FAST else -10.0, (trace.gq as Dictionary).at)
-		if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = clampf(0.85 + sp / 3000.0, 0.85, 1.5)
-	trace.p = minf(1.0, float(trace.p) + absf(px) / TRACE_PX)
-	if sp > TRACE_FAST: trace.wr = float(trace.wr) + absf(px) / TRACE_PX
+		var pl := Sound.one(self, "ch3_tape", -15.0, gq.at)
+		if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = randf_range(0.92, 1.12)
 	var mi := trace.mi as MeshInstance3D
 	var k: float = maxf(0.02, float(trace.p))
-	if (trace.gq as Dictionary).key == "g5": mi.scale = Vector3(1, k, 1)
+	if gq.key == "g5": mi.scale = Vector3(1, k, 1)
 	elif trace.along_x: mi.scale = Vector3(k, 1, 1)
 	else: mi.scale = Vector3(1, 1, k)
-	if sp > TRACE_FAST: mi.rotation.z = randf_range(-0.18, 0.18); mi.rotation.y = randf_range(-0.12, 0.12)   # it wrinkles as it goes
+	var wp: AudioStreamPlayer3D = gq.player
+	if wp: wp.volume_db = lerpf(-6.0, -30.0, float(trace.p))
 	if float(trace.p) >= 1.0: _trace_end()
 
 func _trace_end():
 	var gq: Dictionary = trace.gq
-	var wr := float(trace.wr)
+	Sound.one(self, "ch3_tape", -6.0, gq.at)   # cut from the roll
+	if trace.has("cc") and is_instance_valid(trace.cc):
+		(trace.cc as Camera3D).queue_free()
+	(player.get_node("Head/Camera") as Camera3D).make_current()
 	player.look_enabled = true; player.move_enabled = true; note_lb.text = ""
-	if trace.has("eye0"): create_tween().tween_property(player, "eye_height", float(trace.eye0), 0.5).set_trans(Tween.TRANS_SINE)
-	if wr > 0.3:
-		# よれた：風が細く残る。もう一度 Ｅ で貼り直す
-		gq["crumpled"] = trace.mi
-		gq["weak"] = true          # 細い風が、貼り直すまで鳴り続ける（_wind_for はこの隙間に触らない）
-		var wp: AudioStreamPlayer3D = gq.player
-		wp.volume_db = -20.0
-		if wp.stream and not wp.playing: wp.play(randf() * 4.0)
-		Sound.one(self, "ch3_tape", -14.0, gq.at)
-		print("STORY ch3 tape %s wrinkled %.2f" % [gq.key, wr])
-		trace = {}
-		return
 	(trace.mi as Node).queue_free()
 	trace = {}
+	wind_dim[gq.key] = 0.6   # what is left of its wind fades from where the strip left it
 	_seal_done(gq)
 
 func _press_seal():
@@ -1582,7 +1575,8 @@ func _t230_tick(dt: float):
 	if not ask_q.is_empty() or ask_hold > 0.0: note_lb.text = ""
 	elif rule_on: note_lb.text = T("［Ｅ　言う］　") + Tw(String(D.entries("二時半.ルール")[0].choose[0]))
 	elif ask_on and not ask_left.is_empty() and not ch.is_empty():
-		var more := ("　‹ %s/%s ›" % [num(ask_sel + 1), num(ask_left.size())]) if ask_left.size() > 1 else ""
+		# 試作282（ユーザー「1/4の表記がよくわからない」）: the count read as a score. Now it says what the keys do
+		var more := ("　" + T("［Ａ・Ｄ　ほかの問い］")) if ask_left.size() > 1 else ""
 		note_lb.text = T("［Ｅ　問う］　") + Tw(String(ch[0].choose[ask_left[ask_sel]])) + more
 	elif ask_on: note_lb.text = ""
 
@@ -1682,8 +1676,7 @@ static var SEAL_ORDER: Array = []   # 第5章 peels the tape in the order she pu
 func _unhandled_input(e):
 	if card_t > 0.0 or stage == "end": return
 	if not trace.is_empty():
-		if e is InputEventMouseMotion: _trace_move((e.relative as Vector2).dot(trace.get("dir", Vector2.RIGHT)), get_process_delta_time())   # 試作281: no key to hold; along the strip
-		return
+		return   # 試作283: held keys are read in _trace_tick; the mouse does nothing in the close shot
 	if stage == "flow" and flow_key == "扉の番.二時半" and _t230_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if mode == TALK:
@@ -1852,7 +1845,7 @@ func _demo_tick(dt):
 			player.yaw = lerp_angle(player.yaw, atan2(-to2.x, -to2.z), k2)
 			player.pitch = lerpf(player.pitch, asin(clampf(to2.normalized().y, -1.0, 1.0)), k2)
 			if dwait > 1.2 and mode == FREE and not gq.sealed and trace.is_empty(): _press()
-			if not trace.is_empty(): _trace_move(700.0 * dt, dt)   # (the run draws it at an even 700 px/s)
+			if not trace.is_empty(): trace.hold = true   # (the run holds E)
 			if gq.sealed and mode == FREE: done = true
 			if dwait > 25.0: _dfail("gap %s: cannot seal (Mio %s, candle %s)" % [s[1], _plan_of(player), _plan_of(candle) if candle else []]); _seal(gq); sealed_n += 1; done = true
 		"open":

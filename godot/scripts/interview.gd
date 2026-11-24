@@ -722,7 +722,7 @@ func _clear(b: Container):
 # a spoken line at the foot of the frame; the speaker's name in small type when the speaker changes (story.gd)
 func _say_row(who: String, text: String) -> Label:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u)); row.alignment = BoxContainer.ALIGNMENT_CENTER
-	if who != last_who or lines_box.get_child_count() == 0:
+	if who != "":   # 試作282: every spoken line carries its name (字幕の決まり)
 		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
 	last_who = who

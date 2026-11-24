@@ -696,6 +696,9 @@ func _begin(st: String):
 		"start":   # 2026-11-20 12時39分①: the first minute is not tidying. She calls Natsuki; the cellar from the top of its stair; the click
 			stage = "call"
 			_cellar_shoe()
+			# 試作282（ユーザー「何をすればいいのか混乱する」）: nothing on the page said where to begin; the blanket was more than
+			# 2.6 m off and under the eye's line. The first aim, and Natsuki answers E from farther and lower
+			_set_mission(String(B("六.始まり.目当て")[0].get("mission", "")))
 		"jump":
 			_jump6(start6)
 
@@ -704,7 +707,7 @@ func _nat_looked() -> bool:
 	var t := _target("nat")
 	if t.is_empty(): return false
 	var to: Vector3 = (t.pos as Vector3) - _cam().global_position
-	return to.length() < 2.6 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)
+	return to.length() < 3.4 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(36.0)
 
 const CELLAR_FOOT := [5.5, 2.6, -2.35]   # the foot of the cellar stair (plan, height): Makoto's torch on the floor, Taiga's shoe past it
 func _cellar_looked(deg := 18.0) -> bool:

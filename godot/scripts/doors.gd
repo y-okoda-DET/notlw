@@ -138,7 +138,8 @@ func _process(dt):
 	if cam == null: return
 	var d := _looked()
 	if t < say_until: return
-	label.text = "［扉｜Ｅ］" if d and not used.has(d) else ("［ふすま｜Ｅ］" if d == null and _fusuma() else "")
+	# 試作282（ユーザー「扉は選択できるけど、開かないという具合に」、4時の地下の扉）: a door that will not open keeps its prompt
+	label.text = "［扉｜Ｅ］" if d and (not used.has(d) or String(doors[d].locked) != "") else ("［ふすま｜Ｅ］" if d == null and _fusuma() else "")
 
 func _unhandled_input(e):
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E)
@@ -165,6 +166,7 @@ func toggle(d: MeshInstance3D):
 	if s.locked != "":
 		# 2026-11-17 夜（ユーザー「左下の開かない、トル」）: the back door says nothing; it only rattles in its frame (it is not locked: 3:30)
 		if s.key == "door_back": Sound.one(self, "ch3_rattle", -12.0, (d as Node3D).global_position); return
+		Sound.one(self, "ch3_rattle", -14.0, (d as Node3D).global_position)
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open
 	var to: float = s.open if s.is_open else s.rest

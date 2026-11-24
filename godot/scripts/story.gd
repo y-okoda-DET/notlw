@@ -53,6 +53,7 @@ var mission_lb: Label
 var mission := ""
 var board_note: Label
 var holding_cam := false
+var repick_after := false   # 試作282: after Kiryu's word on a wrong place, the camera comes back to her hand
 var cam_placed := false
 var cam_ok := false
 var recording := false
@@ -390,7 +391,7 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		var rule := ColorRect.new(); rule.color = Color(paper.r, paper.g, paper.b, 0.85)
 		rule.custom_minimum_size = Vector2(26 * u, 2 * u); rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(rule)
-	elif who != "" and kind == "say" and (who in offscreen or not named.has(who) or who != last_who or lines_box.get_child_count() == 0):   # 字幕の決まり：話す人が替わったとき、字幕が空から始まるときは名前を付ける
+	elif who != "" and kind == "say":   # 試作282（ユーザー「台詞の前に話者の名前が一切表示されないところがある。全体点検して」）: every spoken line carries its name (字幕の決まり。前は話す人が替わったときだけで、同じ人が続くと名前が無かった)
 		named[who] = true
 		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
@@ -917,7 +918,10 @@ func _judge() -> Array:
 	elif abs(dyaw) >= deg_to_rad(13): k += B("カメラ.向き", "右" if dyaw > 0 else "左")
 	elif dpitch > 0: k += B("カメラ.上向き")
 	else: k += B("カメラ.下向き")
-	return k + B("カメラ.拾い直す")
+	# 試作282（ユーザー「カメラ拾い直すとき、カメラがどこにあるかがわからない」）: the small camera on the dark rail was hard
+	# to find again. When Kiryu has said what is wrong she takes it back in her hand herself (no ［拾い直す］ to look for)
+	repick_after = true
+	return k
 
 # ================================================================ conversations
 func _conversation(key: String) -> Array:
@@ -964,10 +968,13 @@ func _start(entries: Array):
 	_next()
 
 var nod_hold := false
+var hush_next := false
 func _next():
 	if nod_hold: return
 	if script_q.is_empty():
 		mode = FREE; cur = {}
+		if repick_after and cam_placed and not cam_ok:
+			repick_after = false; _pick_up_again(); preload("res://scripts/sound.gd").one(self, "tripod_bump", -18.0, fixed_cam.global_position)
 		if ch2 and holding_radio: return
 		if lines_box.get_child_count() > 0 or tes_box.get_child_count() > 0:
 			fade_tw = create_tween().set_parallel(true)
@@ -982,6 +989,15 @@ func _next():
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
 	if cur.has("do"):
 		var d := String(cur.do)   # (_do may start another block and replace cur: 試作277 の通しで silence_nail・silence)
+		# 試作282（ユーザー「「ゾンビなんていない」の台詞、ここもっと立たせたい」）: ＞hush clears the foot, holds a silence,
+		# and the next line comes alone, a size larger, and stays
+		if d == "hush":
+			_clear_page(); named.clear(); last_who = ""; hush_next = true
+			nod_hold = true
+			get_tree().create_timer(2.2).timeout.connect(func():
+				nod_hold = false
+				if mode != END: _next())
+			return
 		_do(d)
 		# 試作277（ユーザー「首を振ってから「そっか」にする」「首を振ってから、真琴の台詞を表示」）：首を振る・うなずくは、
 		# 振り終えてから次の行へ。The head's shake or nod is over before the next line comes.
@@ -1009,8 +1025,9 @@ func _next():
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
 	if ch2 and cur.who_key != "": talk_with = cur.who_key
-	var r2 = _line_row(cur.who, "", SAY_SIZE, "testimony" if cur.get("testimony", false) else "say")
+	var r2 = _line_row(cur.who, "", SAY_SIZE * (1.22 if hush_next else 1.0), "testimony" if cur.get("testimony", false) else "say")
 	cur_lb = r2[1]
+	if hush_next: hush_next = false; cur["hush"] = true   # it stays a while alone (_talk_tick)
 
 # 試作281（別のスレッド「選ぶ行は人物と明るい所を避けた位置に」：車の明るい窓、零時半の真琴の胸）: when the choices come,
 # the lines slide sideways to where the frame is darkest and no one stands. Candidates along the foot (the middle first);
@@ -1018,6 +1035,10 @@ func _next():
 var choice_dx := 0.0
 var mission_top := true   # 試作281: false in 去年の夏 (ch7.gd)
 func _choice_place():
+	# 試作282（ユーザー「車内シーン、選択肢が左下に出ている。会話がセンター下に出ていないものすべて点検」）: every line and every
+	# choice sits at the bottom centre. The sideways move of 281 (away from people and bright glass) is off; the shadow under the
+	# letters does that work. --choiceplace brings it back for comparison
+	if not OS.get_cmdline_user_args().has("--choiceplace"): _choice_unplace(); return
 	if lines_box == null or not is_instance_valid(lines_box): return
 	await get_tree().process_frame
 	if not cur.has("choose") or cur.get("chosen", false): return
@@ -1167,6 +1188,14 @@ func _choose():
 		var tw := row.create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)   # bound to the row: when the page goes first, the tween goes with it
 		tw.tween_callback(func(): if row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
 	var then: Array = cur.then[choice_idx]
+	# 試作282（ユーザー「選択肢を選んだとき、字幕に同じ文が二重に表示されるの気持ち悪い」）: when what follows is Mio saying
+	# the very words, the picked row goes too, before her line is typed (the line is the answer; the row was only its offer)
+	var said0: Dictionary = then[0] if not then.is_empty() and then[0] is Dictionary else {}
+	if String(said0.get("who", "")) == "澪" and String(said0.get("text", "")).strip_edges() == String(cur.choose[choice_idx]).strip_edges():
+		var prow := (choice_lbs[choice_idx] as Control).get_parent() as Control
+		if prow:
+			var tw2 := prow.create_tween(); tw2.tween_interval(0.45); tw2.tween_property(prow, "modulate:a", 0.0, 0.3)
+			tw2.tween_callback(func(): if prow.get_parent(): prow.get_parent().remove_child(prow); prow.queue_free())
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
 	_note_pick()
@@ -1202,7 +1231,7 @@ func _talk_tick(dt):
 		if typed < n:
 			typed = min(float(n), typed + dt * (20.0 if cur.get("testimony", false) else 24.0))
 			_type(cur_lb, String(cur.text), int(typed))
-			read_t = 0.0
+			read_t = -2.5 if cur.get("hush", false) else 0.0
 		else:
 			# 試作97: a line goes on by itself once there has been time to read it (ユーザー「台詞終わりEを押し忘れて、
 			# 動けない」). E still hurries it; only the choices wait for her.
@@ -1376,7 +1405,7 @@ func _demo_script():
 		["use", "fixedcam"], ["until_free"],                                             # the small camera on the apple box
 		# first try: set it on the apple box and aim at the door - too low
 		["finder", true], ["wait", 0.6], ["look", 4.0, -4.0, 1.6], ["wait", 1.4], ["e"], ["until_free"],
-		["use", "placed"],
+		["wait", 0.8],   # 試作282: she takes it back herself
 		# up the walkway beside the stair, onto the handrail
 		["gop", 4.83, 2.97],
 		["look", 0.0, -10.0, 1.0], ["board", true], ["wait", 2.2], ["board", false],
