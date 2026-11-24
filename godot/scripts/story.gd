@@ -817,6 +817,7 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 		var allow: float = atan2(it.r, d) + 0.05
 		if ang > allow: continue
 		var s := ang / allow + d * 0.15
+		if k == "taiga" and items.has("w_cellar") and taiga_at == "out": s += 0.6   # 試作281: he crouches beside the window she came to board; the window wins where both are in the look
 		if s < best_s: best_s = s; best = k
 	# the camera she set down can be picked up again
 	if cam_placed and not cam_ok:
@@ -1163,8 +1164,8 @@ func _choose():
 		if i == choice_idx: continue
 		var row := (choice_lbs[i] as Control).get_parent() as Control
 		if row == null: continue
-		var tw := create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)
-		tw.tween_callback(func(): if is_instance_valid(row) and row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
+		var tw := row.create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)   # bound to the row: when the page goes first, the tween goes with it
+		tw.tween_callback(func(): if row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
 	var then: Array = cur.then[choice_idx]
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
@@ -2495,7 +2496,7 @@ func _boards_show_rest():
 		taiga_moving = false; taiga_at = "out"
 		# 試作281（ユーザー「ここ大河に話しかけられるように」）: the point to look at is on him where the ground put him (was 1.5 over the
 		# plan's ground, above his head where the slope is low), and wider
-		items["taiga"] = {"pos": rg.global_position + Vector3.UP * 1.2, "r": 0.45, "kind": "talk", "name": "大河"}
+		items["taiga"] = {"pos": rg.global_position + Vector3.UP * 0.85, "r": 0.38, "kind": "talk", "name": "大河"}   # crouched: his head is about 0.9 up
 		_aim_taiga_light(true), atan2(w.x, w.z))
 
 const TAIGA_OUT := [10.45, 7.75, -1.85]   # 2026-11-15（ユーザー「めりこまない」）: crouched at 10.22 his knees and head went into the foundation; down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)
