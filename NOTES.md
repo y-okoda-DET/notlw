@@ -694,4 +694,9 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 2026-11-23 物語の場面の画は `bash godot/check/snap.sh <pck の所> <名前> <snaps.txt>` で撮る。通しを頭から回すと遅い（ゲームの75秒に約12分）ので、`SARGS="--scene=house --play=ch3"`（23時は `--scene=night --door`）で場面から始め、snaps は `名前 @st>秒`。直す前は `REV=<版>`。`--play=ch3` だけだと序章から始まる（--scene=house が要る）。`godot --check-only` は $GODOT（blender/paths.sh）で。素の `godot` は無く、失敗しても grep で見落とす。
 - 2026-11-23 夜の顔の明かり（story.gd FaceLight／_face_light）：人物の手のスマホ（BoneAttachment の "screen"）から顔だけへ細いスポット。第3章の0時は main.phones(false) で全員のスマホがしまわれていて、光が出なかった（ログ face_light on=false）。by= で別の人のスマホから当てられる（0時・23時は桐生）。phones(true, ["kiryu"]) は懐中電灯（torch）も点くので、壁に光の丸が出る。
 - 2026-11-23 選択肢の字の影：Type.Soft に kk（その字だけの濃さ）を足した。選択肢は 3 倍（明るい窓の上でも読める）。
+
+## 試作280 の自動の通しは第8章の頭で終わる（2026-11-24、論文の手法のレビューのスレッド）
+- 画面なしで `playthrough.sh` を回すと「DEMO DONE interview 1」のあと第8章に入り、「澪：……大河くん！」の約15秒後に、失敗もエラーも出さずに Godot が終わる。最後の行は「通し ○（606 行、interview 1 fails=0）」になるので、第8章から先を見ていないことに気づきにくい。`--scene=house --time=t02 --nocard --play=ch8 --demo --demoquit` でも同じ所で終わる。276 では同じ通しが第11章の終わりまで行った。第8章のデモの道筋は 277 で変わった（ch8.gd `_demo8_tick` の地下の扉を開けて下りる所）。
+- 証言二から先は `--play=i2 --demo --demoquit` で第11章の終わりまで通る（失敗 0）。
+- 通しのログの SAY 行から台本を作るとき、第11章の行の後ろに「(clear 8/8)」が付く。読ませる刺激に使うなら消す。
 - 2026-11-24（試作280 → 281）：自動の通しが第8章の頭（「澪：……大河くん！」）で止まったまま、check は「通し ○」と出していた。原因は2つ。①ch8.gd の _cel_look の光線が、目から下を向くと桐生自身の CharacterBody3D（カプセルの上）に当たり、Ｅ が効かなかった（人が遊んでも、階段を下りて見下ろすと止まりうる）。光線から player の RID を外して直した。②playthrough.sh が証言一の「DEMO DONE interview」で ○ にしていた。第11章の「DEMO DONE …(ch11」だけを見るように変えた。光線で「見ているか」を確かめる所は、自分の体を exclude に入れる。
