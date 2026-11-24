@@ -701,6 +701,11 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 通しのログの SAY 行から台本を作るとき、第11章の行の後ろに「(clear 8/8)」が付く。読ませる刺激に使うなら消す。
 - 2026-11-24（試作280 → 281）：自動の通しが第8章の頭（「澪：……大河くん！」）で止まったまま、check は「通し ○」と出していた。原因は2つ。①ch8.gd の _cel_look の光線が、目から下を向くと桐生自身の CharacterBody3D（カプセルの上）に当たり、Ｅ が効かなかった（人が遊んでも、階段を下りて見下ろすと止まりうる）。光線から player の RID を外して直した。②playthrough.sh が証言一の「DEMO DONE interview」で ○ にしていた。第11章の「DEMO DONE …(ch11」だけを見るように変えた。光線で「見ているか」を確かめる所は、自分の体を exclude に入れる。
 
+## ストアの場面写真を撮る（2026-11-24）
+- PV の clip.sh を、版の合うスクリプト（試作280 ならブランチ 3f70974 を git worktree で出し、その godot/check/e_overlay.sh）に重ね、`--clipshowui --clipstep=1 --clipfast=2 --demo` で、決めた秒ごとに 1920×1080 を撮った。clips の txt を「名前 秒 dur=0.25」で8秒ごとに並べると、通しの下見の一覧になる。
+- 4コア・15GB で、家の場面の通しを2本同時に走らせると、2本目が家を読むところでメモリが足りず Killed になった。1本ずつ回す。
+- 第1章の頭から（--demo、--play=ch1）は遅い：ゲームの1秒に約7〜25秒。--play=h21・ch4・i1 はずっと速い。
+
 ## 2026-11-24 試作281：書き出しと snap を同時に回すと落ちる
 - house の書き出し（export_house.py、4GB 超）と snap.sh（Godot、1つ 3〜5GB）を並べると、メモリ（15GB）が尽きて書き出しが「HOUSE_FAIL」で止まる（dmesg に oom-kill）。第11章の snap は特に重く、3つ並べると Killed。書き出しの間は snap を回さない。snap は2つまで、第11章は1つだけで。
 - snap.sh を同じ WORK で2つ同時に回すと、重ねる overlay を取り合う。並べるときは WORK を分ける。
