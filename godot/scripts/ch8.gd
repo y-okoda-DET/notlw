@@ -1027,7 +1027,10 @@ func _cel_look() -> bool:
 	var to := hd - _cam().global_position
 	# 試作277（ユーザー「澪に近づいてから止める」）: not from the stair head: he goes down to her (within arm's reach and a step)
 	if not (to.length() < 1.9 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(40.0)): return false
-	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(_cam().global_position, hd))
+	# 試作281: not his own body. Looking down the stair, the ray from the eye met the top of his capsule and E never took
+	# (the run stopped here at 「……大河くん！」, no error).
+	var rq := PhysicsRayQueryParameters3D.create(_cam().global_position, hd); rq.exclude = [player.get_rid()]
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
 	return hit.is_empty() or (hit.position as Vector3).distance_to(hd) < 0.6
 
 func _cel_grab():
@@ -1616,11 +1619,11 @@ func _demo8_tick(dt: float):
 			var p := _plan()
 			if cel8 == "heard":
 				if _cel_look(): player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8(); return
-				if demo_goal.is_empty() and Vector2(p[0] - 5.5, p[1] - 4.1).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.5, p[1] - 3.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
 				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4:
 					var dn8 = main.get_node_or_null("Doors")
 					if dn8: dn8.open_key("door_cellar")
-					_demo_go([[5.5, 5.75], [5.5, 5.2], [5.5, 4.1]]); demo_wait = 1.0; return   # (試作277: down the cellar stair to her)
+					_demo_go([[5.5, 5.75], [5.5, 5.2], [5.5, 3.9]]); demo_wait = 1.0; return   # (試作277: down the cellar stair to her)
 				if demo_goal.is_empty(): _demo_go([[5.3, 1.95], [4.7, 2.2], [4.3, 2.9], [4.3, 3.7], [4.8, 4.2], [5.0, 5.9]])   # off the stair foot, round by the hall (ch3.gd walks it the other way)
 				else: _demo_there(0.3)
 				return

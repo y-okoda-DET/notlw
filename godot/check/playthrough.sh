@@ -20,6 +20,8 @@ else
 fi
 grep "^SAY " $L | sed 's/^SAY //' > $O/通し_台詞.txt
 F=$(grep -c "DEMO FAIL" $L); E=$(grep -c "SCRIPT ERROR" $L)
-if grep -q "DEMO DONE" $L && [ "$F" = 0 ] && [ "$E" = 0 ]; then echo "通し ○（$(grep -c . $O/通し_台詞.txt) 行、$(grep 'DEMO DONE' $L | sed 's/DEMO DONE //')）"; exit 0; fi
+# 試作281: 最後（第11章の再生）の DEMO DONE だけを見る。証言一の「DEMO DONE interview」で ○ にしていて、第8章で止まったのを見逃した
+D=$(grep "DEMO DONE.*ch11" $L | tail -1)
+if [ -n "$D" ] && [ "$F" = 0 ] && [ "$E" = 0 ]; then echo "通し ○（$(grep -c . $O/通し_台詞.txt) 行、$(echo "$D" | sed 's/DEMO DONE //')）"; exit 0; fi
 grep "DEMO FAIL\|SCRIPT ERROR" $L | head -20
-echo "通し ×（最後まで行った：$(grep -q 'DEMO DONE' $L && echo はい || echo いいえ)、できなかった手順 $F、スクリプトのエラー $E）"; exit 1
+echo "通し ×（最後まで行った：$([ -n "$D" ] && echo はい || echo "いいえ、最後の台詞：$(tail -1 $O/通し_台詞.txt)")、できなかった手順 $F、スクリプトのエラー $E）"; exit 1
