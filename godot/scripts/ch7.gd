@@ -1168,7 +1168,8 @@ func _watch():
 	var blackm := StandardMaterial3D.new(); blackm.albedo_color = Color(0.05, 0.05, 0.055); blackm.roughness = 0.6
 	var strap := MeshInstance3D.new(); var sm := BoxMesh.new(); sm.size = Vector3(0.07, 0.006, 0.022); strap.mesh = sm; strap.material_override = blackm; watch.add_child(strap)
 	var body := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.032, 0.011, 0.044); body.mesh = bm; body.material_override = blackm; body.position.y = 0.005; watch.add_child(body)
-	var face := MeshInstance3D.new(); var fm := QuadMesh.new(); fm.size = Vector2(0.024, 0.038)   # its long side along the arm, as the digits read (holder below): the time sat cut off at the edge; face.mesh = fm
+	# 試作281: its long side along the arm, as the digits read (holder below): the time sat cut off at the edge
+	var face := MeshInstance3D.new(); var fm := QuadMesh.new(); fm.size = Vector2(0.024, 0.038); face.mesh = fm
 	seg_mat = StandardMaterial3D.new(); seg_mat.albedo_color = Color(0.56, 0.6, 0.5); seg_mat.roughness = 0.4
 	face.material_override = seg_mat; face.rotation.x = -PI / 2.0; face.position.y = 0.0108; watch.add_child(face)
 	var dark := StandardMaterial3D.new(); dark.albedo_color = Color(0.06, 0.07, 0.06); dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
