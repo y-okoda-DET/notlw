@@ -2338,7 +2338,7 @@ func _ham_show(i: int):
 	# 試作281: the camera goes to each board in turn (the hammer and her hand in the lower right of the frame)
 	var bc: Vector3 = ham_rest[i]
 	var cp := bc + ham_out * 0.44 - ham_side * 0.46 + Vector3.UP * 0.12   # from the side: the swing's arc seen across, not end-on
-	var tf := Transform3D(Basis(), cp).looking_at(bc + ham_out * 0.1 + ham_side * 0.06 - Vector3.UP * 0.05, Vector3.UP)
+	var tf := Transform3D(Basis(), cp).looking_at(bc + ham_out * 0.12 + ham_side * 0.06 - Vector3.UP * 0.1, Vector3.UP)   # 試作281: down a little, so her fist on the handle is in the frame
 	if i == 0: ham_cam.global_transform = tf
 	else: create_tween().tween_property(ham_cam, "global_transform", tf, 0.4).set_trans(Tween.TRANS_SINE)
 	n.visible = true; n.global_position = (ham_org[i] as Vector3) + ham_out * 0.03
@@ -2369,30 +2369,101 @@ func _ham_hand():
 	# 試作281（ユーザー「板打ちの金槌が箱の組み合わせに見える」）: a claw hammer, not a bar on a stick: an oval wooden handle that
 	# flares to a knob at her fist; on its top a round striking face toward the wall, a waisted neck through the eye, and the
 	# claw's two prongs curving down away from the wall (the same place and reach as the bar it was, so the blow lands the same)
-	var hdl := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0105; cy.bottom_radius = 0.0145; cy.height = 0.3; cy.radial_segments = 20
-	hdl.mesh = cy; hdl.material_override = wood; hdl.position = Vector3(0, -0.11, 0.035); hdl.scale = Vector3(0.72, 1.0, 1.0); grip.add_child(hdl)
-	var knob := MeshInstance3D.new(); var kc := CylinderMesh.new(); kc.top_radius = 0.0145; kc.bottom_radius = 0.0165; kc.height = 0.022; kc.radial_segments = 20
-	knob.mesh = kc; knob.material_override = wood; knob.position = Vector3(0, -0.249, 0.035); knob.scale = Vector3(0.78, 1.0, 1.0); grip.add_child(knob)
-	var dark_steel := StandardMaterial3D.new(); dark_steel.albedo_color = Color(0.22, 0.22, 0.24); dark_steel.metallic = 0.7; dark_steel.roughness = 0.35
-	var head_y := 0.035
-	var eye := MeshInstance3D.new(); var eb := CylinderMesh.new(); eb.top_radius = 0.0125; eb.bottom_radius = 0.0145; eb.height = 0.036; eb.radial_segments = 16
-	eye.mesh = eb; eye.material_override = dark_steel; eye.position = Vector3(0, head_y, 0.035); eye.scale = Vector3(0.95, 1.0, 1.25); grip.add_child(eye)
-	var neck := MeshInstance3D.new(); var nk := CylinderMesh.new(); nk.top_radius = 0.0095; nk.bottom_radius = 0.0125; nk.height = 0.03; nk.radial_segments = 16
-	neck.mesh = nk; neck.material_override = dark_steel; neck.rotation.x = PI / 2.0; neck.position = Vector3(0, head_y, 0.005); grip.add_child(neck)
-	var face_m := MeshInstance3D.new(); var fc := CylinderMesh.new(); fc.top_radius = 0.0155; fc.bottom_radius = 0.0155; fc.height = 0.016; fc.radial_segments = 20
-	face_m.mesh = fc; face_m.material_override = steel; face_m.rotation.x = PI / 2.0; face_m.position = Vector3(0, head_y, -0.018); grip.add_child(face_m)
-	for sx in [-0.0055, 0.0055]:
-		var pr := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.0012; pm.bottom_radius = 0.0055; pm.height = 0.05; pm.radial_segments = 8
-		pr.mesh = pm; pr.material_override = dark_steel; grip.add_child(pr)
-		pr.rotation.x = -PI / 2.0 + deg_to_rad(38.0)     # out from the eye, away from the wall, bending down
-		pr.position = Vector3(sx, head_y - 0.009, 0.072); pr.scale = Vector3(0.7, 1.0, 1.0)
+	# the handle: oval in section (deeper along the head than across), a swell for the fist, thinner in the shank, a flared foot
+	var hdl := _loft([[0.0, 0.0, 0.0105, 0.0150, 2.4, 0.0, 0.0], [0.012, 0.0, 0.0112, 0.0158, 2.4, 0.0, 0.0], [0.030, 0.0, 0.0096, 0.0133, 2.4, 0.0, 0.0],
+		[0.090, 0.0, 0.0099, 0.0136, 2.4, 0.0, 0.0], [0.190, 0.0, 0.0086, 0.0114, 2.4, 0.0, 0.0], [0.262, 0.0, 0.0090, 0.0118, 2.4, 0.0, 0.0],
+		[0.295, 0.0, 0.0098, 0.0128, 2.4, 0.0, 0.0]], wood, 20)
+	hdl.rotation.x = -PI / 2.0; hdl.position = Vector3(0, -0.262, 0.035); grip.add_child(hdl)
+	var dark_steel := StandardMaterial3D.new(); dark_steel.albedo_color = Color(0.2, 0.2, 0.22); dark_steel.metallic = 0.75; dark_steel.roughness = 0.38
+	var bright := StandardMaterial3D.new(); bright.albedo_color = Color(0.72, 0.72, 0.74); bright.metallic = 0.85; bright.roughness = 0.22
+	var hy := 0.035   # the head's line, through the handle's top (z 0.035)
+	# 試作281（ユーザー「ヘッドの部分ももっと追い込んで造形して」）: one forged piece, lofted through its sections from the face to
+	# the claw's root: a bevelled round face, the bell flaring behind it, the waisted neck, the eye's block with rounded corners
+	# where the handle goes in, and the cheeks narrowing into the claw. The face itself is bright where it has struck
+	var body := _loft([
+		[-0.036, hy, 0.0120, 0.0120, 2.0, 0.0, 0.0],   # the face's edge, bevelled
+		[-0.0345, hy, 0.0150, 0.0150, 2.0, 0.0, 0.0],
+		[-0.030, hy, 0.0158, 0.0158, 2.0, 0.0, 0.0],   # the bell
+		[-0.022, hy, 0.0150, 0.0150, 2.2, 0.0, 0.0],
+		[-0.012, hy, 0.0115, 0.0118, 2.6, 0.0, 0.0],   # into the neck
+		[-0.002, hy, 0.0098, 0.0104, 3.0, 0.0, 0.0],
+		[0.010, hy, 0.0104, 0.0128, 3.6, 0.0, 0.0],    # out to the eye
+		[0.018, hy, 0.0112, 0.0150, 4.5, 0.0, 0.0],
+		[0.035, hy, 0.0114, 0.0156, 5.0, 0.0, 0.0],    # the eye, round the handle
+		[0.050, hy, 0.0108, 0.0146, 4.5, 0.0, 0.0],
+		[0.058, hy - 0.001, 0.0095, 0.0118, 3.6, deg_to_rad(8.0), 0.0],   # the cheeks narrowing to the claw
+	], dark_steel)
+	grip.add_child(body)
+	var face_m := _loft([[-0.0368, hy, 0.0112, 0.0112, 2.0, 0.0, 0.0], [-0.0355, hy, 0.0128, 0.0128, 2.0, 0.0, 0.0]], bright)
+	grip.add_child(face_m)
+	# the claw: two tines out of the cheeks, curving down and apart, thinning to edges, with the V between them for a nail's head
+	for sx in [-1.0, 1.0]:
+		var secs := []
+		for k in 9:
+			var u := float(k) / 8.0
+			var ang := deg_to_rad(8.0 + 62.0 * u * u)                    # the curve steepens toward the tip
+			var z := 0.058 + 0.040 * sin(u * 1.25) / sin(1.25)
+			var y := hy - 0.001 - 0.024 * u * u
+			var x: float = sx * (0.0042 + 0.0030 * u)
+			secs.append([z, y, lerpf(0.0046, 0.0018, u), lerpf(0.0112, 0.0032, u), lerpf(3.4, 2.4, u), ang, x])
+		grip.add_child(_loft(secs, dark_steel, 16))
 	var arm := _fp_arm("mio", "r", fore, fore.cross(Vector3.UP), 0.95)
 	if arm:
 		arm.get_parent().remove_child(arm); grip.add_child(arm)
 		arm.position = hand_at; arm.visible = true
+		# 試作281（ユーザー「金づち、手が棒の部分を握ってない」）: the arm came with its wrist on the handle's line and the fist 7 cm off
+		# it. Turn the arm so the fist's knuckle line runs along the handle, and set it so the handle passes through the curled fingers
+		_ham_fit_fist(arm, grip, Vector3(0, -0.205, 0.035))
 	grip.position = -elbow
 	ham.set_meta("grip", grip)
 	_ham_pose()
+
+func _ham_fit_fist(arm: Node3D, grip: Node3D, at: Vector3):
+	var sk: Skeleton3D = arm.find_children("*", "Skeleton3D", true, false)[0]
+	var to_g := grip.global_transform.affine_inverse() * sk.global_transform
+	var bp := func(n: String) -> Vector3:
+		var bi := sk.find_bone(n)
+		return to_g * sk.get_bone_global_pose(bi).origin if bi >= 0 else Vector3.ZERO
+	var k1: Vector3 = bp.call("index_01_r"); var k2: Vector3 = bp.call("pinky_01_r"); var km: Vector3 = bp.call("middle_01_r")
+	var tip: Vector3 = (bp.call("middle_03_r") + bp.call("pinky_03_r")) * 0.5
+	if k1 == Vector3.ZERO or k2 == Vector3.ZERO: return
+	var ax := (k1 - k2).normalized()          # pinky to index: up the handle, toward the head
+	var fist := ((k1 + k2 + km) / 3.0).lerp(tip, 0.55)
+	var q := Basis(Quaternion(ax, Vector3.UP))
+	var t := Transform3D(q, Vector3.ZERO)
+	var moved := t * fist
+	arm.transform = Transform3D(q, at - moved) * arm.transform
+	print("HAM fist fit axis ", ax, " fist ", fist)
+
+# a solid lofted along z through sections [z, y, half-width, half-height, squareness (2 round .. 6 boxy), tilt about x, x]
+func _loft(secs: Array, mat: Material, seg := 28) -> MeshInstance3D:
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES); st.set_smooth_group(0)
+	var rings := []
+	for sc in secs:
+		var ring := []
+		for i in seg:
+			var th := TAU * float(i) / float(seg)
+			var c := cos(th); var sn := sin(th); var e: float = 2.0 / float(sc[4])
+			var v := Vector3(float(sc[2]) * signf(c) * pow(absf(c), e), float(sc[3]) * signf(sn) * pow(absf(sn), e), 0.0)
+			ring.append(Vector3(float(sc[6]), float(sc[1]), float(sc[0])) + Basis(Vector3.RIGHT, float(sc[5])) * v)
+		rings.append(ring)
+	for r in rings.size() - 1:
+		for i in seg:
+			var a0: Vector3 = rings[r][i]; var a1: Vector3 = rings[r][(i + 1) % seg]
+			var b0: Vector3 = rings[r + 1][i]; var b1: Vector3 = rings[r + 1][(i + 1) % seg]
+			st.add_vertex(a0); st.add_vertex(a1); st.add_vertex(b0)
+			st.add_vertex(a1); st.add_vertex(b1); st.add_vertex(b0)
+	for e2 in [0, rings.size() - 1]:   # the two ends, closed flat
+		var ctr := Vector3.ZERO
+		for v2 in rings[e2]: ctr += v2
+		ctr /= float(seg)
+		for i in seg:
+			var p0: Vector3 = rings[e2][i]; var p1: Vector3 = rings[e2][(i + 1) % seg]
+			if e2 == 0: st.add_vertex(ctr); st.add_vertex(p0); st.add_vertex(p1)
+			else: st.add_vertex(ctr); st.add_vertex(p1); st.add_vertex(p0)
+	st.index(); st.generate_normals()
+	var mi := MeshInstance3D.new(); mi.mesh = st.commit(); mi.material_override = mat
+	return mi
 
 func _ham_pose():
 	if not is_instance_valid(ham) or ham_board >= cellar_boards.size(): return
@@ -2409,6 +2480,9 @@ func _ham_pose():
 func _ham_tick(dt: float):
 	ham_t += dt
 	if is_instance_valid(ham_cam) and get_viewport().get_camera_3d() != ham_cam: ham_cam.make_current()   # (a card or the player's own camera work took it)
+	if "--hamclose" in OS.get_cmdline_user_args() and is_instance_valid(ham) and is_instance_valid(ham_cam):   # stills only: close on her fist
+		var fp: Vector3 = (ham.get_meta("grip") as Node3D).global_transform * Vector3(0, -0.17, 0.035)
+		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if demo_on: held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
