@@ -785,10 +785,17 @@ func _do(what: String):
 			if _anim7("taiga", ["c7/point"]) != "" and not busy7.has("taiga"):
 				var rig: Node3D = main._rig_of("taiga"); var p0 := rig.global_position
 				_once7("taiga", ["c7/point"], sit7.get("taiga", SIT.taiga), 3.4)
+				# 試作281（ユーザー「これ、大河は陽太に向かって怒る」）: he turns on Yota (the player) as he rises, and points at him
+				var to: Vector3 = player.global_position - p0; to.y = 0.0
+				var y0 := rig.rotation.y
+				var y1 := y0 + wrapf(atan2(to.x, to.z) - y0, -PI, PI)
+				var step: Vector3 = to.normalized() * 0.42 if to.length() > 0.5 else Vector3(-0.42, 0, 0)
 				var tw := create_tween()
-				tw.tween_property(rig, "global_position", p0 + Vector3(-0.42, 0, 0), 0.45).set_trans(Tween.TRANS_SINE)
+				tw.tween_property(rig, "global_position", p0 + step, 0.45).set_trans(Tween.TRANS_SINE)
+				tw.parallel().tween_property(rig, "rotation:y", y1, 0.45).set_trans(Tween.TRANS_SINE)
 				tw.tween_interval(2.5)
 				tw.tween_property(rig, "global_position", p0, 0.6).set_trans(Tween.TRANS_SINE)
+				tw.parallel().tween_property(rig, "rotation:y", y0, 0.6).set_trans(Tween.TRANS_SINE)
 		"go_out":
 			_go_out_now()
 		"outside":

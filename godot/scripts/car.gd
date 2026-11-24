@@ -139,6 +139,12 @@ func _curve():
 		if i + 1 < pts0.size() and i + 1 != DRIVE_I:
 			for k in [1, 2, 3]: pts.append((pts0[i] as Vector3).lerp(pts0[i + 1], k / 4.0))
 	var drive_pt: Vector3 = pts0[DRIVE_I]
+	# 試作281（ユーザー「車、ぐにゃぐにゃ走りすぎ！」）: the plan's points joined by straight pieces kinked at every point, and the
+	# car turned its nose at each kink. Smoothed (each point toward its neighbours' middle, six times) before the cone's bend
+	for it in 6:
+		var sm := pts.duplicate()
+		for i in range(1, pts.size() - 1): sm[i] = (pts[i - 1] as Vector3) * 0.25 + (pts[i] as Vector3) * 0.5 + (pts[i + 1] as Vector3) * 0.25
+		pts = sm
 	var cone: Node3D = null
 	if main.S.has("env_node"):
 		var cs: Array = (main.S.env_node as Node).find_children("ext_slipok_cone*", "MeshInstance3D", true, false)
@@ -172,8 +178,8 @@ func _curve():
 
 func _at(dd: float) -> Transform3D:
 	var p := curve.sample_baked(clampf(dd, 0.0, curve.get_baked_length()), true)
-	var a := curve.sample_baked(clampf(dd - 1.4, 0.0, curve.get_baked_length()), true)
-	var b := curve.sample_baked(clampf(dd + 1.4, 0.0, curve.get_baked_length()), true)
+	var a := curve.sample_baked(clampf(dd - 2.6, 0.0, curve.get_baked_length()), true)   # 試作281: 1.4 → 2.6 m, the nose follows the road, not each ripple
+	var b := curve.sample_baked(clampf(dd + 2.6, 0.0, curve.get_baked_length()), true)
 	var f := (b - a).normalized()
 	var basis := Basis.looking_at(f, Vector3.UP)
 	return Transform3D(basis, p)
@@ -727,11 +733,11 @@ func _drive(dt: float):
 	var turn := 0.0
 	if dt > 0.0: turn = prev_fwd.signed_angle_to(fwd, Vector3.UP) / dt
 	prev_fwd = fwd
-	steer = lerpf(steer, clampf(turn * 2.2, -1.6, 1.6), 1.0 - exp(-dt * 3.0))
+	steer = lerpf(steer, clampf(turn * 2.2, -1.6, 1.6), 1.0 - exp(-dt * 1.6))
 	bump_v += (randf_range(-1.0, 1.0) * v * 0.9 - bump * 30.0 - bump_v * 4.0) * dt
 	bump += bump_v * dt
 	var gravel := 1.6 if d > d_drive else 1.0
-	var roll := clampf(-turn * v * 0.012, -0.03, 0.03) + bump * 0.6 * gravel
+	var roll := clampf(-turn * v * 0.012, -0.03, 0.03) + bump * 0.35 * gravel
 	var pitch := bump * 0.35 * gravel
 	tf.basis = tf.basis * Basis.from_euler(Vector3(pitch * 0.02, 0.0, roll * 0.02))
 	tf.origin += tf.basis.y * (bump * 0.004 * gravel)

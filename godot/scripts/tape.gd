@@ -118,7 +118,7 @@ const N230 := 7798.0                  # 2:29:58 (【テープ.二時半】 0 s)
 const N330 := 11394.0                 # 3:29:54 (【テープ.流れ】 0 s = 第4章 4 s)
 const N400 := 13200.0                 # 4:00:00 (【テープ.四時】)
 const N_END := 14400.0                # 4:20:00: the tape runs out
-const FF_RATE := 120.0
+const FF_RATE := 400.0   # 試作281（ユーザー「もっと早く早送りにする（めちゃくちゃ時間がかかるので）」）: 120 → 400, the night's three hours in half a minute
 const T230_POS := {"sit": [5.0, 1.62], "near": [5.0, 0.86], "ear": [5.0, 0.6]}   # ch3.gd T230_AT
 const SIT_AT := [4.9, 1.62]           # the 框 (ch8.gd MIO_SIT)
 var night_n := 0.0
@@ -368,6 +368,10 @@ func _room():
 		var bb := AABB(); var first := true
 		for g in t.find_children("*", "MeshInstance3D", true, false):
 			var m := g as MeshInstance3D; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.layers = 2
+			# 試作281（ユーザー「テレビのひび割れ、直す」）: the Tripo texture had cracks and blots baked into the case; a plain plastic
+			# of its own colour instead (the shape, its grille and knobs, stays the model's)
+			var pl := StandardMaterial3D.new(); pl.albedo_color = Color(0.74, 0.72, 0.68); pl.roughness = 0.55
+			m.material_override = pl
 			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
 		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
 		t.scale = Vector3(k, k, k)
@@ -674,7 +678,7 @@ func _room_tick(dt: float):
 	var deck_at := ROOM + Vector3(0, 0.20, 0.11)
 	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(22.0)   # 試作281: 14° was narrow
 	var e := _err()
-	if ff_on: e = maxf(e, 0.8)   # the picture tears while it runs fast
+	# 試作281（ユーザー「早送り中は映像の乱れをなくす」）: the picture no longer tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
 	scr_mat.set_shader_parameter("err", e)
 	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
@@ -1007,8 +1011,10 @@ func _b_set_face(k: String):
 # the deck's display: the one light left when the set goes off, low and in front of her
 func _b_deck_light():
 	deck_light = SpotLight3D.new(); deck_light.light_color = Color(0.62, 0.95, 0.88)
-	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
-	deck_light.spot_angle = 24.0; deck_light.spot_angle_attenuation = 1.5
+	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "1.2")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
+	# 試作281（ユーザー「変。」：暗い所に青い胸像の影だけ）: at .35 her face in the last cut was unlit, a flat cut-out with two glints.
+	# The deck's display now reaches her face and shoulders (1.2, 24° → 40°)
+	deck_light.spot_angle = 24.0 if face11 == "b2" else 40.0; deck_light.spot_angle_attenuation = 1.5
 	deck_light.shadow_enabled = false; deck_light.light_specular = 0.6; deck_light.light_cull_mask = 1 | MIO_LAYER
 	main.add_child(deck_light)
 	# 試作263 B2: a little off the front, toward the door's side, so the nose and one cheek keep a shadow

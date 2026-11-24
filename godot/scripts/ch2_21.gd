@@ -319,12 +319,23 @@ func _do(what: String):
 			var at := [4.97, 0.42, 0.0]
 			# 2026-11-17 夜（ユーザー「扉に手をかけて扉を開けるアニメーション入れられるか？」）: her hand on the knob, the door comes
 			# to her and she steps back with it (story.gd _front_open_by); then out, and it shuts behind her once she is gone
+			# 試作281（ユーザー「ここまだアニメーションが変。夏希が扉を開けて、出て、閉めるように」）: through the door and one step out,
+			# she turns back to it, takes the knob and pulls it shut on herself; the shut is heard as it shuts. The script (the
+			# 「扉の閉まる音」 and Taiga's line) waits for it
+			var held := script_q.duplicate(); script_q.clear()
 			_front_open_by("natsuki", func(rest: float):
-				main.walk_to("natsuki", NAT_OUT, func():
-					main._rig_of("natsuki").visible = false
-					var tw := create_tween(); tw.tween_interval(0.6)
-					tw.tween_property(main.door_pivot, "rotation:y", rest, 1.0).set_trans(Tween.TRANS_SINE)
-					tw.tween_callback(func(): Sound.one(self, "door_close", -8.0, gp(5.0, 0.0, 1.0)))), 0.0)
+				main.walk_to("natsuki", [NAT_OUT[0], NAT_OUT[1]], func():
+					var rig: Node3D = main._rig_of("natsuki")
+					var rc := _reach("natsuki", _front_knob(rig.global_position + Vector3.UP), gp(5.3, 0.3, 1.0))
+					var tw := create_tween()
+					tw.tween_property(rc, "w", 1.0, 0.4).set_trans(Tween.TRANS_SINE)
+					tw.tween_property(main.door_pivot, "rotation:y", rest, 0.9).set_trans(Tween.TRANS_SINE)
+					tw.tween_callback(func():
+						Sound.one(self, "door_close", -8.0, gp(5.0, 0.0, 1.0))
+						rc.queue_free()
+						rig.visible = false   # behind the shut door: put away
+						if main.S.has("natsuki_col"): (main.S.natsuki_col as Node3D).global_position = Vector3(0, -50, 0)
+						_start(held)), _face([5.05, -0.6], [5.0, 0.2])), 0.0)
 		"lock_ask":
 			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
 			main.set_meta("front_lock", _lock_now)

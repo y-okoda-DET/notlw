@@ -4,9 +4,9 @@
 extends SkeletonModifier3D
 # 試作277（ユーザー「真琴が寝てない」）：0.10 では起きて前を見ているように見えた。あごを胸へ落とし、肩も少し前へ（首を
 # 横に倒すと顔が歪むので、倒すのは前へ）
-var chin := 0.34        # radians the head drops forward (asleep)
-var lean := 0.10        # and a little to her window
-var slump := 0.08       # the upper back rounds
+var chin := 0.46        # radians the head drops forward (asleep)  試作281（ユーザー「真琴が起きてる」）: .34 → .46
+var lean := 0.24        # and to her window (.10 → .24: the head rests on the glass side, as a sleeper's does)
+var slump := 0.2        # the upper back rounds (.08 → .2: the shoulders let go)
 var follow: Node3D = null   # the earphone: put on her ear after the head is set (a BoneAttachment3D still sees the clip's head)
 var follow_at := Vector3.ZERO
 

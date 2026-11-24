@@ -699,6 +699,10 @@ func _update_looks():
 		var lm: Look = looks[k]
 		lm.target = eye
 		lm.want = 1.0 if (mode == TALK and talk_with == k and not "--nolook" in OS.get_cmdline_user_args()) else 0.0   # --nolook: stills, the pose before she turns
+		# 試作281（ユーザー「もう少しみんながラジオに聞き耳を立てているように」）: while the radio speaks, the ones not talking to her
+		# turn their heads to it (the set where it stands or in her hands)
+		if radio_on and is_instance_valid(radio) and lm.want < 0.5:
+			lm.target = radio.global_position; lm.want = 0.9
 
 # ================================================================ where the camera would rest
 func _rest_for(eye: Vector3, dir: Vector3) -> Dictionary:
@@ -2489,7 +2493,9 @@ func _boards_show_rest():
 		var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
 		if not hit.is_empty(): rg.global_position.y = hit.position.y
 		taiga_moving = false; taiga_at = "out"
-		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
+		# 試作281（ユーザー「ここ大河に話しかけられるように」）: the point to look at is on him where the ground put him (was 1.5 over the
+		# plan's ground, above his head where the slope is low), and wider
+		items["taiga"] = {"pos": rg.global_position + Vector3.UP * 1.2, "r": 0.45, "kind": "talk", "name": "大河"}
 		_aim_taiga_light(true), atan2(w.x, w.z))
 
 const TAIGA_OUT := [10.45, 7.75, -1.85]   # 2026-11-15（ユーザー「めりこまない」）: crouched at 10.22 his knees and head went into the foundation; down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)
