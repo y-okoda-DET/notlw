@@ -574,13 +574,13 @@ func _mio_body():
 func _b_head_up():
 	var hb := _mio_box("mio_head")
 	var piv := Vector3(hb.get_center().x, hb.position.y + hb.size.y * float(_arg("d11hpy", "0.0")), hb.get_center().z + float(_arg("d11hpz", "0.0")))
-	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "10.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
+	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "4.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
 	for n in ["mio_head", "mio_hair"]:
 		var mi := mio_n.find_child(n, true, false) as Node3D
 		if mi == null: print("B11 no ", n); continue
 		var g := mi.global_transform
 		mi.global_transform = Transform3D(b * g.basis, piv + b * (g.origin - piv))
-	print("B11 head up ", _arg("d11hp", "10.0"), " pivot ", piv)
+	print("B11 head up ", _arg("d11hp", "4.0"), " pivot ", piv)   # 試作281: 10° stretched the neck under the chin (輪郭)
 
 func _mio_box(n: String) -> AABB:
 	var mi := mio_n.find_child(n, true, false) as MeshInstance3D
@@ -614,10 +614,12 @@ func _back_light():
 		# (now 5 cm to the side and 6 cm under her eyes); --d11front = straight in front, at the height of her eyes
 		if d2def or _arg("d11lcx", "") != "" or _arg("d11lcy", "") != "" or "--d11front" in OS.get_cmdline_user_args():
 			var fr := d2def or "--d11front" in OS.get_cmdline_user_args()
-			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16)
+			# 試作281（ユーザー「最後の顔、輪郭と顔の歪みが気になる」）: 58 cm off at fov 24 the lens drew her long in the jaw and wide
+			# in the cheek. From 22 cm further back (inside the set, which this camera does not see) at fov 17.5: the same framing, the face flatter and true
+			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16 - (float(_arg("d11lback", "0.22")) if d2def else 0.0))
 			look_cam.global_transform = Transform3D(Basis(), cp).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 		# 試作266（ユーザー 2026-11-21 9時「顔にちょいクローズアップは？」）: the same still camera, framed a little closer from the start
-		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "24"))
+		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "17.5"))
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)

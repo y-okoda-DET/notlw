@@ -2366,10 +2366,26 @@ func _ham_hand():
 	var elbow := hand_at + fore * 0.27
 	ham.set_meta("elbow", elbow)
 	var grip := Node3D.new(); ham.add_child(grip)
-	var hdl := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.012; cy.bottom_radius = 0.015; cy.height = 0.3
-	hdl.mesh = cy; hdl.material_override = wood; hdl.position = Vector3(0, -0.11, 0.035); grip.add_child(hdl)
-	var hh := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.032, 0.032, 0.11)
-	hh.mesh = bx; hh.material_override = steel; hh.position = Vector3(0, 0.035, 0.02); grip.add_child(hh)
+	# 試作281（ユーザー「板打ちの金槌が箱の組み合わせに見える」）: a claw hammer, not a bar on a stick: an oval wooden handle that
+	# flares to a knob at her fist; on its top a round striking face toward the wall, a waisted neck through the eye, and the
+	# claw's two prongs curving down away from the wall (the same place and reach as the bar it was, so the blow lands the same)
+	var hdl := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0105; cy.bottom_radius = 0.0145; cy.height = 0.3; cy.radial_segments = 20
+	hdl.mesh = cy; hdl.material_override = wood; hdl.position = Vector3(0, -0.11, 0.035); hdl.scale = Vector3(0.72, 1.0, 1.0); grip.add_child(hdl)
+	var knob := MeshInstance3D.new(); var kc := CylinderMesh.new(); kc.top_radius = 0.0145; kc.bottom_radius = 0.0165; kc.height = 0.022; kc.radial_segments = 20
+	knob.mesh = kc; knob.material_override = wood; knob.position = Vector3(0, -0.249, 0.035); knob.scale = Vector3(0.78, 1.0, 1.0); grip.add_child(knob)
+	var dark_steel := StandardMaterial3D.new(); dark_steel.albedo_color = Color(0.22, 0.22, 0.24); dark_steel.metallic = 0.7; dark_steel.roughness = 0.35
+	var head_y := 0.035
+	var eye := MeshInstance3D.new(); var eb := CylinderMesh.new(); eb.top_radius = 0.0125; eb.bottom_radius = 0.0145; eb.height = 0.036; eb.radial_segments = 16
+	eye.mesh = eb; eye.material_override = dark_steel; eye.position = Vector3(0, head_y, 0.035); eye.scale = Vector3(0.95, 1.0, 1.25); grip.add_child(eye)
+	var neck := MeshInstance3D.new(); var nk := CylinderMesh.new(); nk.top_radius = 0.0095; nk.bottom_radius = 0.0125; nk.height = 0.03; nk.radial_segments = 16
+	neck.mesh = nk; neck.material_override = dark_steel; neck.rotation.x = PI / 2.0; neck.position = Vector3(0, head_y, 0.005); grip.add_child(neck)
+	var face_m := MeshInstance3D.new(); var fc := CylinderMesh.new(); fc.top_radius = 0.0155; fc.bottom_radius = 0.0155; fc.height = 0.016; fc.radial_segments = 20
+	face_m.mesh = fc; face_m.material_override = steel; face_m.rotation.x = PI / 2.0; face_m.position = Vector3(0, head_y, -0.018); grip.add_child(face_m)
+	for sx in [-0.0055, 0.0055]:
+		var pr := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.0012; pm.bottom_radius = 0.0055; pm.height = 0.05; pm.radial_segments = 8
+		pr.mesh = pm; pr.material_override = dark_steel; grip.add_child(pr)
+		pr.rotation.x = -PI / 2.0 + deg_to_rad(38.0)     # out from the eye, away from the wall, bending down
+		pr.position = Vector3(sx, head_y - 0.009, 0.072); pr.scale = Vector3(0.7, 1.0, 1.0)
 	var arm := _fp_arm("mio", "r", fore, fore.cross(Vector3.UP), 0.95)
 	if arm:
 		arm.get_parent().remove_child(arm); grip.add_child(arm)
