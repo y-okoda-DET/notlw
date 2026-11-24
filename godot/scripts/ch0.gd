@@ -223,6 +223,18 @@ func _police():
 		cap.material_override = navy; police.add_child(cap); cap.position = Vector3(0, 1.69, 0.005)
 		var brim := MeshInstance3D.new(); var bm2 := CylinderMesh.new(); bm2.top_radius = 0.075; bm2.bottom_radius = 0.075; bm2.height = 0.01; brim.mesh = bm2
 		brim.material_override = navy; police.add_child(brim); brim.position = Vector3(0, 1.655, -0.085); brim.scale = Vector3(1.4, 1.0, 1.0)
+		# 試作281（ユーザー「帽子が浮いて見える」）: the cap sat at a fixed 1.69 m; the model's crown is lower. Measured from the mesh:
+		# the cap's band comes down over the top of his head
+		var top := -1e9; var hx := 0.0; var hz := 0.0; var hn := 0
+		for g in pb.find_children("*", "MeshInstance3D", true, false):
+			var mi := g as MeshInstance3D; var ab := mi.get_aabb(); var xf := pb.transform * mi.transform
+			for k in 8:
+				var c: Vector3 = xf * ab.get_endpoint(k)
+				top = maxf(top, c.y)
+			var ct: Vector3 = xf * ab.get_center(); hx += ct.x; hz += ct.z; hn += 1
+		if top > 0.5:
+			cap.position = Vector3(cap.position.x, top - 0.02, cap.position.z)
+			brim.position = Vector3(brim.position.x, top - 0.055, brim.position.z)
 		police.global_transform = Transform3D(Basis(Vector3.UP, PI - 0.2), gp(5.3, -0.95, 0.0))   # facing in, just past the leaf's swing (1.1 m round the hinge at x 4.45)
 		police.visible = false
 		return

@@ -576,7 +576,7 @@ func _night(dt: float):
 			_pose({"head": [0.40 * snap2 * (1.0 - over) - 0.25 * over, -0.75 * over, 0.30 * snap2 * (1.0 - over)], "neck_01": [0.22 * snap2 * (1.0 - over), -0.3 * over, 0.0],
 				"spine_03": [0.32 * curl - 0.06 * over, 0.0, 0.10 * kneel], "spine_02": [0.26 * curl, 0.0, 0.06 * kneel], "spine_01": [0.18 * curl, 0.0, 0.0],
 				"thigh_l": [-th, 0.0, 0.0], "calf_l": [cf, 0.0, 0.0], "foot_l": [0.7 * kneel, 0.0, 0.0],
-				"thigh_r": [-th + 0.12 * over, 0.0, 0.0], "calf_r": [cf + 0.25 * over, 0.0, 0.0], "foot_r": [0.7 * kneel, 0.0, 0.0],
+				"thigh_r": [-th, 0.0, 0.0], "calf_r": [cf - 0.62 * over, 0.0, 0.0],   # 試作281（ユーザー「右足曲げないほうが自然かな」）: the right leg lies out straight "foot_r": [0.7 * kneel, 0.0, 0.0],
 				"upperarm_l": [-0.75 * over, 0.0, 0.25 * limp], "lowerarm_l": [-0.3 * limp, 0.0, 0.0],
 				"upperarm_r": [-0.30 * limp + 0.5 * over, 0.0, -0.30 * limp], "lowerarm_r": [-0.35 * limp, 0.0, 0.0]}, reel_pose, 1.0 - 0.6 * over)
 			var b0 := nbase.basis

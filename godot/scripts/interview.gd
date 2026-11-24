@@ -447,17 +447,26 @@ uniform float tm = 0.0;
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void fragment() {
 	vec2 uv = UV;
-	vec3 c = vec3(0.10, 0.11, 0.12);
-	if (on > 0.5 && on < 1.5) c = vec3(0.10, 0.22, 0.62);
+	vec3 c = vec3(0.025, 0.028, 0.032);   // 試作281: the dead glass darker, so the picture, when it comes, is a light in it
+	if (on > 0.5 && on < 1.5) c = vec3(0.12, 0.26, 0.75);
 	if (on > 1.5) {
+		// 試作281（ユーザー「テレビに映像が写っているように見えない」）: the hall at two, as the small camera saw it: the lit hall
+		// beyond the door frame bright, the frame and the floor's boards running away, the stair's rail, the picture
+		// rolling a little. Bright enough to be a lit tube (it was grey on grey)
 		float roll = fract(tm * 0.11);
-		float band = smoothstep(0.0, 0.03, abs(uv.y - roll)) * 0.25 + 0.75;
+		float band = smoothstep(0.0, 0.04, abs(uv.y - roll)) * 0.2 + 0.8;
 		float n = h(floor(uv * vec2(220.0, 160.0)) + floor(tm * 24.0));
-		// a door's lighter frame in the dark, and the floor going away
-		float door = step(0.38, uv.x) * step(uv.x, 0.6) * step(0.18, uv.y) * step(uv.y, 0.82);
-		float floor_ = smoothstep(0.62, 1.0, uv.y) * 0.25;
-		c = vec3(0.07 + 0.16 * door + floor_) * band + (n - 0.5) * 0.07;
-		c *= vec3(0.92, 0.96, 1.0);
+		float wob = sin(uv.y * 40.0 + tm * 3.0) * 0.002;
+		vec2 q = uv + vec2(wob, 0.0);
+		float inner = step(0.36, q.x) * step(q.x, 0.62) * step(0.16, q.y) * step(q.y, 0.80);          // the lit doorway
+		float frame = (step(0.33, q.x) * step(q.x, 0.65) * step(0.12, q.y) * step(q.y, 0.84)) - inner; // its frame
+		float boards = smoothstep(0.78, 1.0, q.y) * (0.55 + 0.45 * step(0.5, fract((q.x - 0.5) / (1.2 - q.y) * 6.0)));
+		float rail = smoothstep(0.012, 0.0, abs((q.y - 0.30) - (q.x - 0.70) * 0.9)) * step(0.68, q.x);   // the stair's rail, down to the right
+		float wallL = smoothstep(0.0, 0.33, q.x) * 0.18;
+		c = vec3(0.06) + vec3(0.62) * inner + vec3(0.30) * frame + vec3(0.35) * boards * (1.0 - inner) + wallL;
+		c += vec3(0.4) * rail;
+		c = c * band + (n - 0.5) * 0.08;
+		c *= vec3(0.9, 0.97, 1.05);
 	}
 	// 試作277（ユーザー「テレビに表示されているように」、証言 一）: it read as a card stuck on the glass. A tube's picture: scan
 	// lines, the phosphor's three stripes, a soft glow, rounded dark corners, and the glass's own sheen over it

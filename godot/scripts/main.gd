@@ -640,6 +640,9 @@ func _house_state():
 		elif nm.begins_with("tapeX"): mi.visible = TIME != "t0430"
 		# 試作277（ユーザー「テープ、「なつき」の文字なくす」、23時）: the strip with her name is off at 23時 too; the X stays
 		elif nm.begins_with("tapeN"): mi.visible = TIME != "t0430" and TIME != "t23"
+		# 試作281（ユーザー「延長ケーブルはいつの間に床に？」、二度目）: the cord from the cellar to the hall's fresnel read as come from
+		# nowhere at 3時半; it is not laid (the fresnel still burns: its cord is not the night's story)
+		elif nm.begins_with("gencord"): mi.visible = false
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true

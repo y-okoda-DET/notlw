@@ -1167,8 +1167,8 @@ func _watch():
 	watch.position = Vector3(0.0, 0.034, WATCH_Z)
 	var blackm := StandardMaterial3D.new(); blackm.albedo_color = Color(0.05, 0.05, 0.055); blackm.roughness = 0.6
 	var strap := MeshInstance3D.new(); var sm := BoxMesh.new(); sm.size = Vector3(0.07, 0.006, 0.022); strap.mesh = sm; strap.material_override = blackm; watch.add_child(strap)
-	var body := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.04, 0.011, 0.036); body.mesh = bm; body.material_override = blackm; body.position.y = 0.005; watch.add_child(body)
-	var face := MeshInstance3D.new(); var fm := QuadMesh.new(); fm.size = Vector2(0.03, 0.02); face.mesh = fm
+	var body := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.032, 0.011, 0.044); body.mesh = bm; body.material_override = blackm; body.position.y = 0.005; watch.add_child(body)
+	var face := MeshInstance3D.new(); var fm := QuadMesh.new(); fm.size = Vector2(0.024, 0.038)   # its long side along the arm, as the digits read (holder below): the time sat cut off at the edge; face.mesh = fm
 	seg_mat = StandardMaterial3D.new(); seg_mat.albedo_color = Color(0.56, 0.6, 0.5); seg_mat.roughness = 0.4
 	face.material_override = seg_mat; face.rotation.x = -PI / 2.0; face.position.y = 0.0108; watch.add_child(face)
 	var dark := StandardMaterial3D.new(); dark.albedo_color = Color(0.06, 0.07, 0.06); dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -1186,7 +1186,7 @@ func _watch_set():
 	var holder: Node3D = watch.get_meta("digits")
 	for c in holder.get_children(): holder.remove_child(c); c.queue_free()
 	var text := "%d:%02d" % [hour, minute]
-	var w := 0.0052; var hgt := 0.0095; var th := 0.0011
+	var w := 0.0060; var hgt := 0.0112; var th := 0.0017   # 試作281（ユーザー「時計、もうちょっと」）: bolder digits, read through the print
 	var x := -0.5 * (text.length() - 1) * (w + 0.0022)
 	for ch in text:
 		if ch == ":":
@@ -1207,7 +1207,7 @@ func _watch_set():
 
 const WATCH_Z := 0.0
 # 試作232: at -0.17 the hand stood at the picture's foot, the face cut off by the frame's edge (y02). Up into the lower third
-const WATCH_POS := Vector3(-0.03, -0.1, -0.3)
+const WATCH_POS := Vector3(-0.02, -0.075, -0.25)   # 試作281: nearer the eye, the face bigger in the frame
 const WATCH_DEG := Vector3(0, -82, -58)
 func _watch_show(on: bool):
 	if watch == null or watch_up == on: return
@@ -1219,7 +1219,7 @@ func _watch_show(on: bool):
 		# in the dark he presses the light: the face goes green
 		var night := part != "ch7"
 		seg_mat.emission_enabled = night; seg_mat.emission = Color(0.35, 0.95, 0.55); seg_mat.emission_energy_multiplier = 0.0
-		if night: create_tween().tween_property(seg_mat, "emission_energy_multiplier", 1.6, 0.15).set_delay(0.5)
+		if night: create_tween().tween_property(seg_mat, "emission_energy_multiplier", 0.75, 0.15).set_delay(0.5)
 	else:
 		seg_mat.emission_energy_multiplier = 0.0
 		_hand_away(hand_l)

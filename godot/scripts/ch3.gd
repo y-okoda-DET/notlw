@@ -536,8 +536,9 @@ func _do(what: String):
 		"makoto_press":
 			# 試作127（ユーザー「カメラ位置のせいで、真琴が何をやっているかわからない」）: she stood between Mio and Taiga, her
 			# back to Mio. She goes round to his west side: from Mio's place she is seen side on, her hands on his arm
-			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], Callable(), _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
+			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], _pulse_on, _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
 		"makoto_wipe":
+			_pulse_off()
 			main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 		"taiga_down":
 			talk_with = ""
@@ -681,6 +682,37 @@ func _say_nail():
 	cur = {}; _foot_back()
 	print("STORY ch3 said_nail t=%.1f" % t_now)
 	_next()
+
+# 試作281（ユーザー「ここ、脈取っているように見せたい」）: she takes his wrist, the one on her side: her left hand under it,
+# two fingers of her right on the inside of it, a little above the hand (reach.gd, both arms)
+var pulse_rc := []
+func _pulse_on():
+	if not main.S.has("taiga_node") or not main.S.has("makoto_node"): return
+	var tsk: Skeleton3D = (main.S.taiga_node as Node).find_children("*", "Skeleton3D", true, false)[0]
+	var mk: Node3D = main._rig_of("makoto")
+	var best := "hand_l"; var bd := 1e9
+	for b in ["hand_l", "hand_r"]:
+		var bi := tsk.find_bone(b)
+		if bi < 0: continue
+		var d := (tsk.global_transform * tsk.get_bone_global_pose(bi).origin).distance_to(mk.global_position)
+		if d < bd: bd = d; best = b
+	var ba := BoneAttachment3D.new(); ba.bone_name = best; tsk.add_child(ba)
+	var under := Node3D.new(); ba.add_child(under); under.position = Vector3(0, -0.02, 0)
+	var fingers := Node3D.new(); ba.add_child(fingers); fingers.position = Vector3(0, -0.05, 0.0)
+	pulse_rc = [ba]
+	for pr in [["l", under, Vector3(0, -0.03, 0)], ["r", fingers, Vector3(0, 0.015, 0)]]:
+		var rc = _reach("makoto", pr[1], mk.global_position + Vector3.UP)
+		rc.side = pr[0]; rc.offset = pr[2]
+		pulse_rc.append(rc)
+		create_tween().tween_property(rc, "w", 1.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+func _pulse_off():
+	for n in pulse_rc:
+		if not is_instance_valid(n): continue
+		if n is BoneAttachment3D: get_tree().create_timer(0.7).timeout.connect(n.queue_free)
+		else:
+			var tw := create_tween(); tw.tween_property(n, "w", 0.0, 0.5); tw.tween_callback(n.queue_free)
+	pulse_rc = []
 
 # not said: the transcriber's double line through it, as through the choices not taken
 func _strike_nail():
