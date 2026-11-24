@@ -24,7 +24,8 @@ const SPEAK := {"makoto": "talk/talk_c", "natsuki": "talk/talk_a", "kiryu": "tal
 # 試作176 A10（ユーザー「夏希が歩く道を開けておいてあげたいので、澪の立ち位置を変えましょう」）: at 3.45, 3.25 she stood 0.2 m off
 # Natsuki's way to the hall (NAT_CAM_ROUTE 2.7, 2.8 -> 3.6, 3.7); by the north wall, 0.45 m off it, still looking in
 const MIO21 := [3.0, 3.72]
-const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [5.05, 3.45], "natsuki": [4.80, 1.75]}
+# 試作277（ユーザー「大河が階段にのめり込んでる」、22時）: 5.05, 3.45 is inside the stair (the --ch3map). A step up the hall, past Kiryu
+const AT22 := {"kiryu": [4.40, 3.20], "makoto": [3.55, 3.55], "taiga": [4.70, 4.00], "natsuki": [4.80, 1.75]}
 const MIO22 := [4.55, 2.75]
 const NAT_DOOR := [4.95, 0.55, 0.0]                 # inside the front door, where she stops and turns to Mio
 const NAT_OUT := [[5.15, 0.55, 0.0], [5.05, -0.6, 0.0], [6.2, -1.1, 0.0], [6.7, -1.15, 0.0]]   # 試作176 A11（ユーザー「扉開けて出ていくアニメーションが変」）: from where the door left her, straight out through the open side as Kiryu goes in 第3章 (ch3 _kiryu_out); she cut across from 5.47, 1.22 to the hinge side   # 試作125 (ユーザー「扉が閉まる前に夏希が消える」): out and to the right along the porch, behind the wall, before she is put away
@@ -318,12 +319,23 @@ func _do(what: String):
 			var at := [4.97, 0.42, 0.0]
 			# 2026-11-17 夜（ユーザー「扉に手をかけて扉を開けるアニメーション入れられるか？」）: her hand on the knob, the door comes
 			# to her and she steps back with it (story.gd _front_open_by); then out, and it shuts behind her once she is gone
+			# 試作281（ユーザー「ここまだアニメーションが変。夏希が扉を開けて、出て、閉めるように」）: through the door and one step out,
+			# she turns back to it, takes the knob and pulls it shut on herself; the shut is heard as it shuts. The script (the
+			# 「扉の閉まる音」 and Taiga's line) waits for it
+			var held := script_q.duplicate(); script_q.clear()
 			_front_open_by("natsuki", func(rest: float):
-				main.walk_to("natsuki", NAT_OUT, func():
-					main._rig_of("natsuki").visible = false
-					var tw := create_tween(); tw.tween_interval(0.6)
-					tw.tween_property(main.door_pivot, "rotation:y", rest, 1.0).set_trans(Tween.TRANS_SINE)
-					tw.tween_callback(func(): Sound.one(self, "door_close", -8.0, gp(5.0, 0.0, 1.0)))), 0.0)
+				main.walk_to("natsuki", [NAT_OUT[0], NAT_OUT[1]], func():
+					var rig: Node3D = main._rig_of("natsuki")
+					var rc := _reach("natsuki", _front_knob(rig.global_position + Vector3.UP), gp(5.3, 0.3, 1.0))
+					var tw := create_tween()
+					tw.tween_property(rc, "w", 1.0, 0.4).set_trans(Tween.TRANS_SINE)
+					tw.tween_property(main.door_pivot, "rotation:y", rest, 0.9).set_trans(Tween.TRANS_SINE)
+					tw.tween_callback(func():
+						Sound.one(self, "door_close", -8.0, gp(5.0, 0.0, 1.0))
+						rc.queue_free()
+						rig.visible = false   # behind the shut door: put away
+						if main.S.has("natsuki_col"): (main.S.natsuki_col as Node3D).global_position = Vector3(0, -50, 0)
+						_start(held)), _face([5.05, -0.6], [5.0, 0.2])), 0.0)
 		"lock_ask":
 			script_q.clear(); mode = FREE; stage = "lock"; lock_t = 0.0
 			main.set_meta("front_lock", _lock_now)

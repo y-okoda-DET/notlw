@@ -9,7 +9,10 @@
 extends "res://scripts/story.gd"
 const Sound = preload("res://scripts/sound.gd")
 
-const MIO_AT := [0.12, 3.80]          # Blender x, y of her feet: by Natsuki's tape mark, the stair's foot at her right
+# 試作278（ユーザー点検2、2026-11-23）: she stood on the hall's axis 2.6 m from the door (Blender 0.12, 3.80), the walls
+# running to it. Now by the west wall of the genkan step, 1.55 m from the door and 22° off the axis: the door and Taiga
+# against it seen from the side, the hall behind her
+const MIO_AT := [-0.38, 4.85]         # Blender x, y of her feet (plan 4.42, 1.45; at 1.2 Taiga filled half the frame)
 const DOOR_AT := [0.20, 6.30, 1.45]
 # [seconds after the card, who, words, how] | [t, "silence"] | [t, "note", words] | [t, "leave"] | [t, "end"]
 # written in story/ch2_23.txt 【扉.流れ】 (the times, the words, who they are said to), read in _ready
@@ -48,6 +51,11 @@ func _ready():
 	_night_cam()
 	_end_card()
 	call_deferred("_strike_walk")
+	# 試作281（ユーザー「細い窓越しに見える腕が変。いっそのこと、ここに夏希の手を映さなくてもいいかもね」）: behind the door she is only
+	# her light on the slit and her knocking; her body is not drawn (the node stays, its visible is the story's "she has gone")
+	if main.S.has("natsuki_node"):
+		for gi in (main.S.natsuki_node as Node).find_children("*", "GeometryInstance3D", true, false): (gi as GeometryInstance3D).visible = false
+	get_tree().create_timer(0.5).timeout.connect(func(): _face_light("taiga", 0.3, "kiryu"))   # 点検3: Kiryu holds his phone up to him: his face against the door
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)

@@ -118,7 +118,7 @@ const N230 := 7798.0                  # 2:29:58 (【テープ.二時半】 0 s)
 const N330 := 11394.0                 # 3:29:54 (【テープ.流れ】 0 s = 第4章 4 s)
 const N400 := 13200.0                 # 4:00:00 (【テープ.四時】)
 const N_END := 14400.0                # 4:20:00: the tape runs out
-const FF_RATE := 120.0
+const FF_RATE := 400.0   # 試作281（ユーザー「もっと早く早送りにする（めちゃくちゃ時間がかかるので）」）: 120 → 400, the night's three hours in half a minute
 const T230_POS := {"sit": [5.0, 1.62], "near": [5.0, 0.86], "ear": [5.0, 0.6]}   # ch3.gd T230_AT
 const SIT_AT := [4.9, 1.62]           # the 框 (ch8.gd MIO_SIT)
 var night_n := 0.0
@@ -368,6 +368,12 @@ func _room():
 		var bb := AABB(); var first := true
 		for g in t.find_children("*", "MeshInstance3D", true, false):
 			var m := g as MeshInstance3D; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.layers = 2
+			# 試作281（ユーザー「テレビのひび割れ、直す」）: the Tripo texture had cracks and blots baked into the case; a plain plastic
+			# of its own colour instead (the shape, its grille and knobs, stays the model's)
+			# (the cracks were also in the model's own surface: lit, its dents drew the same lines. Unlit, one even plastic)
+			var pl := StandardMaterial3D.new(); pl.albedo_color = Color(0.34, 0.33, 0.31); pl.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			pl.cull_mode = BaseMaterial3D.CULL_DISABLED   # its shell has thin gaps (Tripo): from the front they showed the dark behind as lines; its inside fills them
+			m.material_override = pl
 			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
 		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
 		t.scale = Vector3(k, k, k)
@@ -568,13 +574,13 @@ func _mio_body():
 func _b_head_up():
 	var hb := _mio_box("mio_head")
 	var piv := Vector3(hb.get_center().x, hb.position.y + hb.size.y * float(_arg("d11hpy", "0.0")), hb.get_center().z + float(_arg("d11hpz", "0.0")))
-	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "10.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
+	var b := Basis(Vector3.RIGHT, deg_to_rad(float(_arg("d11hp", "4.0")))) * Basis(Vector3.BACK, deg_to_rad(float(_arg("d11hr", "0.0")))) * Basis(Vector3.UP, deg_to_rad(float(_arg("d11hy", "0.0"))))
 	for n in ["mio_head", "mio_hair"]:
 		var mi := mio_n.find_child(n, true, false) as Node3D
 		if mi == null: print("B11 no ", n); continue
 		var g := mi.global_transform
 		mi.global_transform = Transform3D(b * g.basis, piv + b * (g.origin - piv))
-	print("B11 head up ", _arg("d11hp", "10.0"), " pivot ", piv)
+	print("B11 head up ", _arg("d11hp", "4.0"), " pivot ", piv)   # 試作281: 10° stretched the neck under the chin (輪郭)
 
 func _mio_box(n: String) -> AABB:
 	var mi := mio_n.find_child(n, true, false) as MeshInstance3D
@@ -594,7 +600,7 @@ func _back_light():
 	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
 	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
 	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
-	if b11 and not c11 and face11 in ["", "b", "b2"]: _b_deck_light()
+	if b11 and not c11 and face11 in ["", "b", "b2", "d2"]: _b_deck_light()   # 試作281（ユーザー「暗い所に青い胸像の影だけ」）: d2 (the default) had none: in the dead glass she was a blue shape
 	if b11: _b_finger()
 	# the last cut of d: from the set's side, at her face
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
@@ -608,10 +614,12 @@ func _back_light():
 		# (now 5 cm to the side and 6 cm under her eyes); --d11front = straight in front, at the height of her eyes
 		if d2def or _arg("d11lcx", "") != "" or _arg("d11lcy", "") != "" or "--d11front" in OS.get_cmdline_user_args():
 			var fr := d2def or "--d11front" in OS.get_cmdline_user_args()
-			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16)
+			# 試作281（ユーザー「最後の顔、輪郭と顔の歪みが気になる」）: 58 cm off at fov 24 the lens drew her long in the jaw and wide
+			# in the cheek. From 22 cm further back (inside the set, which this camera does not see) at fov 17.5: the same framing, the face flatter and true
+			var cp := ROOM + Vector3(seat_x + float(_arg("d11lcx", "0.0" if fr else "0.05")), float(_arg("d11lcy", str(EYE.y - 0.02) if fr else "0.60")), 0.16 - (float(_arg("d11lback", "0.22")) if d2def else 0.0))
 			look_cam.global_transform = Transform3D(Basis(), cp).looking_at(ROOM + Vector3(seat_x, EYE.y - 0.02, EYE.z), Vector3.UP)
 		# 試作266（ユーザー 2026-11-21 9時「顔にちょいクローズアップは？」）: the same still camera, framed a little closer from the start
-		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "24"))
+		if d2def or _arg("d11lfov", "") != "": look_cam.fov = float(_arg("d11lfov", "17.5"))
 		var fl := CanvasLayer.new(); fl.layer = 9; add_child(fl)
 		face_tr = TextureRect.new(); face_tr.texture = face_vp.get_texture(); face_tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		face_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; face_tr.modulate.a = 0.0; face_tr.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.add_child(face_tr)
@@ -672,11 +680,11 @@ func _clock(dt: float) -> bool:
 func _room_tick(dt: float):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var deck_at := ROOM + Vector3(0, 0.20, 0.11)
-	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(14.0)
+	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(22.0)   # 試作281: 14° was narrow
 	var e := _err()
-	if ff_on: e = maxf(e, 0.8)   # the picture tears while it runs fast
+	# 試作281（ユーザー「早送り中は映像の乱れをなくす」）: the picture no longer tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
-	scr_mat.set_shader_parameter("err", e)
+	scr_mat.set_shader_parameter("err", 0.0 if ff_on else e)   # the tracking's tearing too: running fast, the picture holds still
 	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
 	scr_mat.set_shader_parameter("on", 1.0 if st == PLAYING else (3.0 if off_t >= 0.0 else 2.0))
 	glow.light_energy = 0.55 if st == PLAYING else (0.0 if off_t > 0.12 else 0.8)
@@ -1007,8 +1015,10 @@ func _b_set_face(k: String):
 # the deck's display: the one light left when the set goes off, low and in front of her
 func _b_deck_light():
 	deck_light = SpotLight3D.new(); deck_light.light_color = Color(0.62, 0.95, 0.88)
-	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "0.35")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
-	deck_light.spot_angle = 24.0; deck_light.spot_angle_attenuation = 1.5
+	deck_light.light_energy = float(_arg("d11deck", "0.07" if face11 == "b2" else "1.2")); deck_light.spot_range = 1.6; deck_light.spot_attenuation = 0.9
+	# 試作281（ユーザー「変。」：暗い所に青い胸像の影だけ）: at .35 her face in the last cut was unlit, a flat cut-out with two glints.
+	# The deck's display now reaches her face and shoulders (1.2, 24° → 40°)
+	deck_light.spot_angle = 24.0 if face11 == "b2" else 40.0; deck_light.spot_angle_attenuation = 1.5
 	deck_light.shadow_enabled = false; deck_light.light_specular = 0.6; deck_light.light_cull_mask = 1 | MIO_LAYER
 	main.add_child(deck_light)
 	# 試作263 B2: a little off the front, toward the door's side, so the nose and one cheek keep a shadow

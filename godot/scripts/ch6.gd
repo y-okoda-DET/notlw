@@ -28,7 +28,7 @@ const LOOKS := [
 	["screen", "furn_screen", [0.42, 2.0, 1.3], "スクリーン", "見る.スクリーン"],
 	["back", "", [9.87, 4.88, 1.0], "勝手口", "見る.勝手口"],
 	["peeled", "", [6.6, 7.55, 0.93], "テープ", "見る.はがしたテープ"],
-	["lantern", "", [4.97, 3.50, 1.50], "ランタン", "見る.ランタン"],
+	["lantern", "", [5.10, 3.50, 1.42], "ランタン", "見る.ランタン"],
 	["hoodie", "natsuki_hoodie", [1.25, 0.6, F2 + 0.66], "上着", "見る.上着"],
 	["bag_n", "bag_natsuki", [2.75, 0.55, F2 + 0.15], "鞄", "見る.夏希の鞄"],
 	["window", "", [1.5, 0.06, F2 + 1.3], "窓", "見る.窓"],
@@ -433,7 +433,8 @@ func _looks6():
 				pos = bb.get_center() + Vector3(0, bb.size.y * 0.3, 0)
 			else: print("CH6 look %s: no node %s, at the plan point" % [it[0], it[1]])
 		var k: String = it[0]; var nm: String = it[3]; var block: String = it[4]
-		var reach := 2.4 if k in ["screen", "window", "back", "cellar"] else 1.9
+		var reach := 2.4 if k in ["screen", "window", "back"] else 1.9
+		if k == "cellar": reach = 1.3   # 試作277（ユーザー「ここから地下の扉が選択できるのなしに」、4時半の廊下の奥から）
 		_add_target(k, pos, reach, 24.0, func(): return true, func(): return "［%s］" % T(nm), _look_press.bind(k, block))
 
 func _look_press(k: String, block: String):
@@ -459,7 +460,12 @@ func _pick_target() -> Dictionary:
 		if not (t.ok as Callable).call(): continue
 		var to: Vector3 = (t.pos as Vector3) - cam.global_position
 		var a := (-cam.global_basis.z).angle_to(to)
-		if to.length() < float(t.reach) and a < deg_to_rad(float(t.deg)) and a < ba: ba = a; best = t
+		# 試作277（ユーザー「二階のオブジェクト、Eが表示されない時がある」）: the bags, the case, the crate upstairs lie on the
+		# floor, 1.3-1.4 m under her eye, and the straight distance used most of the 1.9 m reach: she had to stand over them,
+		# looking down. The height counts for less now, and a thing low by the floor takes a wider look (it is small in the eye)
+		var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+		var deg := float(t.deg) + (6.0 if to.y < -0.8 else 0.0)
+		if dist < float(t.reach) and a < deg_to_rad(deg) and a < ba: ba = a; best = t
 	return best
 
 # ---------------------------------------------------------------- the night going: one step for each thing put right
@@ -624,6 +630,13 @@ func _body_shadow():
 
 func _process(dt):
 	t_now += dt; t_stage += dt
+	# (試作277) the sleeve's continuation only while the hand is out at arm's length: near the eye its tube would pass the camera
+	for hh in [hand_l, hand_r]:
+		if hh and is_instance_valid(hh):
+			var so := (hh as Node3D).get_node_or_null("sleeve_on")
+			if so:
+				var tip: Vector3 = (hh as Node3D).transform * ((so as Node3D).position + Vector3(0, 0, 0.275))
+				(so as Node3D).visible = (hh as Node3D).position.length() > 0.42 and tip.length() > 0.12
 	if body_sh:
 		body_sh.global_position = player.global_position; body_sh.rotation.y = player.yaw
 		body_sh.scale = Vector3(1.0, clampf(player.eye_height / 1.52, 0.5, 1.0), 1.0)
@@ -703,8 +716,15 @@ var shoe6: MeshInstance3D
 var cel_torch6: SpotLight3D
 func _cellar_shoe():
 	if shoe6: return
+	# 試作277（ユーザー「このタイミングって地下に行けていいんだっけ？」）: no. Two steps down she stops (step_down, the cough);
+	# below them an unseen wall across the stair, the whole chapter
+	var wall := StaticBody3D.new(); wall.name = "cellar_stair6"; var wcs := CollisionShape3D.new(); var wbx := BoxShape3D.new()
+	wbx.size = Vector3(1.1, 3.0, 0.2); wcs.shape = wbx; wall.add_child(wcs); main.add_child(wall)
+	wall.global_position = gp(5.5, 4.9, 0.0)
 	var dn = main.get_node_or_null("Doors")
-	if dn: dn.open_key("door_cellar")
+	# 試作281（ユーザー「地下に降りれないタイミングで扉が開く」）: it swung open before her (open_key) while the stair below was
+	# barred. It stands open from the chapter's first frame, as Makoto left it
+	if dn: dn.open_force("door_cellar", 0.0)
 	# her torch, rolled to the foot of the stair, lighting the ceiling (第5章: she went down with it)
 	cel_torch6 = SpotLight3D.new(); cel_torch6.light_color = Color(0.92, 0.95, 1.0); cel_torch6.light_energy = 2.6; cel_torch6.spot_range = 4.0
 	cel_torch6.spot_angle = 22.0; cel_torch6.spot_attenuation = 0.8; cel_torch6.shadow_enabled = true; main.add_child(cel_torch6)
@@ -1003,6 +1023,14 @@ func _mk_arm(left: bool) -> Node3D:
 	tb["rad"] = (tgb.inverse() * yax).normalized()
 	h.set_meta("sk", sk); h.set_meta("fb", fb); h.set_meta("curl", 0.0)
 	var cf := Node3D.new(); cf.name = "cuff"; h.add_child(cf)
+	# 試作277（ユーザー「腕、途中で消えている」、4時半の定点カメラ）: the arm's model ends 33 cm behind the wrist; reached up and
+	# out, its open end came into the picture. The sleeve goes on back, past the eye, to where her shoulder would be
+	var ext := MeshInstance3D.new(); ext.name = "sleeve_on"
+	var em := CylinderMesh.new(); em.top_radius = 0.058; em.bottom_radius = 0.068; em.height = 0.55; em.radial_segments = 20
+	em.cap_top = false; em.cap_bottom = false; ext.mesh = em
+	var xm := StandardMaterial3D.new(); xm.albedo_color = CLOTH.darkened(0.08); xm.roughness = 0.95; xm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	ext.material_override = xm; ext.layers = 2; ext.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; ext.extra_cull_margin = 0.6
+	h.add_child(ext); ext.position = Vector3(0.022, -0.032, 0.30 + 0.27); ext.rotation = Vector3(PI / 2.0, 0, 0)
 	_curl(h, 0.25)
 	return h
 
@@ -1748,10 +1776,8 @@ class PhoneDraw extends Control:
 				draw_string(f, Vector2(W - 78, 40), st.T("圏外"), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
 				draw_string(f, Vector2(0, 190), st.T("8月14日"), HORIZONTAL_ALIGNMENT_CENTER, W, 50, ink)
 				draw_line(Vector2(W / 2 - 60, 214), Vector2(W / 2 + 60, 214), ink, 2.0)
-				for i in 4:
-					var p := Vector2(W / 2 - 66 + 44 * i, 360)
-					if i < int(st.ph_code): draw_circle(p, 11, ink)
-					else: draw_arc(p, 11, 0, TAU, 24, ink, 2.5)
+				# 試作277（ユーザー「スマホ、パスコード無しで」）: no code. Swiped up, it opens
+				draw_line(Vector2(W / 2 - 40, H - 60), Vector2(W / 2 + 40, H - 60), ink, 4.0)
 			"chat":
 				draw_string(f, Vector2(0, 50), st.T("澪"), HORIZONTAL_ALIGNMENT_CENTER, W, 28, ink)
 				draw_string(f, Vector2(W - 78, 40), st.T("圏外"), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ink)
@@ -1761,8 +1787,14 @@ class PhoneDraw extends Control:
 					var text: String = st.T(String(m[1]))
 					var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
 					var x := (W - 22 - w) if m[0] else 22.0
-					draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink, false, 1.6)
-					draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
+					# 試作277（ユーザー「チャット欄、どっちがどっちかよくわからない」）: hers (Natsuki's, it is her phone) are filled, on the
+					# right; Mio's are open boxes on the left
+					if m[0]:
+						draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink)
+						draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(paper.r, paper.g, paper.b, lit))
+					else:
+						draw_rect(Rect2(x - 9, y - 27, w + 18, 38), ink, false, 1.6)
+						draw_string(f, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, ink)
 					y += 58.0
 				# what she wrote and did not send (no signal): in the box at the foot, the cursor after it
 				draw_rect(Rect2(14, 430, W - 28, 200), ink, false, 3.0)
@@ -1947,9 +1979,8 @@ func _phone_open():
 	step = 5; note_lb.text = ""
 	_phone_in_hand()
 	_after(1.1, func():
-		for i in 4:
-			_after(0.45 * i + 0.3, func(): ph_code += 1; Sound.one(self, "dial_tick", -12.0))
-		_after(2.6, func():
+		Sound.one(self, "dial_tick", -14.0)   # (試作277: no code; one swipe)
+		_after(0.7, func():
 			ph_mode = "chat"
 			# she reads it. The half-heard voice of half past two comes back on the page, and the gaps in it fill
 			_after(3.2, func():

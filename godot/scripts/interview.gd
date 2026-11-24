@@ -67,7 +67,9 @@ static func flag(n: String) -> bool:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--ivflags=") and n in a.substr(10).split(","): return true
 	var f = Engine.get_meta("night_flags", {})
-	return f is Dictionary and bool(f.get(n, false))
+	if not (f is Dictionary): return false
+	var v = f.get(n, null)
+	return v != null and not (v is bool and v == false)
 
 func _ready():
 	var args := OS.get_cmdline_user_args()
@@ -445,21 +447,42 @@ uniform float tm = 0.0;
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void fragment() {
 	vec2 uv = UV;
-	vec3 c = vec3(0.10, 0.11, 0.12);
-	if (on > 0.5 && on < 1.5) c = vec3(0.10, 0.22, 0.62);
+	vec3 c = vec3(0.025, 0.028, 0.032);   // 試作281: the dead glass darker, so the picture, when it comes, is a light in it
+	if (on > 0.5 && on < 1.5) c = vec3(0.12, 0.26, 0.75);
 	if (on > 1.5) {
+		// 試作281（ユーザー「テレビに映像が写っているように見えない」）: the hall at two, as the small camera saw it: the lit hall
+		// beyond the door frame bright, the frame and the floor's boards running away, the stair's rail, the picture
+		// rolling a little. Bright enough to be a lit tube (it was grey on grey)
 		float roll = fract(tm * 0.11);
-		float band = smoothstep(0.0, 0.03, abs(uv.y - roll)) * 0.25 + 0.75;
+		float band = smoothstep(0.0, 0.04, abs(uv.y - roll)) * 0.2 + 0.8;
 		float n = h(floor(uv * vec2(220.0, 160.0)) + floor(tm * 24.0));
-		// a door's lighter frame in the dark, and the floor going away
-		float door = step(0.38, uv.x) * step(uv.x, 0.6) * step(0.18, uv.y) * step(uv.y, 0.82);
-		float floor_ = smoothstep(0.62, 1.0, uv.y) * 0.25;
-		c = vec3(0.07 + 0.16 * door + floor_) * band + (n - 0.5) * 0.07;
-		c *= vec3(0.92, 0.96, 1.0);
+		float wob = sin(uv.y * 40.0 + tm * 3.0) * 0.002;
+		vec2 q = uv + vec2(wob, 0.0);
+		float inner = step(0.36, q.x) * step(q.x, 0.62) * step(0.16, q.y) * step(q.y, 0.80);          // the lit doorway
+		float frame = (step(0.33, q.x) * step(q.x, 0.65) * step(0.12, q.y) * step(q.y, 0.84)) - inner; // its frame
+		float boards = smoothstep(0.78, 1.0, q.y) * (0.55 + 0.45 * step(0.5, fract((q.x - 0.5) / (1.2 - q.y) * 6.0)));
+		float rail = smoothstep(0.012, 0.0, abs((q.y - 0.30) - (q.x - 0.70) * 0.9)) * step(0.68, q.x);   // the stair's rail, down to the right
+		float wallL = smoothstep(0.0, 0.33, q.x) * 0.18;
+		c = vec3(0.06) + vec3(0.62) * inner + vec3(0.30) * frame + vec3(0.35) * boards * (1.0 - inner) + wallL;
+		c += vec3(0.4) * rail;
+		c = c * band + (n - 0.5) * 0.08;
+		c *= vec3(0.9, 0.97, 1.05);
 	}
-	// the tube's curve: darker to the corners
-	vec2 d = uv - 0.5; c *= 1.0 - dot(d, d) * 1.2;
-	ALBEDO = c;
+	// 試作277（ユーザー「テレビに表示されているように」、証言 一）: it read as a card stuck on the glass. A tube's picture: scan
+	// lines, the phosphor's three stripes, a soft glow, rounded dark corners, and the glass's own sheen over it
+	if (on > 0.5) {
+		float scan = 0.72 + 0.28 * sin(uv.y * 480.0 * 3.14159);
+		float tri = mod(floor(FRAGCOORD.x), 3.0);
+		vec3 ph = tri < 1.0 ? vec3(1.12, 0.94, 0.94) : (tri < 2.0 ? vec3(0.94, 1.12, 0.94) : vec3(0.94, 0.94, 1.12));
+		c = c * scan * ph * 1.25 + c * 0.18;
+		c *= 0.96 + 0.04 * sin(tm * 50.0);
+	}
+	vec2 d = uv - 0.5;
+	c *= 1.0 - dot(d, d) * 2.2;
+	float corner = smoothstep(0.5, 0.44, max(abs(d.x) * 1.04, abs(d.y) * 1.08) + 0.06 * dot(d, d));
+	c *= corner;
+	float sheen = smoothstep(0.35, 0.0, length(uv - vec2(0.3, 0.22))) * 0.06;
+	ALBEDO = c + vec3(sheen);
 }"""
 
 func _tv():
@@ -877,7 +900,10 @@ func _pick(e: Dictionary):
 			await _hold(3.2)
 		ppl.kikite.pen = ""
 	# 受けの画
-	_still(RECEIVE[which])
+	# 試作276 の感想（点検5「本当の答えのとき、聞き手の口元が笑って見える」、ユーザー OK 2026-11-23）: the head has no mouth that
+	# moves (one Tripo mesh, its smile in it). On a true answer the receiving cut stays at her chest, the pen in it: the mouth
+	# out of the picture. On a lie it goes down to the chin and the mouth, as before (the smile then reads as knowing)
+	_still(RECEIVE[which] if lie else RECEIVE[1])
 	if lie: get_tree().create_timer(3.0 / demo_k).timeout.connect(_unfist)
 	for r in card.reply:
 		if String(r.get("do", "")) in ["pen_stop", "pen_write"]: continue

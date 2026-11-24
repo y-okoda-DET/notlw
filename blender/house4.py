@@ -165,13 +165,20 @@ def window_glass(M, ax, fixed, a, b, sill, wh):
     else: g = prim('cube', 'winglass', loc=(X(fixed), (Y(a) + Y(b)) / 2, sill + wh / 2), scale=(.005, (b - a) / 2, wh / 2), mat=M['glass'])
     g.visible_shadow = False
 
+def tread_uv(t):
+    """試作277（ユーザー「板の木目が変」、23時の二階から階段を見下ろして）: the treads took the log wall's image at 1.25 m a
+    tile, and its dark splits between the logs (every 12-18 cm) ran across every tread, two or three to a step: a barcode
+    from above. Each tread's top now takes the image's widest clear band (v .876-1.073, no split), 1.5 m a tile."""
+    import random as _r
+    lib.uv_box(t, 1.5, offset=(_r.random(), .975 - t.location.y / 1.5))
+
 def stairs_up(M, z_bottom, z_top):
     """Boxed stair in STAIR, rising toward the back (plan +y = Blender -Y)."""
     x0, y0, x1, y1 = STAIR
     rise = (z_top - z_bottom) / NSTEP; run = (y1 - y0) / NSTEP
     for i in range(NSTEP):
         y = y0 + (i + .5) * run; z = z_bottom + (i + 1) * rise
-        t = prim('cube', f'tread{i}', loc=((X(x0) + X(x1)) / 2, Y(y) - .015, z - .015), scale=((x1 - x0) / 2, run / 2 + .02, .015), mat=M['agari']); lib.uv_box(t, 1.25)
+        t = prim('cube', f'tread{i}', loc=((X(x0) + X(x1)) / 2, Y(y) - .015, z - .015), scale=((x1 - x0) / 2, run / 2 + .02, .015), mat=M['agari']); tread_uv(t)
         r = prim('cube', f'riser{i}', loc=((X(x0) + X(x1)) / 2, Y(y - run / 2) - .01, z - rise / 2 - .015), scale=((x1 - x0) / 2, .01, rise / 2 - .015), mat=M['trim'])
     L = math.hypot(y1 - y0, z_top - z_bottom); ang = math.atan2(z_top - z_bottom, y1 - y0)
     for xs in (x0, x1):
@@ -198,7 +205,7 @@ def stairs_down(M):
     n = 12; rise = (0 - ZB) / n; run = (y1 - y0) / n
     for i in range(n):
         y = y1 - (i + .5) * run; z = -(i + 1) * rise
-        t = prim('cube', f'ctread{i}', loc=((X(x0) + X(x1)) / 2, Y(y), z), scale=((x1 - x0) / 2 - .02, run / 2 + .02, .02), mat=M['agari']); lib.uv_box(t, 1.25)
+        t = prim('cube', f'ctread{i}', loc=((X(x0) + X(x1)) / 2, Y(y), z), scale=((x1 - x0) / 2 - .02, run / 2 + .02, .02), mat=M['agari']); tread_uv(t)
 
 def fusuma(M, fixed, a, b):
     """Two sliding paper panels in a plan-'Y' opening, on two tracks (closed)."""

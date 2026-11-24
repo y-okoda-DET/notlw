@@ -15,7 +15,12 @@ const F2 := 2.75                       # the upstairs floor (house4: H1 2.45 + .
 const ZBASE := -2.45                   # the cellar's floor
 # where they stand at midnight (plan metres), and whom they face
 const AT0 := {"taiga": [5.2, 5.7], "makoto": [4.6, 5.15], "kiryu": [4.4, 6.5]}   # 2026-11-17 夜（ユーザー「大河の姿を見せたい。真琴と向かい合う感じで」）: he was in the cellar doorway, out of sight; now a step out of it, Makoto before him
-const MIO0 := [4.55, 4.25]
+# 試作278（ユーザー点検2「零時・23時・3時半の構図を、一点透視の廊下から外す」2026-11-23）: she stood in the hall's middle
+# (4.55, 4.25) and looked up it: the walls ran to a point behind Taiga. Now at the west wall, a step from Makoto, turned to
+# the cellar doorway at 45°: the doorway and the two in it side on, the hall only a sliver at the right
+const MIO0 := [4.4, 4.75]
+var face_lights := []
+const MIO0_LOOK := [4.95, 5.6]
 const TAIGA_DOWN := [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 2.65, ZBASE], [5.5, 2.1, ZBASE]]
 const CAM_Y := 2.85                    # the small camera on the handrail (story.gd _house_ready)
 # the gaps (plan x, y, z of the tape; the sound comes from there) and what the transcript calls them
@@ -137,7 +142,7 @@ var mirror_done := false
 func _ready():
 	player = main.player
 	if not ("--keepflags" in OS.get_cmdline_user_args()):
-		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
+		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am", "stay_watch", "stay_knock", "stay_air", "asked1_0", "asked1_1", "asked1_2", "asked1_3"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
@@ -231,12 +236,25 @@ func _place_for(st: String):
 		"t0", "tape":
 			for k in AT0:
 				var to: Array = MIO0
-				if k == "taiga": to = AT0.makoto
+				# 試作278（独立レビュー「大河の顔は暗い塊」）: he faced Makoto square, his face away from Mio and from Kiryu's
+				# light; half toward the hall (Mio, the light), he still talks to Makoto
+				if k == "taiga": to = [(AT0.makoto[0] + MIO0[0]) * 0.5, (AT0.makoto[1] + MIO0[1]) * 0.5]
 				elif k == "makoto": to = AT0.taiga
 				_put(k, AT0[k], _face(AT0[k], to))
 				main.set_stand(k, "talk/idle" if k != "makoto" else "talk/think", 0.0)
-			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, [4.9, 5.45])
+			player.global_position = gp(MIO0[0], MIO0[1], 0.0); _look_from(MIO0, MIO0_LOOK)
+			# 点検3: Kiryu holds his phone's light up to the bite (their own phones are in their pockets at 0時: a light from
+			# them lit nothing, snap 試作278); it falls on Taiga's face and on Makoto's at his arm. Gone at 零時半 (the candle)
+			if face_lights.is_empty():
+				main.phones(true, ["kiryu"])
+				for k in [["taiga", 1.4], ["makoto", 0.7]]:
+					var fl = _face_light(k[0], k[1], "kiryu")
+					if fl: face_lights.append(fl)
 		"seal":
+			for fl in face_lights:
+				if is_instance_valid(fl): fl.queue_free()
+			face_lights.clear()
+			main.phones(false, ["kiryu"])
 			_hide("taiga"); _put("kiryu", [1.6, 1.2], _face([1.6, 1.2], [1.9, 1.85]))   # in the living room by the lantern
 			main.set_stand("kiryu", "talk/sit_b", 0.0)
 			_put("makoto", [4.75, 6.1], _face([4.75, 6.1], [4.6, 5.0])); main.set_stand("makoto", "talk/idle", 0.0)
@@ -462,6 +480,7 @@ func _process(dt):
 	player.move_enabled = mode == FREE and free_walk
 	match stage:
 		"tape": _tape_tick()
+		"swap": _swap_tick(dt)
 		"seal": _seal_tick(dt)
 		"up", "back": _up_tick(dt)
 		"flow": _flow_tick(dt)
@@ -517,9 +536,10 @@ func _do(what: String):
 		"makoto_press":
 			# 試作127（ユーザー「カメラ位置のせいで、真琴が何をやっているかわからない」）: she stood between Mio and Taiga, her
 			# back to Mio. She goes round to his west side: from Mio's place she is seen side on, her hands on his arm
-			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], Callable(), _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
+			main.walk_to("makoto", [[4.66, 5.55, 0.0], [4.72, 5.82, 0.0]], _pulse_on, _face([4.72, 5.82], AT0.taiga))   # (2026-11-17 夜: his new place, a step out of the cellar door)
 		"makoto_wipe":
-			main.set_stand("makoto", "talk/think")
+			_pulse_off()
+			main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 		"taiga_down":
 			talk_with = ""
 			if dn: dn.open_key("door_cellar"); dn.open_key("door_barred")
@@ -655,10 +675,50 @@ func _say_nail():
 	if not script_q.is_empty() and script_q[0].get("do", "") == "next": script_q.pop_front()
 	var q: Array = D.entries("零時.釘"); q.remove_at(0)   # (the first is the line as she could say it)
 	for i in range(q.size() - 1, -1, -1): script_q.push_front(q[i])
-	_clear_page(); nail_lb = null
+	# 試作281（ユーザー「このあと「釘で切ったの、見てた～～」がダブる」）: the line she could say stays, as said, where it stood;
+	# the silence goes from under it, and the script no longer has her say it a second time
+	if is_instance_valid(silence_lb) and silence_lb.get_parent(): silence_lb.get_parent().queue_free()
+	nail_lb = null
 	cur = {}; _foot_back()
 	print("STORY ch3 said_nail t=%.1f" % t_now)
 	_next()
+
+# 試作281（ユーザー「ここ、脈取っているように見せたい」）: she takes his wrist, the one on her side: her left hand under it,
+# two fingers of her right on the inside of it, a little above the hand (reach.gd, both arms)
+var pulse_rc := []
+func _pulse_on():
+	if not main.S.has("taiga_node") or not main.S.has("makoto_node"): return
+	var tsk: Skeleton3D = (main.S.taiga_node as Node).find_children("*", "Skeleton3D", true, false)[0]
+	var mk: Node3D = main._rig_of("makoto")
+	var best := "hand_l"; var bd := 1e9
+	for b in ["hand_l", "hand_r"]:
+		var bi := tsk.find_bone(b)
+		if bi < 0: continue
+		var d := (tsk.global_transform * tsk.get_bone_global_pose(bi).origin).distance_to(mk.global_position)
+		if d < bd: bd = d; best = b
+	# 試作281（レビュー「手首を取っていない」）: his wrist hung at his hip, and her hands stopped short of it. He holds the cut
+	# arm out a little, at her chest's height between them, and she takes it there
+	var trig: Node3D = main._rig_of("taiga")
+	var mid: Vector3 = trig.global_position.lerp(mk.global_position, 0.45) + Vector3.UP * 1.05
+	var hold = _reach("taiga", null, mid); hold.side = best.substr(5, 1)
+	create_tween().tween_property(hold, "w", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
+	var ba := BoneAttachment3D.new(); ba.bone_name = best; tsk.add_child(ba)
+	var under := Node3D.new(); ba.add_child(under); under.position = Vector3(0, -0.02, 0)
+	var fingers := Node3D.new(); ba.add_child(fingers); fingers.position = Vector3(0, -0.05, 0.0)
+	pulse_rc = [ba, hold]
+	for pr in [["l", under, Vector3(0, -0.03, 0)], ["r", fingers, Vector3(0, 0.015, 0)]]:
+		var rc = _reach("makoto", pr[1], mk.global_position + Vector3.UP)
+		rc.side = pr[0]; rc.offset = pr[2]
+		pulse_rc.append(rc)
+		create_tween().tween_property(rc, "w", 1.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+func _pulse_off():
+	for n in pulse_rc:
+		if not is_instance_valid(n): continue
+		if n is BoneAttachment3D: get_tree().create_timer(0.7).timeout.connect(n.queue_free)
+		else:
+			var tw := create_tween(); tw.tween_property(n, "w", 0.0, 0.5); tw.tween_callback(n.queue_free)
+	pulse_rc = []
 
 # not said: the transcriber's double line through it, as through the choices not taken
 func _strike_nail():
@@ -674,19 +734,101 @@ func _strike_nail():
 func _cam_near() -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := fixed_cam.global_position - cam.global_position
-	return to.length() < 1.7 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(18.0)
+	return _aim_ok(to, 1.9, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
 
 func _tape_tick():
 	if mode != FREE: return
 	note_lb.text = T(String(D.lines("零時.テープ")[0])) if _cam_near() else ""
 
+# 手の遊び④（決定事項 2026-11-23 7時33分）：定点のカメラのテープ替え＝手順。暗がりで、手が震える。
+# 一、横のふたを押す（ふたが開いて、古いテープが少し出る）。二、古いテープを抜く。三、新しいテープを差す。四、裏の録画を押す。
+# 三と四は、ふたの口・ボタンを見て Ｅ。外れると、テープがカメラに当たって鳴り、手の震えが少し増える。ゲージも文字も出さない。
+var swap := {}
 func _swap_tape():
 	note_lb.text = ""
-	Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
-	_rec3(false)   # already out since cam_stop (the tape ran out); on again once the new one is in
-	get_tree().create_timer(1.4).timeout.connect(func(): _rec3(true))
-	stage = "tape_done"
-	_start(B("零時.替えた"))
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var sx := 1.0 if (fixed_cam.global_basis.x).dot(cam.global_position - fixed_cam.global_position) > 0.0 else -1.0
+	swap = {"step": 0, "sx": sx, "shake": 1.0, "t": 0.0, "hand": null, "old": null, "cool": 0.0}
+	stage = "swap"
+	_swap_do()   # 一（ふた）は、カメラを見て押した Ｅ で開く
+
+func _swap_point(step: int) -> Vector3:
+	var lp := Vector3(0.03 * float(swap.sx), 0.0, 0.0) if step == 2 else Vector3(0.012, 0.046, 0.067)
+	return fixed_cam.global_transform * lp
+
+func _swap_aimed(step: int) -> bool:
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var to := _swap_point(step) - cam.global_position
+	var f := -cam.global_basis.z
+	var off := (to - f * to.dot(f)).length()   # how far the point sits from the line of sight
+	return to.dot(f) > 0.0 and off < 0.06   # 試作281（ユーザー「どうしたらいいかわからず混乱した」）: .035 was a pinpoint
+
+func _cassette() -> MeshInstance3D:
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.062, 0.012, 0.047); mi.mesh = bm
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.08, 0.08, 0.085); m.roughness = 0.4; mi.material_override = m
+	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	return mi
+
+func _swap_press():
+	if float(swap.cool) > 0.0: return
+	var st := int(swap.step)
+	if st >= 2 and not _swap_aimed(st):
+		# off the slot / the button: the tape knocks the camera, the hand shakes more
+		swap.shake = minf(1.8, float(swap.shake) + 0.25); swap.cool = 0.5
+		Sound.one(self, "tripod_bump", -16.0, fixed_cam.global_position)
+		if swap.hand: (swap.hand as Node3D).position.x += randf_range(-0.01, 0.01)
+		print("STORY ch3 swap miss step %d" % st)
+		return
+	_swap_do()
+
+func _swap_do():
+	var st := int(swap.step)
+	var cam: Camera3D = player.get_node("Head/Camera")
+	swap.cool = 0.6
+	match st:
+		0:   # the lid: it springs, the old tape shows
+			Sound.one(self, "tape_clunk", -8.0, fixed_cam.global_position)
+			var o := _cassette(); fixed_cam.add_child(o); o.position = Vector3(0.018 * float(swap.sx), 0.0, 0.0); o.rotation.z = PI / 2.0
+			create_tween().tween_property(o, "position:x", 0.04 * float(swap.sx), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			swap.old = o
+		1:   # the old one out, into her pocket (it holds 0時 and before)
+			var o: Node3D = swap.old
+			if o: create_tween().tween_property(o, "position:x", 0.12 * float(swap.sx), 0.3).finished.connect(o.queue_free)
+			Sound.one(self, "cassette_in", -16.0, fixed_cam.global_position)
+			var h := _cassette(); cam.add_child(h); h.position = Vector3(0.06, -0.11, -0.3); h.rotation = Vector3(0.3, 0.2, PI / 2.0)
+			swap.hand = h
+		2:   # the new one in
+			var h: Node3D = swap.hand
+			if h: h.queue_free(); swap.hand = null
+			Sound.one(self, "cassette_in", -6.0, fixed_cam.global_position)   # 試作127: the cassette in (soundreality tape-cassette-insert)
+		3:   # the button on the back: it records again
+			Sound.one(self, "tape_clunk", -12.0, fixed_cam.global_position)
+			_rec3(false)   # already out since cam_stop (the tape ran out); on again once the button is in
+			get_tree().create_timer(0.5).timeout.connect(func(): _rec3(true))
+			cam.rotation = Vector3.ZERO
+			note_lb.text = ""
+			swap = {}
+			stage = "tape_done"
+			_start(B("零時.替えた"))
+			return
+	swap.step = st + 1
+
+func _swap_tick(dt: float):
+	if swap.is_empty(): return
+	swap.t = float(swap.t) + dt
+	swap.cool = maxf(0.0, float(swap.cool) - dt)
+	# the hand shakes: the view with it (small, uneven; more after each miss)
+	var t := float(swap.t); var a := float(swap.shake) * 0.0012   # 試作281（ユーザー「震えが極端」）: .0035 → .0012
+	var cam: Camera3D = player.get_node("Head/Camera")
+	cam.rotation = Vector3(a * (sin(t * 23.0) + 0.6 * sin(t * 37.0 + 1.3)), a * (sin(t * 19.0 + 0.4) + 0.5 * sin(t * 41.0)), 0.0)
+	if swap.hand: (swap.hand as Node3D).position.y = -0.11 + a * 2.0 * sin(t * 29.0)
+	# 試作281: what the hand does next, in the same corner as every other［Ｅ］
+	var stp := int(swap.step)
+	if stp == 1: note_lb.text = T("［Ｅ　古いテープを抜く］")
+	elif stp == 2: note_lb.text = T("［Ｅ　新しいテープを差す］") if _swap_aimed(2) else T("（横の、ふたの口を見る）")
+	elif stp == 3: note_lb.text = T("［Ｅ　録画を押す］") if _swap_aimed(3) else T("（裏の、録画のボタンを見る）")
+	if demo_on and float(swap.cool) <= 0.0 and t > 0.9 * float(swap.step):
+		_swap_do()   # the unattended run: each step in turn, a hand that does not miss
 
 # ---------------------------------------------------------------- 零時半: the gaps
 func _near_gap() -> Dictionary:
@@ -694,13 +836,13 @@ func _near_gap() -> Dictionary:
 	for gq in gaps:
 		if gq.sealed or gq.key != _next_gap(): continue
 		var to: Vector3 = (gq.at as Vector3) - cam.global_position
-		if to.length() < 1.6 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(28.0): return gq
+		if _aim_ok(to, 1.9, 32.0): return gq   # 試作281 (story.gd _aim_ok)
 	return {}
 
 func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := p - cam.global_position
-	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
+	return _aim_ok(to, reach, deg)   # 試作281 (story.gd)
 
 func _seal_tick(dt: float):
 	_makoto_follow(dt)
@@ -736,7 +878,9 @@ func _makoto_near(p: Vector3) -> bool:
 const SEAL_ORDER_FIXED := ["g1", "g2", "g3", "g4", "g5"]
 const MK_WAY := {
 	"g1": [[4.95, 5.4], [4.8, 3.95], [4.3, 3.6], [3.6, 3.7], [2.7, 2.8], [2.7, 1.2], [1.95, 0.75]],
-	"g2": [[2.7, 1.2], [2.7, 2.8], [2.6, 3.5], [1.6, 4.6], [1.25, 5.1]],
+	# 試作277（ユーザー「1つ目のテープを貼ったら、真琴がこちらに向かってくる。向かって左側の方の通路から」）: by the west passage
+	# (x 1.0〜1.3 on the --ch3map), not up the east one where Mio stands after the first tape
+	"g2": [[1.17, 1.05], [1.2, 2.6], [1.45, 2.85], [1.6, 3.4], [1.6, 4.6], [1.25, 5.1]],
 	"g3": [[1.6, 5.2], [3.1, 3.7], [4.1, 3.7], [4.3, 3.9], [4.3, 5.2], [5.0, 5.9], [5.5, 5.9], [5.8, 6.2], [6.5, 6.2], [6.6, 6.8]],
 	"g4": [[7.4, 6.6], [7.9, 6.3], [8.95, 6.0]],
 	"g5": [[8.85, 4.9]],
@@ -774,17 +918,106 @@ func _makoto_follow(_dt: float):
 func _wind_for(k: String):
 	for gq in gaps:
 		var p: AudioStreamPlayer3D = gq.player
-		if gq.sealed or wind_dim.has(gq.key): continue
+		if gq.sealed or wind_dim.has(gq.key) or gq.get("weak", false): continue
 		if gq.key == k:
 			p.volume_db = -6.0
 			if p.stream and not p.playing: p.play(randf() * 4.0)
 		else:
 			p.volume_db = -60.0; p.stop()
 
+# ---------------------------------------------------------------- 手の遊び②：0時半のテープ貼り＝速さ／なぞる（決定事項 2026-11-23 7時33分）
+# 隙間の前で Ｅ を押したまま、マウスを横に動かしてテープを伸ばす（約 550 px で一本）。速く動かしすぎるとテープがよれ、
+# 貼り終えても風が少し残る。よれたら、もう一度 Ｅ で貼り直す。ゲージも文字も出さない（テープの伸びと、風の音だけ）。
+var trace := {}
+const TRACE_PX := 550.0
+const TRACE_FAST := 1500.0     # px/s: faster than this, it wrinkles
+func _trace_start(gq: Dictionary):
+	if not trace.is_empty(): return
+	if gq.has("crumpled") and is_instance_valid(gq.crumpled): (gq.crumpled as Node).queue_free(); gq.erase("crumpled")
+	var mi := MeshInstance3D.new(); var bm := BoxMesh.new()
+	var along_x: bool = gq.n[0] == 0
+	bm.size = Vector3(0.34 if along_x else 0.004, 0.05, 0.004 if along_x else 0.34); mi.mesh = bm
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.8, 0.8, 0.78); m.roughness = 0.45; m.metallic = 0.1   # 試作278: lighter, it was lost on the wall
+	mi.material_override = m; mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
+	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
+	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
+	trace = {"gq": gq, "mi": mi, "p": 0.0, "wr": 0.0, "along_x": along_x, "snd": 0.0}
+	player.look_enabled = false; player.move_enabled = false
+	Sound.one(self, "ch3_tape", -10.0, gq.at)
+	# 試作281（ユーザー「テープ貼るのもミニゲームとしてうまくいってない（視点が動いて貼れないし、気持ちよさがない）」）: the
+	# view goes to the gap and stays (a low one: she kneels to it). The strip runs the way it runs on the screen: the mouse
+	# along it lays it, whichever way (the back door's edge is up and down; before, only sideways counted)
+	var a0: Vector3; var a1: Vector3
+	if gq.key == "g5": a0 = mi.global_position + Vector3(0, -0.9, 0); a1 = mi.global_position + Vector3(0, 0.9, 0)
+	elif along_x: a0 = mi.global_position - Vector3(0.17, 0, 0); a1 = mi.global_position + Vector3(0.17, 0, 0)
+	else: a0 = mi.global_position - Vector3(0, 0, 0.17); a1 = mi.global_position + Vector3(0, 0, 0.17)
+	trace["eye0"] = player.eye_height
+	var low: bool = (gq.at as Vector3).y < player.global_position.y + 0.5 and gq.key != "g5"
+	var tw := create_tween().set_parallel(true)
+	if low: tw.tween_property(player, "eye_height", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
+	var head: Vector3 = player.global_position + Vector3.UP * (1.0 if low else float(player.eye_height))
+	var to: Vector3 = (gq.at as Vector3) - head
+	tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.chain().tween_callback(func():
+		if trace.is_empty(): return
+		var cam: Camera3D = player.get_node("Head/Camera")
+		var d2 := cam.unproject_position(a1) - cam.unproject_position(a0)
+		trace["dir"] = d2.normalized() if d2.length() > 4.0 else Vector2.RIGHT)
+	trace["dir"] = Vector2.RIGHT
+	note_lb.text = T("［マウス　なぞって貼る］")
+
+func _trace_move(px: float, dt: float):
+	if trace.is_empty(): return
+	var sp := absf(px) / maxf(dt, 1.0 / 60.0)
+	# the roll's sound as it comes off, a little at every few centimetres (pitched by the speed)
+	trace.snd = float(trace.snd) + absf(px) / TRACE_PX
+	if float(trace.snd) > 0.12:
+		trace.snd = 0.0
+		var pl := Sound.one(self, "ch3_tape", -16.0 if sp < TRACE_FAST else -10.0, (trace.gq as Dictionary).at)
+		if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = clampf(0.85 + sp / 3000.0, 0.85, 1.5)
+	trace.p = minf(1.0, float(trace.p) + absf(px) / TRACE_PX)
+	if sp > TRACE_FAST: trace.wr = float(trace.wr) + absf(px) / TRACE_PX
+	var mi := trace.mi as MeshInstance3D
+	var k: float = maxf(0.02, float(trace.p))
+	if (trace.gq as Dictionary).key == "g5": mi.scale = Vector3(1, k, 1)
+	elif trace.along_x: mi.scale = Vector3(k, 1, 1)
+	else: mi.scale = Vector3(1, 1, k)
+	if sp > TRACE_FAST: mi.rotation.z = randf_range(-0.18, 0.18); mi.rotation.y = randf_range(-0.12, 0.12)   # it wrinkles as it goes
+	if float(trace.p) >= 1.0: _trace_end()
+
+func _trace_end():
+	var gq: Dictionary = trace.gq
+	var wr := float(trace.wr)
+	player.look_enabled = true; player.move_enabled = true; note_lb.text = ""
+	if trace.has("eye0"): create_tween().tween_property(player, "eye_height", float(trace.eye0), 0.5).set_trans(Tween.TRANS_SINE)
+	if wr > 0.3:
+		# よれた：風が細く残る。もう一度 Ｅ で貼り直す
+		gq["crumpled"] = trace.mi
+		gq["weak"] = true          # 細い風が、貼り直すまで鳴り続ける（_wind_for はこの隙間に触らない）
+		var wp: AudioStreamPlayer3D = gq.player
+		wp.volume_db = -20.0
+		if wp.stream and not wp.playing: wp.play(randf() * 4.0)
+		Sound.one(self, "ch3_tape", -14.0, gq.at)
+		print("STORY ch3 tape %s wrinkled %.2f" % [gq.key, wr])
+		trace = {}
+		return
+	(trace.mi as Node).queue_free()
+	trace = {}
+	_seal_done(gq)
+
 func _press_seal():
 	var gq := _near_gap()
 	if gq.is_empty() or not _makoto_near(gq.at): return false
+	_trace_start(gq)
+	return true
+
+func _seal_done(gq: Dictionary):
+	var was_weak: bool = gq.get("weak", false)
+	gq.erase("weak")
 	_seal(gq)
+	if was_weak: wind_dim[gq.key] = 0.8   # the thin wind fades from where it was, not from full
 	sealed_n += 1
 	talk_with = "makoto"
 	var q: Array = []
@@ -793,7 +1026,6 @@ func _press_seal():
 	if sealed_n == 3: q.append_array(B("目張り.問い"))
 	if sealed_n == 5: q.append_array(B("目張り.五つ"))
 	_start(q)
-	return true
 
 func _wind_tick(dt: float):
 	for k in wind_dim.keys():
@@ -813,9 +1045,9 @@ func _item_looked() -> String:
 		if k == "blanket" and has_blanket: continue
 		var to: Vector3 = (it.pos as Vector3) - cam.global_position
 		var reach := 3.2 if k == "window" else 1.9
-		if to.length() > reach: continue
+		if not _aim_ok(to, reach, 22.0): continue   # 試作281: 16° was narrow (story.gd _aim_ok)
 		var a := (-cam.global_basis.z).angle_to(to)
-		if a < deg_to_rad(16.0) and a < ba: ba = a; best = k
+		if a < ba: ba = a; best = k
 	return best
 
 func _up_tick(_dt: float):
@@ -1063,7 +1295,7 @@ func _flow_event(e: Dictionary):
 				main.walk_to("makoto", [[4.7, 2.6, 0.0]], Callable(), _face([4.7, 2.6], SIT_AT))
 				talk_with = "makoto"
 			"makoto_head":
-				main.set_stand("makoto", "talk/think")
+				main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 			"makoto_up":
 				talk_with = ""
 				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
@@ -1392,6 +1624,10 @@ func _t230_record(final: bool):
 		last_ask_t = 63.0
 	rec230["said_rule"] = has_flag("said_rule")
 	set_flag("door_0230", rec230.duplicate(true))
+	# 試作281（別のスレッド「選んだ返事が、まだ後で拾われない」）: the first thing she asked through the door, for 証言一 to quote
+	for k in 4: set_flag("asked1_%d" % k, null)
+	for a in rec230.asks:
+		if typeof(a[1]) == TYPE_INT: set_flag("asked1_%d" % int(a[1])); break
 	print("STORY ch3 door_0230 ", JSON.stringify(rec230))
 
 # the unattended playthrough: to the door, the ear on it for Natsuki's voice, two questions, (with --ch3rule) the rule
@@ -1445,6 +1681,9 @@ static var SEAL_ORDER: Array = []   # 第5章 peels the tape in the order she pu
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
 	if card_t > 0.0 or stage == "end": return
+	if not trace.is_empty():
+		if e is InputEventMouseMotion: _trace_move((e.relative as Vector2).dot(trace.get("dir", Vector2.RIGHT)), get_process_delta_time())   # 試作281: no key to hold; along the strip
+		return
 	if stage == "flow" and flow_key == "扉の番.二時半" and _t230_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if mode == TALK:
@@ -1461,6 +1700,7 @@ func _press():
 	match stage:
 		"tape":
 			if _cam_near(): _swap_tape()
+		"swap": _swap_press()
 		"seal":
 			if _press_seal(): return
 			if _looking_at(gp(FRONT_GAP[0], FRONT_GAP[1], 0.4), 2.2, 30.0):
@@ -1611,7 +1851,8 @@ func _demo_tick(dt):
 			var k2 := 1.0 - exp(-dt * 6.0)
 			player.yaw = lerp_angle(player.yaw, atan2(-to2.x, -to2.z), k2)
 			player.pitch = lerpf(player.pitch, asin(clampf(to2.normalized().y, -1.0, 1.0)), k2)
-			if dwait > 1.2 and mode == FREE and not gq.sealed: _press()
+			if dwait > 1.2 and mode == FREE and not gq.sealed and trace.is_empty(): _press()
+			if not trace.is_empty(): _trace_move(700.0 * dt, dt)   # (the run draws it at an even 700 px/s)
 			if gq.sealed and mode == FREE: done = true
 			if dwait > 25.0: _dfail("gap %s: cannot seal (Mio %s, candle %s)" % [s[1], _plan_of(player), _plan_of(candle) if candle else []]); _seal(gq); sealed_n += 1; done = true
 		"open":
@@ -1695,3 +1936,18 @@ func _map():
 			print("MAP %5.2f %s" % [y, row])
 			y -= 0.1
 	get_tree().quit()
+
+
+# 試作277（ユーザー「ここの真琴、短いスパンで同じような動きを繰り返す」、23時）: "think" is a short Mixamo clip; looped, the same
+# gesture came every few seconds. Once through, then the plain stand for 4〜7 s, then again, while nothing else is set on her
+func _vary(k: String, a: String, b: String):
+	if not main.S.has(k + "_node"): return
+	var ap: AnimationPlayer = main.S[k + "_node"].find_children("*", "AnimationPlayer", true, false)[0]
+	if not ap.has_animation(a) or not ap.has_animation(b): return
+	var len_a: float = ap.get_animation(a).length
+	get_tree().create_timer(len_a).timeout.connect(func():
+		if main.stand_anim.get(k, "") != a: return
+		main.set_stand(k, b, 0.6); main.stand_anim[k] = a   # (still "think" for the next turn; the body stands meanwhile)
+		get_tree().create_timer(randf_range(4.0, 7.0)).timeout.connect(func():
+			if main.stand_anim.get(k, "") != a or main.walkers.has(k): return
+			main.set_stand(k, a, 0.6); _vary(k, a, b)))

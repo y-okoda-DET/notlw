@@ -18,7 +18,11 @@ const MIO_AT := [4.4, 3.1]                        # her feet: by the stair's foo
 # 2026-11-18（レビュー2「第4章は主観の低い・斜めの向きで始め、夏希が入ってきて近づくのが最初の向きのまま見える形に」）:
 # she starts low (crouched by the newel), turned up the hall toward the kitchen door at a slant, not down it to the
 # front door; she rises to her full height once she moves or something takes her (before: [4.55, 3.0], yaw 0, eye 1.52)
-const START_YAW := -166.0
+# 試作278（ユーザー点検2、2026-11-23）: -166 looked almost along the hall's axis (it runs 8° east of north from her): a
+# one-point hall with Natsuki coming down its middle. Turned 21° toward the stair (yaw grows to the left), the hall's far
+# end sits in the right third and the stair's underside and handrail cut across the left; she still comes into view
+# from the first look (2026-11-18). (164 turned the other way, into the dark of the living room's wall: snap 試作278)
+const START_YAW := -138.0   # 試作279（独立レビュー「3時半はまだ奥の戸口へ線が集まる」）: -145 → -138
 const START_PITCH := 2.0
 const LOW_EYE := 1.36
 const TAPE_MIO := [4.35, 3.15]                    # on the tape she stands a step further left: all of her, and the tripod at her shoulder, outside the small camera's frame
@@ -211,7 +215,10 @@ func _stage():
 # this light only in the last two metres; the small camera, its gain up, has a face from the genkan on (第11章).
 # (On the newel's cap it stood in the middle of the small camera's picture. On the stairs' treads it lit nothing: the stairs are boarded in on the hall's side. On the floor behind her, Mio's
 # own shadow covered whoever stood before her.)
-const LANTERN_AT := [4.97, 3.50, 1.40]     # plan x, y; z its foot: hung on the stair's boarding under the handrail camera, below its frame
+# 試作277（ユーザー「ランタンが変な位置にある」、3時半）: at x 4.97 it hung 13 cm out in the hall from the rail, on nothing
+# (the boarding under the stair stops under the treads). Its bail is over the handrail now (x 5.1, the rail's underside
+# 1.615 at y 3.5), between two balusters (y 3.41 and 3.64)
+const LANTERN_AT := [5.10, 3.50, 1.31]     # plan x, y; z its foot: hung by its bail on the handrail under the handrail camera
 var lantern: OmniLight3D
 func _lantern():
 	var src: Light3D = main.lights.get("lantern_stair")
@@ -569,7 +576,7 @@ func _night(dt: float):
 			_pose({"head": [0.40 * snap2 * (1.0 - over) - 0.25 * over, -0.75 * over, 0.30 * snap2 * (1.0 - over)], "neck_01": [0.22 * snap2 * (1.0 - over), -0.3 * over, 0.0],
 				"spine_03": [0.32 * curl - 0.06 * over, 0.0, 0.10 * kneel], "spine_02": [0.26 * curl, 0.0, 0.06 * kneel], "spine_01": [0.18 * curl, 0.0, 0.0],
 				"thigh_l": [-th, 0.0, 0.0], "calf_l": [cf, 0.0, 0.0], "foot_l": [0.7 * kneel, 0.0, 0.0],
-				"thigh_r": [-th + 0.12 * over, 0.0, 0.0], "calf_r": [cf + 0.25 * over, 0.0, 0.0], "foot_r": [0.7 * kneel, 0.0, 0.0],
+				"thigh_r": [-th, 0.0, 0.0], "calf_r": [cf - 0.62 * over, 0.0, 0.0],   # 試作281（ユーザー「右足曲げないほうが自然かな」）: the right leg lies out straight "foot_r": [0.7 * kneel, 0.0, 0.0],
 				"upperarm_l": [-0.75 * over, 0.0, 0.25 * limp], "lowerarm_l": [-0.3 * limp, 0.0, 0.0],
 				"upperarm_r": [-0.30 * limp + 0.5 * over, 0.0, -0.30 * limp], "lowerarm_r": [-0.35 * limp, 0.0, 0.0]}, reel_pose, 1.0 - 0.6 * over)
 			var b0 := nbase.basis
@@ -684,7 +691,8 @@ func _look_at_things():
 	if holding or after_t >= 0.0 or quiet_t >= 0.0: return
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var at := weapon.global_position + Vector3(0, 1.0, 0)
-	var near: bool = (at - cam.global_position).length() < 1.9 and (-cam.global_basis.z).angle_to(at - cam.global_position) < deg_to_rad(22.0)
+	var tt := at - cam.global_position   # 試作281: the height counts for less, a low thing takes a wider look (story.gd _aim_ok)
+	var near: bool = Vector3(tt.x, tt.y * 0.45, tt.z).length() < 1.9 and (-cam.global_basis.z).angle_to(tt) < deg_to_rad(22.0 + (8.0 if tt.y < -0.8 else 0.0))
 	note_lb.text = T("［Ｅ　三脚］") if near else ""
 	# she stands before her and Mio has taken nothing up: where the tripod is, once
 	if not told_tripod and nstate == "stand" and ni >= _np().size() and clock > 46.0:

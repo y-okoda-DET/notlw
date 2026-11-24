@@ -100,6 +100,9 @@ func _ready():
 	if house:
 		_house_ready()
 		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
+		if "--hamnow" in OS.get_cmdline_user_args():   # stills only: straight to the hammer at the cellar window
+			get_tree().create_timer(float(main.ARGS.get("hamat", "40"))).timeout.connect(func():
+				_boards_start(); player.global_position = gp(CELLAR_WIN[0] + 0.95, CELLAR_WIN[1], -1.88); _hammer_start())
 		return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
@@ -155,7 +158,8 @@ func _only_if(es: Array) -> Array:
 	return out
 
 # a ＞name that is only a mark in the night's record (said_nail, talked_kiryu_1am, ...): set it, and say it was one
-const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen"]
+const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen",
+	"stay_watch", "stay_knock", "stay_air"]   # 試作281: 零時半、玄関に残る訳（証言一で拾う）
 func _flag_do(d: String) -> bool:
 	if d in FLAG_DOS: set_flag(d); return true
 	return false
@@ -377,6 +381,7 @@ func _page():
 const SAY_SIZE := 32.0   # ユーザー 2026-11-11: 32 is the default (46 and 42 were too loud for the picture)
 func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Array:
 	var tes := kind == "testimony"
+	if not tes and kind != "choose": _choice_unplace()
 	var box: VBoxContainer = tes_box if tes else lines_box
 	if tes: _clear_box(tes_box)
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u))
@@ -396,7 +401,13 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 	row.add_child(t)
 	box.add_child(row)
 	if kind == "say" and who != "": last_who = who
-	if kind == "choose": row.set_meta("choice", true)
+	if kind == "choose":
+		row.set_meta("choice", true)
+		# 試作278（独立レビュー「車の選択肢が白い窓の上で灰色に重なって読めない」）: the pool under a choice is three times as dark,
+		# so the one not picked (paper at .38) still reads over the bright glass
+		# 試作281（ユーザー「袋文字にはしない…じゃないと他の地の文となにか違いがあるのではないかと感じてしまう」）: the
+		# darker pool of 278/279 read as outlined letters. A choice has the same shadow as any line; it is kept off people
+		# and bright glass by where it sits (_choice_place), not by a heavier shadow
 	if not tes: _fit_lines()
 	return [row, t]
 
@@ -680,12 +691,18 @@ func _update_looks():
 	# 試作127（ユーザー「5箇所貼ったら…「最後に、玄関を見ました。」を左上に表示させる。※左上表示されないこともしばしば」）:
 	# the chapters (ch3, ch5, 22時) run their own _process and never set this: the line showed only where a page left it on.
 	# Every chapter calls _update_looks each frame
-	if mission_box: mission_box.visible = mission != "" and tes_box.get_child_count() == 0
+	# 試作281（ユーザー「陽太パート。左上の文字は澪の独白にしたいから、陽太のやるべきことは別の方法で示したい」）: the top left is
+	# Mio's alone. In 去年の夏 what Yota is up to is on his storyboard (Tab) and in his own mouth, not there (mission_top)
+	if mission_box: mission_box.visible = mission != "" and tes_box.get_child_count() == 0 and mission_top
 	var eye: Vector3 = look_eye if look_eye != Vector3.ZERO else (player.get_node("Head/Camera") as Camera3D).global_position
 	for k in looks:
 		var lm: Look = looks[k]
 		lm.target = eye
 		lm.want = 1.0 if (mode == TALK and talk_with == k and not "--nolook" in OS.get_cmdline_user_args()) else 0.0   # --nolook: stills, the pose before she turns
+		# 試作281（ユーザー「もう少しみんながラジオに聞き耳を立てているように」）: while the radio speaks, the ones not talking to her
+		# turn their heads to it (the set where it stands or in her hands)
+		if radio_on and is_instance_valid(radio) and lm.want < 0.5:
+			lm.target = radio.global_position; lm.want = 0.9
 
 # ================================================================ where the camera would rest
 func _rest_for(eye: Vector3, dir: Vector3) -> Dictionary:
@@ -721,6 +738,7 @@ func _process(dt):
 	(finder_ui as FinderFrame).tc = "0:%02d:%02d" % [int(t_now / 60.0) % 60, int(t_now) % 60]
 	finder_ui.queue_redraw()
 	if mode == END: _end_tick(dt); return
+	if ham_on: _ham_tick(dt)
 	if house: _house_tick(dt)
 	if ch2: _radio_tick(dt)
 	# the head and the camera
@@ -734,6 +752,8 @@ func _process(dt):
 		var p: Vector3 = finder_rest.pos if finder_rest.get("ok", false) else eye + dir * 0.3
 		finder_cam.global_transform = Transform3D(Basis.from_euler(Vector3(player.pitch, player.yaw, 0.0), EULER_ORDER_YXZ), p)
 		finder_cam.current = true
+	elif ham_on and is_instance_valid(ham_cam):
+		ham_cam.current = true   # 試作281: this line took the hammer's cut back to her eye every frame
 	else:
 		cam.current = true
 	finder_layer.visible = finder and holding_cam
@@ -750,7 +770,9 @@ func _process(dt):
 		fixed_cam.visible = not finder
 		if OS.get_cmdline_user_args().has("--storydbg"): print("HELD ", fixed_cam.global_position, " cam ", cam.global_position, " vis ", fixed_cam.is_visible_in_tree())
 	# what she is looking at
-	if mode == FREE:
+	if ham_on:   # 試作281: the hammer's key stayed blank in 280 (the line below cleared it every frame)
+		note_lb.text = "" if ham_any else T(HAM_KEY)
+	elif mode == FREE:
 		focus = _focus(eye, dir)
 		if holding_radio:
 			note_lb.text = T("［マウスで目盛りを合わせる］") if radio_up else ""
@@ -770,6 +792,16 @@ func _process(dt):
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
 	main.story_talking = (mode == TALK)
 
+# 試作281（ユーザー「アクションできるオブジェクトなのに［E］が表示されないことがしばしば」「他でもないか確認して」）:
+# one rule for "she is looking at it" everywhere. A thing low by the floor is 1.3 m under the eye; measured straight,
+# its height used up most of the reach, and she had to stand over it. The height counts for less, and a low thing takes
+# a wider look (it is small in the eye). ch6.gd _pick_target was the first
+func _aim_ok(to: Vector3, reach: float, deg: float) -> bool:
+	var cam := player.get_node("Head/Camera") as Camera3D
+	var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+	var d := deg + (8.0 if to.y < -0.8 else 0.0)
+	return dist < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(d)
+
 func _focus(eye: Vector3, dir: Vector3) -> String:
 	var best := ""; var best_s := 9.0
 	for k in items:
@@ -778,13 +810,14 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 		if ch2 and k != "radio": continue          # after the power goes there is only the radio
 		if house and k == "taiga" and taiga_moving: continue
 		var to: Vector3 = it.pos - eye
-		var d := to.length()
+		var d := Vector3(to.x, to.y * 0.45, to.z).length()   # 試作281: the height counts for less (_aim_ok)
 		var lim := 2.6 if it.kind == "talk" or k == "w_cellar" else 1.9   # the cellar window: from the porch stair, a step above it
 		if d > lim: continue
 		var ang := acos(clamp(to.normalized().dot(dir), -1.0, 1.0))
 		var allow: float = atan2(it.r, d) + 0.05
 		if ang > allow: continue
 		var s := ang / allow + d * 0.15
+		if k == "taiga" and items.has("w_cellar") and taiga_at == "out": s += 0.6   # 試作281: he crouches beside the window she came to board; the window wins where both are in the look
 		if s < best_s: best_s = s; best = k
 	# the camera she set down can be picked up again
 	if cam_placed and not cam_ok:
@@ -821,6 +854,7 @@ func _set_finder(on: bool):
 	finder_rest = {}
 
 func _press():
+	if ham_on: _ham_press(); return
 	if mode == TALK: _advance(); return
 	if mode != FREE: return
 	if finder and holding_cam:
@@ -929,7 +963,9 @@ func _start(entries: Array):
 	radio_up = false
 	_next()
 
+var nod_hold := false
 func _next():
+	if nod_hold: return
 	if script_q.is_empty():
 		mode = FREE; cur = {}
 		if ch2 and holding_radio: return
@@ -945,7 +981,16 @@ func _next():
 	if cur.has("text"): cur.text = _wrap_row(Tw(cur.text))
 	typed = 0.0; wait_after = 0.0; read_t = 0.0
 	if cur.has("do"):
-		_do(cur.do)
+		var d := String(cur.do)   # (_do may start another block and replace cur: 試作277 の通しで silence_nail・silence)
+		_do(d)
+		# 試作277（ユーザー「首を振ってから「そっか」にする」「首を振ってから、真琴の台詞を表示」）：首を振る・うなずくは、
+		# 振り終えてから次の行へ。The head's shake or nod is over before the next line comes.
+		if d in ["shake", "nod"]:
+			nod_hold = true
+			get_tree().create_timer(0.95).timeout.connect(func():
+				nod_hold = false
+				if mode != END: _next())
+			return
 		if mode != END: _next()
 		return
 	if cur.has("mission"):
@@ -960,21 +1005,138 @@ func _next():
 		# 試作97: _line_row fades every row but the last one; the choices are all "now" (in 96 the first two were
 		# faded by their rows, so the one chosen did not read white: ユーザー「選択しているものが白くならない」)
 		for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
-		_show_choice()
+		_show_choice(); _choice_place()
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
 	if ch2 and cur.who_key != "": talk_with = cur.who_key
 	var r2 = _line_row(cur.who, "", SAY_SIZE, "testimony" if cur.get("testimony", false) else "say")
 	cur_lb = r2[1]
 
+# 試作281（別のスレッド「選ぶ行は人物と明るい所を避けた位置に」：車の明るい窓、零時半の真琴の胸）: when the choices come,
+# the lines slide sideways to where the frame is darkest and no one stands. Candidates along the foot (the middle first);
+# each scored by the picture's brightness under it and by the people over it. Back to the middle with the next line
+var choice_dx := 0.0
+var mission_top := true   # 試作281: false in 去年の夏 (ch7.gd)
+func _choice_place():
+	if lines_box == null or not is_instance_valid(lines_box): return
+	await get_tree().process_frame
+	if not cur.has("choose") or cur.get("chosen", false): return
+	var vp := get_viewport(); var W := vp.get_visible_rect().size.x; var H := vp.get_visible_rect().size.y
+	var bw := 0.0
+	for c in lines_box.get_children(): bw = maxf(bw, (c as Control).get_combined_minimum_size().x)
+	var bh := lines_box.size.y
+	if bw <= 0.0 or bh <= 0.0: return
+	bw += 40.0 * u
+	var y1 := H - 64.0 * u; var y0 := y1 - bh
+	var img: Image = null
+	if DisplayServer.get_name() != "headless":
+		img = vp.get_texture().get_image()
+		if img: img.resize(96, int(96.0 * H / W), Image.INTERPOLATE_BILINEAR)
+	var cam := vp.get_camera_3d()
+	var people := []
+	if cam and main:
+		for k in ["mio", "kiryu", "natsuki", "makoto", "taiga"]:
+			if not main.S.has(k + "_node"): continue
+			var rig: Node3D = main._rig_of(k)
+			if rig == null or not rig.is_visible_in_tree(): continue
+			var lo := Vector2(INF, INF); var hi := Vector2(-INF, -INF); var any := false
+			for h in [0.1, 0.9, 1.6]:
+				for sx in [-0.28, 0.28]:
+					var p: Vector3 = rig.global_position + Vector3.UP * h + cam.global_basis.x * sx
+					if cam.is_position_behind(p): continue
+					var q := cam.unproject_position(p); lo = lo.min(q); hi = hi.max(q); any = true
+			if any: people.append(Rect2(lo, hi - lo))
+	var best := 0.0; var bs := INF
+	for f in [0.0, -0.18, 0.18, -0.3, 0.3]:
+		var cx: float = W * 0.5 + W * float(f)
+		var r := Rect2(cx - bw * 0.5, y0, bw, bh)
+		if r.position.x < W * 0.03 or r.end.x > W * 0.97: continue
+		var lum := 0.5
+		if img:
+			var sum := 0.0; var n := 0
+			var ix0 := int(r.position.x / W * img.get_width()); var ix1 := int(r.end.x / W * img.get_width())
+			var iy0 := int(r.position.y / H * img.get_height()); var iy1 := int(r.end.y / H * img.get_height())
+			for iy in range(clampi(iy0, 0, img.get_height() - 1), clampi(iy1, 1, img.get_height())):
+				for ix in range(clampi(ix0, 0, img.get_width() - 1), clampi(ix1, 1, img.get_width())):
+					var c := img.get_pixel(ix, iy); sum += c.get_luminance(); n += 1
+			if n > 0: lum = sum / n
+		var over := 0.0
+		for pr in people:
+			var ov := r.intersection(pr)
+			if ov.has_area(): over += ov.get_area() / r.get_area()
+		var score: float = lum + 1.5 * over + 0.12 * absf(float(f))
+		if score < bs: bs = score; best = float(f)
+	choice_dx = W * best
+	lines_box.offset_left = choice_dx; lines_box.offset_right = choice_dx
+	if demo_on: print("CHOICE place %.2f" % best)
+
+func _choice_unplace():
+	if choice_dx == 0.0 or lines_box == null: return
+	choice_dx = 0.0; lines_box.offset_left = 0.0; lines_box.offset_right = 0.0
+
 func _show_choice():
 	for i in range(choice_lbs.size()):
 		var lb: Label = choice_lbs[i]
-		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.38))
+		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.42))   # 試作278: .38 → .42 with the darker pool under it (Type.Soft kk): read over the bright glass, and still apart from the one picked
+		# 試作279（独立レビュー「車の選択肢、どれを選んでいるか見分けられない」）: over the bright windscreen the letters' own
+		# brightness does not tell; the pool under them does: the one picked sits in a dark pool, the others in a light one
+
+# 試作281（ユーザー「選択肢が選べない時がある」、第5章の台所）: ch5.gd and ch8.gd take their own input and never moved
+# the choice. One handler for them: W/S, the arrows, the wheel. True when it took the event
+func _choice_input(e) -> bool:
+	if mode != TALK or not cur.has("choose"): return false
+	var d := 0
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.keycode in [KEY_W, KEY_UP]: d = -1
+		elif e.keycode in [KEY_S, KEY_DOWN]: d = 1
+	elif e is InputEventMouseButton and e.pressed:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP: d = -1
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: d = 1
+	if d == 0: return false
+	_move_choice(d); get_viewport().set_input_as_handled(); return true
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
 	choice_idx = posmod(choice_idx + d, choice_lbs.size()); _show_choice()
+
+# 試作278（ユーザー点検3「顔は作品の中の明かりで照らす」2026-11-23）: at night the faces fell to silhouettes. The phone in
+# the hand is the light: a narrow cone from its screen up to the face only (the screen's own omni at 0.025 stays: wider,
+# it lit the whole body white, 試作97). It follows the hand and the head each frame. No phone in the hand: nothing.
+class FaceLight extends SpotLight3D:
+	var sk: Skeleton3D
+	var head := -1
+	var src: Node3D
+	var said := 0.0
+	func _process(dt):
+		if not is_instance_valid(sk) or not is_instance_valid(src) or head < 0: visible = false; return
+		var hp: Vector3 = sk.global_transform * sk.get_bone_global_pose(head).origin + Vector3(0, 0.1, 0)
+		var from: Vector3 = src.global_position
+		visible = src.is_visible_in_tree() and from.distance_to(hp) > 0.05
+		said += dt
+		if said > 5.0: said = -1e9; print("STORY face_light on=%s from=%s head=%s" % [visible, from, hp])
+		if visible: look_at_from_position(from, hp, Vector3.UP if absf((hp - from).normalized().y) < 0.95 else Vector3.RIGHT)
+
+# by: whose phone it is (default: k's own; 23時 Taiga has none in his hands, Kiryu holds his up to him)
+func _face_light(k: String, energy := 0.35, by := "") -> FaceLight:
+	if not main.S.has(k + "_node"): print("STORY face_light %s: no rig" % k); return null
+	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
+	if sks.is_empty(): print("STORY face_light %s: no skeleton" % k); return null
+	var sk: Skeleton3D = sks[0]
+	var scr: Node3D = null
+	var bk := k if by == "" else by
+	if main.S.has(bk + "_node"):
+		scr = main.S[bk + "_node"].find_child("screen", true, false) as Node3D
+		if scr == null: scr = main.S[bk + "_node"].find_child(bk.substr(0, 1) + "phone", true, false) as Node3D   # the 23時 rigs: kphone, nphone
+	if scr == null: print("STORY face_light %s: no phone in the hand" % k); return null
+	var f := FaceLight.new(); f.sk = sk; f.src = scr
+	f.head = sk.find_bone("head")
+	if f.head < 0: f.head = sk.find_bone("mixamorig_Head")
+	var d: float = scr.global_position.distance_to(sk.global_position + Vector3(0, 1.6, 0))
+	f.light_color = Color(0.82, 0.88, 1.0); f.light_energy = energy * maxf(1.0, d * d / 0.36); f.spot_range = maxf(0.9, d + 0.6); f.spot_angle = 16.0 if d < 1.0 else 12.0   # (inverse square from the phone: the face gets what it would at 0.6 m)
+	f.spot_attenuation = 0.8; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.08
+	main.add_child(f)
+	print("STORY face_light %s by %s head=%d d=%.2f" % [k, bk, f.head, d])
+	return f
 
 class Strike extends Control:
 	# the transcriber's double line through what she did not say
@@ -996,16 +1158,26 @@ class Strike extends Control:
 
 func _choose():
 	cur["chosen"] = true
+	# 試作281（別のスレッド「ふだんの会話の選択肢が、重い選択と同じ見え方」）: an everyday answer leaves no struck rows; the
+	# ones not taken go at once. The heavy ones (2時半 at the door, the testimonies) keep their own forms and their strikes
 	for i in range(choice_lbs.size()):
 		if i == choice_idx: continue
-		var lb: Label = choice_lbs[i]
-		var s := Strike.new(); s.u = u
-		s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
-		s.size = lb.size; s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lb.add_child(s)
+		var row := (choice_lbs[i] as Control).get_parent() as Control
+		if row == null: continue
+		var tw := row.create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)   # bound to the row: when the page goes first, the tween goes with it
+		tw.tween_callback(func(): if row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
 	var then: Array = cur.then[choice_idx]
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
+	_note_pick()
+
+# 試作276 の感想（決定事項 2026-11-23「選んだ答えは記録し、証言で拾えるようにする」）: what she answered, by its words, in the
+# night's record (said:<答えの言葉> = true), for the testimonies and the tape to pick up
+func _note_pick():
+	var words := String(cur.choose[choice_idx]).strip_edges()
+	set_flag("said:" + words)
+	var all: Array = (get_flag("said_all", []) as Array).duplicate()
+	all.append(words); set_flag("said_all", all)
 
 func _set_mission(words: String):
 	mission = words
@@ -1021,6 +1193,9 @@ func _talk_tick(dt):
 		if cur.get("chosen", false):
 			wait_after -= dt
 			if wait_after <= 0.0: _next()
+		elif demo_on:   # 試作277: the unattended run takes the first answer (every chapter, now that all her replies are choices)
+			read_t += dt
+			if read_t > 2.0: read_t = 0.0; choice_idx = 0; _show_choice(); _choose()
 		return
 	if cur.has("text"):
 		var n: int = String(cur.text).length()
@@ -1236,6 +1411,7 @@ func _demo_tick(dt):
 		"board": board_up = s[1]; done = true
 		"until_free":
 			if mode == TALK: _demo_read()
+			elif ham_on: demo_t = 0.0   # (the hammer: _ham_tick strikes in time)
 			else:
 				done = demo_t > 0.3
 		"until_end": done = false
@@ -1963,7 +2139,8 @@ func _helpers_tick():
 		for h in [0.3, 1.0, 1.6]:
 			var p: Vector3 = rig.global_position + Vector3.UP * h
 			if cam.is_position_in_frustum(p) and cam.global_position.distance_to(p) < 14.0:
-				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, p))
+				var hq := PhysicsRayQueryParameters3D.create(cam.global_position, p); hq.exclude = [player.get_rid()]
+				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(hq)
 				if hit.is_empty() or (hit.position as Vector3).distance_to(p) < 0.4: seen = true
 		if seen: continue
 		var q: Array = helpers_pending[k]
@@ -2040,8 +2217,7 @@ func _board_use(key: String):
 		if player.global_position.x < gp(CELLAR_WIN[0] + 0.15, 0.0, 0.0).x:
 			_start(B("板.地下の窓.届かない")); return
 		cellar_done = true; items.erase("w_cellar")
-		for b in cellar_boards: (b as Node3D).visible = true
-		_start(B("板.地下の窓"))
+		_hammer_start()
 		return
 	var w: Dictionary = wins[int(key.substr(2))]
 	items.erase(key)
@@ -2052,6 +2228,350 @@ func _board_use(key: String):
 		talk_with = "taiga"
 		k += B("板.残りはみんなが")
 	_start(k)
+
+# ---------------------------------------------------------------- 手の遊び①：地下の小窓の板打ち（決定事項 2026-11-23 7時33分）
+# 試作281（ユーザー「何をすればいいのか混乱した。手と金槌の絵が実際に打っているように見えない。カメラ設置シーンみたいな感じで
+# ちょっと別の絵になってもいい。ベストなやり方を」）: a cut to the board from beside it, lit by Taiga's phone held over it. Her
+# right hand and the hammer in it come in from the right. Ｅ held draws the hammer back; let go, it comes down on the nail.
+# Drawn back well (a breath), the nail goes a third in; let go at once, it only taps; held too long, the arm shakes and the
+# nail bends. Three nails a board, four boards; the last nail of the last board will not go home (the hose under it: 第5章).
+# No gauge, no count: the nail heads and the sound say it. The bracketed key is there until the first nail is in
+var ham_on := false
+var ham: Node3D                 # the swing's pivot (her elbow), hammer and arm under it
+var ham_cam: Camera3D
+var ham_light: SpotLight3D
+var ham_t := 0.0
+var ham_board := 0
+var ham_hits := 0
+var ham_miss := 0
+var ham_bent := 0
+var ham_rest := []
+var ham_nails := []             # this board's three nail heads [{n: Node3D, at: Vector3, sunk: float}]
+var ham_st := "ready"           # ready | raise | swing | back
+var ham_hold := 0.0
+var ham_ang := 0.0
+var ham_any := false
+var ham_mid := Vector3.ZERO
+var ham_out := Vector3.ZERO
+var ham_side := Vector3.ZERO
+const HAM_UP := 68.0            # the hammer drawn back (deg)
+const HAM_GOOD := [0.28, 1.05]  # held this long: a full blow
+func _hammer_start():
+	ham_on = true; ham_board = 0; ham_hits = 0; ham_miss = 0; ham_t = 0.0; ham_bent = 0; ham_st = "ready"; ham_any = false
+	player.move_enabled = false; player.look_enabled = false
+	# 試作281: the cut is to a small set of its own, below the ground (HAM_SET): a piece of the wall with the window's black,
+	# copies of the four boards laid as they lie on the house, the phone's light. Under the porch stair the house's own
+	# geometry stood between any camera and the board. The house's boards are hidden till the cut ends, then stand nailed
+	var wmid := Vector3.ZERO
+	for bd in cellar_boards: wmid += (bd as Node3D).global_position
+	wmid /= maxf(1.0, float(cellar_boards.size()))
+	var bw := Basis(Vector3.UP.cross(Vector3.RIGHT).normalized(), Vector3.UP, Vector3.RIGHT)   # the house's (side, up, out) at the window
+	var M := bw.inverse()                                                                   # → the set's (x, y, z)
+	ham_set = Node3D.new(); ham_set.name = "ham_set"; main.add_child(ham_set); ham_set.global_position = HAM_SET
+	ham_mid = HAM_SET; ham_out = Vector3.BACK; ham_side = Vector3.UP.cross(ham_out).normalized()
+	var wallm := StandardMaterial3D.new(); wallm.albedo_color = Color(0.2, 0.17, 0.14); wallm.roughness = 0.9
+	var wall := MeshInstance3D.new(); var wb := BoxMesh.new(); wb.size = Vector3(5.0, 3.5, 0.06); wall.mesh = wb; wall.material_override = wallm
+	ham_set.add_child(wall); wall.position = Vector3(0, 0.1, -0.06)
+	var hole := MeshInstance3D.new(); var hq := QuadMesh.new(); hq.size = Vector2(0.62, 0.42); hole.mesh = hq
+	var holem := StandardMaterial3D.new(); holem.albedo_color = Color(0.0, 0.0, 0.0); holem.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hole.material_override = holem; ham_set.add_child(hole); hole.position = Vector3(0, 0, -0.028)
+	var ground := MeshInstance3D.new(); var gb := BoxMesh.new(); gb.size = Vector3(5.0, 0.04, 3.0); ground.mesh = gb
+	var gm := StandardMaterial3D.new(); gm.albedo_color = Color(0.06, 0.055, 0.05); gm.roughness = 1.0; ground.material_override = gm
+	ham_set.add_child(ground); ground.position = Vector3(0, -0.62, 1.4)
+	ham_rest = []; ham_b = []; ham_axis = []; ham_org = []; ham_face = []
+	for bd in cellar_boards:
+		var n := bd as MeshInstance3D
+		n.visible = false
+		var c := n.duplicate(0) as MeshInstance3D; ham_set.add_child(c)
+		c.global_transform = Transform3D(M * n.global_basis, HAM_SET + M * (n.global_position - wmid))
+		c.visible = false
+		ham_b.append(c); ham_org.append(c.global_position)
+		var ab := c.get_aabb()
+		ham_rest.append(c.global_transform * ab.get_center())   # the board's middle (its origin is at one end)
+		var li := 0   # the long way: the basis column scaled longest (the boards are unit cubes, scaled)
+		for k in 3:
+			if (c.global_basis[k] * ab.size[k]).length() > (c.global_basis[li] * ab.size[li]).length(): li = k
+		var ax: Vector3 = c.global_basis[li].normalized()
+		if ax.dot(ham_side) < 0.0: ax = -ax
+		ham_axis.append(ax)
+		var face := 0.0   # from the middle to the face toward her
+		for k in 3: face += absf(c.global_basis[k].dot(ham_out)) * ab.size[k] * 0.5
+		ham_face.append(face)
+	# the camera: low beside the window, a little to her left of it, the board and the nail between it and her hand
+	ham_cam = Camera3D.new(); ham_cam.fov = 46.0; main.add_child(ham_cam)
+	var pc: Camera3D = player.get_node("Head/Camera")
+	ham_cam.attributes = pc.attributes; ham_cam.near = 0.02; ham_cam.far = 3.0   # only the set
+	var env := Environment.new(); env.background_mode = Environment.BG_COLOR; env.background_color = Color(0.0, 0.0, 0.0)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color = Color(0.25, 0.3, 0.4); env.ambient_light_energy = 0.25
+	if pc.environment: env.tonemap_mode = pc.environment.tonemap_mode
+	elif main.env: env.tonemap_mode = main.env.tonemap_mode
+	ham_cam.environment = env
+	ham_cam.global_position = ham_mid + ham_out * 0.62 - ham_side * 0.42 + Vector3.UP * 0.16
+	ham_cam.look_at(ham_mid + ham_out * 0.06 + ham_side * 0.05, Vector3.UP)
+	ham_cam.make_current()
+	# Taiga's phone over it (in the world: he stands on the porch stair holding it out)
+	ham_light = SpotLight3D.new(); ham_light.light_color = Color(0.86, 0.9, 1.0); ham_light.light_energy = 1.3
+	ham_light.spot_range = 3.0; ham_light.spot_angle = 48.0; ham_light.spot_attenuation = 1.4; ham_light.shadow_enabled = true
+	ham_set.add_child(ham_light)
+	ham_light.look_at_from_position(ham_mid + ham_out * 0.9 + ham_side * 0.3 + Vector3.UP * 0.75, ham_mid, Vector3.UP)
+	_ham_show(0)
+	_ham_hand()
+	note_lb.text = T(HAM_KEY)
+
+const HAM_SET := Vector3(0.0, -60.0, 0.0)
+const HAM_KEY := "［Ｅ を押したまま振り上げて、離して打つ］"
+var ham_set: Node3D
+var ham_b := []                 # the set's copies of the cellar boards
+var ham_axis := []              # each copy's long way
+var ham_org := []               # each copy's own origin
+var ham_face := []              # middle → front face
+
+func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
+	var cam: Camera3D = player.get_node("Head/Camera")
+	var o: Vector3 = cam.global_position - (ham_rest[i] as Vector3); o.y = 0.0
+	return o.normalized()
+
+func _ham_show(i: int):
+	ham_nails = []
+	if i >= ham_b.size(): return
+	var n := ham_b[i] as Node3D
+	# 試作281: the camera goes to each board in turn (the hammer and her hand in the lower right of the frame)
+	var bc: Vector3 = ham_rest[i]
+	var cp := bc + ham_out * 0.44 - ham_side * 0.46 + Vector3.UP * 0.12   # from the side: the swing's arc seen across, not end-on
+	var tf := Transform3D(Basis(), cp).looking_at(bc + ham_out * 0.12 + ham_side * 0.06 - Vector3.UP * 0.1, Vector3.UP)   # 試作281: down a little, so her fist on the handle is in the frame
+	if i == 0: ham_cam.global_transform = tf
+	else: create_tween().tween_property(ham_cam, "global_transform", tf, 0.4).set_trans(Tween.TRANS_SINE)
+	n.visible = true; n.global_position = (ham_org[i] as Vector3) + ham_out * 0.03
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.72, 0.72, 0.74); steel.metallic = 0.6; steel.roughness = 0.3
+	for j in 3:
+		var nail := Node3D.new(); ham_set.add_child(nail)
+		var sh := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0028; cy.bottom_radius = 0.0028; cy.height = 0.06
+		sh.mesh = cy; sh.material_override = steel; sh.rotation.x = PI / 2; sh.position = Vector3(0, 0, 0.03); nail.add_child(sh)
+		var hd := MeshInstance3D.new(); var cy2 := CylinderMesh.new(); cy2.top_radius = 0.0075; cy2.bottom_radius = 0.0075; cy2.height = 0.003
+		hd.mesh = cy2; hd.material_override = steel; hd.rotation.x = PI / 2; nail.add_child(hd)
+		var at: Vector3 = (ham_rest[i] as Vector3) + ham_out * (0.03 + float(ham_face[i])) + (ham_axis[i] as Vector3) * (float(j - 1) * 0.16)
+		nail.global_position = at + ham_out * 0.04
+		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # its point (+Z local) into the board
+		ham_nails.append({"n": nail, "at": at, "sunk": 0.0})
+
+# the hammer, and her right forearm with it (props/mio_arm_r.glb), on a pivot at her elbow
+func _ham_hand():
+	if is_instance_valid(ham): ham.queue_free()
+	ham = Node3D.new(); ham.name = "hammer"; main.add_child(ham)
+	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.74, 0.58, 0.4); wood.roughness = 0.7
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.6, 0.6, 0.63); steel.metallic = 0.6; steel.roughness = 0.3
+	# at the blow: the head's face on the nail, the handle down from it to her fist, her forearm down and back toward her
+	var hand_at := Vector3(0, -0.24, 0.035)        # in the pivot's frame below (x along the wall, y up, z out of it)
+	var fore := Vector3(0.0, -0.55, 0.83).normalized()
+	var elbow := hand_at + fore * 0.27
+	ham.set_meta("elbow", elbow)
+	var grip := Node3D.new(); ham.add_child(grip)
+	# 試作281（ユーザー「板打ちの金槌が箱の組み合わせに見える」）: a claw hammer, not a bar on a stick: an oval wooden handle that
+	# flares to a knob at her fist; on its top a round striking face toward the wall, a waisted neck through the eye, and the
+	# claw's two prongs curving down away from the wall (the same place and reach as the bar it was, so the blow lands the same)
+	# the handle: oval in section (deeper along the head than across), a swell for the fist, thinner in the shank, a flared foot
+	var hdl := _loft([[0.0, 0.0, 0.0105, 0.0150, 2.4, 0.0, 0.0], [0.012, 0.0, 0.0112, 0.0158, 2.4, 0.0, 0.0], [0.030, 0.0, 0.0096, 0.0133, 2.4, 0.0, 0.0],
+		[0.090, 0.0, 0.0099, 0.0136, 2.4, 0.0, 0.0], [0.190, 0.0, 0.0086, 0.0114, 2.4, 0.0, 0.0], [0.262, 0.0, 0.0090, 0.0118, 2.4, 0.0, 0.0],
+		[0.295, 0.0, 0.0098, 0.0128, 2.4, 0.0, 0.0]], wood, 20)
+	hdl.rotation.x = -PI / 2.0; hdl.position = Vector3(0, -0.262, 0.035); grip.add_child(hdl)
+	var dark_steel := StandardMaterial3D.new(); dark_steel.albedo_color = Color(0.2, 0.2, 0.22); dark_steel.metallic = 0.75; dark_steel.roughness = 0.38
+	var bright := StandardMaterial3D.new(); bright.albedo_color = Color(0.72, 0.72, 0.74); bright.metallic = 0.85; bright.roughness = 0.22
+	var hy := 0.035   # the head's line, through the handle's top (z 0.035)
+	# 試作281（ユーザー「ヘッドの部分ももっと追い込んで造形して」）: one forged piece, lofted through its sections from the face to
+	# the claw's root: a bevelled round face, the bell flaring behind it, the waisted neck, the eye's block with rounded corners
+	# where the handle goes in, and the cheeks narrowing into the claw. The face itself is bright where it has struck
+	var body := _loft([
+		[-0.036, hy, 0.0120, 0.0120, 2.0, 0.0, 0.0],   # the face's edge, bevelled
+		[-0.0345, hy, 0.0150, 0.0150, 2.0, 0.0, 0.0],
+		[-0.030, hy, 0.0158, 0.0158, 2.0, 0.0, 0.0],   # the bell
+		[-0.022, hy, 0.0150, 0.0150, 2.2, 0.0, 0.0],
+		[-0.012, hy, 0.0115, 0.0118, 2.6, 0.0, 0.0],   # into the neck
+		[-0.002, hy, 0.0098, 0.0104, 3.0, 0.0, 0.0],
+		[0.010, hy, 0.0104, 0.0128, 3.6, 0.0, 0.0],    # out to the eye
+		[0.018, hy, 0.0112, 0.0150, 4.5, 0.0, 0.0],
+		[0.035, hy, 0.0114, 0.0156, 5.0, 0.0, 0.0],    # the eye, round the handle
+		[0.050, hy, 0.0108, 0.0146, 4.5, 0.0, 0.0],
+		[0.058, hy - 0.001, 0.0095, 0.0118, 3.6, deg_to_rad(8.0), 0.0],   # the cheeks narrowing to the claw
+	], dark_steel)
+	grip.add_child(body)
+	var face_m := _loft([[-0.0368, hy, 0.0112, 0.0112, 2.0, 0.0, 0.0], [-0.0355, hy, 0.0128, 0.0128, 2.0, 0.0, 0.0]], bright)
+	grip.add_child(face_m)
+	# the claw: two tines out of the cheeks, curving down and apart, thinning to edges, with the V between them for a nail's head
+	for sx in [-1.0, 1.0]:
+		var secs := []
+		for k in 9:
+			var u := float(k) / 8.0
+			var ang := deg_to_rad(8.0 + 62.0 * u * u)                    # the curve steepens toward the tip
+			var z := 0.058 + 0.040 * sin(u * 1.25) / sin(1.25)
+			var y := hy - 0.001 - 0.024 * u * u
+			var x: float = sx * (0.0042 + 0.0030 * u)
+			secs.append([z, y, lerpf(0.0046, 0.0018, u), lerpf(0.0112, 0.0032, u), lerpf(3.4, 2.4, u), ang, x])
+		grip.add_child(_loft(secs, dark_steel, 16))
+	var arm := _fp_arm("mio", "r", fore, fore.cross(Vector3.UP), 0.95)
+	if arm:
+		arm.get_parent().remove_child(arm); grip.add_child(arm)
+		arm.position = hand_at; arm.visible = true
+		# 試作281（ユーザー「金づち、手が棒の部分を握ってない」）: the arm came with its wrist on the handle's line and the fist 7 cm off
+		# it. Turn the arm so the fist's knuckle line runs along the handle, and set it so the handle passes through the curled fingers
+		_ham_fit_fist(arm, grip, Vector3(0, -0.205, 0.035))
+	grip.position = -elbow
+	ham.set_meta("grip", grip)
+	_ham_pose()
+
+func _ham_fit_fist(arm: Node3D, grip: Node3D, at: Vector3):
+	var sk: Skeleton3D = arm.find_children("*", "Skeleton3D", true, false)[0]
+	var to_g := grip.global_transform.affine_inverse() * sk.global_transform
+	var bp := func(n: String) -> Vector3:
+		var bi := sk.find_bone(n)
+		return to_g * sk.get_bone_global_pose(bi).origin if bi >= 0 else Vector3.ZERO
+	var k1: Vector3 = bp.call("index_01_r"); var k2: Vector3 = bp.call("pinky_01_r"); var km: Vector3 = bp.call("middle_01_r")
+	var tip: Vector3 = (bp.call("middle_03_r") + bp.call("pinky_03_r")) * 0.5
+	if k1 == Vector3.ZERO or k2 == Vector3.ZERO: return
+	var ax := (k1 - k2).normalized()          # pinky to index: up the handle, toward the head
+	var fist := ((k1 + k2 + km) / 3.0).lerp(tip, 0.55)
+	var q := Basis(Quaternion(ax, Vector3.UP))
+	var t := Transform3D(q, Vector3.ZERO)
+	var moved := t * fist
+	arm.transform = Transform3D(q, at - moved) * arm.transform
+	print("HAM fist fit axis ", ax, " fist ", fist)
+	# 試作281（ユーザー「親指は腕に対して平行で柄に巻き付くように」）: the thumb lay along the handle. Swing it round the handle from
+	# its root, across to meet the index finger's middle joint, and curl its two joints round it the same way
+	var to_s := sk.global_transform.affine_inverse() * grip.global_transform
+	var hax: Vector3 = (to_s.basis * Vector3.UP).normalized()      # the handle's line, in the skeleton's space
+	var hc: Vector3 = to_s * at                                     # a point on it
+	var t1 := sk.find_bone("thumb_01_r"); var t3 := sk.find_bone("thumb_03_r"); var i2 := sk.find_bone("index_02_r")
+	if t1 < 0 or t3 < 0 or i2 < 0: return
+	var flat := func(v: Vector3) -> Vector3: return (v - hc) - hax * (v - hc).dot(hax)
+	var root: Vector3 = sk.get_bone_global_pose(t1).origin
+	var tipv: Vector3 = flat.call(sk.get_bone_global_pose(t3).origin) - flat.call(root)
+	var want: Vector3 = flat.call(sk.get_bone_global_pose(i2).origin) - flat.call(root)
+	var swing := tipv.signed_angle_to(want, hax) * 0.8
+	for pr in [[t1, swing], [sk.find_bone("thumb_02_r"), 0.35 * signf(swing)], [t3, 0.3 * signf(swing)]]:
+		if int(pr[0]) < 0: continue
+		var g0 := sk.get_bone_global_pose(int(pr[0]))
+		sk.set_bone_global_pose(int(pr[0]), Transform3D(Basis(hax, float(pr[1])) * g0.basis, g0.origin))
+	print("HAM thumb swing ", rad_to_deg(swing))
+
+# a solid lofted along z through sections [z, y, half-width, half-height, squareness (2 round .. 6 boxy), tilt about x, x]
+func _loft(secs: Array, mat: Material, seg := 28) -> MeshInstance3D:
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES); st.set_smooth_group(0)
+	var rings := []
+	for sc in secs:
+		var ring := []
+		for i in seg:
+			var th := TAU * float(i) / float(seg)
+			var c := cos(th); var sn := sin(th); var e: float = 2.0 / float(sc[4])
+			var v := Vector3(float(sc[2]) * signf(c) * pow(absf(c), e), float(sc[3]) * signf(sn) * pow(absf(sn), e), 0.0)
+			ring.append(Vector3(float(sc[6]), float(sc[1]), float(sc[0])) + Basis(Vector3.RIGHT, float(sc[5])) * v)
+		rings.append(ring)
+	for r in rings.size() - 1:
+		for i in seg:
+			var a0: Vector3 = rings[r][i]; var a1: Vector3 = rings[r][(i + 1) % seg]
+			var b0: Vector3 = rings[r + 1][i]; var b1: Vector3 = rings[r + 1][(i + 1) % seg]
+			st.add_vertex(a0); st.add_vertex(a1); st.add_vertex(b0)
+			st.add_vertex(a1); st.add_vertex(b1); st.add_vertex(b0)
+	for e2 in [0, rings.size() - 1]:   # the two ends, closed flat
+		var ctr := Vector3.ZERO
+		for v2 in rings[e2]: ctr += v2
+		ctr /= float(seg)
+		for i in seg:
+			var p0: Vector3 = rings[e2][i]; var p1: Vector3 = rings[e2][(i + 1) % seg]
+			if e2 == 0: st.add_vertex(ctr); st.add_vertex(p0); st.add_vertex(p1)
+			else: st.add_vertex(ctr); st.add_vertex(p1); st.add_vertex(p0)
+	st.index(); st.generate_normals()
+	var mi := MeshInstance3D.new(); mi.mesh = st.commit(); mi.material_override = mat
+	return mi
+
+func _ham_pose():
+	if not is_instance_valid(ham) or ham_board >= cellar_boards.size(): return
+	var nail_at: Vector3 = ham_nails[mini(ham_hits, 2)].at if not ham_nails.is_empty() else ham_mid
+	var nail_head: Vector3 = nail_at + ham_out * (0.04 * (1.0 - float(ham_nails[mini(ham_hits, 2)].sunk))) if not ham_nails.is_empty() else ham_mid
+	var b := Basis(ham_side, Vector3.UP, ham_out)
+	var elbow: Vector3 = ham.get_meta("elbow")
+	var shake := 0.0
+	if ham_st == "raise" and ham_hold > HAM_GOOD[1]: shake = minf(1.0, (ham_hold - HAM_GOOD[1]) * 1.4)
+	var wob := Vector3(sin(ham_t * 41.0), sin(ham_t * 33.0 + 1.0), 0.0) * 0.006 * shake
+	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * elbow + wob)
+	(ham.get_meta("grip") as Node3D).position = -elbow
+
+func _ham_tick(dt: float):
+	ham_t += dt
+	if is_instance_valid(ham_cam) and get_viewport().get_camera_3d() != ham_cam: ham_cam.make_current()   # (a card or the player's own camera work took it)
+	if "--hamclose" in OS.get_cmdline_user_args() and is_instance_valid(ham) and is_instance_valid(ham_cam):   # stills only: close on her fist
+		var fp: Vector3 = (ham.get_meta("grip") as Node3D).global_transform * Vector3(0, -0.17, 0.035)
+		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
+	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if demo_on: held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
+	match ham_st:
+		"ready":
+			ham_ang = move_toward(ham_ang, 14.0, dt * 60.0)
+			if held: ham_st = "raise"; ham_hold = 0.0
+		"raise":
+			ham_hold += dt
+			ham_ang = lerpf(14.0, HAM_UP, smoothstep(0.0, 0.42, ham_hold))
+			if not held: ham_st = "swing"
+		"swing":
+			ham_ang = move_toward(ham_ang, 0.0, dt * 900.0)
+			if ham_ang <= 0.0: _ham_blow(); ham_st = "back"; ham_hold = 0.0
+		"back":
+			ham_hold += dt
+			if ham_hold > 0.25: ham_st = "ready"
+	_ham_pose()
+
+func _ham_press():
+	pass   # 試作281: the blow is on letting go (_ham_tick)
+
+func _ham_blow():
+	if ham_board >= cellar_boards.size() or ham_nails.is_empty(): return
+	var held := ham_hold
+	var nl: Dictionary = ham_nails[mini(ham_hits, 2)]
+	var last := ham_board == cellar_boards.size() - 1 and ham_hits == 2
+	var S := preload("res://scripts/sound.gd")
+	if held > HAM_GOOD[1] and ham_miss < 2:   # held too long: the arm shook, the nail bends over
+		ham_miss += 1; ham_bent += 1
+		S.one(self, "tripod_bump", -8.0, nl.at)
+		var nn := nl.n as Node3D
+		nn.rotate_object_local(Vector3.RIGHT, deg_to_rad(randf_range(38.0, 55.0)))
+		nl.at = nl.at + ham_side * 0.03   # a new nail beside it
+		_ham_new_nail(nl)
+		return
+	var add := 0.17 if held < HAM_GOOD[0] else 0.5
+	nl.sunk = minf(1.0, float(nl.sunk) + add)
+	if last: nl.sunk = minf(float(nl.sunk), 0.72)   # the last one does not go home
+	S.one(self, "ch3_thud" if (last and float(nl.sunk) >= 0.72) else "hit", -6.0 if add > 0.3 else -14.0, nl.at)
+	(nl.n as Node3D).global_position = nl.at + ham_out * (0.04 * (1.0 - float(nl.sunk)))
+	var n := ham_b[ham_board] as Node3D
+	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_org[ham_board] as Vector3) + ham_out * 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk))), 0.06)
+	if float(nl.sunk) >= 1.0 or (last and float(nl.sunk) >= 0.72):
+		ham_miss = 0; ham_hits += 1
+		if not ham_any: ham_any = true; note_lb.text = ""
+		if ham_hits >= 3:
+			ham_hits = 0; ham_board += 1
+			if ham_board < cellar_boards.size(): get_tree().create_timer(0.45).timeout.connect(_ham_show.bind(ham_board))
+			else: get_tree().create_timer(0.8).timeout.connect(_hammer_end)
+
+func _ham_new_nail(nl: Dictionary):
+	var old := nl.n as Node3D
+	var nail := old.duplicate() as Node3D; ham_set.add_child(nail)
+	nail.global_transform = Transform3D(Basis(), Vector3.ZERO)
+	nail.global_position = nl.at + ham_out * 0.04
+	nail.look_at(nail.global_position - ham_out, Vector3.UP)
+	nl.n = nail; nl.sunk = 0.0
+
+func _hammer_end():
+	ham_on = false
+	if is_instance_valid(ham): ham.queue_free()
+	if is_instance_valid(ham_light): ham_light.queue_free()
+	if is_instance_valid(ham_cam): ham_cam.queue_free()
+	if is_instance_valid(ham_set): ham_set.queue_free()
+	for bd in cellar_boards: (bd as Node3D).visible = true   # the house's own, nailed where they were laid
+	(player.get_node("Head/Camera") as Camera3D).make_current()
+	note_lb.text = ""
+	player.move_enabled = true
+	player.look_enabled = true
+	set_flag("nails_bent", ham_bent)
+	print("STORY boards hammer done bent=%d t=%.1f" % [ham_bent, t_now])
+	_start(B("板.地下の窓"))
 
 func _boards_show_rest():
 	for i in range(wins.size()):
@@ -2081,7 +2601,9 @@ func _boards_show_rest():
 		var hit: Dictionary = main.get_world_3d().direct_space_state.intersect_ray(q)
 		if not hit.is_empty(): rg.global_position.y = hit.position.y
 		taiga_moving = false; taiga_at = "out"
-		items["taiga"] = {"pos": gp(TAIGA_OUT[0], TAIGA_OUT[1], TAIGA_OUT[2] + 1.5), "r": 0.3, "kind": "talk", "name": "大河"}
+		# 試作281（ユーザー「ここ大河に話しかけられるように」）: the point to look at is on him where the ground put him (was 1.5 over the
+		# plan's ground, above his head where the slope is low), and wider
+		items["taiga"] = {"pos": rg.global_position + Vector3.UP * 0.85, "r": 0.38, "kind": "talk", "name": "大河"}   # crouched: his head is about 0.9 up
 		_aim_taiga_light(true), atan2(w.x, w.z))
 
 const TAIGA_OUT := [10.45, 7.75, -1.85]   # 2026-11-15（ユーザー「めりこまない」）: crouched at 10.22 his knees and head went into the foundation; down the porch stair and back along the wall: the cellar window is under the stair, lit only from beside it (from the porch the stair hid it)

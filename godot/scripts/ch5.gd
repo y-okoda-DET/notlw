@@ -42,7 +42,9 @@ const MK_GEN := [8.45, 6.3]            # 試作176: Makoto at the generator in t
 const MK_HAND := [9.5, 5.85]          # where Makoto goes down on her knee to lay her hand on it (Mio at the door sees both)
 const IDLE_STEP := 90.0               # nothing done for this long: the cellar goes on one step
 # the cellar's steps, by the tapes peeled: 1 → 地下.一, 3 → 地下.三, 4 → 地下.四, 5 → 地下.五
-const BELOW := [[1, "地下.一"], [3, "地下.三"], [4, "地下.四"], [5, "地下.五"]]
+# 試作276 の感想（点検1、ユーザー OK 2026-11-23）: she falls at the third board outside, always (地下.四 inside came at the fourth
+# tape, and if the tapes went first her voice at the boards was never heard). The fall is in 外.板.三 now
+const BELOW := [[1, "地下.一"], [3, "地下.三"], [5, "地下.五"]]
 
 var stage := "card"     # card | t4 | follow | back | peel | done | end
 var card: Control
@@ -151,7 +153,7 @@ func _look_from(a: Array, b: Array, eye := 1.52, bz := 1.3):
 func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := p - cam.global_position
-	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
+	return _aim_ok(to, reach, deg)   # 試作281 (story.gd)
 
 var fall_mio := Vector3.INF
 # after 第4章: Mio a step back from where she stood, looking at her (once she is laid: _natsuki awaits a frame)
@@ -624,10 +626,18 @@ func _candle_tick(dt: float):
 	var k := clampf((2.2 - best) / 1.5, 0.0, 1.0)
 	lean.y = 0.0
 	var tilt := 0.9 * k + 0.05 * sin(t_now * 13.0) * (0.3 + k)
+	# 試作281（ユーザー「ろうそくの火をなびかせる案」）: outside, the gust lays the flame over along the wall and draws it long and
+	# thin, flickering, the light shaking with it: the moment to pull is seen as well as heard (gust_k, the board's lift)
+	var g := gust_k if outside else 0.0
+	if g > 0.01:
+		var wind := gp(1.0, 0.0, 0.0) - gp(0.0, 0.0, 0.0); wind.y = 0.0
+		lean = lean.normalized().lerp(wind.normalized(), g) if lean.length() > 0.001 else wind
+		tilt = lerpf(tilt, 1.35 + 0.2 * sin(t_now * 31.0) + 0.1 * sin(t_now * 47.0), g)
+	flame.scale = Vector3(1.0 - 0.3 * g, 1.0 + 1.8 * g + 0.4 * g * sin(t_now * 23.0), 1.0 - 0.3 * g)   # drawn out to near three times its length
 	if lean.length() > 0.001:
 		var ax := Vector3.UP.cross(lean.normalized()).normalized()
-		flame.basis = Basis(ax, tilt) if ax.length() > 0.5 else Basis()
-	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0))
+		flame.basis = (Basis(ax, tilt) if ax.length() > 0.5 else Basis()).scaled(flame.scale)
+	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0)) - 0.16 * g * absf(sin(t_now * 19.0))
 
 # ---------------------------------------------------------------- the generator: heard all night, now heard as the cause
 func _gen_fore():
@@ -974,11 +984,21 @@ func _do(what: String):
 			var tw := create_tween()
 			tw.tween_property(r, "global_rotation:y", r.global_rotation.y + wrapf(atan2(to.x, to.z) - r.global_rotation.y, -PI, PI) * 0.6, 1.2).set_trans(Tween.TRANS_SINE)
 			tw.tween_interval(1.4)
+			# 試作277（ユーザー「真琴、廊下の方を一回見るアニメーションを追加」）: then once down the hall, to its far end (the wind)
+			var hall := gp(5.4, 6.2, 0.0) - r.global_position
+			tw.tween_property(r, "global_rotation:y", r.global_rotation.y + wrapf(atan2(hall.x, hall.z) - r.global_rotation.y, -PI, PI) * 0.8, 1.1).set_trans(Tween.TRANS_SINE)
+			tw.tween_interval(1.6)
 			tw.tween_property(r, "global_rotation:y", r.global_rotation.y, 1.0).set_trans(Tween.TRANS_SINE)
 		"makoto_back":
 			talk_with = ""
 			stage = "follow"
-			_stand_up(func(): main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
+			# 試作277（ユーザー「真琴が立って移動するとき、澪に一度ぶつかるのやめる」）: Mio stood in the one-body gap of the hall
+			# (x 4.3, y 3.0〜3.2 on the --ch3map) that Makoto goes through. She steps back out of it, west, as Makoto gets up
+			var mp: Vector3 = player.global_position
+			if Vector2(mp.x + 4.8 - MIO_AT[0], mp.z + 6.3 - MIO_AT[1]).length() < 0.7:
+				var aside := gp(3.75, 3.55, 0.0); aside.y = mp.y
+				create_tween().tween_property(player, "global_position", aside, 1.3).set_trans(Tween.TRANS_SINE)
+			_stand_up(func(): main.walk_to("makoto", [[5.2, 2.3, 0.0], [4.45, 2.95, 0.0], [4.3, 3.1, 0.0], [4.2, 3.3, 0.0], [4.2, 3.8, 0.0], [4.3, 3.9, 0.0], [4.3, 5.2, 0.0], [5.0, 5.9, 0.0], [5.5, 5.9, 0.0], [5.8, 6.2, 0.0], [8.1, 6.2, 0.0], [MK_BACK[0], MK_BACK[1], 0.0]],
 				Callable(), _face(MK_BACK, [BACK_DOOR[0], BACK_DOOR[1]])))
 		"makoto_light":
 			# the light goes low, onto the torn tape and the hand under it, and Mio's eyes go with it (2026-11-17: the first
@@ -1054,7 +1074,9 @@ func _do(what: String):
 		"makoto_sink":
 			_palm_off()
 			main.stand_anim["makoto"] = "talk/idle"
-			main.walk_to("makoto", [[7.6, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
+			# 試作277（ユーザー「この直前、真琴が壁をすり抜けていく」）: from the window straight to (7.6, 6.9) went through the wall's
+			# end at x 7.8〜8.0, y 6.4〜6.7 (the --ch3map). Round it on the open side
+			main.walk_to("makoto", [[7.5, 6.3, 0.0], [7.5, 6.9, 0.0], [MK_SINK[0], MK_SINK[1], 0.0]], func(): main.set_stand("makoto", "talk/think", 0.6), _face(MK_SINK, [7.42, 7.78]))
 		"makoto_cellar_door":
 			hold = true; talk_with = ""
 			main.stand_anim["makoto"] = "talk/idle"
@@ -1214,7 +1236,11 @@ func _near_tape() -> Dictionary:
 		if gq.peeled: continue
 		var to: Vector3 = (gq.at as Vector3) - cam.global_position
 		var a := (-cam.global_basis.z).angle_to(to)
-		if to.length() < 1.6 and a < deg_to_rad(28.0) and a < ba: ba = a; best = gq
+		# 試作281（ユーザー「テープ剥がすアクションが表示されない」）: the gaps under the doors lie by the floor, 1.3 m under the
+		# eye, and 1.6 m straight made her stand over them. The height counts for less, and a low one takes a wider look (ch6.gd)
+		var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+		var deg := 32.0 + (8.0 if to.y < -0.8 else 0.0)
+		if dist < 1.9 and a < deg_to_rad(deg) and a < ba: ba = a; best = gq
 	return best
 
 func _what_looked() -> String:
@@ -1239,7 +1265,7 @@ func _peel_tick(dt: float):
 	match look_k:
 		"board": note_lb.text = T(String(D.lines("外.板.案内")[0]))
 		"tape": note_lb.text = T(String(D.lines("はがす.案内")[0]))
-		"back": note_lb.text = T(String(D.lines("しない.勝手口")[0])) if boards_off < 4 else ""
+		"back": note_lb.text = ""   # 試作277: no Ｅ at the back door: she walks out (_out_tick)
 		"cellar": note_lb.text = T(String(D.lines("しない.地下")[0]))
 		"front": note_lb.text = T(String(D.lines("しない.玄関")[0]))
 		_: note_lb.text = ""
@@ -1282,13 +1308,38 @@ func _press_peel():
 
 # ---------------------------------------------------------------- 2026-11-20（12時35分 B）: out by the back door, the cellar window's boards by hand
 # Standing before the back door, the seconds count (the chapter's one counted silence) until she goes out or steps away.
-# Outside, under the porch stair: the four boards she nailed at 20:00, off with her fingers (Ｅ held, 3-4 s each; let go
-# and it settles back a little). Makoto's voice comes through the window, weaker with each. The cellar's steps count the
+# Outside, under the porch stair: the four boards she nailed at 20:00, off with her fingers (Ｅ held while the wind pushes the board out: 手の遊び③ below; let go
+# and it stays where it was). Makoto's voice comes through the window, weaker with each. The cellar's steps count the
 # tapes and the boards together; out there, the window's lines take the place of the stair's.
 const CWIN := [10.28, 6.45, -1.4]   # the boards' face (rooms2.boards: x 10 + 0.28, y 6.45, z -1.66..-1.15)
 const MK_SINK := [7.42, 7.28]
 const MK_BLANKET := [4.35, 4.55]
 const BOARD_SEC := 3.4
+# 手の遊び③（決定事項 2026-11-23 7時33分）：風に合わせて引く。風が板を外へ押す間（約1秒、2.6〜4秒おき）に Ｅ を
+# 押さえていれば、板が浮く。風のない間に引いても、釘が持って動かない（乾いたきしみだけ）。ゲージも文字も出さない。
+# 風は、板のがたつき（ch3_rattle）と、板の端が壁から浮くのとで分かる。一枚に二回の風ほど。
+const GUST_PULL := 1.7       # s of pulling inside gusts per board
+var gust_k := 0.0            # 0..1: how hard the wind pushes now
+var gust_next := 2.0
+var gust_left := 0.0
+func _gust_tick(dt: float):
+	if gust_left > 0.0:
+		gust_left -= dt
+		gust_k = move_toward(gust_k, 1.0, dt * 6.0)
+	else:
+		gust_k = move_toward(gust_k, 0.0, dt * 3.0)
+		gust_next -= dt
+		if gust_next <= 0.0:
+			gust_left = randf_range(1.0, 1.3); gust_next = randf_range(2.6, 4.0); gust_knock = 0.0
+			Sound.one(self, "ch8_wind", -4.0, gp(CWIN[0] + 0.6, CWIN[1], CWIN[2] + 0.6))   # 試作281: the gust itself, heard coming
+	# 試作281（ユーザー「風が吹いて板ががたつく間だけ…感じられなかった」）: the board knocks against its nails all through the gust,
+	# not once at its start, and its free end lifts far enough to see (.07 → .15 rad, shaking)
+	if gust_left > 0.0:
+		gust_knock -= dt
+		if gust_knock <= 0.0:
+			gust_knock = randf_range(0.16, 0.26)
+			Sound.one(self, "ch3_rattle", -9.0 + gust_k * 4.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+var gust_knock := 0.0
 var mk_at_cellar := false
 var mk_fell := false
 var outside := false
@@ -1400,6 +1451,10 @@ func _out_tick(dt: float):
 		Sound.one(self, "ch3_rattle", -10.0, gp(BACK_DOOR[0], BACK_DOOR[1], 1.0))   # the draught moves it on its hinge
 		if below_i == 0: _below_step()   # the voice from below, if it has not come yet: she counts with it in her ears
 		if stage == "done": end_wait = maxf(end_wait, 22.0)
+	# 試作277（ユーザー「ここ、Eじゃなくて、普通に外に出られるように」）: walking on into the doorway takes her out (no Ｅ)
+	if mode == FREE and boards_off < 4 and stage in ["peel", "done"] and not has_flag("went_out_4am") and not outside:
+		var pp: Vector3 = player.global_position; var bd := gp(BACK_DOOR[0], BACK_DOOR[1], 0.0)
+		if Vector2(pp.x - bd.x, pp.z - bd.z).length() < 0.75: _go_out()
 	if back_sil:
 		back_sil_t += dt
 		if is_instance_valid(back_sil_lb): back_sil_lb.text = T("（沈黙・%s秒）") % num(int(back_sil_t))
@@ -1409,17 +1464,22 @@ func _out_tick(dt: float):
 		var crouch := look_k == "board" and mode == FREE
 		player.eye_height = move_toward(player.eye_height, 1.0 if crouch else 1.52, dt * 1.6)
 		var held := mode == FREE and look_k == "board" and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or demo_hold)
-		if held:
-			board_k += dt / BOARD_SEC
+		_gust_tick(dt)
+		var b = _board_now()
+		var lift := gust_k * (0.15 + 0.035 * sin(t_now * 27.0))   # the gust pushes the board's free end out from the wall (seen, and heard as the rattle)
+		if held and gust_k > 0.5:
+			board_k += dt / GUST_PULL
 			board_creak -= dt
-			if board_creak <= 0.0: board_creak = randf_range(0.5, 0.9); Sound.one(self, "creak3", -14.0 + board_k * 6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
-			var b = _board_now()
-			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + sin(t_now * 31.0) * 0.012 * board_k + board_k * 0.05
+			if board_creak <= 0.0: board_creak = randf_range(0.25, 0.45); Sound.one(self, "creak3", -10.0 + board_k * 6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06 + sin(t_now * 31.0) * 0.01
 			if board_k >= 1.0: _board_off()
+		elif held:
+			# against the nails, between gusts: it does not move. A dry squeak now and then, the board trembles
+			board_creak -= dt
+			if board_creak <= 0.0: board_creak = randf_range(0.7, 1.1); Sound.one(self, "creak3", -22.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06 + sin(t_now * 43.0) * 0.004
 		else:
-			board_k = maxf(0.0, board_k - dt * 0.3)   # let go: it settles back a little
-			var b2 = _board_now()
-			if b2: (b2 as Node3D).rotation.x = (b2 as Node3D).get_meta("rx", 0.0) + board_k * 0.05
+			if b: (b as Node3D).rotation.x = (b as Node3D).get_meta("rx", 0.0) + lift + board_k * 0.06
 	elif player.eye_height < 1.52 and stage in ["peel", "done"]:
 		player.eye_height = move_toward(player.eye_height, 1.52, dt * 1.6)
 
@@ -1479,6 +1539,7 @@ func _board_off():
 	while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): below_i += 1
 	if boards_off >= 4: below_i = BELOW.size()
 	var q: Array = B("外.板." + ["一", "二", "三", "四"][boards_off - 1])
+	if boards_off == 3: get_tree().create_timer(3.6).timeout.connect(func(): gen_want = -7.0; mk_fell = true)   # (the fall at the end of 外.板.三)
 	if mk_fell: q = q.filter(func(e): return not String(e.get("who", "")).begins_with("真琴") and not String(e.get("note", "")).contains("咳"))   # she fell already (地下.四): only the generator
 	_start(q)
 
@@ -1588,6 +1649,7 @@ func _end_card():
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["end_card", "fin"]: return
+	if _choice_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if not press: return
 	if wb_t >= 0.0:
@@ -1704,9 +1766,9 @@ func _demo_tick(dt):
 			player.yaw = lerp_angle(player.yaw, atan2(-to3.x, -to3.z), k3)
 			player.pitch = lerpf(player.pitch, asin(clampf(to3.normalized().y, -1.0, 1.0)), k3)
 			if s.size() < 2: s.append(boards_off)
-			demo_hold = dwait > 1.0 and mode == FREE
+			demo_hold = dwait > 1.0 and mode == FREE and gust_k > 0.3   # it pulls with the wind, as asked of the player
 			if boards_off > int(s[1]): demo_hold = false; done = true
-			if dwait > 25.0: demo_hold = false; _dfail("board: not coming off (Mio %s, looking %s)" % [_plan_of(player), look_k]); done = true
+			if dwait > 40.0: demo_hold = false; _dfail("board: not coming off (Mio %s, looking %s)" % [_plan_of(player), look_k]); done = true
 		"tape":
 			var gq := _gap(s[1])
 			if gq.peeled and s.size() < 3: ds += 1; dwait = 0.0; return   # taken off already (any order)

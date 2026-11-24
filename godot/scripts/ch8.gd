@@ -284,12 +284,12 @@ func _load_mio():
 		if names.size() > 0:
 			var an: Animation = (ap as AnimationPlayer).get_animation(names[0]).duplicate()
 			an.loop_mode = Animation.LOOP_LINEAR; lib.add_animation("loop", an)
-		(ap as AnimationPlayer).add_animation_library("t20", lib)
+		main.lib_set(ap, "t20", lib)
 		if ResourceLoader.exists("res://assets/dusk/mio_talk.res"):
 			var src: AnimationLibrary = load("res://assets/dusk/mio_talk.res"); var tl := AnimationLibrary.new()
 			for cn in ["idle", "sit_idle"]:
 				if src.has_animation(cn): tl.add_animation(cn, src.get_animation(cn))
-			(ap as AnimationPlayer).add_animation_library("talk", tl)
+			main.lib_set(ap, "talk", tl)
 	main._walk_anims("mio", inst)
 	if FileAccess.file_exists("res://assets/dusk/ch7.json"):
 		var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/ch7.json"))
@@ -709,8 +709,8 @@ func _begin(st: String):
 	match st:
 		"top":
 			if cel8 == "":
+				# 試作277（ユーザー「ここ、扉はしまっている状態で」）: the cellar door is shut; he opens it (Ｅ) and sees her below
 				_put("mio", CEL_MIO, _face(CEL_MIO, [5.5, 2.2]), CEL_Z)
-				if dn: dn.open_key("door_cellar")
 			_start(B("八.二階"))
 			_one("ch3_moan", -16.0, gp(5.5, 2.6, -1.4))
 			_after(2.6, func(): _one("ch3_cough", -12.0, gp(8.5, 1.5, F2 + 0.8)))
@@ -874,9 +874,20 @@ func _natsuki_out():
 	var pl := func(v: Vector3) -> Array: return [v.x + 4.8, v.z + 6.3]
 	if car_dome: car_dome.global_position = c + side * 0.95 + Vector3(0, car_at.y + 0.5, 0)
 	_show("natsuki")
-	_put("natsuki", pl.call(p0), 0.0, _ground(pl.call(p0)[0], pl.call(p0)[1]))
+	_put("natsuki", pl.call(p0), _face(pl.call(p0), pl.call(p1)), _ground(pl.call(p0)[0], pl.call(p0)[1]))
+	# 試作277（ユーザー「パッと、夏希が急に現れるように見える。自然なスピードで扉開けて出てくるように見せたい」）: she stood
+	# beside the car at once. Now she comes up out of her seat: from inside the car's side, low (the car hides her legs), up
+	# and out to where she stood over 1.3 s, a breath after the door's sound; then she walks
+	var r: Node3D = main._rig_of("natsuki")
+	var out_at := r.global_position
+	r.global_position = out_at - side * 0.75 + Vector3(0, -0.5, 0)
+	main.set_stand("natsuki", "talk/idle", 0.0)
+	var tw := create_tween()
+	tw.tween_interval(0.5)
+	tw.tween_property(r, "global_position", out_at - side * 0.3 + Vector3(0, -0.12, 0), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(r, "global_position", out_at, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# 試作232（全体レビュー6「約50秒の会話の間、腕を下ろした棒立ち」）: where she stops she talks with her hands (talk_a), not idle
-	main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan()))
+	tw.tween_callback(func(): main.walk_to("natsuki", _way([pl.call(p1), pl.call(p2)]), func(): main.set_stand("natsuki", "talk/talk_a", 0.5), _face(pl.call(p2), _plan())))
 	talk_with = "natsuki"
 
 # the operator keeps her in the picture: her face a little above the middle
@@ -1014,12 +1025,12 @@ func _cel_look() -> bool:
 	if mode != FREE or not _has("mio"): return false
 	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
 	var to := hd - _cam().global_position
-	if not (to.length() < 4.5 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)): return false
-	# 2026-11-21 (review): not through the floor from the hall. At the stair head (plan 5.0, 5.9) she is seen down the stairwell, whose
-	# edge the ray clips (試作238: a height limit, then a plain ray, stopped the demo there), so there it is let through
-	var p := _plan()
-	if Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.9: return true
-	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(_cam().global_position, hd))
+	# 試作277（ユーザー「澪に近づいてから止める」）: not from the stair head: he goes down to her (within arm's reach and a step)
+	if not _aim_ok(to, 2.1, 40.0): return false   # 試作281: the height counts for less (story.gd _aim_ok)
+	# 試作281: not his own body. Looking down the stair, the ray from the eye met the top of his capsule and E never took
+	# (the run stopped here at 「……大河くん！」, no error).
+	var rq := PhysicsRayQueryParameters3D.create(_cam().global_position, hd); rq.exclude = [player.get_rid()]
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(rq)
 	return hit.is_empty() or (hit.position as Vector3).distance_to(hd) < 0.6
 
 func _cel_grab():
@@ -1075,8 +1086,10 @@ func _knock():
 		tw.tween_property(arm, "position", back, 0.33).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(arm, "position", rest, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func(): arm.visible = false)
-	_after(0.31, func(): _one("knock", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
+	# 試作277（ユーザー「叩くモーションと叩く音をあわせたい」）: knock.wav has its own spacing (0.04, 0.52 s ...), not the hand's
+	# (0.31, 0.73, 1.15). One knock (knock1.wav, its onset at 0.02 s) at each strike
 	for i in 3:
+		_after(0.29 + 0.42 * i, func(): _one("knock1", 0.0, gp(DOOR[0], DOOR[1], 1.2)))
 		_after(0.31 + 0.42 * i, func(): door_shake = 1.0; cam_shake = 1.0)
 
 var knock_arm: Node3D
@@ -1508,6 +1521,7 @@ func _door_tick(dt: float):
 # ================================================================ keys
 func _unhandled_input(e):
 	if card_t > 0.0 or mode == END: return
+	if _choice_input(e): return
 	if e is InputEventMouseButton and e.pressed and fin_on and stage not in ["hall", "fall", "sky", "lapse"]:
 		if e.button_index == MOUSE_BUTTON_WHEEL_UP: zoom_v = 1.4; return
 		if e.button_index == MOUSE_BUTTON_WHEEL_DOWN: zoom_v = -1.4; return
@@ -1606,7 +1620,11 @@ func _demo8_tick(dt: float):
 			var p := _plan()
 			if cel8 == "heard":
 				if _cel_look(): player.auto_path = []; demo_goal = []; demo_route = []; demo_wait = 1.0; _press8(); return
-				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.5, p[1] - 3.9).length() < 0.4: _demo_look(main._rig_of("mio").global_position + Vector3(0, 1.2, 0)); return
+				if demo_goal.is_empty() and Vector2(p[0] - 5.0, p[1] - 5.9).length() < 0.4:
+					var dn8 = main.get_node_or_null("Doors")
+					if dn8: dn8.open_key("door_cellar")
+					_demo_go([[5.5, 5.75], [5.5, 5.2], [5.5, 3.9]]); demo_wait = 1.0; return   # (試作277: down the cellar stair to her)
 				if demo_goal.is_empty(): _demo_go([[5.3, 1.95], [4.7, 2.2], [4.3, 2.9], [4.3, 3.7], [4.8, 4.2], [5.0, 5.9]])   # off the stair foot, round by the hall (ch3.gd walks it the other way)
 				else: _demo_there(0.3)
 				return

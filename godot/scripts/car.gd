@@ -104,7 +104,9 @@ func _ready():
 	_black()
 	# the chapter's card, as the old 第1章 had it (main.gd _card), here at the car's start
 	card = main.make_card(self, [["第 一 章", 46, 40], ["ルール", 150, 90], ["あの別荘には、どうして行ったんですか？", 36, 0]], Type.card())
-	card_t = 0.0 if "--nocard" in OS.get_cmdline_user_args() else 3.2
+	# 試作277（ユーザー「序章が終わって車内シーンにいく瞬間に1章の章カードが表示される。本来の位置に戻す」）: the card is back where
+	# it was before 2026-11-20, on the house after the drive (main.gd FROM_CAR). The car opens on the road itself
+	card_t = 0.0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--cart="): call_deferred("_jump", float(a.substr(7)))   # check stills: the drive from this second
 		if a == "--carstop": call_deferred("_jump_stop")
@@ -117,6 +119,9 @@ func _ready():
 
 func _line_of(e: Dictionary, arr: Array, ifs: Array):
 	ifs.append(String(e.get("if", "")))
+	# 試作276 の感想（ユーザー「4はこちらで返答も選べるようにしたいな。より参加してる感、その場にいる感を出したい」）: her
+	# answers to Natsuki are choices (？ in ch1.txt, no time of their own: 4 s after the line before)
+	if e.has("choose"): arr.append([(float(arr.back()[0]) + 4.0) if not arr.is_empty() else 0.0, "choose", e.choose, e.then]); return
 	if e.has("do"): arr.append([e.t, e.do])
 	elif e.has("note"): arr.append([e.t, "note", e.note])
 	else: arr.append([e.t, e.who, e.text, "testimony" if e.get("testimony", false) else ""])
@@ -124,15 +129,47 @@ func _line_of(e: Dictionary, arr: Array, ifs: Array):
 # ---------------------------------------------------------------- the way
 func _curve():
 	curve = Curve3D.new(); curve.bake_interval = 0.25
+	var pts0 := []
+	for p in PATH: pts0.append(main.b2g(p))
+	# 試作277（ユーザー「道の三角コーンを突き抜ける。…車は避けるような動きを入れる」）：道の点を細かくして、コーンの横を
+	# ハンドルで避けて通る（前後 7m かけて寄り、コーンから 1.8m あける）。The way goes round the cone, eased in and out.
 	var pts := []
-	for p in PATH: pts.append(main.b2g(p))
+	for i in pts0.size():
+		pts.append(pts0[i])
+		if i + 1 < pts0.size() and i + 1 != DRIVE_I:
+			for k in [1, 2, 3]: pts.append((pts0[i] as Vector3).lerp(pts0[i + 1], k / 4.0))
+	var drive_pt: Vector3 = pts0[DRIVE_I]
+	# 試作281（ユーザー「車、ぐにゃぐにゃ走りすぎ！」）: the plan's points joined by straight pieces kinked at every point, and the
+	# car turned its nose at each kink. Smoothed (each point toward its neighbours' middle, six times) before the cone's bend
+	for it in 6:
+		var sm := pts.duplicate()
+		for i in range(1, pts.size() - 1): sm[i] = (pts[i - 1] as Vector3) * 0.25 + (pts[i] as Vector3) * 0.5 + (pts[i + 1] as Vector3) * 0.25
+		pts = sm
+	var cone: Node3D = null
+	if main.S.has("env_node"):
+		var cs: Array = (main.S.env_node as Node).find_children("ext_slipok_cone*", "MeshInstance3D", true, false)
+		if cs.size() > 0: cone = cs[0]
+	if cone:
+		var c: Vector3 = (cone as MeshInstance3D).global_transform * (cone as MeshInstance3D).get_aabb().get_center()
+		for i in range(1, pts.size() - 1):
+			var p: Vector3 = pts[i]
+			var tg: Vector3 = (pts[i + 1] - pts[i - 1]); tg.y = 0.0; tg = tg.normalized()
+			var nrm := Vector3(-tg.z, 0.0, tg.x)
+			var rel := c - p; rel.y = 0.0
+			var along := rel.dot(tg); var side := rel.dot(nrm)
+			if absf(along) > 7.0 or absf(side) > 1.8: continue
+			var w := 0.5 + 0.5 * cos(PI * along / 7.0)
+			# move across so the cone is 1.8 m to the side (staying on the side of it the car is already on)
+			var shift := -(1.8 - side) if side >= 0.0 else (side + 1.8)
+			pts[i] = p + nrm * shift * w
+		print("CAR cone at ", c)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)]; var b: Vector3 = pts[mini(i + 1, pts.size() - 1)]
 		var t: Vector3 = (b - a) * 0.22
 		curve.add_point(pts[i], -t, t)
 	var L := curve.get_baked_length()
 	d_slip = curve.get_closest_offset(main.b2g([SLIP_AT[0], SLIP_AT[1], -11.0]))
-	d_drive = curve.get_closest_offset(pts[DRIVE_I])
+	d_drive = curve.get_closest_offset(drive_pt)
 	d_stop = d_drive - STOP_BACK
 	d_end = L - END_BACK
 	d_reveal = d_drive + REVEAL_IN
@@ -141,8 +178,8 @@ func _curve():
 
 func _at(dd: float) -> Transform3D:
 	var p := curve.sample_baked(clampf(dd, 0.0, curve.get_baked_length()), true)
-	var a := curve.sample_baked(clampf(dd - 1.4, 0.0, curve.get_baked_length()), true)
-	var b := curve.sample_baked(clampf(dd + 1.4, 0.0, curve.get_baked_length()), true)
+	var a := curve.sample_baked(clampf(dd - 2.6, 0.0, curve.get_baked_length()), true)   # 試作281: 1.4 → 2.6 m, the nose follows the road, not each ripple
+	var b := curve.sample_baked(clampf(dd + 2.6, 0.0, curve.get_baked_length()), true)
 	var f := (b - a).normalized()
 	var basis := Basis.looking_at(f, Vector3.UP)
 	return Transform3D(basis, p)
@@ -443,6 +480,7 @@ func _people():
 		if main.S.has(k + "_node"): (main.S[k + "_node"] as Node3D).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
 	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
+	main.phones(false)   # 試作277（ユーザー「夏希の手持ちのスマホなくす」）：夏希のスマホは吹き出し口の一台だけ。手の中の物は消す
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
 	for k in ["natsuki", "makoto"]:   # layer 5: the face fill (_inside) lights them and nothing else
 		if main.S.has(k + "_node"):
@@ -695,11 +733,11 @@ func _drive(dt: float):
 	var turn := 0.0
 	if dt > 0.0: turn = prev_fwd.signed_angle_to(fwd, Vector3.UP) / dt
 	prev_fwd = fwd
-	steer = lerpf(steer, clampf(turn * 2.2, -1.6, 1.6), 1.0 - exp(-dt * 3.0))
+	steer = lerpf(steer, clampf(turn * 2.2, -1.6, 1.6), 1.0 - exp(-dt * 1.6))
 	bump_v += (randf_range(-1.0, 1.0) * v * 0.9 - bump * 30.0 - bump_v * 4.0) * dt
 	bump += bump_v * dt
 	var gravel := 1.6 if d > d_drive else 1.0
-	var roll := clampf(-turn * v * 0.012, -0.03, 0.03) + bump * 0.6 * gravel
+	var roll := clampf(-turn * v * 0.012, -0.03, 0.03) + bump * 0.35 * gravel
 	var pitch := bump * 0.35 * gravel
 	tf.basis = tf.basis * Basis.from_euler(Vector3(pitch * 0.02, 0.0, roll * 0.02))
 	tf.origin += tf.basis.y * (bump * 0.004 * gravel)
@@ -732,7 +770,21 @@ func _lines(dt: float):
 			if LIF[li] == "" or has_flag(LIF[li]): _event(LINES[li])
 			li += 1
 	if stage == "parked":
-		while si < STOP_LINES.size() and t_stage >= float(STOP_LINES[si][0]):
+		# 試作276 の感想（相談2「夏希は澪がよそを見ると話を止める」）: she waits for Mio's eyes between her lines, and for her answer
+		var cam: Camera3D = player.get_node("Head/Camera")
+		var nat_head: Vector3 = car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))
+		var eyes := rad_to_deg((-cam.global_basis.z).angle_to(nat_head - cam.global_position)) < 50.0
+		var between: bool = not (cur.has("text") and typed < String(cur.text).length())
+		if choice_wait:
+			t_stage -= dt
+			if demo_car:
+				choice_t += dt
+				if choice_t > 2.0: choice_idx = 0; _show_choice(); _car_choose()
+		elif between and not eyes:
+			t_stage -= dt
+			if not nat_paused: nat_paused = true; print("CAR natsuki waits t=%.1f" % t_now)
+		else: nat_paused = false
+		while not choice_wait and si < STOP_LINES.size() and t_stage >= float(STOP_LINES[si][0]):
 			if SIF[si] == "" or has_flag(SIF[si]): _event(STOP_LINES[si])
 			si += 1
 	if cur.has("text") and typed < String(cur.text).length() and is_instance_valid(cur_lb):
@@ -758,6 +810,15 @@ func _event(e: Array):
 		"note":
 			_line_row("", e[2], 22, "note"); cur = {}
 			if String(e[2]).contains("ラジオ"): _radio()
+		"choose":
+			cur = {"choose": e[2], "then": e[3]}
+			choice_lbs = []; choice_idx = 0; choice_wait = true; choice_t = 0.0
+			lines_box.modulate.a = 1.0
+			for i in range(e[2].size()):
+				var rc = _line_row("", e[2][i], SAY_SIZE, "choose")
+				choice_lbs.append(rc[1])
+			for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
+			_show_choice(); _choice_place()
 		"drive_on":
 			stage = "drive_on"; t_stage = 0.0
 			_blinker(5)
@@ -772,6 +833,32 @@ func _event(e: Array):
 			var r = _line_row(who, "", SAY_SIZE, "say")
 			cur_lb = r[1]
 			if who == "夏希": _nat_glance()
+
+var choice_wait := false
+var choice_t := 0.0
+var nat_paused := false
+func _car_choose():
+	if not choice_wait: return
+	choice_wait = false; cur["chosen"] = true
+	for i in range(choice_lbs.size()):   # 試作281: an everyday answer leaves no struck rows (story.gd _choose)
+		if i == choice_idx: continue
+		var row := (choice_lbs[i] as Control).get_parent() as Control
+		if row == null: continue
+		var tw := create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(func(): if is_instance_valid(row) and row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
+	if demo_car: print("SAY 選ぶ ", cur.choose[choice_idx])
+	_note_pick()
+	# what follows the answer goes into the stop's lines here, 4 s apart; the rest of her talk after it
+	var then: Array = cur.then[choice_idx]
+	var at := t_stage + 1.6
+	var add := []; var adf := []
+	for e in then:
+		if e.has("text"): add.append([at, e.who, e.text, ""]); adf.append(String(e.get("if", ""))); at += 4.0
+		elif e.has("do"): add.append([at, e.do]); adf.append("")
+	var shift := maxf(0.0, at + 1.5 - float(STOP_LINES[si][0])) if si < STOP_LINES.size() else 0.0   # (the next of her lines waits till the answer's talk is over)
+	for k in range(si, STOP_LINES.size()): STOP_LINES[k][0] = float(STOP_LINES[k][0]) + shift
+	for k in range(add.size() - 1, -1, -1): STOP_LINES.insert(si, add[k]); SIF.insert(si, adf[k])
+	cur = {}
 
 func _radio():
 	if car_radio_on: return
@@ -842,6 +929,12 @@ func _look(k: String):
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["title", "out", "done"]: return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if choice_wait:
+		if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_W, KEY_UP]: _move_choice(-1); return
+		if e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_S, KEY_DOWN]: _move_choice(1); return
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_UP: _move_choice(-1); return
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_DOWN: _move_choice(1); return
+		if press: _car_choose(); return
 	if press and focus_k != "": _look(focus_k)
 
 # ---------------------------------------------------------------- check stills and the unattended run
@@ -878,6 +971,7 @@ func _demo_car(dt: float):
 	for a in demo_aims:
 		if aim == Vector3.ZERO and t_now >= float(a[0]) and t_now < float(a[1]) and stage == "parked":
 			aim = (car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))) if a[2] == "natsuki" else mirror_mesh.global_position
+	if aim == Vector3.ZERO and stage == "parked": aim = car.global_transform * (SEAT_NAT + Vector3(0, 0.78, -0.05))   # (she waits for Mio's eyes)
 	if aim == Vector3.ZERO: return
 	# turn her head (yaw/pitch are the head's, in the car's frame)
 	var to_l: Vector3 = (player.global_basis.inverse() * (aim - cam.global_position)).normalized()   # her head is levelled (_follow), not the car's frame

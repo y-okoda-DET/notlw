@@ -45,7 +45,7 @@ func setup(m):
 		sb.set_meta("door", mi)
 		var cur := piv.rotation.y
 		var locked := ""
-		if key == "door_front" and ST.get("boards", false): locked = "開かない。外から、誰かが押さえている。" if main.TIME == "t23" else "開かない。"
+		if key == "door_front" and ST.get("boards", false): locked = "開かない。"   # 試作281（ユーザー「開かない、外から誰かが押さえているは変。トル」）
 		elif key == "door_back" and ST.get("boards", false): locked = "開かない。"   # 2026-11-16（docs/資料/夏希をゾンビに見せる証拠_2026-11-16.md）: 3:30 she comes in by this door
 		elif key == "door_barred" and absf(cur) < 0.3: locked = "開かない。"   # shut from 0:00 (Taiga behind it); open before
 		var rest := 0.0
@@ -105,10 +105,15 @@ func _hits_at(mi: MeshInstance3D, d: Dictionary, ang: float) -> int:
 	piv.rotation.y = keep
 	return n
 
+# 試作281: the ray from the eye, looking down, met the top of her own body first (ch8.gd _cel_look, the same)
+func _me() -> Array:
+	var pl = main.player if main else null
+	return [(pl as CollisionObject3D).get_rid()] if pl is CollisionObject3D else []
+
 func _looked() -> MeshInstance3D:
 	var from := cam.global_position
 	var to := from - cam.global_basis.z * REACH
-	var q := PhysicsRayQueryParameters3D.create(from, to)
+	var q := PhysicsRayQueryParameters3D.create(from, to); q.exclude = _me()
 	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not hit.collider.has_meta("door"): return null
 	# 試作127（ユーザー「扉を選択するとnullとだけ出る」、第3章の玄関）: a chapter that takes a door for itself (ch3: the front
@@ -121,7 +126,7 @@ var used := {}
 # 試作277（ユーザー「ここの扉、選択できるように。開かない。みたいなテキストを出す」）：書斎のふすま（開かない）
 func _fusuma() -> bool:
 	var from := cam.global_position
-	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * REACH)
+	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * REACH); q.exclude = _me()
 	var hit := cam.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty(): return false
 	var c: Node = hit.collider

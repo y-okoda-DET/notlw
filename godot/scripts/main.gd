@@ -206,7 +206,7 @@ func _ready():
 	_print_layer()
 	if (SCENE == "dusk" or play == "ch1") and record == "" and not ARGS.has("shots") and not ARGS.has("poses") and not ARGS.has("pose") and not ARGS.has("nostory"):
 		if CARD_TIME > 0.0: CARD_TIME = 2.5   # 章カードは半分に（ユーザー 2026-11-14）
-		if FROM_CAR: CARD_TIME = 0.0; FROM_CAR = false   # 2026-11-20: 第1章のカードは行きの車の頭で出した（car.gd）。着いて、そのまま夕方
+		if FROM_CAR: FROM_CAR = false   # 試作277: 第1章のカードは着いた家の頭に戻した（2026-11-20 は行きの車の頭で出していた。car.gd）
 		story = preload("res://scripts/story.gd").new(); story.main = self; add_child(story)
 	var checking: bool = record != "" or ARGS.has("shots") or ARGS.has("poses") or ARGS.has("pose") or ARGS.has("nostory")
 	if (play == "door" or (SCENE == "night" and (FROM_STORY or ARGS.has("door")))) and not checking:
@@ -637,10 +637,24 @@ func _house_state():
 		elif nm.begins_with("ext_slipok_"): mi.visible = not ST.get("slip", false)   # the shoulder the storm takes (outside.py)
 		elif nm.begins_with("ext_slipfall_"): mi.visible = ST.get("slip", false)
 		# 試作231（ユーザー「このなつきのテープなくす」、序章・第6章の4時半）: the crew's floor mark with Natsuki's name is 第1章's
-		elif nm.begins_with("tapeX") or nm.begins_with("tapeN"): mi.visible = TIME != "t0430"
+		elif nm.begins_with("tapeX"): mi.visible = TIME != "t0430"
+		# 試作277（ユーザー「テープ、「なつき」の文字なくす」、23時）: the strip with her name is off at 23時 too; the X stays
+		elif nm.begins_with("tapeN"): mi.visible = TIME != "t0430" and TIME != "t23"
+		# 試作281（ユーザー「延長ケーブルはいつの間に床に？」、二度目）: the cord from the cellar to the hall's fresnel read as come from
+		# nowhere at 3時半; it is not laid (the fresnel still burns: its cord is not the night's story)
+		elif nm.begins_with("gencord"): mi.visible = false
 	var arr = JSON.parse_string(FileAccess.get_file_as_string(BASE + TIME + "/lights.json"))
 	var lit := {}
 	for L in arr: lit[L.name] = true
+	# 試作277: the fresnel's lens glows only while its light is on (with the barn doors open it is seen)
+	for mi in S.env_node.find_children("fres_lens*", "MeshInstance3D", true, false):
+		for i in range((mi as MeshInstance3D).mesh.get_surface_count()):
+			var lm := (mi as MeshInstance3D).get_active_material(i) as StandardMaterial3D
+			if lm == null: continue
+			var ld := lm.duplicate() as StandardMaterial3D
+			ld.emission_enabled = lit.has("fresnel_key")
+			if not ld.emission_enabled: ld.albedo_color = ld.albedo_color * Color(0.35, 0.35, 0.35, 1.0)
+			(mi as MeshInstance3D).set_surface_override_material(i, ld)
 	for mi in S.env_node.find_children("lampshade_*", "MeshInstance3D", true, false):
 		var key := String(mi.name).substr(10).get_slice(".", 0).get_slice("_0", 0)
 		if key in S.get("crew_keys", []): mi.visible = ST.get("crew", true)
@@ -1452,7 +1466,7 @@ func _t20_people():
 		_talk_anims(k, inst)
 		for ap in inst.find_children("*", "AnimationPlayer", true, false):
 			ap.stop(); sk.reset_bone_poses()
-			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); ap.add_animation_library("t20", lib); ap.play("t20/loop")
+			var lib := AnimationLibrary.new(); lib.add_animation("loop", an); lib_set(ap, "t20", lib); ap.play("t20/loop")
 		for ba in mv.find_children("*", "BoneAttachment3D", true, false):
 			# 試作97: the phone and its screen come in as bones of their own (k_t20phone, _scr: glTF made the hand's mesh
 			# children into bones). Moved onto the body's skeleton their index pointed at lowerarm_twist_r and neck_01: the
@@ -1583,7 +1597,7 @@ func _walk_anims(k: String, inst: Node):
 		var an: Animation = src.get_animation(nm).duplicate()
 		an.loop_mode = Animation.LOOP_LINEAR if clip in ["walk", "up", "down"] else Animation.LOOP_NONE
 		lib.add_animation(clip, an)
-	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("walk", lib)
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): lib_set(ap, "walk", lib)
 	mv.free()
 
 # 2026-11-14（ユーザー「居間、みんな内側を向いて会話している感じに」）: standing, sitting, talking, crouching (export_talk.py:
@@ -1593,6 +1607,21 @@ func _walk_anims(k: String, inst: Node):
 # the house was set up, every time; with five or fewer, never (2026-11-14, tried one set at a time)
 const TALK_CLIPS := {"kiryu": ["sit_b", "idle", "talk_d"], "taiga": ["sit_a", "idle", "talk_b", "crouch"],
 	"natsuki": ["idle", "talk_a", "talk_b", "argue", "think"], "makoto": ["think", "talk_c", "idle", "kneel", "kneel_up"]}   # 第5章: her own stand and kneel (five: the most one player holds)
+# 試作277（第7章が開いてすぐ落ちた。ユーザーのPCで5回中2〜3回、RULES.exe+0x1b28fe1）: Godot 4.4.1 の AnimationPlayer は、
+# 再生中の動きを自分の表（animation_set）の中を指すポインタで持つ（playback.current.from と blend）。ライブラリを足す・外すと
+# 表が作り直され、ポインタは解放された所を指したまま残り、次のフレームの AnimationPlayer::_blend_pre_process が読んで落ちる
+# （4.4.1 の書き出しの雛形を逆アセンブルして確かめた）。「一つの player に動きが多いと落ちる」（TALK_CLIPS の注、NOTES）も同じ物：
+# 多いほど表が大きく作り直される。足す・外すときは止めてから変え、同じ所から再生し直す。lib が null なら外す
+static func lib_set(ap: AnimationPlayer, nm: String, lib: AnimationLibrary):
+	var cur := String(ap.current_animation) if ap.is_playing() else ""
+	var pos := ap.current_animation_position if cur != "" else 0.0
+	var spd := ap.get_playing_speed() / ap.speed_scale if ap.speed_scale != 0.0 else 1.0
+	ap.stop(true)   # (also a paused player: stop clears the pointer; it is left stopped, as nothing here pauses one)
+	if ap.has_animation_library(nm): ap.remove_animation_library(nm)
+	if lib != null: ap.add_animation_library(nm, lib)
+	if cur != "" and ap.has_animation(cur):
+		ap.play(cur, 0.0, spd); ap.seek(pos, true)
+
 func _talk_anims(k: String, inst: Node):
 	var tp := "res://assets/dusk/%s_talk.res" % k
 	if not ResourceLoader.exists(tp): return
@@ -1600,7 +1629,7 @@ func _talk_anims(k: String, inst: Node):
 	var tlib := AnimationLibrary.new()
 	for c in TALK_CLIPS.get(k, []):
 		if src.has_animation(c): tlib.add_animation(c, src.get_animation(c))
-	for ap in inst.find_children("*", "AnimationPlayer", true, false): ap.add_animation_library("talk", tlib)
+	for ap in inst.find_children("*", "AnimationPlayer", true, false): lib_set(ap, "talk", tlib)
 	# (made from export_talk.py's <k>_talk.glb by godot/check/talk_lib.gd: instancing the glb here, next to the house's
 	# loading, crashed Godot 4.4.1 now and then)
 
@@ -2021,7 +2050,11 @@ func _shadow_budget(dt: float):
 		if not l.get_meta("want_shadow"): continue
 		if not l.is_visible_in_tree() or l.light_energy <= 0.0: l.shadow_enabled = false; continue
 		var r: float = l.omni_range if l is OmniLight3D else l.spot_range
-		cand.append([l.global_position.distance_to(e) - 0.5 * r, l])
+		var rank: float = l.global_position.distance_to(e) - 0.5 * r
+		# 試作277（ユーザー「立つ位置によってりんご箱に当たる光が違う」、夕方）: the crew's key light (the fresnel on the mark and
+		# the apple box) is the set's light: it is never the one cut for the budget
+		if l == lights.get("fresnel_key"): rank -= 1000.0
+		cand.append([rank, l])
 	cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作175 A3（ユーザー「場所によって、明るさが変わってしまっている」、第1章 夕方、127・166 に続いて3度目）: at (4.45, 5.2) the
 	# living room's lamp was past the budget but in sight through the door, so it kept its light without its shadow and lit
@@ -2034,7 +2067,7 @@ func _shadow_budget(dt: float):
 			var lc: Light3D = c[1]
 			var to0 := lc.global_position + (e - lc.global_position).normalized() * minf(0.4, e.distance_to(lc.global_position) * 0.5)
 			var q0 := PhysicsRayQueryParameters3D.create(e, to0); q0.collide_with_areas = false
-			if not space0.intersect_ray(q0).is_empty(): c[0] += 1000.0
+			if not space0.intersect_ray(q0).is_empty() and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
 		cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,

@@ -35,6 +35,7 @@ class Soft extends Control:
 	const RINGS := [[3, 0.115], [6, 0.10], [9, 0.085], [12, 0.07], [15, 0.055], [18, 0.04], [21, 0.03], [24, 0.02], [27, 0.012]]   # px at 1080p, opacity
 	static var k := 1.0   # strength, for trying (--shadowk=)
 	var u := 1.0
+	var kk := 1.0   # this label's own strength (試作278: the choices over the car's bright windscreen)
 	var seen := ""
 	func _ready():
 		show_behind_parent = true; mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -80,5 +81,5 @@ class Soft extends Control:
 				elif p.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT: x = p.size.x - w
 				var at := Vector2(x + 1.0 * u, y + f.get_ascent(fs) + 2.0 * u)
 				for r in RINGS:
-					draw_string_outline(f, at, line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(1, int(round(r[0] * u))), Color(SHADOW.r, SHADOW.g, SHADOW.b, minf(1.0, r[1] * k)))
+					draw_string_outline(f, at, line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(1, int(round(r[0] * u))), Color(SHADOW.r, SHADOW.g, SHADOW.b, minf(1.0, r[1] * k * kk)))
 			y += lh + gap
