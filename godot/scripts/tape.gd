@@ -372,6 +372,7 @@ func _room():
 			# of its own colour instead (the shape, its grille and knobs, stays the model's)
 			# (the cracks were also in the model's own surface: lit, its dents drew the same lines. Unlit, one even plastic)
 			var pl := StandardMaterial3D.new(); pl.albedo_color = Color(0.34, 0.33, 0.31); pl.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			pl.cull_mode = BaseMaterial3D.CULL_DISABLED   # its shell has thin gaps (Tripo): from the front they showed the dark behind as lines; its inside fills them
 			m.material_override = pl
 			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
 		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
@@ -599,7 +600,7 @@ func _back_light():
 	pass_light.shadow_enabled = true; pass_light.light_cull_mask = 1 | MIO_LAYER; pass_light.light_specular = 0.3
 	pass_light.set_meta("own_shadow", true); main.add_child(pass_light)
 	pass_light.global_position = ROOM + at + Vector3(0.0 if refl == "a" else 0.25, 1.15, -0.25 if refl == "a" else 0.0)
-	if b11 and not c11 and face11 in ["", "b", "b2"]: _b_deck_light()
+	if b11 and not c11 and face11 in ["", "b", "b2", "d2"]: _b_deck_light()   # 試作281（ユーザー「暗い所に青い胸像の影だけ」）: d2 (the default) had none: in the dead glass she was a blue shape
 	if b11: _b_finger()
 	# the last cut of d: from the set's side, at her face
 	look_cam = Camera3D.new(); look_cam.fov = 30.0; main.add_child(look_cam)
