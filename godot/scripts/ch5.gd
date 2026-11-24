@@ -626,10 +626,18 @@ func _candle_tick(dt: float):
 	var k := clampf((2.2 - best) / 1.5, 0.0, 1.0)
 	lean.y = 0.0
 	var tilt := 0.9 * k + 0.05 * sin(t_now * 13.0) * (0.3 + k)
+	# 試作281（ユーザー「ろうそくの火をなびかせる案」）: outside, the gust lays the flame over along the wall and draws it long and
+	# thin, flickering, the light shaking with it: the moment to pull is seen as well as heard (gust_k, the board's lift)
+	var g := gust_k if outside else 0.0
+	if g > 0.01:
+		var wind := gp(1.0, 0.0, 0.0) - gp(0.0, 0.0, 0.0); wind.y = 0.0
+		lean = lean.normalized().lerp(wind.normalized(), g) if lean.length() > 0.001 else wind
+		tilt = lerpf(tilt, 1.35 + 0.2 * sin(t_now * 31.0) + 0.1 * sin(t_now * 47.0), g)
+	flame.scale = Vector3(1.0 - 0.3 * g, 1.0 + 1.8 * g + 0.4 * g * sin(t_now * 23.0), 1.0 - 0.3 * g)   # drawn out to near three times its length
 	if lean.length() > 0.001:
 		var ax := Vector3.UP.cross(lean.normalized()).normalized()
-		flame.basis = Basis(ax, tilt) if ax.length() > 0.5 else Basis()
-	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0))
+		flame.basis = (Basis(ax, tilt) if ax.length() > 0.5 else Basis()).scaled(flame.scale)
+	candle_light.light_energy = 0.26 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3) - 0.07 * k * absf(sin(t_now * 9.0)) - 0.16 * g * absf(sin(t_now * 19.0))
 
 # ---------------------------------------------------------------- the generator: heard all night, now heard as the cause
 func _gen_fore():
