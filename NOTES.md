@@ -705,3 +705,8 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - PV の clip.sh を、版の合うスクリプト（試作280 ならブランチ 3f70974 を git worktree で出し、その godot/check/e_overlay.sh）に重ね、`--clipshowui --clipstep=1 --clipfast=2 --demo` で、決めた秒ごとに 1920×1080 を撮った。clips の txt を「名前 秒 dur=0.25」で8秒ごとに並べると、通しの下見の一覧になる。
 - 4コア・15GB で、家の場面の通しを2本同時に走らせると、2本目が家を読むところでメモリが足りず Killed になった。1本ずつ回す。
 - 第1章の頭から（--demo、--play=ch1）は遅い：ゲームの1秒に約7〜25秒。--play=h21・ch4・i1 はずっと速い。
+
+## 2026-11-24 試作281：書き出しと snap を同時に回すと落ちる
+- house の書き出し（export_house.py、4GB 超）と snap.sh（Godot、1つ 3〜5GB）を並べると、メモリ（15GB）が尽きて書き出しが「HOUSE_FAIL」で止まる（dmesg に oom-kill）。第11章の snap は特に重く、3つ並べると Killed。書き出しの間は snap を回さない。snap は2つまで、第11章は1つだけで。
+- snap.sh を同じ WORK で2つ同時に回すと、重ねる overlay を取り合う。並べるときは WORK を分ける。
+- 第11章のテレビの「ひび」は、Tripo のテクスチャだけでなく形そのものの凹みが光で線になっていた。無地の色にしても残る。光を当てない（unshaded）無地でも残った。本当の原因は殻の薄いすき間：表からだと奥の暗がりが線に見える。cull を切って（裏も描く）消えた。
