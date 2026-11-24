@@ -102,14 +102,14 @@ func _ready():
 		_house_ready()
 		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
 		if "--hamnow" in OS.get_cmdline_user_args():   # stills only: straight to the hammer at the cellar window
-			get_tree().create_timer(float(main.ARGS.get("hamat", "40"))).timeout.connect(func():
+			get_tree().create_timer(_arg_f("--hamat=", 40.0)).timeout.connect(func():
 				_boards_start(); player.global_position = gp(CELLAR_WIN[0] + 0.95, CELLAR_WIN[1], -1.88); _hammer_start()
 				if "--hamlast" in OS.get_cmdline_user_args():   # stills only: the last board, two nails in, the third to go (the hose)
 					for j in ham_nails.size(): (ham_nails[j].n as Node3D).visible = false
 					ham_board = cellar_boards.size() - 1; _ham_show(ham_board); ham_hits = 2
 					for j in 2:
 						ham_nails[j].sunk = 1.0; (ham_nails[j].n as Node3D).global_position = ham_nails[j].at
-					ham_hose_o = 0.03 * (1.0 - 0.33 * 2.0); _ham_hose_squash(ham_hose_o)
+					ham_hose_o = maxf(0.03 * (1.0 - 0.33 * 2.0), HOSE_R * 1.12); _ham_hose_squash(ham_hose_o)
 					(ham_b[ham_board] as Node3D).global_position = (ham_org[ham_board] as Vector3) + ham_out * ham_hose_o)
 		return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
@@ -2439,12 +2439,18 @@ func _ham_show(i: int):
 	# flattens under it (_ham_hose_squash); the last nail stops with the board still proud of the wall. No word and no sound of its own
 	if is_instance_valid(ham_hose): ham_hose.queue_free()
 	if i == ham_b.size() - 1:
-		ham_hose = MeshInstance3D.new(); var hc := CylinderMesh.new(); hc.top_radius = HOSE_R; hc.bottom_radius = HOSE_R; hc.height = 0.62
+		ham_hose = MeshInstance3D.new(); var hc := CylinderMesh.new(); hc.top_radius = HOSE_R; hc.bottom_radius = HOSE_R; hc.height = 0.9
 		hc.radial_segments = 18; ham_hose.mesh = hc
-		var rub := StandardMaterial3D.new(); rub.albedo_color = Color(0.3, 0.33, 0.3); rub.roughness = 0.55
+		var rub := StandardMaterial3D.new(); rub.albedo_color = Color(0.62, 0.7, 0.56); rub.roughness = 0.5   # a pale green garden hose: it reads on the window's black
 		ham_hose.material_override = rub; ham_set.add_child(ham_hose)
-		ham_hose_at = (ham_rest[i] as Vector3) + (ham_axis[i] as Vector3) * 0.125 + ham_out * (HOSE_R + 0.001 - float(ham_face[i])) - Vector3.UP * 0.08
+		ham_hose_at = (ham_rest[i] as Vector3) + (ham_axis[i] as Vector3) * 0.08 + ham_out * (HOSE_R + 0.001 - float(ham_face[i])) - Vector3.UP * 0.22
 		ham_hose_o = 0.03; _ham_hose_squash(0.03)
+		print("HAM hose at ", ham_hose_at, " board ", ham_rest[i], " face ", ham_face[i], " axis ", ham_axis[i], " out ", ham_out, " cam ", ham_cam.global_position)
+
+func _arg_f(pre: String, dflt: float) -> float:   # (stills: a number from the command line)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with(pre): return float(a.substr(pre.length()))
+	return dflt
 
 # the hammer, and her right forearm with it (props/mio_arm_r.glb), on a pivot at her elbow
 func _ham_hand():
@@ -2641,7 +2647,11 @@ func _ham_blow():
 	var o := 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk)))
 	if is_instance_valid(ham_hose) and ham_board == cellar_boards.size() - 1:
 		o = maxf(o, HOSE_R * 1.12)   # the hose under it: the board will not lie flat
-		create_tween().tween_method(_ham_hose_squash, ham_hose_o, o, 0.06); ham_hose_o = o
+		var tw0 := create_tween(); tw0.tween_method(_ham_hose_squash, ham_hose_o, o, 0.06)
+		if last:   # each blow on the last nail squeezes it flatter for a moment, and it comes back: the nail will not go in over it
+			tw0.tween_method(_ham_hose_squash, o, o - HOSE_R * 0.35, 0.05)
+			tw0.tween_method(_ham_hose_squash, o - HOSE_R * 0.35, o, 0.35).set_trans(Tween.TRANS_SINE)
+		ham_hose_o = o
 	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_org[ham_board] as Vector3) + ham_out * o, 0.06)
 	if float(nl.sunk) >= 1.0 or (last and float(nl.sunk) >= 0.72):
 		ham_miss = 0; ham_hits += 1
