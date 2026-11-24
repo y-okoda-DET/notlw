@@ -693,7 +693,7 @@ func _strike_nail():
 func _cam_near() -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := fixed_cam.global_position - cam.global_position
-	return to.length() < 1.7 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(18.0)
+	return _aim_ok(to, 1.9, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
 
 func _tape_tick():
 	if mode != FREE: return
@@ -789,13 +789,13 @@ func _near_gap() -> Dictionary:
 	for gq in gaps:
 		if gq.sealed or gq.key != _next_gap(): continue
 		var to: Vector3 = (gq.at as Vector3) - cam.global_position
-		if to.length() < 1.6 and (-cam.global_basis.z).angle_to(to) < deg_to_rad(28.0): return gq
+		if _aim_ok(to, 1.9, 32.0): return gq   # 試作281 (story.gd _aim_ok)
 	return {}
 
 func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := p - cam.global_position
-	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
+	return _aim_ok(to, reach, deg)   # 試作281 (story.gd)
 
 func _seal_tick(dt: float):
 	_makoto_follow(dt)
@@ -969,9 +969,9 @@ func _item_looked() -> String:
 		if k == "blanket" and has_blanket: continue
 		var to: Vector3 = (it.pos as Vector3) - cam.global_position
 		var reach := 3.2 if k == "window" else 1.9
-		if to.length() > reach: continue
+		if not _aim_ok(to, reach, 22.0): continue   # 試作281: 16° was narrow (story.gd _aim_ok)
 		var a := (-cam.global_basis.z).angle_to(to)
-		if a < deg_to_rad(16.0) and a < ba: ba = a; best = k
+		if a < ba: ba = a; best = k
 	return best
 
 func _up_tick(_dt: float):

@@ -153,7 +153,7 @@ func _look_from(a: Array, b: Array, eye := 1.52, bz := 1.3):
 func _looking_at(p: Vector3, reach: float, deg: float) -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := p - cam.global_position
-	return to.length() < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(deg)
+	return _aim_ok(to, reach, deg)   # 試作281 (story.gd)
 
 var fall_mio := Vector3.INF
 # after 第4章: Mio a step back from where she stood, looking at her (once she is laid: _natsuki awaits a frame)
@@ -1228,7 +1228,11 @@ func _near_tape() -> Dictionary:
 		if gq.peeled: continue
 		var to: Vector3 = (gq.at as Vector3) - cam.global_position
 		var a := (-cam.global_basis.z).angle_to(to)
-		if to.length() < 1.6 and a < deg_to_rad(28.0) and a < ba: ba = a; best = gq
+		# 試作281（ユーザー「テープ剥がすアクションが表示されない」）: the gaps under the doors lie by the floor, 1.3 m under the
+		# eye, and 1.6 m straight made her stand over them. The height counts for less, and a low one takes a wider look (ch6.gd)
+		var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+		var deg := 32.0 + (8.0 if to.y < -0.8 else 0.0)
+		if dist < 1.9 and a < deg_to_rad(deg) and a < ba: ba = a; best = gq
 	return best
 
 func _what_looked() -> String:

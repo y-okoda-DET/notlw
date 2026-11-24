@@ -779,6 +779,16 @@ func _process(dt):
 	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
 	main.story_talking = (mode == TALK)
 
+# 試作281（ユーザー「アクションできるオブジェクトなのに［E］が表示されないことがしばしば」「他でもないか確認して」）:
+# one rule for "she is looking at it" everywhere. A thing low by the floor is 1.3 m under the eye; measured straight,
+# its height used up most of the reach, and she had to stand over it. The height counts for less, and a low thing takes
+# a wider look (it is small in the eye). ch6.gd _pick_target was the first
+func _aim_ok(to: Vector3, reach: float, deg: float) -> bool:
+	var cam := player.get_node("Head/Camera") as Camera3D
+	var dist := Vector3(to.x, to.y * 0.45, to.z).length()
+	var d := deg + (8.0 if to.y < -0.8 else 0.0)
+	return dist < reach and (-cam.global_basis.z).angle_to(to) < deg_to_rad(d)
+
 func _focus(eye: Vector3, dir: Vector3) -> String:
 	var best := ""; var best_s := 9.0
 	for k in items:
@@ -787,7 +797,7 @@ func _focus(eye: Vector3, dir: Vector3) -> String:
 		if ch2 and k != "radio": continue          # after the power goes there is only the radio
 		if house and k == "taiga" and taiga_moving: continue
 		var to: Vector3 = it.pos - eye
-		var d := to.length()
+		var d := Vector3(to.x, to.y * 0.45, to.z).length()   # 試作281: the height counts for less (_aim_ok)
 		var lim := 2.6 if it.kind == "talk" or k == "w_cellar" else 1.9   # the cellar window: from the porch stair, a step above it
 		if d > lim: continue
 		var ang := acos(clamp(to.normalized().dot(dir), -1.0, 1.0))

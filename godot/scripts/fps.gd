@@ -691,7 +691,8 @@ func _look_at_things():
 	if holding or after_t >= 0.0 or quiet_t >= 0.0: return
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var at := weapon.global_position + Vector3(0, 1.0, 0)
-	var near: bool = (at - cam.global_position).length() < 1.9 and (-cam.global_basis.z).angle_to(at - cam.global_position) < deg_to_rad(22.0)
+	var tt := at - cam.global_position   # 試作281: the height counts for less, a low thing takes a wider look (story.gd _aim_ok)
+	var near: bool = Vector3(tt.x, tt.y * 0.45, tt.z).length() < 1.9 and (-cam.global_basis.z).angle_to(tt) < deg_to_rad(22.0 + (8.0 if tt.y < -0.8 else 0.0))
 	note_lb.text = T("［Ｅ　三脚］") if near else ""
 	# she stands before her and Mio has taken nothing up: where the tripod is, once
 	if not told_tripod and nstate == "stand" and ni >= _np().size() and clock > 46.0:

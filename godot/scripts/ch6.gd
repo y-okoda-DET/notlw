@@ -722,7 +722,9 @@ func _cellar_shoe():
 	wbx.size = Vector3(1.1, 3.0, 0.2); wcs.shape = wbx; wall.add_child(wcs); main.add_child(wall)
 	wall.global_position = gp(5.5, 4.9, 0.0)
 	var dn = main.get_node_or_null("Doors")
-	if dn: dn.open_key("door_cellar")
+	# 試作281（ユーザー「地下に降りれないタイミングで扉が開く」）: it swung open before her (open_key) while the stair below was
+	# barred. It stands open from the chapter's first frame, as Makoto left it
+	if dn: dn.open_force("door_cellar", 0.0)
 	# her torch, rolled to the foot of the stair, lighting the ceiling (第5章: she went down with it)
 	cel_torch6 = SpotLight3D.new(); cel_torch6.light_color = Color(0.92, 0.95, 1.0); cel_torch6.light_energy = 2.6; cel_torch6.spot_range = 4.0
 	cel_torch6.spot_angle = 22.0; cel_torch6.spot_attenuation = 0.8; cel_torch6.shadow_enabled = true; main.add_child(cel_torch6)

@@ -1026,7 +1026,7 @@ func _cel_look() -> bool:
 	var hd: Vector3 = main._rig_of("mio").global_position + Vector3(0, 1.2, 0)
 	var to := hd - _cam().global_position
 	# 試作277（ユーザー「澪に近づいてから止める」）: not from the stair head: he goes down to her (within arm's reach and a step)
-	if not (to.length() < 1.9 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(40.0)): return false
+	if not _aim_ok(to, 2.1, 40.0): return false   # 試作281: the height counts for less (story.gd _aim_ok)
 	# 試作281: not his own body. Looking down the stair, the ray from the eye met the top of his capsule and E never took
 	# (the run stopped here at 「……大河くん！」, no error).
 	var rq := PhysicsRayQueryParameters3D.create(_cam().global_position, hd); rq.exclude = [player.get_rid()]

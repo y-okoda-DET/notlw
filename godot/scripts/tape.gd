@@ -672,7 +672,7 @@ func _clock(dt: float) -> bool:
 func _room_tick(dt: float):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var deck_at := ROOM + Vector3(0, 0.20, 0.11)
-	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(14.0)
+	var at_deck: bool = (-cam.global_basis.z).angle_to(deck_at - cam.global_position) < deg_to_rad(22.0)   # 試作281: 14° was narrow
 	var e := _err()
 	if ff_on: e = maxf(e, 0.8)   # the picture tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
