@@ -895,13 +895,41 @@ func _trace_start(gq: Dictionary):
 	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
-	trace = {"gq": gq, "mi": mi, "p": 0.0, "wr": 0.0, "along_x": along_x}
-	player.look_enabled = false
+	trace = {"gq": gq, "mi": mi, "p": 0.0, "wr": 0.0, "along_x": along_x, "snd": 0.0}
+	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
+	# 試作281（ユーザー「テープ貼るのもミニゲームとしてうまくいってない（視点が動いて貼れないし、気持ちよさがない）」）: the
+	# view goes to the gap and stays (a low one: she kneels to it). The strip runs the way it runs on the screen: the mouse
+	# along it lays it, whichever way (the back door's edge is up and down; before, only sideways counted)
+	var a0: Vector3; var a1: Vector3
+	if gq.key == "g5": a0 = mi.global_position + Vector3(0, -0.9, 0); a1 = mi.global_position + Vector3(0, 0.9, 0)
+	elif along_x: a0 = mi.global_position - Vector3(0.17, 0, 0); a1 = mi.global_position + Vector3(0.17, 0, 0)
+	else: a0 = mi.global_position - Vector3(0, 0, 0.17); a1 = mi.global_position + Vector3(0, 0, 0.17)
+	trace["eye0"] = player.eye_height
+	var low: bool = (gq.at as Vector3).y < player.global_position.y + 0.5 and gq.key != "g5"
+	var tw := create_tween().set_parallel(true)
+	if low: tw.tween_property(player, "eye_height", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
+	var head: Vector3 = player.global_position + Vector3.UP * (1.0 if low else float(player.eye_height))
+	var to: Vector3 = (gq.at as Vector3) - head
+	tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.chain().tween_callback(func():
+		if trace.is_empty(): return
+		var cam: Camera3D = player.get_node("Head/Camera")
+		var d2 := cam.unproject_position(a1) - cam.unproject_position(a0)
+		trace["dir"] = d2.normalized() if d2.length() > 4.0 else Vector2.RIGHT)
+	trace["dir"] = Vector2.RIGHT
+	note_lb.text = T("［マウス　なぞって貼る］")
 
 func _trace_move(px: float, dt: float):
 	if trace.is_empty(): return
 	var sp := absf(px) / maxf(dt, 1.0 / 60.0)
+	# the roll's sound as it comes off, a little at every few centimetres (pitched by the speed)
+	trace.snd = float(trace.snd) + absf(px) / TRACE_PX
+	if float(trace.snd) > 0.12:
+		trace.snd = 0.0
+		var pl := Sound.one(self, "ch3_tape", -16.0 if sp < TRACE_FAST else -10.0, (trace.gq as Dictionary).at)
+		if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = clampf(0.85 + sp / 3000.0, 0.85, 1.5)
 	trace.p = minf(1.0, float(trace.p) + absf(px) / TRACE_PX)
 	if sp > TRACE_FAST: trace.wr = float(trace.wr) + absf(px) / TRACE_PX
 	var mi := trace.mi as MeshInstance3D
@@ -915,7 +943,8 @@ func _trace_move(px: float, dt: float):
 func _trace_end():
 	var gq: Dictionary = trace.gq
 	var wr := float(trace.wr)
-	player.look_enabled = true
+	player.look_enabled = true; player.move_enabled = true; note_lb.text = ""
+	if trace.has("eye0"): create_tween().tween_property(player, "eye_height", float(trace.eye0), 0.5).set_trans(Tween.TRANS_SINE)
 	if wr > 0.3:
 		# よれた：風が細く残る。もう一度 Ｅ で貼り直す
 		gq["crumpled"] = trace.mi
@@ -1606,7 +1635,7 @@ static var SEAL_ORDER: Array = []   # 第5章 peels the tape in the order she pu
 func _unhandled_input(e):
 	if card_t > 0.0 or stage == "end": return
 	if not trace.is_empty():
-		if e is InputEventMouseMotion and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)): _trace_move(e.relative.x, get_process_delta_time())
+		if e is InputEventMouseMotion: _trace_move((e.relative as Vector2).dot(trace.get("dir", Vector2.RIGHT)), get_process_delta_time())   # 試作281: no key to hold; along the strip
 		return
 	if stage == "flow" and flow_key == "扉の番.二時半" and _t230_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)

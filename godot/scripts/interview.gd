@@ -67,7 +67,9 @@ static func flag(n: String) -> bool:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--ivflags=") and n in a.substr(10).split(","): return true
 	var f = Engine.get_meta("night_flags", {})
-	return f is Dictionary and bool(f.get(n, false))
+	if not (f is Dictionary): return false
+	var v = f.get(n, null)
+	return v != null and not (v is bool and v == false)
 
 func _ready():
 	var args := OS.get_cmdline_user_args()

@@ -2217,49 +2217,58 @@ func _board_use(key: String):
 		k += B("板.残りはみんなが")
 	_start(k)
 
-# ---------------------------------------------------------------- 手の遊び①：地下の小窓の板打ち＝拍子（決定事項 2026-11-23 7時33分）
-# 金づちは澪の右手で、上がって落ちるのをくり返す（約1秒）。落ちきる瞬間に Ｅ で釘が入る。ずれると釘が曲がって、板は寄らない。
-# 1枚に3本。4枚目の最後の1本は、どう打っても沈みきらない（その下で排気のホースが潰れている：第5章の答え）。ゲージも文字も出さない。
+# ---------------------------------------------------------------- 手の遊び①：地下の小窓の板打ち（決定事項 2026-11-23 7時33分）
+# 試作281（ユーザー「何をすればいいのか混乱した。手と金槌の絵が実際に打っているように見えない。カメラ設置シーンみたいな感じで
+# ちょっと別の絵になってもいい。ベストなやり方を」）: a cut to the board from beside it, lit by Taiga's phone held over it. Her
+# right hand and the hammer in it come in from the right. Ｅ held draws the hammer back; let go, it comes down on the nail.
+# Drawn back well (a breath), the nail goes a third in; let go at once, it only taps; held too long, the arm shakes and the
+# nail bends. Three nails a board, four boards; the last nail of the last board will not go home (the hose under it: 第5章).
+# No gauge, no count: the nail heads and the sound say it. The bracketed key is there until the first nail is in
 var ham_on := false
-var ham: Node3D
+var ham: Node3D                 # the swing's pivot (her elbow), hammer and arm under it
+var ham_cam: Camera3D
+var ham_light: SpotLight3D
 var ham_t := 0.0
 var ham_board := 0
 var ham_hits := 0
 var ham_miss := 0
 var ham_bent := 0
-var ham_pressed_t := -9.0
 var ham_rest := []
-const HAM_PERIOD := 1.05
+var ham_nails := []             # this board's three nail heads [{n: Node3D, at: Vector3, sunk: float}]
+var ham_st := "ready"           # ready | raise | swing | back
+var ham_hold := 0.0
+var ham_ang := 0.0
+var ham_any := false
+var ham_mid := Vector3.ZERO
+var ham_out := Vector3.ZERO
+var ham_side := Vector3.ZERO
+const HAM_UP := 68.0            # the hammer drawn back (deg)
+const HAM_GOOD := [0.28, 1.05]  # held this long: a full blow
 func _hammer_start():
-	ham_on = true; ham_board = 0; ham_hits = 0; ham_miss = 0; ham_t = 0.0; ham_bent = 0
-	player.move_enabled = false
-	var cam: Camera3D = player.get_node("Head/Camera")
-	ham = Node3D.new(); ham.name = "hammer"; cam.add_child(ham)
-	ham.position = Vector3(0.2, -0.26, -0.42)
-	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.7, 0.55, 0.38); wood.roughness = 0.7   # 試作278: at .42 it sank into the night (the snap showed no hammer)
-	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.55, 0.55, 0.58); steel.metallic = 0.5; steel.roughness = 0.35
-	var hd := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.013; cy.bottom_radius = 0.015; cy.height = 0.3
-	hd.mesh = cy; hd.material_override = wood; hd.position = Vector3(0, 0.0, -0.15); hd.rotation.x = -PI / 2; ham.add_child(hd)
-	var hh := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.035, 0.11, 0.035)
-	hh.mesh = bx; hh.material_override = steel; hh.position = Vector3(0, 0.0, -0.29); ham.add_child(hh)
+	ham_on = true; ham_board = 0; ham_hits = 0; ham_miss = 0; ham_t = 0.0; ham_bent = 0; ham_st = "ready"; ham_any = false
+	player.move_enabled = false; player.look_enabled = false
 	ham_rest = []
 	for b in cellar_boards:
 		var n := b as Node3D
 		ham_rest.append(n.global_position); n.visible = false
+	ham_mid = Vector3.ZERO
+	for r in ham_rest: ham_mid += r as Vector3
+	ham_mid /= maxf(1.0, float(ham_rest.size()))
+	ham_out = _ham_out(0)
+	ham_side = Vector3.UP.cross(ham_out).normalized()
+	# the cut: low beside the window, a little to her left of it, the board and the nail between the camera and her hand
+	ham_cam = Camera3D.new(); ham_cam.fov = 46.0; main.add_child(ham_cam)
+	ham_cam.global_position = ham_mid + ham_out * 0.62 - ham_side * 0.42 + Vector3.UP * 0.16
+	ham_cam.look_at(ham_mid + ham_out * 0.06 + ham_side * 0.05, Vector3.UP)
+	ham_cam.make_current()
+	# Taiga's phone over it (in the world: he stands on the porch stair holding it out)
+	ham_light = SpotLight3D.new(); ham_light.light_color = Color(0.86, 0.9, 1.0); ham_light.light_energy = 3.2
+	ham_light.spot_range = 3.0; ham_light.spot_angle = 34.0; ham_light.spot_attenuation = 0.7; ham_light.shadow_enabled = true
+	main.add_child(ham_light)
+	ham_light.look_at_from_position(ham_mid + ham_out * 0.9 + ham_side * 0.3 + Vector3.UP * 0.75, ham_mid, Vector3.UP)
 	_ham_show(0)
-	# 試作278（独立レビュー「板も窓も金づちも判別できない」）: the demo's look stood over the window looking down on the dark
-	# ground. She crouches to the low window and faces it while she nails (the mouse does not turn her: the swing is
-	# the thing to watch); up again when the last board is in
-	var mid := Vector3.ZERO
-	for r in ham_rest: mid += r as Vector3
-	mid /= maxf(1.0, float(ham_rest.size()))
-	player.look_enabled = false
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(player, "eye_height", 1.05, 0.8).set_trans(Tween.TRANS_SINE)
-	var head_at := Vector3(player.global_position.x, player.global_position.y + 1.05, player.global_position.z)
-	var to := mid - head_at
-	tw.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.8).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.8).set_trans(Tween.TRANS_SINE)
+	_ham_hand()
+	note_lb.text = T("［Ｅ（押したまま、離す）　打つ］")
 
 func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
 	var cam: Camera3D = player.get_node("Head/Camera")
@@ -2267,54 +2276,127 @@ func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
 	return o.normalized()
 
 func _ham_show(i: int):
+	ham_nails = []
 	if i >= cellar_boards.size(): return
 	var n := cellar_boards[i] as Node3D
-	n.visible = true; n.global_position = (ham_rest[i] as Vector3) + _ham_out(i) * 0.03
+	n.visible = true; n.global_position = (ham_rest[i] as Vector3) + ham_out * 0.03
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.72, 0.72, 0.74); steel.metallic = 0.6; steel.roughness = 0.3
+	for j in 3:
+		var nail := Node3D.new(); main.add_child(nail)
+		var sh := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0028; cy.bottom_radius = 0.0028; cy.height = 0.06
+		sh.mesh = cy; sh.material_override = steel; sh.rotation.x = PI / 2; sh.position = Vector3(0, 0, 0.03); nail.add_child(sh)
+		var hd := MeshInstance3D.new(); var cy2 := CylinderMesh.new(); cy2.top_radius = 0.0075; cy2.bottom_radius = 0.0075; cy2.height = 0.003
+		hd.mesh = cy2; hd.material_override = steel; hd.rotation.x = PI / 2; nail.add_child(hd)
+		var at: Vector3 = (ham_rest[i] as Vector3) + ham_out * 0.045 + ham_side * (float(j - 1) * 0.16)
+		nail.global_position = at + ham_out * 0.04
+		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # its point (+Z local) into the board
+		ham_nails.append({"n": nail, "at": at, "sunk": 0.0})
+
+# the hammer, and her right forearm with it (props/mio_arm_r.glb), on a pivot at her elbow
+func _ham_hand():
+	if is_instance_valid(ham): ham.queue_free()
+	ham = Node3D.new(); ham.name = "hammer"; main.add_child(ham)
+	var wood := StandardMaterial3D.new(); wood.albedo_color = Color(0.74, 0.58, 0.4); wood.roughness = 0.7
+	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.6, 0.6, 0.63); steel.metallic = 0.6; steel.roughness = 0.3
+	# at the blow: the head's face on the nail, the handle down from it to her fist, her forearm down and back toward her
+	var hand_at := Vector3(0, -0.24, 0.035)        # in the pivot's frame below (x along the wall, y up, z out of it)
+	var fore := Vector3(0.0, -0.55, 0.83).normalized()
+	var elbow := hand_at + fore * 0.27
+	ham.set_meta("elbow", elbow)
+	var grip := Node3D.new(); ham.add_child(grip)
+	var hdl := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.012; cy.bottom_radius = 0.015; cy.height = 0.3
+	hdl.mesh = cy; hdl.material_override = wood; hdl.position = Vector3(0, -0.11, 0.035); grip.add_child(hdl)
+	var hh := MeshInstance3D.new(); var bx := BoxMesh.new(); bx.size = Vector3(0.032, 0.032, 0.11)
+	hh.mesh = bx; hh.material_override = steel; hh.position = Vector3(0, 0.035, 0.02); grip.add_child(hh)
+	var arm := _fp_arm("mio", "r", fore, fore.cross(Vector3.UP), 0.95)
+	if arm:
+		arm.get_parent().remove_child(arm); grip.add_child(arm)
+		arm.position = hand_at; arm.visible = true
+	grip.position = -elbow
+	ham.set_meta("grip", grip)
+	_ham_pose()
+
+func _ham_pose():
+	if not is_instance_valid(ham) or ham_board >= cellar_boards.size(): return
+	var nail_at: Vector3 = ham_nails[mini(ham_hits, 2)].at if not ham_nails.is_empty() else ham_mid
+	var nail_head: Vector3 = nail_at + ham_out * (0.04 * (1.0 - float(ham_nails[mini(ham_hits, 2)].sunk))) if not ham_nails.is_empty() else ham_mid
+	var b := Basis(ham_side, Vector3.UP, ham_out)
+	var elbow: Vector3 = ham.get_meta("elbow")
+	var shake := 0.0
+	if ham_st == "raise" and ham_hold > HAM_GOOD[1]: shake = minf(1.0, (ham_hold - HAM_GOOD[1]) * 1.4)
+	var wob := Vector3(sin(ham_t * 41.0), sin(ham_t * 33.0 + 1.0), 0.0) * 0.006 * shake
+	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * elbow + wob)
+	(ham.get_meta("grip") as Node3D).position = -elbow
 
 func _ham_tick(dt: float):
 	ham_t += dt
-	var ph := fmod(ham_t, HAM_PERIOD) / HAM_PERIOD
-	# up slowly (0 → 0.72), then down fast to the nail (0.72 → 1.0)
-	var a := (ph / 0.72) if ph < 0.72 else (1.0 - (ph - 0.72) / 0.28)
-	if is_instance_valid(ham): ham.rotation.x = deg_to_rad(65.0) * smoothstep(0.0, 1.0, a)
-	if demo_on and ph > 0.96 and ham_t - ham_pressed_t > 0.5: _ham_press()
+	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if demo_on: held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
+	match ham_st:
+		"ready":
+			ham_ang = move_toward(ham_ang, 14.0, dt * 60.0)
+			if held: ham_st = "raise"; ham_hold = 0.0
+		"raise":
+			ham_hold += dt
+			ham_ang = lerpf(14.0, HAM_UP, smoothstep(0.0, 0.42, ham_hold))
+			if not held: ham_st = "swing"
+		"swing":
+			ham_ang = move_toward(ham_ang, 0.0, dt * 900.0)
+			if ham_ang <= 0.0: _ham_blow(); ham_st = "back"; ham_hold = 0.0
+		"back":
+			ham_hold += dt
+			if ham_hold > 0.25: ham_st = "ready"
+	_ham_pose()
 
 func _ham_press():
-	if ham_board >= cellar_boards.size(): return
-	var ph := fmod(ham_t, HAM_PERIOD) / HAM_PERIOD
-	var good := (ph > 0.9 or ph < 0.07) and ham_t - ham_pressed_t > 0.45
-	ham_pressed_t = ham_t
-	if not good and ham_miss < 2:
-		ham_miss += 1; ham_bent += 1
-		preload("res://scripts/sound.gd").one(self, "tripod_bump", -8.0, ham_rest[ham_board])
-		_ham_bent_nail(ham_board)
-		return
-	ham_miss = 0; ham_hits += 1
-	var last := ham_board == cellar_boards.size() - 1 and ham_hits == 3
-	preload("res://scripts/sound.gd").one(self, "ch3_thud" if last else "hit", -6.0, ham_rest[ham_board])
-	var n := cellar_boards[ham_board] as Node3D
-	var left := 0.03 * (3 - ham_hits) / 3.0
-	if last: left = 0.006   # the last nail does not go home
-	create_tween().tween_property(n, "global_position", (ham_rest[ham_board] as Vector3) + _ham_out(ham_board) * left, 0.08)
-	if ham_hits >= 3:
-		ham_hits = 0; ham_board += 1
-		if ham_board < cellar_boards.size(): get_tree().create_timer(0.4).timeout.connect(_ham_show.bind(ham_board))
-		else: get_tree().create_timer(0.6).timeout.connect(_hammer_end)
+	pass   # 試作281: the blow is on letting go (_ham_tick)
 
-func _ham_bent_nail(i: int):
-	var n := cellar_boards[i] as Node3D
-	var m := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0025; cy.bottom_radius = 0.0025; cy.height = 0.035
-	m.mesh = cy; var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.45, 0.42, 0.4); mt.metallic = 0.6; m.material_override = mt
-	n.get_parent().add_child(m)
-	m.global_position = n.global_position + _ham_out(i) * 0.02 + Vector3(0, randf_range(-0.04, 0.04), 0) + _ham_out(i).cross(Vector3.UP) * randf_range(-0.12, 0.12)
-	m.look_at(m.global_position + _ham_out(i), Vector3.UP); m.rotate_object_local(Vector3.RIGHT, PI / 2 + deg_to_rad(randf_range(40.0, 60.0)))
+func _ham_blow():
+	if ham_board >= cellar_boards.size() or ham_nails.is_empty(): return
+	var held := ham_hold
+	var nl: Dictionary = ham_nails[mini(ham_hits, 2)]
+	var last := ham_board == cellar_boards.size() - 1 and ham_hits == 2
+	var S := preload("res://scripts/sound.gd")
+	if held > HAM_GOOD[1] and ham_miss < 2:   # held too long: the arm shook, the nail bends over
+		ham_miss += 1; ham_bent += 1
+		S.one(self, "tripod_bump", -8.0, nl.at)
+		var nn := nl.n as Node3D
+		nn.rotate_object_local(Vector3.RIGHT, deg_to_rad(randf_range(38.0, 55.0)))
+		nl.at = nl.at + ham_side * 0.03   # a new nail beside it
+		_ham_new_nail(nl)
+		return
+	var add := 0.17 if held < HAM_GOOD[0] else 0.5
+	nl.sunk = minf(1.0, float(nl.sunk) + add)
+	if last: nl.sunk = minf(float(nl.sunk), 0.72)   # the last one does not go home
+	S.one(self, "ch3_thud" if (last and float(nl.sunk) >= 0.72) else "hit", -6.0 if add > 0.3 else -14.0, nl.at)
+	(nl.n as Node3D).global_position = nl.at + ham_out * (0.04 * (1.0 - float(nl.sunk)))
+	var n := cellar_boards[ham_board] as Node3D
+	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_rest[ham_board] as Vector3) + ham_out * 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk))), 0.06)
+	if float(nl.sunk) >= 1.0 or (last and float(nl.sunk) >= 0.72):
+		ham_miss = 0; ham_hits += 1
+		if not ham_any: ham_any = true; note_lb.text = ""
+		if ham_hits >= 3:
+			ham_hits = 0; ham_board += 1
+			if ham_board < cellar_boards.size(): get_tree().create_timer(0.45).timeout.connect(_ham_show.bind(ham_board))
+			else: get_tree().create_timer(0.8).timeout.connect(_hammer_end)
+
+func _ham_new_nail(nl: Dictionary):
+	var old := nl.n as Node3D
+	var nail := old.duplicate() as Node3D; main.add_child(nail)
+	nail.global_transform = Transform3D(Basis(), Vector3.ZERO)
+	nail.global_position = nl.at + ham_out * 0.04
+	nail.look_at(nail.global_position - ham_out, Vector3.UP)
+	nl.n = nail; nl.sunk = 0.0
 
 func _hammer_end():
 	ham_on = false
 	if is_instance_valid(ham): ham.queue_free()
+	if is_instance_valid(ham_light): ham_light.queue_free()
+	if is_instance_valid(ham_cam): ham_cam.queue_free()
+	(player.get_node("Head/Camera") as Camera3D).make_current()
+	note_lb.text = ""
 	player.move_enabled = true
 	player.look_enabled = true
-	create_tween().tween_property(player, "eye_height", 1.52, 0.6).set_trans(Tween.TRANS_SINE)
 	set_flag("nails_bent", ham_bent)
 	print("STORY boards hammer done bent=%d t=%.1f" % [ham_bent, t_now])
 	_start(B("板.地下の窓"))
