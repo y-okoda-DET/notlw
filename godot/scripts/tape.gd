@@ -370,7 +370,8 @@ func _room():
 			var m := g as MeshInstance3D; m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; m.layers = 2
 			# 試作281（ユーザー「テレビのひび割れ、直す」）: the Tripo texture had cracks and blots baked into the case; a plain plastic
 			# of its own colour instead (the shape, its grille and knobs, stays the model's)
-			var pl := StandardMaterial3D.new(); pl.albedo_color = Color(0.74, 0.72, 0.68); pl.roughness = 0.55
+			# (the cracks were also in the model's own surface: lit, its dents drew the same lines. Unlit, one even plastic)
+			var pl := StandardMaterial3D.new(); pl.albedo_color = Color(0.34, 0.33, 0.31); pl.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			m.material_override = pl
 			var b2: AABB = m.global_transform * m.get_aabb(); bb = b2 if first else bb.merge(b2); first = false
 		var k := float(_arg("d11tvw", "0.597")) / bb.size.x
@@ -680,7 +681,7 @@ func _room_tick(dt: float):
 	var e := _err()
 	# 試作281（ユーザー「早送り中は映像の乱れをなくす」）: the picture no longer tears while it runs fast
 	scr_mat.set_shader_parameter("tm", room_t)
-	scr_mat.set_shader_parameter("err", e)
+	scr_mat.set_shader_parameter("err", 0.0 if ff_on else e)   # the tracking's tearing too: running fast, the picture holds still
 	# 試作220：before E the set is on the deck's blue (never the dead glass); off only at the end
 	scr_mat.set_shader_parameter("on", 1.0 if st == PLAYING else (3.0 if off_t >= 0.0 else 2.0))
 	glow.light_energy = 0.55 if st == PLAYING else (0.0 if off_t > 0.12 else 0.8)
