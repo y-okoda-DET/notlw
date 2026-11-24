@@ -790,8 +790,20 @@ func _process(dt):
 	_update_looks()
 	player.move_enabled = (mode == FREE)
 	# who is talking moves their mouth (main.gd _update_faces)
-	main.talk_now = cur.get("who_key", "") if mode == TALK and cur.has("who") and typed < float(String(cur.text).length()) else ""
+	main.talk_now = _speaking(dt) if mode == TALK and cur.has("who") else ""
 	main.story_talking = (mode == TALK)
+
+# 試作282（ユーザー「口を閉じているからか喋っているように見えない」、車の夏希）: the mouth moved only while the line was typed
+# (24 or 15 letters a second, under a second for most lines) and stood shut while it was read. It moves for as long as the
+# line takes to say: about 7.5 letters a second
+var speak_lb: Object = null
+var speak_t := 0.0
+func _speaking(dt: float) -> String:
+	if not cur.has("text"): return ""
+	if cur_lb != speak_lb: speak_lb = cur_lb; speak_t = 0.0
+	speak_t += dt
+	var n := String(cur.text).replace("\n", "").replace("\u200b", "").length()
+	return String(cur.get("who_key", "")) if speak_t < n / 7.5 + 0.2 else ""
 
 # 試作281（ユーザー「アクションできるオブジェクトなのに［E］が表示されないことがしばしば」「他でもないか確認して」）:
 # one rule for "she is looking at it" everywhere. A thing low by the floor is 1.3 m under the eye; measured straight,

@@ -314,8 +314,20 @@ func _inside():
 	_box(inn, Vector3(0.20, 0.20, 0.60), Vector3(0, 0.40, 0.02), dash, Vector3.ZERO, "console")
 	_box(inn, Vector3(0.05, 0.12, 0.05), Vector3(0, 0.56, -0.18), dash2, Vector3(0.3, 0, 0), "shift")
 	# the roof's lining and the sun visors (folded up)
-	_box(inn, Vector3(1.50, 0.03, 1.62), Vector3(0, 1.345, 0.50), liner, Vector3.ZERO, "roof")
-	for x in [-0.37, 0.37]: _box(inn, Vector3(0.40, 0.025, 0.17), Vector3(x, 1.315, -0.20), liner, Vector3(0.25, 0, 0), "visor")
+	# 試作282（ユーザー「車内、上を見上げたときの箱が気になる」）: the lining was one flat slab ending in a square, lit edge over the
+	# windshield, with a board-like header under it. Now it runs to the doors' tops, curves down into the windshield's top in
+	# three bent strips, and carries what a roof has: the visors flat against it on their hinges, a dome lamp, two grab handles
+	var liner2 := _mat(Color(0.50, 0.49, 0.46), 1.0)
+	_box(inn, Vector3(1.60, 0.012, 1.50), Vector3(0, 1.352, 0.56), liner2, Vector3.ZERO, "roof")
+	var bend := [[1.352, -0.19], [1.348, -0.25], [1.338, -0.29], [1.322, -0.32], [1.30, -0.335]]
+	for i in bend.size() - 1:
+		_slab(inn, Vector3(0, bend[i][0], bend[i][1]), Vector3(0, bend[i + 1][0], bend[i + 1][1]), 1.46 - 0.03 * i, 0.012, liner2, "roof_bend")
+	for x in [-0.37, 0.37]:
+		_box(inn, Vector3(0.38, 0.014, 0.16), Vector3(x, 1.338, -0.12), _mat(Color(0.44, 0.43, 0.40), 1.0), Vector3.ZERO, "visor")
+		_rod(inn, Vector3(x - 0.20 * signf(x), 1.342, -0.19), Vector3(x + 0.18 * signf(x), 1.342, -0.19), 0.006, 0.006, dash2, "visor_hinge", Vector3(0, -1, 0))
+	_box(inn, Vector3(0.16, 0.018, 0.09), Vector3(0, 1.340, 0.12), _mat(Color(0.70, 0.69, 0.64), 0.6), Vector3.ZERO, "dome")
+	for sx in [-1.0, 1.0]:
+		_rod(inn, Vector3(sx * 0.66, 1.33, 0.52), Vector3(sx * 0.66, 1.33, 0.70), 0.010, 0.014, dash2, "grab", Vector3(sx, 0, 0))
 	# the windshield's frame: the pillars (A, B, C), the roof's front edge, the doors' tops (the belt line) and the doors
 	for sx in [-1.0, 1.0]:
 		_rod(inn, Vector3(sx * 0.73, 0.94, -0.95), Vector3(sx * 0.68, 1.34, -0.30), 0.040, 0.060, pillar, "pillar_a", Vector3(sx, 0, 0))   # (8時: wider, onto the glass's edge)
@@ -331,7 +343,7 @@ func _inside():
 		_box(inn, Vector3(0.06, 0.70, 0.90), Vector3(sx * 0.80, 0.63, 0.86), cloth_d, Vector3.ZERO, "door_r")
 		_box(inn, Vector3(0.10, 0.04, 2.45), Vector3(sx * 0.77, 0.975, 0.26), trim, Vector3.ZERO, "belt")
 		_box(inn, Vector3(0.09, 0.05, 0.30), Vector3(sx * 0.74, 0.74, -0.22), dash2, Vector3.ZERO, "armrest")
-	_box(inn, Vector3(1.44, 0.05, 0.08), Vector3(0, 1.325, -0.31), trim, Vector3.ZERO, "header")
+	_box(inn, Vector3(1.44, 0.02, 0.03), Vector3(0, 1.296, -0.34), trim, Vector3.ZERO, "header")   # 試作282: only the thin edge where the lining meets the glass
 	_box(inn, Vector3(1.44, 0.08, 0.06), Vector3(0, 1.31, 1.33), trim, Vector3.ZERO, "rear_header")
 	_box(inn, Vector3(1.44, 0.04, 0.40), Vector3(0, 0.98, 1.62), cloth_d, Vector3.ZERO, "parcel")
 	# the seats: two in front, the bench behind
@@ -521,6 +533,10 @@ func _seat(k: String, at: Vector3, lib_path: String, clip: String):
 				lib.add_animation("sit", an)
 			p.add_animation_library("car", lib)
 			if p.has_animation("car/sit"): p.play("car/sit")
+			# 試作282（ユーザー「真琴、目を開いて動いているから眠っているように見えない」）: her sitting clip is a talking one; asleep
+			# she holds one frame of it (the head on the rest is headrest.gd's)
+			if k == "makoto" and p.has_animation("car/sit") and not "--mkroll" in OS.get_cmdline_user_args():
+				p.seek(0.4, true); p.pause()
 	# in the car's frame: facing forward (-z); the rig's own forward is +z (main.place_person: Basis(UP, yaw))
 	if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
 	var holder := Node3D.new(); holder.name = "seat_" + k; car.add_child(holder)
@@ -542,7 +558,13 @@ func _earphone():
 
 var probed := false
 var probe_n := 0
+var mk_shut := false
 func _place_people():
+	# 試作282: her eyes shut, whenever the faces are made (they may come after this scene's _ready)
+	if not mk_shut and main.faces.has("makoto") and not "--mkopen" in OS.get_cmdline_user_args():
+		var f = main.faces.makoto
+		f.tex = {"open": f.tex.closed, "closed": f.tex.closed, "talk": f.tex.closed}; f.mat.albedo_texture = f.tex.closed; f.state = "closed"
+		mk_shut = true
 	for k in sitters:
 		var r: Node3D = sitters[k][0]; var h: Node3D = sitters[k][1]
 		r.global_transform = h.global_transform
@@ -790,7 +812,7 @@ func _lines(dt: float):
 	if cur.has("text") and typed < String(cur.text).length() and is_instance_valid(cur_lb):
 		typed = minf(float(String(cur.text).length()), typed + dt * 15.0)
 		_type(cur_lb, String(cur.text), int(typed))
-	main.talk_now = cur.get("who_key", "") if cur.has("text") and typed < String(cur.text).length() else ""
+	main.talk_now = _speaking(dt)   # 試作282 (story.gd _speaking)
 	# a line goes when the next comes; the last fades out
 	if cur.has("text") and typed >= String(cur.text).length():
 		read_t += dt
