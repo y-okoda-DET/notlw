@@ -100,6 +100,9 @@ func _ready():
 	if house:
 		_house_ready()
 		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
+		if "--hamnow" in OS.get_cmdline_user_args():   # stills only: straight to the hammer at the cellar window
+			get_tree().create_timer(float(main.ARGS.get("hamat", "40"))).timeout.connect(func():
+				_boards_start(); player.global_position = gp(CELLAR_WIN[0] + 0.95, CELLAR_WIN[1], -1.88); _hammer_start())
 		return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
@@ -745,6 +748,8 @@ func _process(dt):
 		var p: Vector3 = finder_rest.pos if finder_rest.get("ok", false) else eye + dir * 0.3
 		finder_cam.global_transform = Transform3D(Basis.from_euler(Vector3(player.pitch, player.yaw, 0.0), EULER_ORDER_YXZ), p)
 		finder_cam.current = true
+	elif ham_on and is_instance_valid(ham_cam):
+		ham_cam.current = true   # 試作281: this line took the hammer's cut back to her eye every frame
 	else:
 		cam.current = true
 	finder_layer.visible = finder and holding_cam
@@ -761,7 +766,9 @@ func _process(dt):
 		fixed_cam.visible = not finder
 		if OS.get_cmdline_user_args().has("--storydbg"): print("HELD ", fixed_cam.global_position, " cam ", cam.global_position, " vis ", fixed_cam.is_visible_in_tree())
 	# what she is looking at
-	if mode == FREE:
+	if ham_on:   # 試作281: the hammer's key stayed blank in 280 (the line below cleared it every frame)
+		note_lb.text = "" if ham_any else T(HAM_KEY)
+	elif mode == FREE:
 		focus = _focus(eye, dir)
 		if holding_radio:
 			note_lb.text = T("［マウスで目盛りを合わせる］") if radio_up else ""
@@ -2247,28 +2254,72 @@ const HAM_GOOD := [0.28, 1.05]  # held this long: a full blow
 func _hammer_start():
 	ham_on = true; ham_board = 0; ham_hits = 0; ham_miss = 0; ham_t = 0.0; ham_bent = 0; ham_st = "ready"; ham_any = false
 	player.move_enabled = false; player.look_enabled = false
-	ham_rest = []
-	for b in cellar_boards:
-		var n := b as Node3D
-		ham_rest.append(n.global_position); n.visible = false
-	ham_mid = Vector3.ZERO
-	for r in ham_rest: ham_mid += r as Vector3
-	ham_mid /= maxf(1.0, float(ham_rest.size()))
-	ham_out = _ham_out(0)
-	ham_side = Vector3.UP.cross(ham_out).normalized()
-	# the cut: low beside the window, a little to her left of it, the board and the nail between the camera and her hand
+	# 試作281: the cut is to a small set of its own, below the ground (HAM_SET): a piece of the wall with the window's black,
+	# copies of the four boards laid as they lie on the house, the phone's light. Under the porch stair the house's own
+	# geometry stood between any camera and the board. The house's boards are hidden till the cut ends, then stand nailed
+	var wmid := Vector3.ZERO
+	for bd in cellar_boards: wmid += (bd as Node3D).global_position
+	wmid /= maxf(1.0, float(cellar_boards.size()))
+	var bw := Basis(Vector3.UP.cross(Vector3.RIGHT).normalized(), Vector3.UP, Vector3.RIGHT)   # the house's (side, up, out) at the window
+	var M := bw.inverse()                                                                   # → the set's (x, y, z)
+	ham_set = Node3D.new(); ham_set.name = "ham_set"; main.add_child(ham_set); ham_set.global_position = HAM_SET
+	ham_mid = HAM_SET; ham_out = Vector3.BACK; ham_side = Vector3.UP.cross(ham_out).normalized()
+	var wallm := StandardMaterial3D.new(); wallm.albedo_color = Color(0.2, 0.17, 0.14); wallm.roughness = 0.9
+	var wall := MeshInstance3D.new(); var wb := BoxMesh.new(); wb.size = Vector3(5.0, 3.5, 0.06); wall.mesh = wb; wall.material_override = wallm
+	ham_set.add_child(wall); wall.position = Vector3(0, 0.1, -0.06)
+	var hole := MeshInstance3D.new(); var hq := QuadMesh.new(); hq.size = Vector2(0.62, 0.42); hole.mesh = hq
+	var holem := StandardMaterial3D.new(); holem.albedo_color = Color(0.0, 0.0, 0.0); holem.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hole.material_override = holem; ham_set.add_child(hole); hole.position = Vector3(0, 0, -0.028)
+	var ground := MeshInstance3D.new(); var gb := BoxMesh.new(); gb.size = Vector3(5.0, 0.04, 3.0); ground.mesh = gb
+	var gm := StandardMaterial3D.new(); gm.albedo_color = Color(0.06, 0.055, 0.05); gm.roughness = 1.0; ground.material_override = gm
+	ham_set.add_child(ground); ground.position = Vector3(0, -0.62, 1.4)
+	ham_rest = []; ham_b = []; ham_axis = []; ham_org = []; ham_face = []
+	for bd in cellar_boards:
+		var n := bd as MeshInstance3D
+		n.visible = false
+		var c := n.duplicate(0) as MeshInstance3D; ham_set.add_child(c)
+		c.global_transform = Transform3D(M * n.global_basis, HAM_SET + M * (n.global_position - wmid))
+		c.visible = false
+		ham_b.append(c); ham_org.append(c.global_position)
+		var ab := c.get_aabb()
+		ham_rest.append(c.global_transform * ab.get_center())   # the board's middle (its origin is at one end)
+		var li := 0   # the long way: the basis column scaled longest (the boards are unit cubes, scaled)
+		for k in 3:
+			if (c.global_basis[k] * ab.size[k]).length() > (c.global_basis[li] * ab.size[li]).length(): li = k
+		var ax: Vector3 = c.global_basis[li].normalized()
+		if ax.dot(ham_side) < 0.0: ax = -ax
+		ham_axis.append(ax)
+		var face := 0.0   # from the middle to the face toward her
+		for k in 3: face += absf(c.global_basis[k].dot(ham_out)) * ab.size[k] * 0.5
+		ham_face.append(face)
+	# the camera: low beside the window, a little to her left of it, the board and the nail between it and her hand
 	ham_cam = Camera3D.new(); ham_cam.fov = 46.0; main.add_child(ham_cam)
+	var pc: Camera3D = player.get_node("Head/Camera")
+	ham_cam.attributes = pc.attributes; ham_cam.near = 0.02; ham_cam.far = 3.0   # only the set
+	var env := Environment.new(); env.background_mode = Environment.BG_COLOR; env.background_color = Color(0.0, 0.0, 0.0)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color = Color(0.25, 0.3, 0.4); env.ambient_light_energy = 0.25
+	if pc.environment: env.tonemap_mode = pc.environment.tonemap_mode
+	elif main.env: env.tonemap_mode = main.env.tonemap_mode
+	ham_cam.environment = env
 	ham_cam.global_position = ham_mid + ham_out * 0.62 - ham_side * 0.42 + Vector3.UP * 0.16
 	ham_cam.look_at(ham_mid + ham_out * 0.06 + ham_side * 0.05, Vector3.UP)
 	ham_cam.make_current()
 	# Taiga's phone over it (in the world: he stands on the porch stair holding it out)
-	ham_light = SpotLight3D.new(); ham_light.light_color = Color(0.86, 0.9, 1.0); ham_light.light_energy = 3.2
-	ham_light.spot_range = 3.0; ham_light.spot_angle = 34.0; ham_light.spot_attenuation = 0.7; ham_light.shadow_enabled = true
-	main.add_child(ham_light)
+	ham_light = SpotLight3D.new(); ham_light.light_color = Color(0.86, 0.9, 1.0); ham_light.light_energy = 1.3
+	ham_light.spot_range = 3.0; ham_light.spot_angle = 48.0; ham_light.spot_attenuation = 1.4; ham_light.shadow_enabled = true
+	ham_set.add_child(ham_light)
 	ham_light.look_at_from_position(ham_mid + ham_out * 0.9 + ham_side * 0.3 + Vector3.UP * 0.75, ham_mid, Vector3.UP)
 	_ham_show(0)
 	_ham_hand()
-	note_lb.text = T("［Ｅ（押したまま、離す）　打つ］")
+	note_lb.text = T(HAM_KEY)
+
+const HAM_SET := Vector3(0.0, -60.0, 0.0)
+const HAM_KEY := "［Ｅ を押したまま振り上げて、離して打つ］"
+var ham_set: Node3D
+var ham_b := []                 # the set's copies of the cellar boards
+var ham_axis := []              # each copy's long way
+var ham_org := []               # each copy's own origin
+var ham_face := []              # middle → front face
 
 func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
 	var cam: Camera3D = player.get_node("Head/Camera")
@@ -2277,17 +2328,23 @@ func _ham_out(i: int) -> Vector3:   # the way out of the wall, toward her
 
 func _ham_show(i: int):
 	ham_nails = []
-	if i >= cellar_boards.size(): return
-	var n := cellar_boards[i] as Node3D
-	n.visible = true; n.global_position = (ham_rest[i] as Vector3) + ham_out * 0.03
+	if i >= ham_b.size(): return
+	var n := ham_b[i] as Node3D
+	# 試作281: the camera goes to each board in turn (the hammer and her hand in the lower right of the frame)
+	var bc: Vector3 = ham_rest[i]
+	var cp := bc + ham_out * 0.44 - ham_side * 0.46 + Vector3.UP * 0.12   # from the side: the swing's arc seen across, not end-on
+	var tf := Transform3D(Basis(), cp).looking_at(bc + ham_out * 0.1 + ham_side * 0.06 - Vector3.UP * 0.05, Vector3.UP)
+	if i == 0: ham_cam.global_transform = tf
+	else: create_tween().tween_property(ham_cam, "global_transform", tf, 0.4).set_trans(Tween.TRANS_SINE)
+	n.visible = true; n.global_position = (ham_org[i] as Vector3) + ham_out * 0.03
 	var steel := StandardMaterial3D.new(); steel.albedo_color = Color(0.72, 0.72, 0.74); steel.metallic = 0.6; steel.roughness = 0.3
 	for j in 3:
-		var nail := Node3D.new(); main.add_child(nail)
+		var nail := Node3D.new(); ham_set.add_child(nail)
 		var sh := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0028; cy.bottom_radius = 0.0028; cy.height = 0.06
 		sh.mesh = cy; sh.material_override = steel; sh.rotation.x = PI / 2; sh.position = Vector3(0, 0, 0.03); nail.add_child(sh)
 		var hd := MeshInstance3D.new(); var cy2 := CylinderMesh.new(); cy2.top_radius = 0.0075; cy2.bottom_radius = 0.0075; cy2.height = 0.003
 		hd.mesh = cy2; hd.material_override = steel; hd.rotation.x = PI / 2; nail.add_child(hd)
-		var at: Vector3 = (ham_rest[i] as Vector3) + ham_out * 0.045 + ham_side * (float(j - 1) * 0.16)
+		var at: Vector3 = (ham_rest[i] as Vector3) + ham_out * (0.03 + float(ham_face[i])) + (ham_axis[i] as Vector3) * (float(j - 1) * 0.16)
 		nail.global_position = at + ham_out * 0.04
 		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # its point (+Z local) into the board
 		ham_nails.append({"n": nail, "at": at, "sunk": 0.0})
@@ -2330,6 +2387,7 @@ func _ham_pose():
 
 func _ham_tick(dt: float):
 	ham_t += dt
+	if is_instance_valid(ham_cam) and get_viewport().get_camera_3d() != ham_cam: ham_cam.make_current()   # (a card or the player's own camera work took it)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if demo_on: held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
@@ -2370,8 +2428,8 @@ func _ham_blow():
 	if last: nl.sunk = minf(float(nl.sunk), 0.72)   # the last one does not go home
 	S.one(self, "ch3_thud" if (last and float(nl.sunk) >= 0.72) else "hit", -6.0 if add > 0.3 else -14.0, nl.at)
 	(nl.n as Node3D).global_position = nl.at + ham_out * (0.04 * (1.0 - float(nl.sunk)))
-	var n := cellar_boards[ham_board] as Node3D
-	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_rest[ham_board] as Vector3) + ham_out * 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk))), 0.06)
+	var n := ham_b[ham_board] as Node3D
+	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_org[ham_board] as Vector3) + ham_out * 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk))), 0.06)
 	if float(nl.sunk) >= 1.0 or (last and float(nl.sunk) >= 0.72):
 		ham_miss = 0; ham_hits += 1
 		if not ham_any: ham_any = true; note_lb.text = ""
@@ -2382,7 +2440,7 @@ func _ham_blow():
 
 func _ham_new_nail(nl: Dictionary):
 	var old := nl.n as Node3D
-	var nail := old.duplicate() as Node3D; main.add_child(nail)
+	var nail := old.duplicate() as Node3D; ham_set.add_child(nail)
 	nail.global_transform = Transform3D(Basis(), Vector3.ZERO)
 	nail.global_position = nl.at + ham_out * 0.04
 	nail.look_at(nail.global_position - ham_out, Vector3.UP)
@@ -2393,6 +2451,8 @@ func _hammer_end():
 	if is_instance_valid(ham): ham.queue_free()
 	if is_instance_valid(ham_light): ham_light.queue_free()
 	if is_instance_valid(ham_cam): ham_cam.queue_free()
+	if is_instance_valid(ham_set): ham_set.queue_free()
+	for bd in cellar_boards: (bd as Node3D).visible = true   # the house's own, nailed where they were laid
 	(player.get_node("Head/Camera") as Camera3D).make_current()
 	note_lb.text = ""
 	player.move_enabled = true

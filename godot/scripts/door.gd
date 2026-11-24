@@ -51,6 +51,10 @@ func _ready():
 	_night_cam()
 	_end_card()
 	call_deferred("_strike_walk")
+	# 試作281（ユーザー「細い窓越しに見える腕が変。いっそのこと、ここに夏希の手を映さなくてもいいかもね」）: behind the door she is only
+	# her light on the slit and her knocking; her body is not drawn (the node stays, its visible is the story's "she has gone")
+	if main.S.has("natsuki_node"):
+		for gi in (main.S.natsuki_node as Node).find_children("*", "GeometryInstance3D", true, false): (gi as GeometryInstance3D).visible = false
 	get_tree().create_timer(0.5).timeout.connect(func(): _face_light("taiga", 0.3, "kiryu"))   # 点検3: Kiryu holds his phone up to him: his face against the door
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])

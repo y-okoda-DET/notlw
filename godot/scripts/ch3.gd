@@ -674,7 +674,10 @@ func _say_nail():
 	if not script_q.is_empty() and script_q[0].get("do", "") == "next": script_q.pop_front()
 	var q: Array = D.entries("零時.釘"); q.remove_at(0)   # (the first is the line as she could say it)
 	for i in range(q.size() - 1, -1, -1): script_q.push_front(q[i])
-	_clear_page(); nail_lb = null
+	# 試作281（ユーザー「このあと「釘で切ったの、見てた～～」がダブる」）: the line she could say stays, as said, where it stood;
+	# the silence goes from under it, and the script no longer has her say it a second time
+	if is_instance_valid(silence_lb) and silence_lb.get_parent(): silence_lb.get_parent().queue_free()
+	nail_lb = null
 	cur = {}; _foot_back()
 	print("STORY ch3 said_nail t=%.1f" % t_now)
 	_next()
@@ -720,7 +723,7 @@ func _swap_aimed(step: int) -> bool:
 	var to := _swap_point(step) - cam.global_position
 	var f := -cam.global_basis.z
 	var off := (to - f * to.dot(f)).length()   # how far the point sits from the line of sight
-	return to.dot(f) > 0.0 and off < 0.035
+	return to.dot(f) > 0.0 and off < 0.06   # 試作281（ユーザー「どうしたらいいかわからず混乱した」）: .035 was a pinpoint
 
 func _cassette() -> MeshInstance3D:
 	var mi := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.062, 0.012, 0.047); mi.mesh = bm
@@ -733,7 +736,7 @@ func _swap_press():
 	var st := int(swap.step)
 	if st >= 2 and not _swap_aimed(st):
 		# off the slot / the button: the tape knocks the camera, the hand shakes more
-		swap.shake = minf(3.0, float(swap.shake) + 0.5); swap.cool = 0.5
+		swap.shake = minf(1.8, float(swap.shake) + 0.25); swap.cool = 0.5
 		Sound.one(self, "tripod_bump", -16.0, fixed_cam.global_position)
 		if swap.hand: (swap.hand as Node3D).position.x += randf_range(-0.01, 0.01)
 		print("STORY ch3 swap miss step %d" % st)
@@ -765,6 +768,7 @@ func _swap_do():
 			_rec3(false)   # already out since cam_stop (the tape ran out); on again once the button is in
 			get_tree().create_timer(0.5).timeout.connect(func(): _rec3(true))
 			cam.rotation = Vector3.ZERO
+			note_lb.text = ""
 			swap = {}
 			stage = "tape_done"
 			_start(B("零時.替えた"))
@@ -776,10 +780,15 @@ func _swap_tick(dt: float):
 	swap.t = float(swap.t) + dt
 	swap.cool = maxf(0.0, float(swap.cool) - dt)
 	# the hand shakes: the view with it (small, uneven; more after each miss)
-	var t := float(swap.t); var a := float(swap.shake) * 0.0035
+	var t := float(swap.t); var a := float(swap.shake) * 0.0012   # 試作281（ユーザー「震えが極端」）: .0035 → .0012
 	var cam: Camera3D = player.get_node("Head/Camera")
 	cam.rotation = Vector3(a * (sin(t * 23.0) + 0.6 * sin(t * 37.0 + 1.3)), a * (sin(t * 19.0 + 0.4) + 0.5 * sin(t * 41.0)), 0.0)
 	if swap.hand: (swap.hand as Node3D).position.y = -0.11 + a * 2.0 * sin(t * 29.0)
+	# 試作281: what the hand does next, in the same corner as every other［Ｅ］
+	var stp := int(swap.step)
+	if stp == 1: note_lb.text = T("［Ｅ　古いテープを抜く］")
+	elif stp == 2: note_lb.text = T("［Ｅ　新しいテープを差す］") if _swap_aimed(2) else T("（横の、ふたの口を見る）")
+	elif stp == 3: note_lb.text = T("［Ｅ　録画を押す］") if _swap_aimed(3) else T("（裏の、録画のボタンを見る）")
 	if demo_on and float(swap.cool) <= 0.0 and t > 0.9 * float(swap.step):
 		_swap_do()   # the unattended run: each step in turn, a hand that does not miss
 

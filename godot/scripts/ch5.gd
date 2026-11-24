@@ -1322,8 +1322,16 @@ func _gust_tick(dt: float):
 		gust_k = move_toward(gust_k, 0.0, dt * 3.0)
 		gust_next -= dt
 		if gust_next <= 0.0:
-			gust_left = randf_range(0.9, 1.2); gust_next = randf_range(2.6, 4.0)
-			Sound.one(self, "ch3_rattle", -6.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+			gust_left = randf_range(1.0, 1.3); gust_next = randf_range(2.6, 4.0); gust_knock = 0.0
+			Sound.one(self, "ch8_wind", -4.0, gp(CWIN[0] + 0.6, CWIN[1], CWIN[2] + 0.6))   # 試作281: the gust itself, heard coming
+	# 試作281（ユーザー「風が吹いて板ががたつく間だけ…感じられなかった」）: the board knocks against its nails all through the gust,
+	# not once at its start, and its free end lifts far enough to see (.07 → .15 rad, shaking)
+	if gust_left > 0.0:
+		gust_knock -= dt
+		if gust_knock <= 0.0:
+			gust_knock = randf_range(0.16, 0.26)
+			Sound.one(self, "ch3_rattle", -9.0 + gust_k * 4.0, gp(CWIN[0], CWIN[1], CWIN[2]))
+var gust_knock := 0.0
 var mk_at_cellar := false
 var mk_fell := false
 var outside := false
@@ -1450,7 +1458,7 @@ func _out_tick(dt: float):
 		var held := mode == FREE and look_k == "board" and (Input.is_key_pressed(KEY_E) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or demo_hold)
 		_gust_tick(dt)
 		var b = _board_now()
-		var lift := gust_k * 0.07   # the gust pushes the board's free end out from the wall (seen, and heard as the rattle)
+		var lift := gust_k * (0.15 + 0.035 * sin(t_now * 27.0))   # the gust pushes the board's free end out from the wall (seen, and heard as the rattle)
 		if held and gust_k > 0.5:
 			board_k += dt / GUST_PULL
 			board_creak -= dt

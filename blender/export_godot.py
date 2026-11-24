@@ -246,7 +246,7 @@ def pose_kiryu(k, t):
     idle(k, t, 1.0, breath=.21, amp=1 - .7 * look, rate=.8)
 
 TAIGA_LAT = {'l': .38, 'r': .32}   # the left arm comes from the turned-away shoulder: wider so both arms are as straight
-TAIGA_HAND_UP = .0   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead)
+TAIGA_HAND_UP = -.24   # wrists this far above the shoulder joints (試作18: were at eye height, the arms overhead; 試作281（ユーザー「大河の腕、なんかねじれてる？」）: at shoulder height the raised upper arm stretched the sleeve into a wing over Mio's view; at the chest, elbows bent, the weight goes into the door)
 TAIGA_WRIST = .095   # the wrists' plane, this far in front of the door's line (palms flat on the door)
 
 def pose_taiga(tg, t):
