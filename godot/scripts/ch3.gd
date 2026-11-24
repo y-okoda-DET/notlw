@@ -142,7 +142,7 @@ var mirror_done := false
 func _ready():
 	player = main.player
 	if not ("--keepflags" in OS.get_cmdline_user_args()):
-		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
+		for fk in ["said_nail", "said_rule", "lean", "leaned", "door_0230", "talked_kiryu_1am", "talked_makoto_1am", "stay_watch", "stay_knock", "stay_air", "asked1_0", "asked1_1", "asked1_2", "asked1_3"]: if get_flag(fk, null) != null: set_flag(fk, null)   # 2026-11-21 (review): this chapter played again keeps none of its last run
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = ["ラジオ", "大河"]   # 大河's lines from behind the cellar door keep his name (the midnight ones are said in the hall: the rule shows it once)
@@ -1548,6 +1548,10 @@ func _t230_record(final: bool):
 		last_ask_t = 63.0
 	rec230["said_rule"] = has_flag("said_rule")
 	set_flag("door_0230", rec230.duplicate(true))
+	# 試作281（別のスレッド「選んだ返事が、まだ後で拾われない」）: the first thing she asked through the door, for 証言一 to quote
+	for k in 4: set_flag("asked1_%d" % k, null)
+	for a in rec230.asks:
+		if typeof(a[1]) == TYPE_INT: set_flag("asked1_%d" % int(a[1])); break
 	print("STORY ch3 door_0230 ", JSON.stringify(rec230))
 
 # the unattended playthrough: to the door, the ear on it for Natsuki's voice, two questions, (with --ch3rule) the rule

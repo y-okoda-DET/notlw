@@ -155,7 +155,8 @@ func _only_if(es: Array) -> Array:
 	return out
 
 # a ＞name that is only a mark in the night's record (said_nail, talked_kiryu_1am, ...): set it, and say it was one
-const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen"]
+const FLAG_DOS := ["said_nail", "talked_kiryu_1am", "said_rule", "guestbook_hidden", "went_out_4am", "hands_cut", "tried", "tape_seen",
+	"stay_watch", "stay_knock", "stay_air"]   # 試作281: 零時半、玄関に残る訳（証言一で拾う）
 func _flag_do(d: String) -> bool:
 	if d in FLAG_DOS: set_flag(d); return true
 	return false
@@ -377,6 +378,7 @@ func _page():
 const SAY_SIZE := 32.0   # ユーザー 2026-11-11: 32 is the default (46 and 42 were too loud for the picture)
 func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Array:
 	var tes := kind == "testimony"
+	if not tes and kind != "choose": _choice_unplace()
 	var box: VBoxContainer = tes_box if tes else lines_box
 	if tes: _clear_box(tes_box)
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u))
@@ -400,8 +402,9 @@ func _line_row(who: String, text: String, size := SAY_SIZE, kind := "say") -> Ar
 		row.set_meta("choice", true)
 		# 試作278（独立レビュー「車の選択肢が白い窓の上で灰色に重なって読めない」）: the pool under a choice is three times as dark,
 		# so the one not picked (paper at .38) still reads over the bright glass
-		var sf = t.get_node_or_null("soft")
-		if sf: sf.kk = 3.0
+		# 試作281（ユーザー「袋文字にはしない…じゃないと他の地の文となにか違いがあるのではないかと感じてしまう」）: the
+		# darker pool of 278/279 read as outlined letters. A choice has the same shadow as any line; it is kept off people
+		# and bright glass by where it sits (_choice_place), not by a heavier shadow
 	if not tes: _fit_lines()
 	return [row, t]
 
@@ -978,12 +981,73 @@ func _next():
 		# 試作97: _line_row fades every row but the last one; the choices are all "now" (in 96 the first two were
 		# faded by their rows, so the one chosen did not read white: ユーザー「選択しているものが白くならない」)
 		for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
-		_show_choice()
+		_show_choice(); _choice_place()
 		return
 	cur["who_key"] = WHO_KEY.get(cur.who, "")
 	if ch2 and cur.who_key != "": talk_with = cur.who_key
 	var r2 = _line_row(cur.who, "", SAY_SIZE, "testimony" if cur.get("testimony", false) else "say")
 	cur_lb = r2[1]
+
+# 試作281（別のスレッド「選ぶ行は人物と明るい所を避けた位置に」：車の明るい窓、零時半の真琴の胸）: when the choices come,
+# the lines slide sideways to where the frame is darkest and no one stands. Candidates along the foot (the middle first);
+# each scored by the picture's brightness under it and by the people over it. Back to the middle with the next line
+var choice_dx := 0.0
+func _choice_place():
+	if lines_box == null or not is_instance_valid(lines_box): return
+	await get_tree().process_frame
+	if not cur.has("choose") or cur.get("chosen", false): return
+	var vp := get_viewport(); var W := vp.get_visible_rect().size.x; var H := vp.get_visible_rect().size.y
+	var bw := 0.0
+	for c in lines_box.get_children(): bw = maxf(bw, (c as Control).get_combined_minimum_size().x)
+	var bh := lines_box.size.y
+	if bw <= 0.0 or bh <= 0.0: return
+	bw += 40.0 * u
+	var y1 := H - 64.0 * u; var y0 := y1 - bh
+	var img: Image = null
+	if DisplayServer.get_name() != "headless":
+		img = vp.get_texture().get_image()
+		if img: img.resize(96, int(96.0 * H / W), Image.INTERPOLATE_BILINEAR)
+	var cam := vp.get_camera_3d()
+	var people := []
+	if cam and main:
+		for k in ["mio", "kiryu", "natsuki", "makoto", "taiga"]:
+			if not main.S.has(k + "_node"): continue
+			var rig: Node3D = main._rig_of(k)
+			if rig == null or not rig.is_visible_in_tree(): continue
+			var lo := Vector2(INF, INF); var hi := Vector2(-INF, -INF); var any := false
+			for h in [0.1, 0.9, 1.6]:
+				for sx in [-0.28, 0.28]:
+					var p: Vector3 = rig.global_position + Vector3.UP * h + cam.global_basis.x * sx
+					if cam.is_position_behind(p): continue
+					var q := cam.unproject_position(p); lo = lo.min(q); hi = hi.max(q); any = true
+			if any: people.append(Rect2(lo, hi - lo))
+	var best := 0.0; var bs := INF
+	for f in [0.0, -0.18, 0.18, -0.3, 0.3]:
+		var cx: float = W * 0.5 + W * float(f)
+		var r := Rect2(cx - bw * 0.5, y0, bw, bh)
+		if r.position.x < W * 0.03 or r.end.x > W * 0.97: continue
+		var lum := 0.5
+		if img:
+			var sum := 0.0; var n := 0
+			var ix0 := int(r.position.x / W * img.get_width()); var ix1 := int(r.end.x / W * img.get_width())
+			var iy0 := int(r.position.y / H * img.get_height()); var iy1 := int(r.end.y / H * img.get_height())
+			for iy in range(clampi(iy0, 0, img.get_height() - 1), clampi(iy1, 1, img.get_height())):
+				for ix in range(clampi(ix0, 0, img.get_width() - 1), clampi(ix1, 1, img.get_width())):
+					var c := img.get_pixel(ix, iy); sum += c.get_luminance(); n += 1
+			if n > 0: lum = sum / n
+		var over := 0.0
+		for pr in people:
+			var ov := r.intersection(pr)
+			if ov.has_area(): over += ov.get_area() / r.get_area()
+		var score: float = lum + 1.5 * over + 0.12 * absf(float(f))
+		if score < bs: bs = score; best = float(f)
+	choice_dx = W * best
+	lines_box.offset_left = choice_dx; lines_box.offset_right = choice_dx
+	if demo_on: print("CHOICE place %.2f" % best)
+
+func _choice_unplace():
+	if choice_dx == 0.0 or lines_box == null: return
+	choice_dx = 0.0; lines_box.offset_left = 0.0; lines_box.offset_right = 0.0
 
 func _show_choice():
 	for i in range(choice_lbs.size()):
@@ -991,8 +1055,20 @@ func _show_choice():
 		lb.add_theme_color_override("font_color", paper if i == choice_idx else Color(paper.r, paper.g, paper.b, 0.42))   # 試作278: .38 → .42 with the darker pool under it (Type.Soft kk): read over the bright glass, and still apart from the one picked
 		# 試作279（独立レビュー「車の選択肢、どれを選んでいるか見分けられない」）: over the bright windscreen the letters' own
 		# brightness does not tell; the pool under them does: the one picked sits in a dark pool, the others in a light one
-		var sf = lb.get_node_or_null("soft")
-		if sf: sf.kk = 4.0 if i == choice_idx else 1.8
+
+# 試作281（ユーザー「選択肢が選べない時がある」、第5章の台所）: ch5.gd and ch8.gd take their own input and never moved
+# the choice. One handler for them: W/S, the arrows, the wheel. True when it took the event
+func _choice_input(e) -> bool:
+	if mode != TALK or not cur.has("choose"): return false
+	var d := 0
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.keycode in [KEY_W, KEY_UP]: d = -1
+		elif e.keycode in [KEY_S, KEY_DOWN]: d = 1
+	elif e is InputEventMouseButton and e.pressed:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP: d = -1
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: d = 1
+	if d == 0: return false
+	_move_choice(d); get_viewport().set_input_as_handled(); return true
 
 func _move_choice(d: int):
 	if cur.get("chosen", false): return
@@ -1057,13 +1133,14 @@ class Strike extends Control:
 
 func _choose():
 	cur["chosen"] = true
+	# 試作281（別のスレッド「ふだんの会話の選択肢が、重い選択と同じ見え方」）: an everyday answer leaves no struck rows; the
+	# ones not taken go at once. The heavy ones (2時半 at the door, the testimonies) keep their own forms and their strikes
 	for i in range(choice_lbs.size()):
 		if i == choice_idx: continue
-		var lb: Label = choice_lbs[i]
-		var s := Strike.new(); s.u = u
-		s.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
-		s.size = lb.size; s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lb.add_child(s)
+		var row := (choice_lbs[i] as Control).get_parent() as Control
+		if row == null: continue
+		var tw := create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(func(): if is_instance_valid(row) and row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
 	var then: Array = cur.then[choice_idx]
 	for i in range(then.size() - 1, -1, -1): script_q.push_front(then[i])
 	wait_after = 1.1
@@ -2037,7 +2114,8 @@ func _helpers_tick():
 		for h in [0.3, 1.0, 1.6]:
 			var p: Vector3 = rig.global_position + Vector3.UP * h
 			if cam.is_position_in_frustum(p) and cam.global_position.distance_to(p) < 14.0:
-				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, p))
+				var hq := PhysicsRayQueryParameters3D.create(cam.global_position, p); hq.exclude = [player.get_rid()]
+				var hit := get_viewport().world_3d.direct_space_state.intersect_ray(hq)
 				if hit.is_empty() or (hit.position as Vector3).distance_to(p) < 0.4: seen = true
 		if seen: continue
 		var q: Array = helpers_pending[k]

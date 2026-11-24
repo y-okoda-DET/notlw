@@ -1521,6 +1521,7 @@ func _door_tick(dt: float):
 # ================================================================ keys
 func _unhandled_input(e):
 	if card_t > 0.0 or mode == END: return
+	if _choice_input(e): return
 	if e is InputEventMouseButton and e.pressed and fin_on and stage not in ["hall", "fall", "sky", "lapse"]:
 		if e.button_index == MOUSE_BUTTON_WHEEL_UP: zoom_v = 1.4; return
 		if e.button_index == MOUSE_BUTTON_WHEEL_DOWN: zoom_v = -1.4; return

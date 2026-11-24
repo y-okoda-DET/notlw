@@ -1629,6 +1629,7 @@ func _end_card():
 # ---------------------------------------------------------------- input
 func _unhandled_input(e):
 	if card_t > 0.0 or stage in ["end_card", "fin"]: return
+	if _choice_input(e): return
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	if not press: return
 	if wb_t >= 0.0:

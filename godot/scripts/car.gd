@@ -812,7 +812,7 @@ func _event(e: Array):
 				var rc = _line_row("", e[2][i], SAY_SIZE, "choose")
 				choice_lbs.append(rc[1])
 			for lb in choice_lbs: ((lb as Control).get_parent() as Control).modulate.a = 1.0
-			_show_choice()
+			_show_choice(); _choice_place()
 		"drive_on":
 			stage = "drive_on"; t_stage = 0.0
 			_blinker(5)
@@ -834,13 +834,12 @@ var nat_paused := false
 func _car_choose():
 	if not choice_wait: return
 	choice_wait = false; cur["chosen"] = true
-	for i in range(choice_lbs.size()):
+	for i in range(choice_lbs.size()):   # 試作281: an everyday answer leaves no struck rows (story.gd _choose)
 		if i == choice_idx: continue
-		var lb: Label = choice_lbs[i]
-		var st := Strike.new(); st.u = u
-		st.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
-		st.size = lb.size; st.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lb.add_child(st)
+		var row := (choice_lbs[i] as Control).get_parent() as Control
+		if row == null: continue
+		var tw := create_tween(); tw.tween_property(row, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(func(): if is_instance_valid(row) and row.get_parent(): row.get_parent().remove_child(row); row.queue_free())
 	if demo_car: print("SAY 選ぶ ", cur.choose[choice_idx])
 	_note_pick()
 	# what follows the answer goes into the stop's lines here, 4 s apart; the rest of her talk after it
