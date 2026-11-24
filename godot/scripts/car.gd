@@ -38,6 +38,7 @@ const SEAT_MIO := Vector3(-0.37, 0.40, 0.10)     # the cushion under her (the pl
 const EYE_UP := 0.70                             # her eye over it
 const SEAT_NAT := Vector3(0.37, 0.40, 0.10)
 const SEAT_MK := Vector3(-0.30, 0.42, 0.96)
+const NAT_LIFT := Vector3(0.0, 0.06, -0.03)   # 試作282
 const WHEEL := Vector3(0.37, 0.90, -0.34)        # the wheel's middle
 const WHEEL_TILT := 0.42                          # its face turned up from upright (rad)
 const WHEEL_R := 0.185
@@ -151,18 +152,35 @@ func _curve():
 		if cs.size() > 0: cone = cs[0]
 	if cone:
 		var c: Vector3 = (cone as MeshInstance3D).global_transform * (cone as MeshInstance3D).get_aabb().get_center()
+		# 試作282（ユーザー「コーンを避けるシーン、ぐにゃぐにゃ動く。コーンにぶつからないように軽く右に避けて、元の車線に戻す」）:
+		# one lane change, not a wiggle: toward the right until the cone is 1.6 m on the left, held 3 m either side of it, eased
+		# in and out over 12 m; then the path is smoothed again so the wheel turns once each way
+		var shifts := []; var nrms := []
+		for i in pts.size(): shifts.append(0.0); nrms.append(Vector3.ZERO)
 		for i in range(1, pts.size() - 1):
 			var p: Vector3 = pts[i]
 			var tg: Vector3 = (pts[i + 1] - pts[i - 1]); tg.y = 0.0; tg = tg.normalized()
-			var nrm := Vector3(-tg.z, 0.0, tg.x)
+			var nrm := Vector3(-tg.z, 0.0, tg.x)   # the driver's right
 			var rel := c - p; rel.y = 0.0
 			var along := rel.dot(tg); var side := rel.dot(nrm)
-			if absf(along) > 7.0 or absf(side) > 1.8: continue
-			var w := 0.5 + 0.5 * cos(PI * along / 7.0)
-			# move across so the cone is 1.8 m to the side (staying on the side of it the car is already on)
-			var shift := -(1.8 - side) if side >= 0.0 else (side + 1.8)
-			pts[i] = p + nrm * shift * w
-		print("CAR cone at ", c)
+			if absf(along) > 15.0: continue
+			var w := 1.0 - smoothstep(3.0, 15.0, absf(along))
+			shifts[i] = maxf(0.0, side + 1.6) * w; nrms[i] = nrm
+			if absf(along) < 4.0 and "--conedbg" in OS.get_cmdline_user_args(): print("CONE i=%d along %.2f side %.2f shift %.2f" % [i, along, side, shifts[i]])
+		for i in range(1, pts.size() - 1):
+			if shifts[i] <= 0.0: continue
+			pts[i] = (pts[i] as Vector3) + (nrms[i] as Vector3) * float(shifts[i])   # (the normals of the path before the move)
+		for it in 3:
+			var sm2 := pts.duplicate()
+			for i in range(1, pts.size() - 1): sm2[i] = (pts[i - 1] as Vector3) * 0.25 + (pts[i] as Vector3) * 0.5 + (pts[i + 1] as Vector3) * 0.25
+			pts = sm2
+		var mind := 99.0
+		var mini_i := -1
+		for qi in pts.size():
+			var dq := Vector2((pts[qi] as Vector3).x - c.x, (pts[qi] as Vector3).z - c.z).length()
+			if dq < mind: mind = dq; mini_i = qi
+		if "--conedbg" in OS.get_cmdline_user_args(): print("CONE nearest i=%d" % mini_i)
+		print("CAR cone at ", c, " nearest path point %.2f m" % mind)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)]; var b: Vector3 = pts[mini(i + 1, pts.size() - 1)]
 		var t: Vector3 = (b - a) * 0.22
@@ -491,7 +509,9 @@ func _people():
 	for k in ["kiryu", "taiga"]:
 		if main.S.has(k + "_node"): (main.S[k + "_node"] as Node3D).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
-	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
+	# 試作282（ユーザー「夏希、シートに埋もれている。直す」）: the Tripo seat's cushion is higher than the box one SIT_HIP was set
+	# for; her thighs were under its top. Up 6 cm and a little forward off the back
+	_seat("natsuki", SEAT_NAT + NAT_LIFT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
 	main.phones(false)   # 試作277（ユーザー「夏希の手持ちのスマホなくす」）：夏希のスマホは吹き出し口の一台だけ。手の中の物は消す
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
 	for k in ["natsuki", "makoto"]:   # layer 5: the face fill (_inside) lights them and nothing else
