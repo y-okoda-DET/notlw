@@ -103,7 +103,14 @@ func _ready():
 		if DEMO_HOUSE or "--demo" in OS.get_cmdline_user_args(): _demo_house()
 		if "--hamnow" in OS.get_cmdline_user_args():   # stills only: straight to the hammer at the cellar window
 			get_tree().create_timer(float(main.ARGS.get("hamat", "40"))).timeout.connect(func():
-				_boards_start(); player.global_position = gp(CELLAR_WIN[0] + 0.95, CELLAR_WIN[1], -1.88); _hammer_start())
+				_boards_start(); player.global_position = gp(CELLAR_WIN[0] + 0.95, CELLAR_WIN[1], -1.88); _hammer_start()
+				if "--hamlast" in OS.get_cmdline_user_args():   # stills only: the last board, two nails in, the third to go (the hose)
+					for j in ham_nails.size(): (ham_nails[j].n as Node3D).visible = false
+					ham_board = cellar_boards.size() - 1; _ham_show(ham_board); ham_hits = 2
+					for j in 2:
+						ham_nails[j].sunk = 1.0; (ham_nails[j].n as Node3D).global_position = ham_nails[j].at
+					ham_hose_o = 0.03 * (1.0 - 0.33 * 2.0); _ham_hose_squash(ham_hose_o)
+					(ham_b[ham_board] as Node3D).global_position = (ham_org[ham_board] as Vector3) + ham_out * ham_hose_o)
 		return
 	# the handrail's top line (house4.stairs_up): z_rail(y) = 2.295 + (y_plan - 4.215) * .9167, plan y = 6.3 - Y
 	var a := _rail_z(3.65); var b := _rail_z(0.95)
@@ -937,6 +944,7 @@ func _judge() -> Array:
 
 # ================================================================ conversations
 func _conversation(key: String) -> Array:
+	if key == "taiga" and boards_wait and not taiga_moving: return B("板.受け取る")   # 試作282
 	var n: int = talked.get(key, 0); talked[key] = n + 1
 	if house: return _house_conv(key, n)
 	match key:
@@ -1269,6 +1277,7 @@ func _do(what: String):
 		"house_lights": main.generator(true); _gen_flicker()
 		"taiga_up": _walk_taiga("door")
 		"taiga_reel": _taiga_reel()
+		"boards_take": _boards_take()
 		"boards_start": _boards_start()
 		"boards_rest": _boards_show_rest()
 		"board":
@@ -1489,7 +1498,7 @@ func _demo_tick(dt):
 					done = true
 		"until":   # ["until", what, value, secs] wait for the story: hs | taiga | stage (the radio's) | wins
 			if mode == TALK: _demo_hear(dt); return
-			var v = {"hs": hs, "taiga": taiga_at, "stage": radio_stage, "wins": wins_done, "cellar": cellar_done}.get(s[1])
+			var v = {"hs": hs, "taiga": taiga_at, "stage": radio_stage, "wins": wins_done, "cellar": cellar_done, "taiga_still": not taiga_moving}.get(s[1])
 			done = v == s[2] or (typeof(v) == TYPE_INT and int(v) >= int(s[2]))
 			if not done and demo_t > float(s[3]): _demo_fail("until %s %s (is %s)" % [s[1], str(s[2]), str(v)]); done = true
 		"say": print("DEMO ", s[1], " t=%.1f" % t_now); done = true
@@ -1639,6 +1648,8 @@ func _ch2_start():
 
 func _take_radio():
 	holding_radio = true; radio_since = t_now
+	# 試作282（ユーザー「ラジオをつけたら音楽が流れている状態からスタート」）: it comes on where it was left: the music station
+	tune = (STATIONS[0][0] - AM_LO) / (AM_HI - AM_LO)
 	items.erase("radio")
 	_radio_power(true)
 	talk_with = ""
@@ -1870,6 +1881,7 @@ func _person_item(k: String):
 	if not main.T20.has(k) or not main.S.has(k + "_node"): return
 	var p: Array = main.T20[k].pos if not (k == "taiga" and taiga_at == "gen") else main.T20.taiga_gen.pos
 	items[k] = {"pos": g([p[0], p[1], p[2] + 1.5]), "r": 0.3, "kind": "talk", "name": {"kiryu": "桐生", "natsuki": "夏希", "makoto": "真琴", "taiga": "大河"}[k]}
+	if k == "taiga" and taiga_at == "door" and taiga_aside: items[k].pos = gp(TAIGA_DOORWAY[0], TAIGA_DOORWAY[1], 1.5)
 
 func _move_taiga(where: String):
 	taiga_at = where
@@ -1881,13 +1893,18 @@ func _move_taiga(where: String):
 		var fwd := sk.global_basis * Vector3(0, 0, 1); fwd.y = 0.0
 		looks.taiga.setup(fwd.normalized())
 
+# 試作282（ユーザー「ここの大河、部屋の前に立つ感じで（廊下を歩くときちょっと邪魔なので）」）: back from the cellar he stood
+# where the hall meets the cellar's passage, in the way. Now one more step, into the doorway of the room to the north
+# (the --ch3map: open at x 4.3〜4.7 from y 6.6 up), facing the hall
+const TAIGA_DOORWAY := [4.5, 6.72, 0.0]
+var taiga_aside := false
 # 試作92: he walks (main.walk_to, Mixamo's legs): the hall's end, the cellar door, down the stair, round to the generator
 const TAIGA_PATH := [[4.75, 6.05, 0.0], [5.2, 5.95, 0.0], [5.5, 5.8, 0.0], [5.5, 5.6, 0.0], [5.5, 2.6, ZB], [5.5, 2.15, ZB],
 	[6.8, 2.2, ZB], [8.2, 4.6, ZB], [8.5, 6.35, ZB]]
 func _walk_taiga(where: String):
 	taiga_after = ""; taiga_moving = true
 	var path: Array = TAIGA_PATH.slice(1) if where == "gen" else TAIGA_PATH.slice(0, -1)
-	if where == "door": path.reverse()
+	if where == "door": path.reverse(); path.append(TAIGA_DOORWAY); taiga_aside = true
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_cellar"); dn.open_key("door_barred")
 	var J: Dictionary = main.T20.taiga_gen if where == "gen" else main.T20.taiga
@@ -2033,6 +2050,9 @@ func _gen_use(key: String):
 			if not gen.run or gen.choke: _start(B("切り替え.点かない")); return
 			if hs >= 3: _start(B("切り替え.もう下りている")); return
 			hs = 3; talk_with = "taiga"
+			# 試作282（ユーザー「切り替えスイッチを選択した瞬間に大河は延長コードを持っている状態に（澪が見ていないところで絵の切り替え）」）:
+			# she is facing the switch; the reel is in his hand when she turns back (it appeared in his hand while she watched him)
+			_taiga_reel()
 			if co_lever: create_tween().tween_property(co_lever, "rotation:x", 0.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 			_start(B("切り替え.点く"))
 
@@ -2224,8 +2244,9 @@ func _boards_start():
 		var c := Vector3.ZERO
 		for b in grp: c += (b as Node3D).global_position
 		wins.append({"boards": grp, "c": c / grp.size()})
-	for i in range(wins.size()):
-		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
+	# 試作282（ユーザー「ここ、まず大河の傍に行って、木材を受け取るのはどうだろう」）: the windows take boards only once she has
+	# gone to Taiga and taken hers from him (【板.受け取る】, ＞boards_take)
+	boards_wait = true
 	print("STORY boards windows %d cellar %d" % [wins.size(), cellar_boards.size()])
 	_helpers_to_windows()
 	talk_with = "taiga"
@@ -2248,6 +2269,14 @@ func _boards_start():
 			taiga_moving = false
 			if mode == FREE: _start(B("板.始まり"))
 			else: script_q.append_array(B("板.始まり")), PI))
+
+var boards_wait := false
+func _boards_take():
+	boards_wait = false
+	for i in range(wins.size()):
+		items["w_%d" % i] = {"pos": wins[i].c, "r": 0.45, "kind": "look", "name": "窓"}
+	if main.S.has("taiga_node"):
+		preload("res://scripts/sound.gd").one(self, "tripod_bump", -14.0, main._rig_of("taiga").global_position + Vector3.UP)
 
 func ARGS_HAS_NOWALK() -> bool: return "--boardsnow" in OS.get_cmdline_user_args()   # stills: the planks in his hands at once
 
@@ -2360,6 +2389,17 @@ func _hammer_start():
 	note_lb.text = T(HAM_KEY)
 
 const HAM_SET := Vector3(0.0, -60.0, 0.0)
+const HOSE_R := 0.011
+var ham_hose: MeshInstance3D
+var ham_hose_at := Vector3.ZERO
+var ham_hose_o := 0.03
+
+# the hose's depth follows the board's back: o = the board's offset out of the wall's plane (0.03 when laid on)
+func _ham_hose_squash(o: float):
+	if not is_instance_valid(ham_hose): return
+	var d := clampf((o + 0.001) / (2.0 * HOSE_R), 0.5, 1.0)   # its depth over its round width
+	var w := 1.0 / sqrt(d)
+	ham_hose.global_transform = Transform3D(Basis(ham_side * w, Vector3.UP, ham_out * d), ham_hose_at - ham_out * HOSE_R * (1.0 - d))
 const HAM_KEY := "［Ｅ を押したまま振り上げて、離して打つ］"
 var ham_set: Node3D
 var ham_b := []                 # the set's copies of the cellar boards
@@ -2394,6 +2434,17 @@ func _ham_show(i: int):
 		nail.global_position = at + ham_out * 0.04
 		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # its point (+Z local) into the board
 		ham_nails.append({"n": nail, "at": at, "sunk": 0.0})
+	# 試作282（ユーザー「ホースを挟んでしまうところを上手く見せたいけど、どうしたらいいだろうな」）: on the last board, a grey garden
+	# hose runs down the wall behind it, by the third nail, in sight above and below the board. As that board goes in, the hose
+	# flattens under it (_ham_hose_squash); the last nail stops with the board still proud of the wall. No word and no sound of its own
+	if is_instance_valid(ham_hose): ham_hose.queue_free()
+	if i == ham_b.size() - 1:
+		ham_hose = MeshInstance3D.new(); var hc := CylinderMesh.new(); hc.top_radius = HOSE_R; hc.bottom_radius = HOSE_R; hc.height = 0.62
+		hc.radial_segments = 18; ham_hose.mesh = hc
+		var rub := StandardMaterial3D.new(); rub.albedo_color = Color(0.3, 0.33, 0.3); rub.roughness = 0.55
+		ham_hose.material_override = rub; ham_set.add_child(ham_hose)
+		ham_hose_at = (ham_rest[i] as Vector3) + (ham_axis[i] as Vector3) * 0.125 + ham_out * (HOSE_R + 0.001 - float(ham_face[i])) - Vector3.UP * 0.08
+		ham_hose_o = 0.03; _ham_hose_squash(0.03)
 
 # the hammer, and her right forearm with it (props/mio_arm_r.glb), on a pivot at her elbow
 func _ham_hand():
@@ -2455,7 +2506,11 @@ func _ham_hand():
 		# 試作281（ユーザー「金づち、手が棒の部分を握ってない」）: the arm came with its wrist on the handle's line and the fist 7 cm off
 		# it. Turn the arm so the fist's knuckle line runs along the handle, and set it so the handle passes through the curled fingers
 		_ham_fit_fist(arm, grip, Vector3(0, -0.205, 0.035))
-	grip.position = -elbow
+	# 試作282（ユーザー「釘に金槌がヒットしてない。当てて、釘が入り込んでいくようにする」）: the pivot put the grip's origin (the
+	# handle's top) on the nail's head, so the face came down 3.5 cm above it and 3.7 cm into the board. Now the face's
+	# middle (0, hy, -0.0368) is what lands on the head
+	ham.set_meta("face", Vector3(0.0, hy, -0.0368))
+	grip.position = -elbow - Vector3(0.0, hy, -0.0368)
 	ham.set_meta("grip", grip)
 	_ham_pose()
 
@@ -2532,8 +2587,9 @@ func _ham_pose():
 	var shake := 0.0
 	if ham_st == "raise" and ham_hold > HAM_GOOD[1]: shake = minf(1.0, (ham_hold - HAM_GOOD[1]) * 1.4)
 	var wob := Vector3(sin(ham_t * 41.0), sin(ham_t * 33.0 + 1.0), 0.0) * 0.006 * shake
-	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * elbow + wob)
-	(ham.get_meta("grip") as Node3D).position = -elbow
+	var fc: Vector3 = ham.get_meta("face", Vector3.ZERO)
+	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * (elbow + fc) + wob)
+	(ham.get_meta("grip") as Node3D).position = -elbow - fc
 
 func _ham_tick(dt: float):
 	ham_t += dt
@@ -2542,7 +2598,7 @@ func _ham_tick(dt: float):
 		var fp: Vector3 = (ham.get_meta("grip") as Node3D).global_transform * Vector3(0, -0.17, 0.035)
 		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
-	if demo_on: held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
+	if demo_on or "--hamlast" in OS.get_cmdline_user_args(): held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
 		"ready":
 			ham_ang = move_toward(ham_ang, 14.0, dt * 60.0)
@@ -2582,7 +2638,11 @@ func _ham_blow():
 	S.one(self, "ch3_thud" if (last and float(nl.sunk) >= 0.72) else "hit", -6.0 if add > 0.3 else -14.0, nl.at)
 	(nl.n as Node3D).global_position = nl.at + ham_out * (0.04 * (1.0 - float(nl.sunk)))
 	var n := ham_b[ham_board] as Node3D
-	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_org[ham_board] as Vector3) + ham_out * 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk))), 0.06)
+	var o := 0.03 * (1.0 - 0.33 * (ham_hits + float(nl.sunk)))
+	if is_instance_valid(ham_hose) and ham_board == cellar_boards.size() - 1:
+		o = maxf(o, HOSE_R * 1.12)   # the hose under it: the board will not lie flat
+		create_tween().tween_method(_ham_hose_squash, ham_hose_o, o, 0.06); ham_hose_o = o
+	var tw := create_tween(); tw.tween_property(n, "global_position", (ham_org[ham_board] as Vector3) + ham_out * o, 0.06)
 	if float(nl.sunk) >= 1.0 or (last and float(nl.sunk) >= 0.72):
 		ham_miss = 0; ham_hits += 1
 		if not ham_any: ham_any = true; note_lb.text = ""
@@ -2605,6 +2665,7 @@ func _hammer_end():
 	if is_instance_valid(ham_light): ham_light.queue_free()
 	if is_instance_valid(ham_cam): ham_cam.queue_free()
 	if is_instance_valid(ham_set): ham_set.queue_free()
+	ham_hose = null
 	for bd in cellar_boards: (bd as Node3D).visible = true   # the house's own, nailed where they were laid
 	(player.get_node("Head/Camera") as Camera3D).make_current()
 	note_lb.text = ""
@@ -2626,10 +2687,11 @@ func _boards_show_rest():
 	main.carry_boards("taiga", false)   # he sets them down by the stair and takes his phone out again
 	var dn = main.get_node_or_null("Doors")
 	if dn: dn.open_key("door_kitchen"); dn.open_key("door_back")
-	var from: Array = [4.75, 6.05, 0.0] if taiga_at == "door" else [8.5, 6.35, ZB]
+	var from: Array = ([4.75, 6.05, 0.0] if not taiga_aside else TAIGA_DOORWAY) if taiga_at == "door" else [8.5, 6.35, ZB]
 	var out := [[5.6, 6.4, 0.0], [6.6, 6.4, 0.0], [7.6, 5.4, 0.0], [9.5, 4.9, 0.0], [10.55, 4.9, 0.0], [10.88, 5.8, 0.0], [10.88, 8.5, -1.85],
 		[10.88, 8.95, -1.92], [10.25, 8.7, -1.88], TAIGA_OUT]
 	var path := [from] + out
+	if taiga_at == "door" and taiga_aside: path = [TAIGA_DOORWAY, [4.75, 6.3, 0.0]] + out   # (out of the doorway first, the wall is east of it)
 	if taiga_at == "gen": path = TAIGA_PATH.slice(0, -1); path.reverse(); path += out
 	var w := gp(CELLAR_WIN[0], CELLAR_WIN[1], 0.0) - gp(TAIGA_OUT[0], TAIGA_OUT[1], 0.0)
 	# 2026-11-14（ユーザー「大河が地面にめり込む。しゃがむなど」）: there he crouches to the low window (Mixamo's Crouching Idle),
@@ -2685,13 +2747,14 @@ func _demo_house():
 		["use", "g_gauge"], ["until_free"],
 		["gop", 8.1, 4.6], ["gop", 6.85, 3.75], ["use", "g_change"], ["until_free"], ["until", "hs", 3, 5.0],
 		["gop", 6.8, 2.2], ["gop", 5.5, 2.15], ["gop", 5.5, 2.6, 28.0], ["gop", 5.5, 5.8, 28.0],
-		["gop", 5.14, 6.46], ["gop", 4.39, 6.46], ["until", "hs", 4, 10.0], ["until_free"],   # Taiga stands at the stair's top: round him by the north
+		["gop", 5.14, 6.25], ["gop", 4.39, 6.2], ["until", "hs", 4, 10.0], ["until_free"],   # 試作282: Taiga steps into the north room's doorway: past him on the hall's south side
 		["gop", 4.26, 3.9], ["gop", 4.26, 3.15], ["use", "radio"], ["until_free"],
 		["rup", true], ["wait", 1.0],
 		["tune", u.call(600.0), 2.2], ["wait", 2.4], ["tune", u.call(745.0), 2.0], ["wait", 4.0],
 		["tune", u.call(1040.0), 1.8], ["wait", 2.0], ["tune", u.call(1017.0), 1.2],
 		["until_talk"], ["auto", 1], ["until_free"],
 		["rup", true], ["until", "hs", 5, 120.0], ["until_free"],
+		["gop", 4.26, 5.9], ["until", "taiga_still", true, 60.0], ["until_free"], ["use", "taiga"], ["until_free"],   # 試作282: the boards from his hands first
 		# three windows: the dining room's, the kitchen's two (the dining room and kitchen are reached from the hall; the living room can be walked into past Makoto’s north side since 試作96)
 		["gop", 4.26, 6.29], ["gop", 3.74, 6.76], ["gop", 3.2, 7.5], ["use", "w_5"], ["until_free"],
 		["gop", 3.76, 6.74], ["gop", 4.89, 6.54], ["gop", 6.21, 6.54], ["gop", 6.61, 6.94], ["use", "w_4"], ["until_free"],

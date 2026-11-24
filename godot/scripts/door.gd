@@ -61,6 +61,9 @@ func _ready():
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
+	# 試作282（レビュー 5-5「一点透視の廊下」）: not square on to the door down the hall: it stands at the left third, the
+	# hall's wall and the stair's side cut across the frame. The player turns to it as before
+	player.yaw += deg_to_rad(-17.0)
 	for a2 in OS.get_cmdline_user_args():
 		if a2.begins_with("--storystate=door_"): call_deferred("_jump", float(a2.substr(18)))
 		if a2.begins_with("--doorlook="):   # stills: the n-th look at the door (0..2), typed out

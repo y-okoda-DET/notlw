@@ -206,6 +206,25 @@ func _hide(k: String):
 		_rig(k).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = Vector3(0, -50, 0)
 
+# 試作282（ユーザー「桐生がパッと消えた」「真琴がパッと出る」）: a person put away at the end of a walk goes only when she
+# cannot see them: in her frame (and not behind her), they wait there till she looks away
+func _seen(k: String) -> bool:
+	var r := _rig(k)
+	if r == null or not r.visible: return false
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null: return false
+	for h in [0.3, 1.0, 1.6]:
+		var p: Vector3 = r.global_position + Vector3(0, h, 0)
+		if cam.is_position_in_frustum(p) and cam.global_position.distance_to(p) < 14.0: return true
+	return false
+
+func _hide_unseen(k: String, then := Callable()):
+	if not _seen(k) or card_t > 0.0:
+		_hide(k)
+		if then.is_valid(): then.call()
+		return
+	get_tree().create_timer(0.3).timeout.connect(_hide_unseen.bind(k, then))
+
 func _plan_of(n: Node3D) -> Array:
 	return [n.global_position.x + 4.8, n.global_position.z + 6.3]
 
@@ -605,7 +624,7 @@ func _do(what: String):
 				tw.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
 		"kiryu_up":   # 試作127 B5「2階は桐生がやっておく」: from the hall up the stair, a roll of tape in his hand
 			talk_with = ""
-			main.walk_to("kiryu", [[4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("kiryu"))
+			main.walk_to("kiryu", [[4.3, 3.6, 0.0], [4.8, 2.9, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2], [5.0, 7.3, F2]], func(): _hide_unseen("kiryu"))
 		"kiryu_rec":
 			_kiryu_tally()
 		"kiryu_out":
@@ -706,7 +725,10 @@ func _pulse_on():
 	var under := Node3D.new(); ba.add_child(under); under.position = Vector3(0, -0.02, 0)
 	var fingers := Node3D.new(); ba.add_child(fingers); fingers.position = Vector3(0, -0.05, 0.0)
 	pulse_rc = [ba, hold]
-	for pr in [["l", under, Vector3(0, -0.03, 0)], ["r", fingers, Vector3(0, 0.015, 0)]]:
+	# 試作282（ユーザー「真琴の腕が大河の手をすり抜ける」）: reach.gd puts her wrist on the point, so her hand went on past it,
+	# into his. Her wrists stop a hand's length short of his wrist, on her side of it: the left a little under, the right over
+	var back: Vector3 = (mk.global_position + Vector3.UP * 1.3) - mid; back.y = 0.0; back = back.normalized()
+	for pr in [["l", under, back * 0.13 - Vector3.UP * 0.05], ["r", fingers, back * 0.11 + Vector3.UP * 0.035]]:
 		var rc = _reach("makoto", pr[1], mk.global_position + Vector3.UP)
 		rc.side = pr[0]; rc.offset = pr[2]
 		pulse_rc.append(rc)
@@ -1114,6 +1136,7 @@ func _wash_mirror_tick():
 	if mirror_done or mode != FREE: return
 	var looking: bool = (-cam.global_basis.z).angle_to(at - e) < deg_to_rad(22.0) and e.distance_to(at) < 1.6
 	if not looking: return
+	if _seen("kiryu"): return   # 試作282（ユーザー「桐生がパッと消えた」）: he went from where she could see him to behind her
 	mirror_done = true
 	print("STORY ch3 mirror t=%.1f" % t_now)
 	var r := _rig("kiryu")
@@ -1284,14 +1307,16 @@ func _flow_event(e: Dictionary):
 			"thud":
 				Sound.one(self, "ch3_thud", -2.0, gp(5.5, 2.6, ZBASE + 0.8)); _hear("cellar")
 			"makoto_come":
-				_put("makoto", [4.75, 4.6], PI); main.set_stand("makoto", "talk/idle", 0.0); candle.visible = true
-				main.walk_to("makoto", [[4.7, 2.6, 0.0]], Callable(), _face([4.7, 2.6], SIT_AT))
+				# 試作282（ユーザー「この絵の直前、真琴がパッと出る」）: she was put down in the hall, 3 m before Mio. She comes from the
+				# kitchen, where she kept the candle at one, through its door and down the hall, the candle with her
+				_put("makoto", [6.6, 6.4], -PI / 2.0); main.set_stand("makoto", "talk/idle", 0.0); candle.visible = true
+				main.walk_to("makoto", [[5.6, 6.4, 0.0], [4.75, 6.0, 0.0], [4.7, 2.6, 0.0]], Callable(), _face([4.7, 2.6], SIT_AT))
 				talk_with = "makoto"
 			"makoto_head":
 				main.set_stand("makoto", "talk/think"); _vary("makoto", "talk/think", "talk/idle")
 			"makoto_up":
 				talk_with = ""
-				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2]], func(): _hide("makoto"); candle.visible = false)
+				main.walk_to("makoto", [[4.7, 2.4, 0.0], [5.5, 2.45, 0.0], [5.5, 5.7, F2], [5.0, 6.3, F2], [5.0, 7.3, F2]], func(): _hide_unseen("makoto", func(): candle.visible = false))
 				get_tree().create_timer(7.0).timeout.connect(func(): Sound.one(self, "ch3_cough", -8.0, gp(8.5, 1.5, F2 + 0.8)); _hear("cough"))
 				get_tree().create_timer(13.0).timeout.connect(func(): Sound.one(self, "ch3_steps", -10.0, gp(2.5, 5.5, F2 + 0.2)); _hear("steps"))
 			"knock":
@@ -1356,6 +1381,7 @@ func _kiryu_comes():
 			var nm := String(mi.name)
 			if nm.begins_with("vcam_") or nm == "lcd" or nm.begins_with("lcd_") or nm.begins_with("recled"): (mi as Node3D).visible = false
 		# he turns to her where she is (the hall, on her way to the cellar door) and she to him
+		_kiryu_lcd()
 		var me := [5.5, 2.55]; var mio := [player.global_position.x + 4.8, player.global_position.z + 6.3]
 		var k := _rig("kiryu"); k.global_transform = Transform3D(Basis(Vector3.UP, _face(me, mio)), k.global_position)
 		var to: Vector3 = (k.global_position + Vector3(0, 1.45, 0)) - player.get_node("Head/Camera").global_position
@@ -1365,6 +1391,21 @@ func _kiryu_comes():
 		_set_mission("")
 		talk_with = "kiryu"; stage = "t2"
 		_start(B("扉の番.二時")))
+
+# 試作282（ユーザー「桐生の顔も照らされているのが自然、表情を見せたい」）: the camera off the tripod is in his hands with its
+# screen open; that screen's light is on his face from below and in front (gone with him: FaceLight follows his rig's visibility)
+func _kiryu_lcd():
+	if not main.S.has("kiryu_node"): return
+	var r := _rig("kiryu")
+	var scr := Node3D.new(); scr.name = "kcam_lcd"; r.add_child(scr); scr.position = Vector3(0.08, 1.22, 0.3)
+	var sks: Array = (main.S.kiryu_node as Node).find_children("*", "Skeleton3D", true, false)
+	if sks.is_empty(): return
+	var f := FaceLight.new(); f.sk = sks[0]; f.src = scr
+	f.head = f.sk.find_bone("head")
+	if f.head < 0: f.head = f.sk.find_bone("mixamorig_Head")
+	f.light_color = Color(0.8, 0.87, 1.0); f.light_energy = 0.55; f.spot_range = 1.2; f.spot_angle = 18.0
+	f.spot_attenuation = 0.8; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.08
+	main.add_child(f)
 
 func _kiryu_tally():
 	if not main.S.has("kiryu_node"): return

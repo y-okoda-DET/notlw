@@ -52,11 +52,29 @@ func _ready():
 	for e in main.torches:
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	main.phones(false)   # 2026-11-14（ユーザー「スマホは持たない」）
+	_table_radio()
 	demo21 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo_on = demo21
 	for a in OS.get_cmdline_user_args():
 		if a == "--h22": part = 22
 	_set_part(part)
+
+# 試作282（ユーザー「テーブルにラジオを置いてうっすらラジオの音声を流しておく」）: the radio from 20時, on the low table's
+# end by the projector (furnish.py furn_ltable: x 1.55〜2.3, y 1.25〜2.45, top .40), its dial lit, on the news, low and muffled:
+# they are waiting for the bulletin to come round again
+var table_radio_snd: AudioStreamPlayer3D
+func _table_radio():
+	_radio()
+	if radio == null: return
+	tune = (1017.0 - AM_LO) / (AM_HI - AM_LO); _set_dial()
+	radio.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-90.0)), gp(1.78, 2.28, 0.40))
+	_radio_power(true)
+	var s := Sound.stream("radio_news_muf", true)
+	if s == null or "--nosound" in OS.get_cmdline_user_args(): return
+	table_radio_snd = AudioStreamPlayer3D.new(); table_radio_snd.stream = s; table_radio_snd.volume_db = -16.0
+	table_radio_snd.unit_size = 1.6; table_radio_snd.max_db = -6.0
+	add_child(table_radio_snd); table_radio_snd.global_position = radio.global_position + Vector3(0, 0.1, 0)
+	table_radio_snd.play()
 
 static func fps_load(file: String):
 	D.load_all()
@@ -306,7 +324,10 @@ func _do(what: String):
 			if r and r.get_node_or_null("see_off_fill") == null:
 				var f := OmniLight3D.new(); f.name = "see_off_fill"; f.light_color = Color(1.0, 0.86, 0.68); f.light_energy = 0.0
 				f.omni_range = 1.7; f.omni_attenuation = 1.6; f.shadow_enabled = false; f.light_specular = 0.08
-				r.add_child(f); f.position = Vector3(0.15, 1.75, 0.75)
+				# 試作282（ユーザー「ここ、なにの光源が夏希にあたっている？ここで照らされるなら後ろ姿が照らされてもいい気が」）: it
+				# came from in front of her, where nothing shines. Now from behind and above, as the lobby's bulb would: her back,
+				# her hair and shoulders lit, her face toward Mio in its shadow
+				r.add_child(f); f.position = Vector3(-0.1, 2.0, -0.85)
 				# 試作233: it lit the genkan wall beside her into a blown orange patch: it lights her alone (her meshes on layer 20)
 				f.light_cull_mask = 1 << 19
 				for m in r.find_children("*", "VisualInstance3D", true, false): (m as VisualInstance3D).layers |= 1 << 19
