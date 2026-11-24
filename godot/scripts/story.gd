@@ -688,7 +688,9 @@ func _update_looks():
 	# 試作127（ユーザー「5箇所貼ったら…「最後に、玄関を見ました。」を左上に表示させる。※左上表示されないこともしばしば」）:
 	# the chapters (ch3, ch5, 22時) run their own _process and never set this: the line showed only where a page left it on.
 	# Every chapter calls _update_looks each frame
-	if mission_box: mission_box.visible = mission != "" and tes_box.get_child_count() == 0
+	# 試作281（ユーザー「陽太パート。左上の文字は澪の独白にしたいから、陽太のやるべきことは別の方法で示したい」）: the top left is
+	# Mio's alone. In 去年の夏 what Yota is up to is on his storyboard (Tab) and in his own mouth, not there (mission_top)
+	if mission_box: mission_box.visible = mission != "" and tes_box.get_child_count() == 0 and mission_top
 	var eye: Vector3 = look_eye if look_eye != Vector3.ZERO else (player.get_node("Head/Camera") as Camera3D).global_position
 	for k in looks:
 		var lm: Look = looks[k]
@@ -1002,6 +1004,7 @@ func _next():
 # the lines slide sideways to where the frame is darkest and no one stands. Candidates along the foot (the middle first);
 # each scored by the picture's brightness under it and by the people over it. Back to the middle with the next line
 var choice_dx := 0.0
+var mission_top := true   # 試作281: false in 去年の夏 (ch7.gd)
 func _choice_place():
 	if lines_box == null or not is_instance_valid(lines_box): return
 	await get_tree().process_frame

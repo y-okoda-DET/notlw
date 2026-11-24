@@ -88,6 +88,7 @@ var page_clear_t := -1.0
 
 func _ready():
 	player = main.player
+	mission_top = false   # 試作281: the top left is Mio's (story.gd _update_looks)
 	font = Type.say()
 	u = get_viewport().get_visible_rect().size.y / 1080.0
 	offscreen = []
