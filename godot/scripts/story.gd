@@ -2434,6 +2434,23 @@ func _ham_fit_fist(arm: Node3D, grip: Node3D, at: Vector3):
 	var moved := t * fist
 	arm.transform = Transform3D(q, at - moved) * arm.transform
 	print("HAM fist fit axis ", ax, " fist ", fist)
+	# 試作281（ユーザー「親指は腕に対して平行で柄に巻き付くように」）: the thumb lay along the handle. Swing it round the handle from
+	# its root, across to meet the index finger's middle joint, and curl its two joints round it the same way
+	var to_s := sk.global_transform.affine_inverse() * grip.global_transform
+	var hax: Vector3 = (to_s.basis * Vector3.UP).normalized()      # the handle's line, in the skeleton's space
+	var hc: Vector3 = to_s * at                                     # a point on it
+	var t1 := sk.find_bone("thumb_01_r"); var t3 := sk.find_bone("thumb_03_r"); var i2 := sk.find_bone("index_02_r")
+	if t1 < 0 or t3 < 0 or i2 < 0: return
+	var flat := func(v: Vector3) -> Vector3: return (v - hc) - hax * (v - hc).dot(hax)
+	var root: Vector3 = sk.get_bone_global_pose(t1).origin
+	var tipv: Vector3 = flat.call(sk.get_bone_global_pose(t3).origin) - flat.call(root)
+	var want: Vector3 = flat.call(sk.get_bone_global_pose(i2).origin) - flat.call(root)
+	var swing := tipv.signed_angle_to(want, hax) * 0.8
+	for pr in [[t1, swing], [sk.find_bone("thumb_02_r"), 0.35 * signf(swing)], [t3, 0.3 * signf(swing)]]:
+		if int(pr[0]) < 0: continue
+		var g0 := sk.get_bone_global_pose(int(pr[0]))
+		sk.set_bone_global_pose(int(pr[0]), Transform3D(Basis(hax, float(pr[1])) * g0.basis, g0.origin))
+	print("HAM thumb swing ", rad_to_deg(swing))
 
 # a solid lofted along z through sections [z, y, half-width, half-height, squareness (2 round .. 6 boxy), tilt about x, x]
 func _loft(secs: Array, mat: Material, seg := 28) -> MeshInstance3D:
