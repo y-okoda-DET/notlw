@@ -696,10 +696,16 @@ func _pulse_on():
 		if bi < 0: continue
 		var d := (tsk.global_transform * tsk.get_bone_global_pose(bi).origin).distance_to(mk.global_position)
 		if d < bd: bd = d; best = b
+	# 試作281（レビュー「手首を取っていない」）: his wrist hung at his hip, and her hands stopped short of it. He holds the cut
+	# arm out a little, at her chest's height between them, and she takes it there
+	var trig: Node3D = main._rig_of("taiga")
+	var mid: Vector3 = trig.global_position.lerp(mk.global_position, 0.45) + Vector3.UP * 1.05
+	var hold = _reach("taiga", null, mid); hold.side = best.substr(5, 1)
+	create_tween().tween_property(hold, "w", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
 	var ba := BoneAttachment3D.new(); ba.bone_name = best; tsk.add_child(ba)
 	var under := Node3D.new(); ba.add_child(under); under.position = Vector3(0, -0.02, 0)
 	var fingers := Node3D.new(); ba.add_child(fingers); fingers.position = Vector3(0, -0.05, 0.0)
-	pulse_rc = [ba]
+	pulse_rc = [ba, hold]
 	for pr in [["l", under, Vector3(0, -0.03, 0)], ["r", fingers, Vector3(0, 0.015, 0)]]:
 		var rc = _reach("makoto", pr[1], mk.global_position + Vector3.UP)
 		rc.side = pr[0]; rc.offset = pr[2]
