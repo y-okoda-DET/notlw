@@ -1030,37 +1030,31 @@ func _moves(name: String) -> bool:
 	var fs: Array = cuts.shots[name]
 	return fs.size() > 1 and (fs[0].loc != fs[-1].loc or fs[0].at != fs[-1].at or fs[0].lens != fs[-1].lens)
 
-# 試作285（第6章の「消えずに残る物」、ユーザー OK 2026-11-25「袖口と電池、賛成」）: the right cuff she wiped the tripod with
-# (第6章) and washed at the sink keeps a faint brown mark, on the back of the wrist. Nobody speaks of it; the close of her hands
-# (k5_手元) has it in the frame
+# 試作289（第6章の「消えずに残る物」、ユーザー OK 2026-11-25「袖口と電池、賛成」）: the cuff she wiped the tripod with
+# (第6章) keeps a brown mark. The left one: 選ぶ_手元 looks at her left side. Pressed onto the cuff from the camera side, warm
+# enough that the print gives it orange dots on the blue sweater. Nobody speaks of it
 var cuff_on := false
 var cuff_done := false
-func _cuff_stain():
+func _cuff_stain(bone := "hand_l", col := Color(0.52, 0.22, 0.1), amax := 0.9):
 	if not ppl.has("mio"): return
 	var sk: Skeleton3D = ppl.mio.sk
-	var bi := -1
-	for nm in ["hand_r", "mixamorig_RightHand", "RightHand", "hand.R"]:
-		bi = sk.find_bone(nm)
-		if bi >= 0: break
-	if bi < 0: print("STORY interview cuff: no right hand bone"); return
-	var la := sk.get_bone_parent(bi)
+	var bi := sk.find_bone(bone)
+	if bi < 0: print("STORY interview cuff: no bone ", bone); return
 	var ba := BoneAttachment3D.new(); ba.bone_idx = bi; sk.add_child(ba)
 	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new(); rng.seed = 6
 	for y in 64:
 		for x in 64:
 			var d := Vector2(x - 32, (y - 32) * 1.5).length() / 30.0 + rng.randf_range(-0.12, 0.12)
-			img.set_pixel(x, y, Color(0.32, 0.2, 0.14, clampf((1.0 - d) * 1.6, 0.0, 0.55)))
+			img.set_pixel(x, y, Color(col.r, col.g, col.b, clampf((1.0 - d) * 1.8, 0.0, amax)))
 	var dc := Decal.new(); dc.texture_albedo = ImageTexture.create_from_image(img)
-	dc.size = Vector3(0.06, 0.16, 0.045); dc.normal_fade = 0.0; dc.upper_fade = 0.0; dc.lower_fade = 0.0
+	dc.size = Vector3(0.045, 0.08, 0.05); dc.normal_fade = 0.0; dc.upper_fade = 0.0; dc.lower_fade = 0.0
 	ba.add_child(dc)
-	# toward the elbow from the wrist (the cuff), projected from above
-	var back := Vector3(0, -0.045, 0)
-	if la >= 0:
-		var wp: Vector3 = sk.get_bone_global_pose(bi).origin; var ep: Vector3 = sk.get_bone_global_pose(la).origin
-		back = (sk.global_basis * (ep - wp)).normalized() * 0.045
-	dc.global_position = ba.global_position + back + Vector3.UP * 0.02
-	dc.global_basis = Basis.IDENTITY
+	# the attachment follows the bone only after a frame; then the stain sits a few cm up the forearm from the wrist
+	# (the bone's -Y), pressed straight down onto the back of the cuff (her hands rest in her lap)
+	await get_tree().process_frame; await get_tree().process_frame
+	if not is_instance_valid(dc): return
+	dc.position = Vector3(0, -0.004, 0); dc.global_basis = Basis(Vector3.BACK, PI / 2.0); dc.global_position += Vector3.UP * 0.012
 	print("STORY interview cuff stain at ", dc.global_position)
 
 # 名刺：her hand goes out flat over the table with the card under her fingers, and leaves it in front of Mio

@@ -28,6 +28,8 @@ uniform float dodge = 0.45;        // night print: how far each part of the shee
 uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
 uniform float dodge_max = 1.8;
 uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
+uniform float face_grain = 0.25;
+uniform float show_skin = 0.0;     // check: tints what is read as skin    // 試作289（感想282 5-5）: the grain left on lit skin (1 = as everywhere else)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -95,6 +97,16 @@ vec2 coverage_night(vec3 c, vec3 cw) {
 	b = b + deep * 0.9 * (1.0 - b);
 	return vec2(clamp(a, 0.0, 1.0), clamp(b, 0.0, 1.0));
 }
+// 試作289 lit skin, from a soft copy: r > g > b, a little warm (not wood, not a flame or a sunset window), lit. The grain is weakened
+// there, so a face in the radio's or a candle's light keeps its shape instead of being eaten by the speckle
+float skin(vec2 uv) {
+	vec3 c = textureLod(screen_tex, uv, 3.0).rgb;
+	float mx = max(max(c.r, c.g), c.b) + 1e-4;
+	float L = luma(c);
+	float warm = (c.r - c.b) / mx;
+	float order = step(c.b, c.g) * step(c.g, c.r);
+	return order * smoothstep(0.06, 0.11, warm) * (1.0 - smoothstep(0.24, 0.32, warm)) * smoothstep(0.3, 0.5, L);
+}
 // the printer dodges: the gain of this part of the sheet, from a very soft copy of the frame (no halo at an edge)
 float dodge_gain(vec2 uv, float g) {
 	if (look < 0.5 || look > 1.5 || dodge <= 0.0) return g;
@@ -140,10 +152,13 @@ void fragment() {
 		vec2 uvb = SCREEN_UV - mis / res;
 		float covb = cover(uvb, g).y;
 		// grain the size of a dot, re-drawn every print
-		float g1 = (hash(floor(px / max(cell * 0.5, 1.0)) + frame * 17.31) - 0.5) * 0.16;
-		float g2 = (hash(floor((px + mis) / max(cell * 0.5, 1.0)) + frame * 23.77 + 5.0) - 0.5) * 0.16;
-		float A = step(1.0 - dots(px, 15.0, cell) + g1, cov.x) * step(0.02, cov.x);
-		float B = step(1.0 - dots(px + mis, 75.0, cell * 1.05) + g2, covb) * step(0.02, covb);
+		float sk = skin(SCREEN_UV);
+		float gk = mix(1.0, face_grain, sk);
+		float gate = mix(0.02, 0.07, sk);   // and on skin, no lone dots where there is almost no ink
+		float g1 = (hash(floor(px / max(cell * 0.5, 1.0)) + frame * 17.31) - 0.5) * 0.16 * gk;
+		float g2 = (hash(floor((px + mis) / max(cell * 0.5, 1.0)) + frame * 23.77 + 5.0) - 0.5) * 0.16 * gk;
+		float A = step(1.0 - dots(px, 15.0, cell) + g1, cov.x) * step(gate, cov.x);
+		float B = step(1.0 - dots(px + mis, 75.0, cell * 1.05) + g2, covb) * step(gate, covb);
 		if (flat_ink > 0.5) {   // flat: solid where dark, an even light tint where there is any ink, paper elsewhere
 			float ta = step(1.0 - dots(px, 15.0, cell), 0.42), tb = step(1.0 - dots(px + mis, 75.0, cell * 1.05), 0.30);
 			A = cov.x > 0.55 ? 1.0 : (cov.x > 0.03 ? ta : 0.0);
@@ -155,5 +170,6 @@ void fragment() {
 		vec3 pap = paper * (0.975 + 0.025 * hash(floor(px / (2.0 * k))));
 		vec3 o = pap * (1.0 - A * da * (1.0 - ink_a)) * (1.0 - B * db * (1.0 - ink_b));
 		COLOR = vec4(o, 1.0);
+		if (show_skin > 0.5) COLOR = vec4(mix(o, vec3(1.0, 0.0, 1.0), sk * 0.7), 1.0);
 	}
 }
