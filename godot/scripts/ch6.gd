@@ -2476,12 +2476,12 @@ func _demo6_script() -> Array:
 	st.append(["mark", "cam"])
 	# Ｂ
 	W.call([[4.25, 3.5]]); P.call("cam"); U.call(free); st.append(["wait", 1.5])
-	U.call(func(): return done6.has("cam") and free.call()); st.append(["wait", 2.0])
+	P.call("cam"); U.call(func(): return done6.has("cam") and free.call()); st.append(["wait", 2.0])
 	P.call("cam"); U.call(func(): return done6.has("batt") and free.call())
 	st.append(["mark", "phone"])
 	# Ｃ
 	W.call([[4.2, 3.3], [4.3, 3.1], [4.4, 3.0]]); P.call("nat"); U.call(free); st.append(["wait", 1.5])
-	U.call(func(): return phone_st == 2 and act == "")
+	P.call("nat"); U.call(func(): return phone_st == 2 and act == "")
 	W.call([[5.2, 1.9], [5.5, 2.0], [5.5, 2.5]]); W.call([[5.5, 5.75], [5.5, 6.0]])
 	W.call([[5.2, 6.0], [4.8, 5.6], [4.8, 4.4], [4.1, 3.7], [3.2, 3.7], [2.6, 3.1]])
 	P.call("bag_m"); U.call(func(): return has_pack and act == "")

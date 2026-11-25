@@ -968,7 +968,7 @@ func _trace_start(gq: Dictionary):
 	add_child(mi); mi.global_position = gq.at + Vector3(gq.n[0] * 0.006, 0.0, gq.n[1] * 0.006)
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
-	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false}
+	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false, "along_x": along_x}
 	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
 	# the close shot: a set camera a little off the gap's face, slightly from above and from the side the strip starts on
