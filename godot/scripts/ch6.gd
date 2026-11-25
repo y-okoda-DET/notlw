@@ -696,6 +696,9 @@ func _begin(st: String):
 		"start":   # 2026-11-20 12時39分①: the first minute is not tidying. She calls Natsuki; the cellar from the top of its stair; the click
 			stage = "call"
 			_cellar_shoe()
+			# 試作282（ユーザー「何をすればいいのか混乱する」）: nothing on the page said where to begin; the blanket was more than
+			# 2.6 m off and under the eye's line. The first aim, and Natsuki answers E from farther and lower
+			_set_mission(String(B("六.始まり.目当て")[0].get("mission", "")))
 		"jump":
 			_jump6(start6)
 
@@ -704,7 +707,7 @@ func _nat_looked() -> bool:
 	var t := _target("nat")
 	if t.is_empty(): return false
 	var to: Vector3 = (t.pos as Vector3) - _cam().global_position
-	return to.length() < 2.6 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(30.0)
+	return to.length() < 3.4 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(36.0)
 
 const CELLAR_FOOT := [5.5, 2.6, -2.35]   # the foot of the cellar stair (plan, height): Makoto's torch on the floor, Taiga's shoe past it
 func _cellar_looked(deg := 18.0) -> bool:
@@ -1502,7 +1505,10 @@ func _tripod_tick(dt: float):
 				_hand_to(hand_r, tri_head + tri_axis.normalized() * 0.10 + Vector3(-0.0025, -0.003, 0.0395), Vector3(25, 15, 0), 0.6); _hand_to(hand_l, tri_head + tri_axis.normalized() * 0.72 + Vector3(0.0015, 0.008, 0.045), Vector3(25, -15, 0), 0.6)
 				_grip(hand_r, "tri_r2", 0.6); _grip(hand_l, "tri_l2", 0.6)
 				_fit_dev(hand_r, "tri_r2", [tripod], 0.8, null, true, true, -9.0, true); _fit_dev(hand_l, "tri_l2", [tripod], 0.85, null, true, true, -9.0, true)
-				_show_prompt("三脚.脚")
+				# 試作282（レビュー 5-4「第6章の手順が多い」）: the three locks follow the wiping by themselves, one after another
+				# (each still heard through the house); no prompt of their own
+				note_lb.text = ""
+				for li in 3: _after(1.0 + 0.85 * li, _tripod_press)
 var legs_n := 0
 
 func _tripod_press():
@@ -1595,7 +1601,8 @@ func _cam_out():
 				main.remove_child(cas2); hand_r.add_child(cas2); cas2.global_transform = gt
 				create_tween().tween_property(cas2, "transform", _held("cas"), 0.5)
 				_grip(hand_r, "cas", 0.5); _hold_to(hand_r, "cas", Vector3(0.04, -0.12, -0.24), Vector3(62, 6, 180), Vector3(0, -0.034, -0.075), 0.9)
-				_after(1.6, func(): step = 1; _show_prompt("カメラ.入れる")))))
+				# 試作282（レビュー 5-4）: out and in are one hand: the first goes in after it without a prompt of its own
+				_after(1.6, func(): step = 1; _cam_in()))))
 
 func _cam_in():
 	step = 2; note_lb.text = ""
@@ -1900,7 +1907,8 @@ func _phone_find():
 			phone.visible = true
 			phone.get_parent().remove_child(phone); hand_r.add_child(phone); phone.transform = _held("phone"); _ang_set(hand_r, GRIPS["phone"])
 			_phone_in_hand()
-			_after(1.3, func(): step = 1; _show_prompt("スマホ.押す"))))
+			# 試作282（レビュー 5-4）: found, her thumb is on its button at once (no prompt of its own)
+			_after(1.3, func(): step = 1; _phone_press())))
 
 func _phone_press():
 	match step:
@@ -2314,6 +2322,7 @@ func _do6(what: String):
 		"bird": _bird()
 		"lights": _lights()
 		"phone_on":
+			set_flag("phone_charged")   # 試作285（消えずに残る物②）: 証言 三で聞き手が言う
 			ph_mode = "lock"; ph_lit_want = 1.0
 			Sound.one(self, "dial_tick", -14.0, ph_spot)
 		"to5":
@@ -2463,20 +2472,17 @@ func _demo6_script() -> Array:
 	# Ａ
 	P.call("tripod"); U.call(func(): return step == 1)
 	st.append(["hold", func(): return step == 2])
-	for i in 3: st.append(["press"]); st.append(["wait", 0.9])
 	U.call(func(): return carrying)
 	W.call([[4.4, 3.0], [4.3, 3.1], [4.2, 3.3], [4.2, 3.8], [4.3, 4.1]]); P.call("bag"); U.call(func(): return done6.has("tripod") and act == "")
 	st.append(["mark", "cam"])
 	# Ｂ
 	W.call([[4.25, 3.5]]); P.call("cam"); U.call(free); st.append(["wait", 1.5])
-	P.call("cam"); U.call(func(): return step == 1 and act == "cam"); st.append(["wait", 1.0]); st.append(["press"])
-	U.call(func(): return done6.has("cam") and free.call()); st.append(["wait", 2.0])
+	P.call("cam"); U.call(func(): return done6.has("cam") and free.call()); st.append(["wait", 2.0])
 	P.call("cam"); U.call(func(): return done6.has("batt") and free.call())
 	st.append(["mark", "phone"])
 	# Ｃ
 	W.call([[4.2, 3.3], [4.3, 3.1], [4.4, 3.0]]); P.call("nat"); U.call(free); st.append(["wait", 1.5])
-	P.call("nat"); U.call(func(): return step == 1 and act == "phone"); st.append(["wait", 1.0]); st.append(["press"])
-	U.call(func(): return phone_st == 2 and act == "")
+	P.call("nat"); U.call(func(): return phone_st == 2 and act == "")
 	W.call([[5.2, 1.9], [5.5, 2.0], [5.5, 2.5]]); W.call([[5.5, 5.75], [5.5, 6.0]])
 	W.call([[5.2, 6.0], [4.8, 5.6], [4.8, 4.4], [4.1, 3.7], [3.2, 3.7], [2.6, 3.1]])
 	P.call("bag_m"); U.call(func(): return has_pack and act == "")

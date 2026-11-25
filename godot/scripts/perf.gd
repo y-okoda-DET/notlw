@@ -22,6 +22,34 @@ var started := ""
 func _ready():
 	process_mode = PROCESS_MODE_ALWAYS
 	started = Time.get_datetime_string_from_system(false, true)
+	# 試作282 の重さの記録（17時半に 3.8 秒止まった）: the step down to 最低 changes the lights' shadows and the fog, and the
+	# shaders are made again at that moment. The level the last run came down to is kept, and the next run starts there
+	var cf := ConfigFile.new()
+	if cf.load(LEVEL_FILE) == OK:
+		var lv := int(cf.get_value("perf", "level", 2))
+		if lv < 2: level = lv; notes.append("0:00  前回の画質（%s）から始めた" % ["最低", "低", "高"][level])
+
+const LEVEL_FILE := "user://perf_level.cfg"
+func _keep_level():
+	var cf := ConfigFile.new(); cf.set_value("perf", "level", level); cf.save(LEVEL_FILE)
+
+# 試作282 の重さの記録（場面の頭に 3〜4 秒の止まりが4回）: what a scene draws for the first time (a lamp's shadow, a material)
+# has its shaders made then, mid-play. At the scene's start, under its card, a small hidden camera at her eye looks round
+# once (eight ways, one a frame), so they are made before she can see anything
+func _warm(m: Node):
+	if not (m is Node3D or m is Node) or not m.get("player"): return
+	var pl = m.get("player")
+	if not (pl is Node3D) or not pl.has_node("Head/Camera"): return
+	var pc: Camera3D = pl.get_node("Head/Camera")
+	var vp := SubViewport.new(); vp.size = Vector2i(320, 200); vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var cam := Camera3D.new(); cam.fov = 90.0; cam.attributes = pc.attributes; cam.environment = pc.environment
+	vp.add_child(cam); m.add_child(vp); cam.current = true
+	for i in 9:
+		get_tree().process_frame.connect(func():
+			if not is_instance_valid(cam) or not is_instance_valid(pc): return
+			cam.global_transform = Transform3D(Basis(Vector3.UP, TAU * float(i) / 8.0) * Basis(Vector3.RIGHT, -0.15), pc.global_position), CONNECT_ONE_SHOT)
+		await get_tree().process_frame
+	if is_instance_valid(vp): vp.queue_free()
 
 func set_main(m: Node, w: String):
 	main = m
@@ -30,9 +58,10 @@ func set_main(m: Node, w: String):
 		segs.append(cur)
 	since_scene = 0.0; win_sum = 0.0; win_n = 0
 	if level < 2: _apply(level)
+	if OS.has_feature("template") or "--warm" in OS.get_cmdline_user_args(): _warm.call_deferred(m)
 
 func user_chose(high: bool):   # Q
-	auto = false; level = 2 if high else 1
+	auto = false; level = 2 if high else 1; _keep_level()
 	notes.append("%s  Q キーで画質を%s に（自動の切り替えは止めた）" % [_clock(), "高" if high else "低"])
 
 func _clock() -> String:
@@ -68,7 +97,7 @@ func _process(_dt: float):
 		if win_n >= 90 or win_sum > 3000.0:
 			var avg := win_sum / win_n
 			if avg > SLOW_MS:
-				level -= 1; _apply(level)
+				level -= 1; _apply(level); _keep_level()
 				notes.append("%s  %s：平均 %.1f ms で重いので、画質を自動で%s に" % [_clock(), where, avg, ["最低", "低", "高"][level]])
 				cur = {"where": where, "q": level, "n": 0, "sum": 0.0, "over33": 0, "over50": 0, "ms": []}; segs.append(cur)
 				since_scene = 2.0

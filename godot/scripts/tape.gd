@@ -881,7 +881,7 @@ func _event(e: Array):
 			_tape_close()
 			named.erase(e[2]); last_who = ""          # every line of a tape's transcript carries who says it
 			var r = _line_row(e[2], "")
-			tline = {"lb": r[1], "who": e[2], "text": Tw(e[3]), "written": 0.0, "n": 0, "n_all": 0, "n_clear": 0}
+			tline = {"lb": r[1], "who": e[2], "text": Tw(e[3]), "written": 0.0, "n": 0, "n_all": 0, "n_clear": 0, "sure": e[2] == "澪" and String(e[3]).contains("夏希？")}
 			rrow = {"segs": []}
 
 func _typing(dt: float):
@@ -896,6 +896,9 @@ func _typing(dt: float):
 		# the tracking, moment by moment: the dropouts come in clumps, as the radio's did
 		var wob := 0.5 + 0.5 * sin(tape_t * 4.7 + 2.0 * sin(tape_t * 1.9)) * sin(tape_t * 0.83 + 1.0)
 		var clear: bool = (1.0 - e) + 0.25 * (wob - 0.5) > 0.72
+		# 試作282（レビュアーの指摘にユーザー賛成「第11章の「……夏希？」は、トラッキングがずれていても必ず聞こえるようにする」）:
+		# Mio's own word at the door comes through whole, whatever the tracking does
+		if tline.get("sure", false): clear = true
 		if ch in "、。……？！　『』": _seg("ok" if clear or e < 0.6 else "gap", ch if clear or e < 0.6 else ""); continue
 		tline.n_all += 1
 		if clear: tline.n_clear += 1; _seg("ok", ch)

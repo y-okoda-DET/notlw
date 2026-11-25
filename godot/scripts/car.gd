@@ -38,6 +38,7 @@ const SEAT_MIO := Vector3(-0.37, 0.40, 0.10)     # the cushion under her (the pl
 const EYE_UP := 0.70                             # her eye over it
 const SEAT_NAT := Vector3(0.37, 0.40, 0.10)
 const SEAT_MK := Vector3(-0.30, 0.42, 0.96)
+const NAT_LIFT := Vector3(0.0, 0.06, -0.03)   # 試作282
 const WHEEL := Vector3(0.37, 0.90, -0.34)        # the wheel's middle
 const WHEEL_TILT := 0.42                          # its face turned up from upright (rad)
 const WHEEL_R := 0.185
@@ -151,18 +152,35 @@ func _curve():
 		if cs.size() > 0: cone = cs[0]
 	if cone:
 		var c: Vector3 = (cone as MeshInstance3D).global_transform * (cone as MeshInstance3D).get_aabb().get_center()
+		# 試作282（ユーザー「コーンを避けるシーン、ぐにゃぐにゃ動く。コーンにぶつからないように軽く右に避けて、元の車線に戻す」）:
+		# one lane change, not a wiggle: toward the right until the cone is 1.6 m on the left, held 3 m either side of it, eased
+		# in and out over 12 m; then the path is smoothed again so the wheel turns once each way
+		var shifts := []; var nrms := []
+		for i in pts.size(): shifts.append(0.0); nrms.append(Vector3.ZERO)
 		for i in range(1, pts.size() - 1):
 			var p: Vector3 = pts[i]
 			var tg: Vector3 = (pts[i + 1] - pts[i - 1]); tg.y = 0.0; tg = tg.normalized()
-			var nrm := Vector3(-tg.z, 0.0, tg.x)
+			var nrm := Vector3(-tg.z, 0.0, tg.x)   # the driver's right
 			var rel := c - p; rel.y = 0.0
 			var along := rel.dot(tg); var side := rel.dot(nrm)
-			if absf(along) > 7.0 or absf(side) > 1.8: continue
-			var w := 0.5 + 0.5 * cos(PI * along / 7.0)
-			# move across so the cone is 1.8 m to the side (staying on the side of it the car is already on)
-			var shift := -(1.8 - side) if side >= 0.0 else (side + 1.8)
-			pts[i] = p + nrm * shift * w
-		print("CAR cone at ", c)
+			if absf(along) > 15.0: continue
+			var w := 1.0 - smoothstep(3.0, 15.0, absf(along))
+			shifts[i] = maxf(0.0, side + 1.6) * w; nrms[i] = nrm
+			if absf(along) < 4.0 and "--conedbg" in OS.get_cmdline_user_args(): print("CONE i=%d along %.2f side %.2f shift %.2f" % [i, along, side, shifts[i]])
+		for i in range(1, pts.size() - 1):
+			if shifts[i] <= 0.0: continue
+			pts[i] = (pts[i] as Vector3) + (nrms[i] as Vector3) * float(shifts[i])   # (the normals of the path before the move)
+		for it in 3:
+			var sm2 := pts.duplicate()
+			for i in range(1, pts.size() - 1): sm2[i] = (pts[i - 1] as Vector3) * 0.25 + (pts[i] as Vector3) * 0.5 + (pts[i + 1] as Vector3) * 0.25
+			pts = sm2
+		var mind := 99.0
+		var mini_i := -1
+		for qi in pts.size():
+			var dq := Vector2((pts[qi] as Vector3).x - c.x, (pts[qi] as Vector3).z - c.z).length()
+			if dq < mind: mind = dq; mini_i = qi
+		if "--conedbg" in OS.get_cmdline_user_args(): print("CONE nearest i=%d" % mini_i)
+		print("CAR cone at ", c, " nearest path point %.2f m" % mind)
 	for i in pts.size():
 		var a: Vector3 = pts[maxi(i - 1, 0)]; var b: Vector3 = pts[mini(i + 1, pts.size() - 1)]
 		var t: Vector3 = (b - a) * 0.22
@@ -314,8 +332,20 @@ func _inside():
 	_box(inn, Vector3(0.20, 0.20, 0.60), Vector3(0, 0.40, 0.02), dash, Vector3.ZERO, "console")
 	_box(inn, Vector3(0.05, 0.12, 0.05), Vector3(0, 0.56, -0.18), dash2, Vector3(0.3, 0, 0), "shift")
 	# the roof's lining and the sun visors (folded up)
-	_box(inn, Vector3(1.50, 0.03, 1.62), Vector3(0, 1.345, 0.50), liner, Vector3.ZERO, "roof")
-	for x in [-0.37, 0.37]: _box(inn, Vector3(0.40, 0.025, 0.17), Vector3(x, 1.315, -0.20), liner, Vector3(0.25, 0, 0), "visor")
+	# 試作282（ユーザー「車内、上を見上げたときの箱が気になる」）: the lining was one flat slab ending in a square, lit edge over the
+	# windshield, with a board-like header under it. Now it runs to the doors' tops, curves down into the windshield's top in
+	# three bent strips, and carries what a roof has: the visors flat against it on their hinges, a dome lamp, two grab handles
+	var liner2 := _mat(Color(0.50, 0.49, 0.46), 1.0)
+	_box(inn, Vector3(1.60, 0.012, 1.50), Vector3(0, 1.352, 0.56), liner2, Vector3.ZERO, "roof")
+	var bend := [[1.352, -0.19], [1.348, -0.25], [1.338, -0.29], [1.322, -0.32], [1.30, -0.335]]
+	for i in bend.size() - 1:
+		_slab(inn, Vector3(0, bend[i][0], bend[i][1]), Vector3(0, bend[i + 1][0], bend[i + 1][1]), 1.46 - 0.03 * i, 0.012, liner2, "roof_bend")
+	for x in [-0.37, 0.37]:
+		_box(inn, Vector3(0.38, 0.014, 0.16), Vector3(x, 1.338, -0.12), _mat(Color(0.44, 0.43, 0.40), 1.0), Vector3.ZERO, "visor")
+		_rod(inn, Vector3(x - 0.20 * signf(x), 1.342, -0.19), Vector3(x + 0.18 * signf(x), 1.342, -0.19), 0.006, 0.006, dash2, "visor_hinge", Vector3(0, -1, 0))
+	_box(inn, Vector3(0.16, 0.018, 0.09), Vector3(0, 1.340, 0.12), _mat(Color(0.70, 0.69, 0.64), 0.6), Vector3.ZERO, "dome")
+	for sx in [-1.0, 1.0]:
+		_rod(inn, Vector3(sx * 0.66, 1.33, 0.52), Vector3(sx * 0.66, 1.33, 0.70), 0.010, 0.014, dash2, "grab", Vector3(sx, 0, 0))
 	# the windshield's frame: the pillars (A, B, C), the roof's front edge, the doors' tops (the belt line) and the doors
 	for sx in [-1.0, 1.0]:
 		_rod(inn, Vector3(sx * 0.73, 0.94, -0.95), Vector3(sx * 0.68, 1.34, -0.30), 0.040, 0.060, pillar, "pillar_a", Vector3(sx, 0, 0))   # (8時: wider, onto the glass's edge)
@@ -331,7 +361,7 @@ func _inside():
 		_box(inn, Vector3(0.06, 0.70, 0.90), Vector3(sx * 0.80, 0.63, 0.86), cloth_d, Vector3.ZERO, "door_r")
 		_box(inn, Vector3(0.10, 0.04, 2.45), Vector3(sx * 0.77, 0.975, 0.26), trim, Vector3.ZERO, "belt")
 		_box(inn, Vector3(0.09, 0.05, 0.30), Vector3(sx * 0.74, 0.74, -0.22), dash2, Vector3.ZERO, "armrest")
-	_box(inn, Vector3(1.44, 0.05, 0.08), Vector3(0, 1.325, -0.31), trim, Vector3.ZERO, "header")
+	_box(inn, Vector3(1.44, 0.02, 0.03), Vector3(0, 1.296, -0.34), trim, Vector3.ZERO, "header")   # 試作282: only the thin edge where the lining meets the glass
 	_box(inn, Vector3(1.44, 0.08, 0.06), Vector3(0, 1.31, 1.33), trim, Vector3.ZERO, "rear_header")
 	_box(inn, Vector3(1.44, 0.04, 0.40), Vector3(0, 0.98, 1.62), cloth_d, Vector3.ZERO, "parcel")
 	# the seats: two in front, the bench behind
@@ -479,7 +509,9 @@ func _people():
 	for k in ["kiryu", "taiga"]:
 		if main.S.has(k + "_node"): (main.S[k + "_node"] as Node3D).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
-	_seat("natsuki", SEAT_NAT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
+	# 試作282（ユーザー「夏希、シートに埋もれている。直す」）: the Tripo seat's cushion is higher than the box one SIT_HIP was set
+	# for; her thighs were under its top. Up 6 cm and a little forward off the back
+	_seat("natsuki", SEAT_NAT + NAT_LIFT, "res://assets/dusk/natsuki_c7.res", "sit_idle")
 	main.phones(false)   # 試作277（ユーザー「夏希の手持ちのスマホなくす」）：夏希のスマホは吹き出し口の一台だけ。手の中の物は消す
 	_seat("makoto", SEAT_MK, "res://assets/dusk/makoto_talk.res", "sit_a")
 	for k in ["natsuki", "makoto"]:   # layer 5: the face fill (_inside) lights them and nothing else
@@ -521,6 +553,10 @@ func _seat(k: String, at: Vector3, lib_path: String, clip: String):
 				lib.add_animation("sit", an)
 			p.add_animation_library("car", lib)
 			if p.has_animation("car/sit"): p.play("car/sit")
+			# 試作282（ユーザー「真琴、目を開いて動いているから眠っているように見えない」）: her sitting clip is a talking one; asleep
+			# she holds one frame of it (the head on the rest is headrest.gd's)
+			if k == "makoto" and p.has_animation("car/sit") and not "--mkroll" in OS.get_cmdline_user_args():
+				p.seek(0.4, true); p.pause()
 	# in the car's frame: facing forward (-z); the rig's own forward is +z (main.place_person: Basis(UP, yaw))
 	if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).position.y = -50.0
 	var holder := Node3D.new(); holder.name = "seat_" + k; car.add_child(holder)
@@ -542,7 +578,13 @@ func _earphone():
 
 var probed := false
 var probe_n := 0
+var mk_shut := false
 func _place_people():
+	# 試作282: her eyes shut, whenever the faces are made (they may come after this scene's _ready)
+	if not mk_shut and main.faces.has("makoto") and not "--mkopen" in OS.get_cmdline_user_args():
+		var f = main.faces.makoto
+		f.tex = {"open": f.tex.closed, "closed": f.tex.closed, "talk": f.tex.closed}; f.mat.albedo_texture = f.tex.closed; f.state = "closed"
+		mk_shut = true
 	for k in sitters:
 		var r: Node3D = sitters[k][0]; var h: Node3D = sitters[k][1]
 		r.global_transform = h.global_transform
@@ -790,7 +832,7 @@ func _lines(dt: float):
 	if cur.has("text") and typed < String(cur.text).length() and is_instance_valid(cur_lb):
 		typed = minf(float(String(cur.text).length()), typed + dt * 15.0)
 		_type(cur_lb, String(cur.text), int(typed))
-	main.talk_now = cur.get("who_key", "") if cur.has("text") and typed < String(cur.text).length() else ""
+	main.talk_now = _speaking(dt)   # 試作282 (story.gd _speaking)
 	# a line goes when the next comes; the last fades out
 	if cur.has("text") and typed >= String(cur.text).length():
 		read_t += dt

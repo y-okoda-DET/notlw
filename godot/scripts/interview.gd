@@ -722,7 +722,7 @@ func _clear(b: Container):
 # a spoken line at the foot of the frame; the speaker's name in small type when the speaker changes (story.gd)
 func _say_row(who: String, text: String) -> Label:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", int(14 * u)); row.alignment = BoxContainer.ALIGNMENT_CENTER
-	if who != last_who or lines_box.get_child_count() == 0:
+	if who != "":   # 試作282: every spoken line carries its name (字幕の決まり)
 		var w := _label(23); w.text = T(who) + "　"; w.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(w)
 	last_who = who
@@ -935,6 +935,7 @@ func _stills(spec: String):
 			if w == "fist": fist = 1.0
 			elif w == "deck": deck_root.visible = true
 			elif w == "meishi": meishi.visible = true
+			elif w == "cuff": cuff_on = true
 			elif w.begins_with("tv="):
 				if screen_mat: screen_mat.set_shader_parameter("on", 1.0 if w == "tv=on" else 2.0)
 				if screen_lb and w != "tv=on": screen_lb.text = "ＲＥＣ　２：００"
@@ -943,6 +944,7 @@ func _stills(spec: String):
 		if ppl.has("kikite"): ppl.kikite.from = form; ppl.kikite.to = form; ppl.kikite.k = 1.0; ppl.kikite.pen = ""
 		if ppl.has("mio"): ppl.mio.fist = fist; ppl.mio.fist_to = fist
 		for p in ppl: _pose(ppl[p], 0.0)
+		if cuff_on and not cuff_done: cuff_done = true; _cuff_stain()
 		if SHOTS.has(nm) or cuts.shots.has(nm):
 			_cut(nm); var fs := frames; frames = []; _set_cam(fs[clampi(fr, 0, fs.size() - 1)])
 		else: _still(nm)
@@ -1015,6 +1017,7 @@ func _one(e: Dictionary):
 					ppl.kikite.look_to = Vector2(0, 14.0)
 					await _hold(1.4)
 					ppl.kikite.look_to = Vector2.ZERO
+			"cuff_stain": _cuff_stain()
 			"card_on_table": await _card_on_table()
 			"deck_play": await _deck_play()
 			"silence": await _silence()
@@ -1026,6 +1029,35 @@ func _moves(name: String) -> bool:
 	if not cuts.shots.has(name): return false
 	var fs: Array = cuts.shots[name]
 	return fs.size() > 1 and (fs[0].loc != fs[-1].loc or fs[0].at != fs[-1].at or fs[0].lens != fs[-1].lens)
+
+# 試作289（第6章の「消えずに残る物」、ユーザー OK 2026-11-25「袖口と電池、賛成」）: the cuff she wiped the tripod with
+# (第6章) keeps a brown mark. The left one: 選ぶ_手元 looks at her left side. Pressed onto the cuff from the camera side, warm
+# enough that the print gives it orange dots on the blue sweater. Nobody speaks of it
+var cuff_on := false
+var cuff_done := false
+func _cuff_stain(bone := "hand_l", col := Color(0.62, 0.3, 0.12), amax := 0.8):
+	if not ppl.has("mio"): return
+	var sk: Skeleton3D = ppl.mio.sk
+	var bi := sk.find_bone(bone)
+	if bi < 0: print("STORY interview cuff: no bone ", bone); return
+	var ba := BoneAttachment3D.new(); ba.bone_idx = bi; sk.add_child(ba)
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new(); rng.seed = 6
+	# a smear along the cuff's edge (u = around the wrist), thin across it (v = along the arm), its edge worn by the wash
+	var nz := FastNoiseLite.new(); nz.seed = 6; nz.frequency = 0.09
+	for y in 64:
+		for x in 64:
+			var d := Vector2((x - 32) / 30.0, (y - 36) / 13.0).length() + nz.get_noise_2d(x, y) * 0.45 + rng.randf_range(-0.05, 0.05)
+			img.set_pixel(x, y, Color(col.r, col.g, col.b, clampf((1.0 - d) * 1.4, 0.0, amax)))
+	var dc := Decal.new(); dc.texture_albedo = ImageTexture.create_from_image(img)
+	dc.size = Vector3(0.06, 0.08, 0.045); dc.normal_fade = 0.0; dc.upper_fade = 0.0; dc.lower_fade = 0.0
+	ba.add_child(dc)
+	# the attachment follows the bone only after a frame; then the stain sits a few cm up the forearm from the wrist
+	# (the bone's -Y), pressed straight down onto the back of the cuff (her hands rest in her lap)
+	await get_tree().process_frame; await get_tree().process_frame
+	if not is_instance_valid(dc): return
+	dc.position = Vector3(0, -0.012, 0); dc.global_basis = Basis(Vector3.BACK, PI / 2.0); dc.global_position += Vector3.UP * 0.012
+	print("STORY interview cuff stain at ", dc.global_position)
 
 # 名刺：her hand goes out flat over the table with the card under her fingers, and leaves it in front of Mio
 func _card_on_table():

@@ -39,8 +39,10 @@ func _ready():
 		if e.has("do"): LINES.append([e.t, e.do])
 		elif e.has("note"): LINES.append([e.t, "note", e.note])
 		else: LINES.append([e.t, e.who, e.text, "testimony" if e.get("testimony", false) else {"澪": "to_mio", "扉": "to_door"}.get(e.get("to", ""), "")])
+	# 試作282（ユーザー「このシーンで扉は選択できないようにする」）: the door is not looked at with E any more; only the lock
+	# is reached for. 【扉.見る】 stays in the text, unread (--doorlooks brings it back for comparison)
 	var n := 1
-	while D.has("扉.見る%d" % n):
+	while OS.get_cmdline_user_args().has("--doorlooks") and D.has("扉.見る%d" % n):
 		var l: Array = D.lines("扉.見る%d" % n); DOOR_LOOKS.append(l[0] if l.size() == 1 else l); n += 1
 	player = main.player
 	font = Type.say()
@@ -59,6 +61,9 @@ func _ready():
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
+	# 試作282（レビュー 5-5「一点透視の廊下」）: not square on to the door down the hall: it stands at the left third, the
+	# hall's wall and the stair's side cut across the frame. The player turns to it as before
+	player.yaw += deg_to_rad(-17.0)
 	for a2 in OS.get_cmdline_user_args():
 		if a2.begins_with("--storystate=door_"): call_deferred("_jump", float(a2.substr(18)))
 		if a2.begins_with("--doorlook="):   # stills: the n-th look at the door (0..2), typed out
@@ -115,7 +120,7 @@ func _process(dt):
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var at_door := (-cam.global_basis.z).angle_to(g(DOOR_AT) - cam.global_position) < deg_to_rad(13.0)
 	note_lb.text = T("［扉］") if at_door and looked < DOOR_LOOKS.size() else ""
-	if _lock_open() and _lock_looked() and unlock_q.is_empty(): note_lb.text = T("［鍵を開ける｜Ｅ］")
+	if _lock_open() and _lock_looked() and unlock_q.is_empty(): note_lb.text = T("［鍵｜Ｅ］")
 	if dlook.has("lb") and dlook.typed < String(dlook.text).length():
 		dlook.typed = min(float(String(dlook.text).length()), dlook.typed + dt * 20.0)
 		_type(dlook.lb, String(dlook.text), int(dlook.typed))
@@ -159,11 +164,15 @@ func _unlock():
 	unlock_done = true; note_lb.text = ""
 	_close_silence()
 	unlock_q = B("扉.開ける")
-	# she goes to it: the steps she could not take before
-	var to: Vector3 = _lock_at(); var p0: Vector3 = player.global_position
-	var dst: Vector3 = p0 + (Vector3(to.x, p0.y, to.z) - p0) * 0.62
-	create_tween().tween_property(player, "global_position", dst, 0.8).set_trans(Tween.TRANS_SINE)
-	unlock_hold = 0.9
+	# 試作282（ユーザー「鍵を開けようとしたあと視点が変。鍵を開けるまでいかなくていい。開けようとしたら諌められる位の流れで」）:
+	# she does not walk to it (the eye was carried into the door and Taiga's arm). Her weight goes toward the lock, her hand is
+	# on it; Taiga stops her before it turns. The eye stays where it was
+	if lean_tw and lean_tw.is_valid(): lean_tw.kill()
+	lean_tw = create_tween()
+	lean_tw.tween_property(player, "lean", 0.09, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	lean_tw.tween_interval(1.6)
+	lean_tw.tween_property(player, "lean", 0.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	unlock_hold = 0.5
 	print("STORY door unlock t=%.1f" % t_now)
 
 func _unlock_tick(dt: float):
@@ -174,6 +183,9 @@ func _unlock_tick(dt: float):
 	unlock_hold = 0.0
 	if e.has("do"):
 		match String(e.do):
+			"touch":   # her fingers on the thumb-turn: it clicks against the latch, it does not turn
+				Sound.one(self, "lock", -14.0, _lock_at())
+				unlock_hold = 0.5
 			"unlock":
 				Sound.one(self, "lock", -4.0, _lock_at())
 				var r0: float = main.S.get("door_rot", 0.0)
@@ -213,6 +225,18 @@ func _event(e: Array):
 		"note":
 			_close_silence()
 			_line_row("", e[2], 22, "note"); cur = {}
+		"struck":
+			# 試作282（レビュー 5-2、ユーザー OK 2026-11-25）: 「……澪は？」のあと、言えたはずの「入れて」が一度だけ出る。
+			# 選べない。書き起こしの二重線が引かれてから、（沈黙）が数え始める（21時「聞くよ」と同じ、手で引く線）
+			_close_silence()
+			var rs = _line_row("澪", T("入れて"), SAY_SIZE, "say")
+			var lb: Label = rs[1]
+			lb.text = T("入れて")
+			var st := Strike.new(); st.u = u; st.anim = 0.7
+			st.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
+			st.size = Vector2(st.w, font.get_height(int(SAY_SIZE * u))); st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lb.add_child(st)
+			cur = {}
 		"leave":
 			# she goes: the knocking stops, the door settles, her light leaves the glass
 			main.S.erase("knocks")

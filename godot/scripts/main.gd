@@ -1060,7 +1060,10 @@ func clock_at(h: int, m: int):
 func _clock_tick(dt: float):
 	if SCENE != "house" or not S.has("env_node"): return
 	if clock_hands.is_empty():
-		var c := Vector3(6.08 - 4.8, 1.95, 5.3 - 6.3); var r := 0.14
+		# 試作282（ユーザー「時計、針が時刻をさしているたほうがいい」）: the house is one joined object (no lived_clock node), so these
+		# numbers are used, and the hands stood at the clock's back (6.08), behind its face. The model (assets/phm/wall_clock): set
+		# at plan x 6.0 + W + .001 = 6.082, its face .025 m out, its own hands at .028-.031; ours from .027 out
+		var c := Vector3(6.082 + 0.023 - 4.8, 1.95, 5.3 - 6.3); var r := 0.15
 		var face := Vector3(1, 0, 0)
 		for mi in S.env_node.find_children("lived_clock*", "MeshInstance3D", true, false):
 			var bb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()

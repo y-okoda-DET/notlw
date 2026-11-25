@@ -119,6 +119,8 @@ func _looked() -> MeshInstance3D:
 	# 試作127（ユーザー「扉を選択するとnullとだけ出る」、第3章の玄関）: a chapter that takes a door for itself (ch3: the front
 	# door) drops it from the list, but its body still carried the meta: E on it read a missing entry
 	var m = hit.collider.get_meta("door")
+	# 試作285（ユーザー 282「この場面で扉は選択できないように」、23時の扉）: door.gd keeps the front door to itself (the lock only)
+	if doors.has(m) and doors[m].key == "door_front" and String(main.get("play")) == "door": return null
 	return m if doors.has(m) else null
 
 # 試作277（ユーザー「扉一回選択したら、左下、消す」）：一度動かした扉には、もう案内を出さない
@@ -138,7 +140,8 @@ func _process(dt):
 	if cam == null: return
 	var d := _looked()
 	if t < say_until: return
-	label.text = "［扉｜Ｅ］" if d and not used.has(d) else ("［ふすま｜Ｅ］" if d == null and _fusuma() else "")
+	# 試作282（ユーザー「扉は選択できるけど、開かないという具合に」、4時の地下の扉）: a door that will not open keeps its prompt
+	label.text = "［扉｜Ｅ］" if d and (not used.has(d) or String(doors[d].locked) != "") else ("［ふすま｜Ｅ］" if d == null and _fusuma() else "")
 
 func _unhandled_input(e):
 	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E)
@@ -165,6 +168,7 @@ func toggle(d: MeshInstance3D):
 	if s.locked != "":
 		# 2026-11-17 夜（ユーザー「左下の開かない、トル」）: the back door says nothing; it only rattles in its frame (it is not locked: 3:30)
 		if s.key == "door_back": Sound.one(self, "ch3_rattle", -12.0, (d as Node3D).global_position); return
+		Sound.one(self, "ch3_rattle", -14.0, (d as Node3D).global_position)
 		label.text = s.locked; say_until = t + 2.2; return
 	s.is_open = not s.is_open
 	var to: float = s.open if s.is_open else s.rest
