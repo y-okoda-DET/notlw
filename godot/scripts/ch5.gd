@@ -1100,6 +1100,7 @@ func _do(what: String):
 			var pm := _plan_of(player)
 			if not (pm[0] > 5.0 and pm[0] < 6.1 and pm[1] > 5.75 and pm[1] < 7.0):
 				await _blink_to([5.45, 6.45], [5.5, 5.3])
+			if looks.has("makoto"): (looks.makoto as Look).max_pitch = 0.4   # she looks up the stair to Mio, not at the step
 			_line_face("makoto", candle, Color(1.0, 0.68, 0.36), 1.1, 3.0)
 		"makoto_step":
 			# two steps down, and she turns: her eyes on Mio's
@@ -1131,6 +1132,7 @@ func _do(what: String):
 					get_tree().create_timer(1.4).timeout.connect(func(): _stand_up(func(): _release()))), _face(MK_BLANKET, NAT_AT))
 		"makoto_cellar":
 			talk_with = ""
+			if looks.has("makoto"): (looks.makoto as Look).max_pitch = 0.0
 			if mk_at_cellar:
 				_cellar_lock("……先に、テープ。")
 				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)

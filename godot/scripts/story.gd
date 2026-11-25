@@ -631,6 +631,7 @@ class Look extends SkeletonModifier3D:
 	var head := -1
 	var chain := [["neck_01", 0.4], ["head", 0.6]]   # bones from the root up, and each one's share of the turn
 	var max_yaw := 0.56
+	var max_pitch := 0.0          # 試作291: >0 also tips the chain up/down to the eye (off by default; 4時 Makoto on the cellar stair)
 	var bones: Array = []
 	var props: Array = []          # [node, where it stands]: what she holds turns with her
 	var carry := -1
@@ -670,6 +671,16 @@ class Look extends SkeletonModifier3D:
 				var r := Transform3D(Basis(Vector3.UP, yaw * e * pair[1]), Vector3.ZERO)
 				for pr in props: (pr[0] as Node3D).global_transform = Transform3D.IDENTITY.translated(piv) * r * Transform3D.IDENTITY.translated(-piv) * pr[1]
 			sk.set_bone_global_pose(pair[0], Transform3D(Basis(up_sk, yaw * e * pair[1]) * p.basis, p.origin))
+		if max_pitch > 0.0:
+			var t3 := target - (sk.global_transform * sk.get_bone_global_pose(head)).origin
+			var th := Vector3(t3.x, 0.0, t3.z)
+			if th.length() > 0.05:
+				var pit := clampf(atan2(t3.y, th.length()), -max_pitch, max_pitch)
+				var ax := (sk.global_basis.inverse() * th.normalized().cross(Vector3.UP)).normalized()
+				for pair in bones:
+					if pair[0] < 0 or pair[1] <= 0.0 or pair[0] == carry: continue
+					var p2 := sk.get_bone_global_pose(pair[0])
+					sk.set_bone_global_pose(pair[0], Transform3D(Basis(ax, pit * e * pair[1]) * p2.basis, p2.origin))
 
 var looks := {}
 var look_eye := Vector3.ZERO   # stills (--lookfrom): where she turns to when the camera is elsewhere
