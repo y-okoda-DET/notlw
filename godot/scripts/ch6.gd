@@ -2322,6 +2322,7 @@ func _do6(what: String):
 		"bird": _bird()
 		"lights": _lights()
 		"phone_on":
+			set_flag("phone_charged")   # 試作285（消えずに残る物②）: 証言 三で聞き手が言う
 			ph_mode = "lock"; ph_lit_want = 1.0
 			Sound.one(self, "dial_tick", -14.0, ph_spot)
 		"to5":

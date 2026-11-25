@@ -935,6 +935,7 @@ func _stills(spec: String):
 			if w == "fist": fist = 1.0
 			elif w == "deck": deck_root.visible = true
 			elif w == "meishi": meishi.visible = true
+			elif w == "cuff": cuff_on = true
 			elif w.begins_with("tv="):
 				if screen_mat: screen_mat.set_shader_parameter("on", 1.0 if w == "tv=on" else 2.0)
 				if screen_lb and w != "tv=on": screen_lb.text = "ＲＥＣ　２：００"
@@ -943,6 +944,7 @@ func _stills(spec: String):
 		if ppl.has("kikite"): ppl.kikite.from = form; ppl.kikite.to = form; ppl.kikite.k = 1.0; ppl.kikite.pen = ""
 		if ppl.has("mio"): ppl.mio.fist = fist; ppl.mio.fist_to = fist
 		for p in ppl: _pose(ppl[p], 0.0)
+		if cuff_on and not cuff_done: cuff_done = true; _cuff_stain()
 		if SHOTS.has(nm) or cuts.shots.has(nm):
 			_cut(nm); var fs := frames; frames = []; _set_cam(fs[clampi(fr, 0, fs.size() - 1)])
 		else: _still(nm)
@@ -1015,6 +1017,7 @@ func _one(e: Dictionary):
 					ppl.kikite.look_to = Vector2(0, 14.0)
 					await _hold(1.4)
 					ppl.kikite.look_to = Vector2.ZERO
+			"cuff_stain": _cuff_stain()
 			"card_on_table": await _card_on_table()
 			"deck_play": await _deck_play()
 			"silence": await _silence()
@@ -1026,6 +1029,39 @@ func _moves(name: String) -> bool:
 	if not cuts.shots.has(name): return false
 	var fs: Array = cuts.shots[name]
 	return fs.size() > 1 and (fs[0].loc != fs[-1].loc or fs[0].at != fs[-1].at or fs[0].lens != fs[-1].lens)
+
+# 試作285（第6章の「消えずに残る物」、ユーザー OK 2026-11-25「袖口と電池、賛成」）: the right cuff she wiped the tripod with
+# (第6章) and washed at the sink keeps a faint brown mark, on the back of the wrist. Nobody speaks of it; the close of her hands
+# (k5_手元) has it in the frame
+var cuff_on := false
+var cuff_done := false
+func _cuff_stain():
+	if not ppl.has("mio"): return
+	var sk: Skeleton3D = ppl.mio.sk
+	var bi := -1
+	for nm in ["hand_r", "mixamorig_RightHand", "RightHand", "hand.R"]:
+		bi = sk.find_bone(nm)
+		if bi >= 0: break
+	if bi < 0: print("STORY interview cuff: no right hand bone"); return
+	var la := sk.get_bone_parent(bi)
+	var ba := BoneAttachment3D.new(); ba.bone_idx = bi; sk.add_child(ba)
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new(); rng.seed = 6
+	for y in 64:
+		for x in 64:
+			var d := Vector2(x - 32, (y - 32) * 1.5).length() / 30.0 + rng.randf_range(-0.12, 0.12)
+			img.set_pixel(x, y, Color(0.32, 0.2, 0.14, clampf((1.0 - d) * 1.6, 0.0, 0.55)))
+	var dc := Decal.new(); dc.texture_albedo = ImageTexture.create_from_image(img)
+	dc.size = Vector3(0.06, 0.16, 0.045); dc.normal_fade = 0.0; dc.upper_fade = 0.0; dc.lower_fade = 0.0
+	ba.add_child(dc)
+	# toward the elbow from the wrist (the cuff), projected from above
+	var back := Vector3(0, -0.045, 0)
+	if la >= 0:
+		var wp: Vector3 = sk.get_bone_global_pose(bi).origin; var ep: Vector3 = sk.get_bone_global_pose(la).origin
+		back = (sk.global_basis * (ep - wp)).normalized() * 0.045
+	dc.global_position = ba.global_position + back + Vector3.UP * 0.02
+	dc.global_basis = Basis.IDENTITY
+	print("STORY interview cuff stain at ", dc.global_position)
 
 # 名刺：her hand goes out flat over the table with the card under her fingers, and leaves it in front of Mio
 func _card_on_table():
