@@ -2427,12 +2427,12 @@ func _ham_show(i: int):
 	for j in 3:
 		var nail := Node3D.new(); ham_set.add_child(nail)
 		var sh := MeshInstance3D.new(); var cy := CylinderMesh.new(); cy.top_radius = 0.0028; cy.bottom_radius = 0.0028; cy.height = 0.06
-		sh.mesh = cy; sh.material_override = steel; sh.rotation.x = PI / 2; sh.position = Vector3(0, 0, 0.03); nail.add_child(sh)
+		sh.mesh = cy; sh.material_override = steel; sh.rotation.x = PI / 2; sh.position = Vector3(0, 0, -0.03); nail.add_child(sh)
 		var hd := MeshInstance3D.new(); var cy2 := CylinderMesh.new(); cy2.top_radius = 0.0075; cy2.bottom_radius = 0.0075; cy2.height = 0.003
 		hd.mesh = cy2; hd.material_override = steel; hd.rotation.x = PI / 2; nail.add_child(hd)
 		var at: Vector3 = (ham_rest[i] as Vector3) + ham_out * (0.03 + float(ham_face[i])) + (ham_axis[i] as Vector3) * (float(j - 1) * 0.16)
 		nail.global_position = at + ham_out * 0.04
-		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # its point (+Z local) into the board
+		nail.look_at(nail.global_position - ham_out, Vector3.UP)   # 試作285（ユーザー「釘の頭の向きが逆」）: -Z local into the board, the shank there; the head at the origin, toward her
 		ham_nails.append({"n": nail, "at": at, "sunk": 0.0})
 	# 試作282（ユーザー「ホースを挟んでしまうところを上手く見せたいけど、どうしたらいいだろうな」）: on the last board, a grey garden
 	# hose runs down the wall behind it, by the third nail, in sight above and below the board. As that board goes in, the hose
@@ -2604,6 +2604,8 @@ func _ham_tick(dt: float):
 		var fp: Vector3 = (ham.get_meta("grip") as Node3D).global_transform * Vector3(0, -0.17, 0.035)
 		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	var fa := _arg_f("--hamang=", -1.0)   # stills only: the hammer held at this angle (0 = on the nail)
+	if fa >= 0.0: ham_ang = fa; _ham_pose(); return
 	if demo_on or "--hamlast" in OS.get_cmdline_user_args(): held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
 		"ready":

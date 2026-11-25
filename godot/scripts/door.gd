@@ -225,6 +225,18 @@ func _event(e: Array):
 		"note":
 			_close_silence()
 			_line_row("", e[2], 22, "note"); cur = {}
+		"struck":
+			# 試作282（レビュー 5-2、ユーザー OK 2026-11-25）: 「……澪は？」のあと、言えたはずの「入れて」が一度だけ出る。
+			# 選べない。書き起こしの二重線が引かれてから、（沈黙）が数え始める（21時「聞くよ」と同じ、手で引く線）
+			_close_silence()
+			var rs = _line_row("澪", T("入れて"), SAY_SIZE, "say")
+			var lb: Label = rs[1]
+			lb.text = T("入れて")
+			var st := Strike.new(); st.u = u; st.anim = 0.7
+			st.w = font.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(SAY_SIZE * u)).x
+			st.size = Vector2(st.w, font.get_height(int(SAY_SIZE * u))); st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lb.add_child(st)
+			cur = {}
 		"leave":
 			# she goes: the knocking stops, the door settles, her light leaves the glass
 			main.S.erase("knocks")
