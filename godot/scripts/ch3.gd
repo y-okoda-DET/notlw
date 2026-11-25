@@ -550,6 +550,17 @@ func _do(what: String):
 	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY ch3 do %s t=%.1f" % [what, t_now])
 	match what:
+		# 試作291: the line's face light (story.gd _line_face). 0時: Kiryu's phone, already on Taiga, is held up to his face;
+		# 一時: the candle in Makoto's hands, on her face as she says she is going hazy (the first sign of the gas)
+		"face_taiga":
+			if "--noface" in OS.get_cmdline_user_args(): return   # check stills: the moment as it was
+			var ph: Node3D = null
+			if main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("screen", true, false) as Node3D
+			if ph == null and main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("kphone", true, false) as Node3D
+			# he steps out of the cellar doorway's shadow toward Mio as he offers himself (from her place the jamb hid his head)
+			main.walk_to("taiga", [[5.0, 5.4, 0.0]], func(): pass, _face([5.0, 5.4], MIO0))
+			_line_face("taiga", ph, Color(0.82, 0.88, 1.0), 1.6, 3.0)
+		"face_makoto": _line_face("makoto", candle, Color(1.0, 0.68, 0.36), 0.9)
 		"taiga_arm":
 			talk_with = "makoto"
 		"makoto_press":

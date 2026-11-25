@@ -1084,6 +1084,9 @@ func _do(what: String):
 				if dn: dn.open_key("door_cellar")
 				Sound.one(self, "creak3", -12.0, gp(5.5, 5.9, 1.0))
 				get_tree().create_timer(0.7).timeout.connect(_release), _face([5.35, 5.95], [5.5, 4.5]))
+		"face_makoto":
+			# 試作291: the candle Mio holds, at the top of the cellar stairs, on Makoto's face as she turns
+			_line_face("makoto", candle, Color(1.0, 0.68, 0.36), 1.1, 3.0)
 		"makoto_step":
 			# two steps down, and she turns: her eyes on Mio's
 			hold = true; mk_at_cellar = true; talk_with = "makoto"
