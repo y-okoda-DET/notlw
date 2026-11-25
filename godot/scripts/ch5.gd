@@ -143,6 +143,15 @@ func _hide(k: String):
 		_rig(k).visible = false
 		if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = Vector3(0, -50, 0)
 
+func _blink_to(at: Array, to: Array) -> void:
+	var bl := CanvasLayer.new(); bl.layer = 12; add_child(bl)
+	var r := ColorRect.new(); r.color = Color(0, 0, 0, 0); r.set_anchors_preset(Control.PRESET_FULL_RECT); r.mouse_filter = Control.MOUSE_FILTER_IGNORE; bl.add_child(r)
+	var tw := create_tween(); tw.tween_property(r, "color:a", 1.0, 0.3)
+	await tw.finished
+	player.global_position = gp(at[0], at[1], 0.0); player.velocity = Vector3.ZERO
+	_look_from(at, to, 1.52, 0.6)
+	var tw2 := create_tween(); tw2.tween_property(r, "color:a", 0.0, 0.45); tw2.tween_callback(bl.queue_free)
+
 func _plan_of(n: Node3D) -> Array:
 	return [n.global_position.x + 4.8, n.global_position.z + 6.3]
 
@@ -1084,11 +1093,22 @@ func _do(what: String):
 				if dn: dn.open_key("door_cellar")
 				Sound.one(self, "creak3", -12.0, gp(5.5, 5.9, 1.0))
 				get_tree().create_timer(0.7).timeout.connect(_release), _face([5.35, 5.95], [5.5, 4.5]))
+		"face_makoto":
+			# 試作291: the candle Mio holds, at the top of the cellar stairs, on Makoto's face as she turns.
+			# She is two steps down the stairwell: only the little lobby at the cellar door sees her (from the kitchen
+			# the stairwell's wall and the open door stand between). If Mio is not there, a blink and she is.
+			var pm := _plan_of(player)
+			if not (pm[0] > 5.0 and pm[0] < 6.1 and pm[1] > 5.75 and pm[1] < 7.0):
+				await _blink_to([5.45, 6.45], [5.5, 5.3])
+			if looks.has("makoto"): (looks.makoto as Look).max_pitch = 0.4   # she looks up the stair to Mio, not at the step
+			_line_face("makoto", candle, Color(1.0, 0.68, 0.36), 1.1, 3.0)
 		"makoto_step":
 			# two steps down, and she turns: her eyes on Mio's
 			hold = true; mk_at_cellar = true; talk_with = "makoto"
-			main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 5.0, _ramp_z(5.0)]], func():
-				get_tree().create_timer(0.5).timeout.connect(_release), _face([5.5, 5.0], _plan_of(player)))
+			# 試作291: to y 5.3 (was 5.0, her head below the up-stair's underside and only its top seen from the door),
+			# and turned to the door's lobby, where Mio is for this line (face_makoto brings her there)
+			main.walk_to("makoto", [[5.5, 5.75, 0.0], [5.5, 5.55, 0.0], [5.5, 5.3, _ramp_z(5.3)]], func():
+				get_tree().create_timer(0.5).timeout.connect(_release), _face([5.5, 5.3], [5.45, 6.45]))
 		"go_out":
 			pass
 		"board_off":
@@ -1112,6 +1132,7 @@ func _do(what: String):
 					get_tree().create_timer(1.4).timeout.connect(func(): _stand_up(func(): _release()))), _face(MK_BLANKET, NAT_AT))
 		"makoto_cellar":
 			talk_with = ""
+			if looks.has("makoto"): (looks.makoto as Look).max_pitch = 0.0
 			if mk_at_cellar:
 				_cellar_lock("……先に、テープ。")
 				get_tree().create_timer(4.0).timeout.connect(_cellar_ajar)

@@ -631,6 +631,7 @@ class Look extends SkeletonModifier3D:
 	var head := -1
 	var chain := [["neck_01", 0.4], ["head", 0.6]]   # bones from the root up, and each one's share of the turn
 	var max_yaw := 0.56
+	var max_pitch := 0.0          # 試作291: >0 also tips the chain up/down to the eye (off by default; 4時 Makoto on the cellar stair)
 	var bones: Array = []
 	var props: Array = []          # [node, where it stands]: what she holds turns with her
 	var carry := -1
@@ -670,6 +671,16 @@ class Look extends SkeletonModifier3D:
 				var r := Transform3D(Basis(Vector3.UP, yaw * e * pair[1]), Vector3.ZERO)
 				for pr in props: (pr[0] as Node3D).global_transform = Transform3D.IDENTITY.translated(piv) * r * Transform3D.IDENTITY.translated(-piv) * pr[1]
 			sk.set_bone_global_pose(pair[0], Transform3D(Basis(up_sk, yaw * e * pair[1]) * p.basis, p.origin))
+		if max_pitch > 0.0:
+			var t3 := target - (sk.global_transform * sk.get_bone_global_pose(head)).origin
+			var th := Vector3(t3.x, 0.0, t3.z)
+			if th.length() > 0.05:
+				var pit := clampf(atan2(t3.y, th.length()), -max_pitch, max_pitch)
+				var ax := (sk.global_basis.inverse() * th.normalized().cross(Vector3.UP)).normalized()
+				for pair in bones:
+					if pair[0] < 0 or pair[1] <= 0.0 or pair[0] == carry: continue
+					var p2 := sk.get_bone_global_pose(pair[0])
+					sk.set_bone_global_pose(pair[0], Transform3D(Basis(ax, pit * e * pair[1]) * p2.basis, p2.origin))
 
 var looks := {}
 var look_eye := Vector3.ZERO   # stills (--lookfrom): where she turns to when the camera is elsewhere
@@ -1157,6 +1168,58 @@ class FaceLight extends SpotLight3D:
 		if said > 5.0: said = -1e9; print("STORY face_light on=%s from=%s head=%s" % [visible, from, hp])
 		if visible: look_at_from_position(from, hp, Vector3.UP if absf((hp - from).normalized().y) < 0.95 else Vector3.RIGHT)
 
+# 試作291（批評 5-5「夜の顔が影に沈む」、ユーザー OK 2026-11-25「それですすめて」）: on a few lines only (0時 大河, 1時 真琴,
+# 4時 真琴; 2時 桐生 has his camera's screen), a light that is in the scene - a candle, a phone - is turned onto the face of
+# whoever speaks, for that line, and goes again after it. The rest of the night keeps its dark, so the face is the event
+# check stills only: --skipto=<s> draws the scene small until t_now reaches s; --faceshot=<png> saves one frame 1.6 s into
+# the first line's face light (or where it would be, with --noface) and quits
+var skip_to := -1.0
+func _enter_tree():
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--skipto="): skip_to = float(a.substr(9))
+	if skip_to > 0.0:
+		# the 3D drawn at a fifth of the size until then (the walking needs every frame; the drawing of them is what costs)
+		get_tree().process_frame.connect(func():
+			if skip_to > 0.0:
+				var fast := t_now < skip_to
+				get_viewport().scaling_3d_scale = 0.2 if fast else 1.0
+				# and faster, with the physics stepped as finely as before (big steps broke the walking)
+				Engine.time_scale = 8.0 if fast else 1.0
+				Engine.physics_ticks_per_second = 480 if fast else 60
+				Engine.max_physics_steps_per_frame = 64 if fast else 8
+				if t_now >= skip_to: skip_to = -1.0; print("STORY skipto reached t=%.1f" % t_now))
+var line_light: FaceLight
+func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
+	_line_face_off()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--faceshot="):
+			var out := a.substr(11)
+			get_tree().create_timer(1.6).timeout.connect(func():
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(out); print("STORY faceshot ", out); get_tree().quit())
+	if "--noface" in OS.get_cmdline_user_args(): return   # check stills: the same moment without it (before / after)
+	if src == null or not main.S.has(k + "_node"): print("STORY line_face %s: no source or rig" % k); return
+	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
+	if sks.is_empty(): return
+	var f := FaceLight.new(); f.sk = sks[0]; f.src = src
+	f.head = f.sk.find_bone("head")
+	if f.head < 0: f.head = f.sk.find_bone("mixamorig_Head")
+	f.light_color = col; f.light_energy = 0.0; f.spot_range = rng; f.spot_angle = 16.0
+	f.spot_attenuation = 0.9; f.spot_angle_attenuation = 2.0; f.shadow_enabled = false; f.light_volumetric_fog_energy = 0.0; f.light_specular = 0.1
+	main.add_child(f); line_light = f
+	# and Mio's eyes go to that face (she can look away again): the face is what this line is for
+	var hp: Vector3 = f.sk.global_transform * f.sk.get_bone_global_pose(f.head).origin if f.head >= 0 else f.sk.global_position + Vector3(0, 1.5, 0)
+	var to: Vector3 = hp - (player.get_node("Head/Camera") as Node3D).global_position
+	var tw0 := create_tween(); tw0.set_parallel(true)
+	tw0.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)
+	tw0.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
+	create_tween().tween_property(f, "light_energy", energy, 0.6).set_trans(Tween.TRANS_SINE)
+	print("STORY line_face %s head=%s cam=%s" % [k, hp, (player.get_node("Head/Camera") as Node3D).global_position])
+func _line_face_off():
+	if line_light == null or not is_instance_valid(line_light): line_light = null; return
+	var f := line_light; line_light = null
+	var tw := create_tween(); tw.tween_property(f, "light_energy", 0.0, 0.9).set_trans(Tween.TRANS_SINE); tw.tween_callback(f.queue_free)
+
 # by: whose phone it is (default: k's own; 23時 Taiga has none in his hands, Kiryu holds his up to him)
 func _face_light(k: String, energy := 0.35, by := "") -> FaceLight:
 	if not main.S.has(k + "_node"): print("STORY face_light %s: no rig" % k); return null
@@ -1274,6 +1337,7 @@ func _do(what: String):
 	if _flag_do(what): return   # 2026-11-20 the night's record (story.gd FLAG_DOS)
 	print("STORY do ", what, " t=%.1f" % t_now)
 	match what:
+		"face_off": _line_face_off()
 		"house_lights": main.generator(true); _gen_flicker()
 		"taiga_up": _walk_taiga("door")
 		"taiga_reel": _taiga_reel()

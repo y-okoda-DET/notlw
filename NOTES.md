@@ -710,3 +710,5 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - house の書き出し（export_house.py、4GB 超）と snap.sh（Godot、1つ 3〜5GB）を並べると、メモリ（15GB）が尽きて書き出しが「HOUSE_FAIL」で止まる（dmesg に oom-kill）。第11章の snap は特に重く、3つ並べると Killed。書き出しの間は snap を回さない。snap は2つまで、第11章は1つだけで。
 - snap.sh を同じ WORK で2つ同時に回すと、重ねる overlay を取り合う。並べるときは WORK を分ける。
 - 第11章のテレビの「ひび」は、Tripo のテクスチャだけでなく形そのものの凹みが光で線になっていた。無地の色にしても残る。光を当てない（unshaded）無地でも残った。本当の原因は殻の薄いすき間：表からだと奥の暗がりが線に見える。cull を切って（裏も描く）消えた。
+- 2026-11-25（試作291）：git worktree（/tmp など）で build.sh を回すと、godot/assets の書き出し済みの物（夜・家の glb、git に無い）が無いので、FAST SCENES=dusk でも anatomy.py が「Please select a file」で落ちる。書き出しはいつも /home/user/notlw（書き出し済みの assets がある所）で。
+- 2026-11-25（試作291）：確認の静止画で、自動で歩く場面（1時・4時）を --fixed-fps 2〜4 で撮ると、歩きが進まず台詞まで行かない。24 fps のまま --skipto=<秒>（その秒まで 3D を 1/5 の大きさで描く）と --faceshot=<png>（台詞の顔の灯の 1.6 秒後を1枚保存して終わる）で撮る（/home/claude/work/face291.sh）。
