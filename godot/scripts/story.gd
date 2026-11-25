@@ -1170,7 +1170,12 @@ func _enter_tree():
 		# the 3D drawn at a fifth of the size until then (the walking needs every frame; the drawing of them is what costs)
 		get_tree().process_frame.connect(func():
 			if skip_to > 0.0:
-				get_viewport().scaling_3d_scale = 0.2 if t_now < skip_to else 1.0
+				var fast := t_now < skip_to
+				get_viewport().scaling_3d_scale = 0.2 if fast else 1.0
+				# and faster, with the physics stepped as finely as before (big steps broke the walking)
+				Engine.time_scale = 8.0 if fast else 1.0
+				Engine.physics_ticks_per_second = 480 if fast else 60
+				Engine.max_physics_steps_per_frame = 64 if fast else 8
 				if t_now >= skip_to: skip_to = -1.0; print("STORY skipto reached t=%.1f" % t_now))
 var line_light: FaceLight
 func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
@@ -1198,7 +1203,7 @@ func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
 	tw0.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)
 	tw0.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
 	create_tween().tween_property(f, "light_energy", energy, 0.6).set_trans(Tween.TRANS_SINE)
-	print("STORY line_face ", k)
+	print("STORY line_face %s head=%s cam=%s" % [k, hp, (player.get_node("Head/Camera") as Node3D).global_position])
 func _line_face_off():
 	if line_light == null or not is_instance_valid(line_light): line_light = null; return
 	var f := line_light; line_light = null
