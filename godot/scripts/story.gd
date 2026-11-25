@@ -1160,20 +1160,27 @@ class FaceLight extends SpotLight3D:
 # 試作291（批評 5-5「夜の顔が影に沈む」、ユーザー OK 2026-11-25「それですすめて」）: on a few lines only (0時 大河, 1時 真琴,
 # 4時 真琴; 2時 桐生 has his camera's screen), a light that is in the scene - a candle, a phone - is turned onto the face of
 # whoever speaks, for that line, and goes again after it. The rest of the night keeps its dark, so the face is the event
-# check stills only: --skipto=<s> runs the scene fast (time_scale 12) until t_now reaches s, so a still of a late line does
-# not need every frame before it drawn
+# check stills only: --skipto=<s> draws the scene small until t_now reaches s; --faceshot=<png> saves one frame 1.6 s into
+# the first line's face light (or where it would be, with --noface) and quits
 var skip_to := -1.0
 func _enter_tree():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--skipto="): skip_to = float(a.substr(9))
 	if skip_to > 0.0:
+		# the 3D drawn at a fifth of the size until then (the walking needs every frame; the drawing of them is what costs)
 		get_tree().process_frame.connect(func():
 			if skip_to > 0.0:
-				Engine.time_scale = 12.0 if t_now < skip_to else 1.0
+				get_viewport().scaling_3d_scale = 0.2 if t_now < skip_to else 1.0
 				if t_now >= skip_to: skip_to = -1.0; print("STORY skipto reached t=%.1f" % t_now))
 var line_light: FaceLight
 func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
 	_line_face_off()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--faceshot="):
+			var out := a.substr(11)
+			get_tree().create_timer(1.6).timeout.connect(func():
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(out); print("STORY faceshot ", out); get_tree().quit())
 	if "--noface" in OS.get_cmdline_user_args(): return   # check stills: the same moment without it (before / after)
 	if src == null or not main.S.has(k + "_node"): print("STORY line_face %s: no source or rig" % k); return
 	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)

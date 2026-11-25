@@ -65,7 +65,8 @@ def build():
     # the reflector, held as in the reference photos: in front of her belly, its face toward Natsuki's face (so it
     # leans back toward Makoto by the angle up to that face), hands at the side edges low down, elbows bent at her sides
     nface = Vector((St.NATSUKI_D[0], St.NATSUKI_D[1] - .02, 1.5))
-    ctr = C.local(m, (0, -.21, 0)); ctr.z = (C.bone_head(m, 'upperarm_l').z + C.bone_head(m, 'upperarm_r').z) / 2 - .1   # wrists at elbow height, forearms forward
+    ctr = C.local(m, (0, -.25, 0));   # 試作291（点検「板の縁が胸と右の袖にめり込む」）: 4 cm further out (was -.21)
+    ctr.z = (C.bone_head(m, 'upperarm_l').z + C.bone_head(m, 'upperarm_r').z) / 2 - .1   # wrists at elbow height, forearms forward
     rf = prim('cube', 'reflector', loc=tuple(ctr), scale=(.2, .006, .2), mat=mat_basic('refl', (.9, .9, .88), .7))
     rf.rotation_euler = (nface - ctr).to_track_quat('-Y', 'Z').to_euler(); bpy.context.view_layer.update()
     lib.area('reflector_bounce', tuple(ctr + (nface - ctr).normalized() * .03), tuple(nface), 9, k=3000, size=(.4, .4), spread=150)
@@ -88,6 +89,10 @@ def build():
             C.place_in_hand(roll, n, 'r', (0, .085, -.012), (0, 90, 0))   # fingers through the hole, roll across the palm
         else:
             ob.location = C.local(t, (0, -.3, 1.01)); ob.rotation_euler.z = t.rotation_euler.z   # 試作87: down 3 cm onto the palms (試作86: a hand's depth above them)
+            # 試作291（点検「箱が体の中心から本人の右へずれる」）: across the body, centred between the two hands where the pose put them
+            hm = (C.bone_head(t, 'hand_l') + C.bone_head(t, 'hand_r')) / 2; side = t.matrix_world.to_3x3().normalized() @ Vector((1, 0, 0))
+            off = side.dot(hm - ob.location); ob.location = ob.location + side * off
+            print('carrybox moved across by', round(off, 3))
         bpy.context.view_layer.update()
         mw = ob.matrix_world.copy(); ob.parent = rig; ob.parent_type = 'BONE'; ob.parent_bone = bone
         bpy.context.view_layer.update(); ob.matrix_world = mw
