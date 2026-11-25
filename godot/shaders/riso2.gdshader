@@ -28,7 +28,7 @@ uniform float dodge = 0.45;        // night print: how far each part of the shee
 uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
 uniform float dodge_max = 1.8;
 uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
-uniform float face_grain = 0.4;
+uniform float face_grain = 1.0;    // 試作289：肌の上で粒を弱める仕組み。ユーザー「前の方がいい」（2026-11-25 20:43）で 1.0（弱めない）に戻した
 uniform float show_skin = 0.0;     // check: tints what is read as skin    // 試作289（感想282 5-5）: the grain left on lit skin (1 = as everywhere else)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -154,7 +154,7 @@ void fragment() {
 		// grain the size of a dot, re-drawn every print
 		float sk = skin(SCREEN_UV);
 		float gk = mix(1.0, face_grain, sk);
-		float gate = mix(0.02, 0.04, sk);   // and on skin, no lone dots where there is almost no ink
+		float gate = 0.02;   // and on skin, no lone dots where there is almost no ink
 		float g1 = (hash(floor(px / max(cell * 0.5, 1.0)) + frame * 17.31) - 0.5) * 0.16 * gk;
 		float g2 = (hash(floor((px + mis) / max(cell * 0.5, 1.0)) + frame * 23.77 + 5.0) - 0.5) * 0.16 * gk;
 		float A = step(1.0 - dots(px, 15.0, cell) + g1, cov.x) * step(gate, cov.x);
