@@ -28,7 +28,7 @@ uniform float dodge = 0.45;        // night print: how far each part of the shee
 uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
 uniform float dodge_max = 1.8;
 uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
-uniform float face_grain = 0.25;
+uniform float face_grain = 0.4;
 uniform float show_skin = 0.0;     // check: tints what is read as skin    // 試作289（感想282 5-5）: the grain left on lit skin (1 = as everywhere else)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -100,12 +100,12 @@ vec2 coverage_night(vec3 c, vec3 cw) {
 // 試作289 lit skin, from a soft copy: r > g > b, a little warm (not wood, not a flame or a sunset window), lit. The grain is weakened
 // there, so a face in the radio's or a candle's light keeps its shape instead of being eaten by the speckle
 float skin(vec2 uv) {
-	vec3 c = textureLod(screen_tex, uv, 3.0).rgb;
+	vec3 c = textureLod(screen_tex, uv, 4.5).rgb;
 	float mx = max(max(c.r, c.g), c.b) + 1e-4;
 	float L = luma(c);
 	float warm = (c.r - c.b) / mx;
 	float order = step(c.b, c.g) * step(c.g, c.r);
-	return order * smoothstep(0.06, 0.11, warm) * (1.0 - smoothstep(0.24, 0.32, warm)) * smoothstep(0.3, 0.5, L);
+	return order * smoothstep(0.04, 0.12, warm) * (1.0 - smoothstep(0.24, 0.34, warm)) * smoothstep(0.25, 0.5, L);
 }
 // the printer dodges: the gain of this part of the sheet, from a very soft copy of the frame (no halo at an edge)
 float dodge_gain(vec2 uv, float g) {
@@ -154,7 +154,7 @@ void fragment() {
 		// grain the size of a dot, re-drawn every print
 		float sk = skin(SCREEN_UV);
 		float gk = mix(1.0, face_grain, sk);
-		float gate = mix(0.02, 0.07, sk);   // and on skin, no lone dots where there is almost no ink
+		float gate = mix(0.02, 0.04, sk);   // and on skin, no lone dots where there is almost no ink
 		float g1 = (hash(floor(px / max(cell * 0.5, 1.0)) + frame * 17.31) - 0.5) * 0.16 * gk;
 		float g2 = (hash(floor((px + mis) / max(cell * 0.5, 1.0)) + frame * 23.77 + 5.0) - 0.5) * 0.16 * gk;
 		float A = step(1.0 - dots(px, 15.0, cell) + g1, cov.x) * step(gate, cov.x);
