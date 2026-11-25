@@ -119,6 +119,8 @@ func _looked() -> MeshInstance3D:
 	# 試作127（ユーザー「扉を選択するとnullとだけ出る」、第3章の玄関）: a chapter that takes a door for itself (ch3: the front
 	# door) drops it from the list, but its body still carried the meta: E on it read a missing entry
 	var m = hit.collider.get_meta("door")
+	# 試作285（ユーザー 282「この場面で扉は選択できないように」、23時の扉）: door.gd keeps the front door to itself (the lock only)
+	if doors.has(m) and doors[m].key == "door_front" and String(main.get("play")) == "door": return null
 	return m if doors.has(m) else null
 
 # 試作277（ユーザー「扉一回選択したら、左下、消す」）：一度動かした扉には、もう案内を出さない
