@@ -902,7 +902,7 @@ def socks(rig, color=(.86, .86, .83), ankle=.10):
             src.image = im
             print(f'socks: {ob.name} {n} shoe polys repainted')
 
-def sweater(rig, tint=(.47, .51, .63), rib=.35):
+def sweater(rig, tint=(.47, .51, .63), rib=.35, hair=.45):
     """Makoto (2026-11-26, user OK「オッケー！進めて」): in a candle's light the white sweater and her skin printed as one
     orange, and she read as bare. The sweater (pale, unsaturated texels) goes a light cool grey, and a darker band (the
     rib) is painted on the sweater faces within two rings of skin or trouser faces: the neckline, the cuffs, the hem.
@@ -954,6 +954,25 @@ def sweater(rig, tint=(.47, .51, .63), rib=.35):
             im.filepath_raw = f'{P.TRIPO}/{name}.png'; im.file_format = 'PNG'; im.save()
             src.image = im
             print(f'sweater: {ob.name} {int(sw.mean() * 1000) / 10}% sweater texels, {n} rib faces')
+    # the head (bust): its collar is the same sweater; the hair a step darker (2026-11-26, user「真琴の髪がベリーショートに見えて」:
+    # lit by the candle, the bob's sides matched the wall behind and printed as the same blue, only the dark crown was left)
+    for ob in rig.children_recursive:
+        if ob.type != 'MESH' or not ob.name.endswith('_head'): continue
+        for m in ob.data.materials:
+            if m is None or not m.use_nodes: continue
+            p = m.node_tree.nodes.get('Principled BSDF')
+            src = p.inputs['Base Color'].links[0].from_node if p and p.inputs['Base Color'].links else None
+            if src is None or src.type != 'TEX_IMAGE' or 'basecolor' not in src.image.name.lower(): continue
+            img = src.image; w, h = img.size
+            buf = np.empty(w * h * 4, np.float32); img.pixels.foreach_get(buf); px = buf.reshape(h, w, 4)
+            rgb = px[..., :3]; mx = rgb.max(2); mn = rgb.min(2); sat = (mx - mn) / (mx + 1e-4)
+            hair_m = (mx < .45) & (sat > .25); white = (sat < .10) & (mx > .62)
+            rgb[hair_m] *= hair; rgb[white] *= np.array(tint, np.float32); px[..., :3] = rgb
+            name = img.name.rsplit('.', 1)[0] + '_knit'
+            im = bpy.data.images.new(name, w, h, alpha=False); im.pixels.foreach_set(px.ravel())
+            im.filepath_raw = f'{P.TRIPO}/{name}.png'; im.file_format = 'PNG'; im.save()
+            src.image = im
+            print(f'sweater: {ob.name} hair {int(hair_m.mean() * 1000) / 10}%, collar {int(white.mean() * 1000) / 10}%')
 
 def palm_to(rig, side, target, limit=100.0):
     """Turn the forearm (hand roll) so the palm faces the world point `target` as far as the forearm axis allows.
