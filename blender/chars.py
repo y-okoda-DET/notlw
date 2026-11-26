@@ -902,6 +902,59 @@ def socks(rig, color=(.86, .86, .83), ankle=.10):
             src.image = im
             print(f'socks: {ob.name} {n} shoe polys repainted')
 
+def sweater(rig, tint=(.47, .51, .63), rib=.35):
+    """Makoto (2026-11-26, user OK「オッケー！進めて」): in a candle's light the white sweater and her skin printed as one
+    orange, and she read as bare. The sweater (pale, unsaturated texels) goes a light cool grey, and a darker band (the
+    rib) is painted on the sweater faces within two rings of skin or trouser faces: the neckline, the cuffs, the hem.
+    Run after socks(). Writes <image>_knit.png next to the Tripo texture. Tried first as blender/tools/makoto_sweater_try.py."""
+    from PIL import Image, ImageDraw
+    import numpy as np
+    for ob in rig.children_recursive:
+        if ob.type != 'MESH' or not ob.name.endswith('_body'): continue
+        me = ob.data; uv = me.uv_layers[0]
+        for m in ob.data.materials:
+            if m is None or not m.use_nodes: continue
+            p = m.node_tree.nodes.get('Principled BSDF')
+            src = p.inputs['Base Color'].links[0].from_node if p and p.inputs['Base Color'].links else None
+            if src is None or src.type != 'TEX_IMAGE': continue
+            img = src.image; w, h = img.size
+            buf = np.empty(w * h * 4, np.float32); img.pixels.foreach_get(buf); px = buf.reshape(h, w, 4)[::-1].copy()   # rows from the top
+            rgb = px[..., :3]
+            mx = rgb.max(2); mn = rgb.min(2); sat = (mx - mn) / (mx + 1e-4)
+            def cls(c):
+                a, b = c.max(), c.min(); st = (a - b) / (a + 1e-4)
+                if st < .10 and a > .62: return 's'
+                if st > .16 and c[0] > c[1] > c[2] and a > .45 and st < .55: return 'k'
+                if a < .42 and st < .2: return 'p'
+                return 'o'
+            pc = []
+            for poly in me.polygons:
+                us = np.array([uv.data[li].uv[:] for li in poly.loop_indices]).mean(0)
+                pc.append(cls(rgb[int(np.clip(1 - us[1], 0, .9999) * h), int(np.clip(us[0], 0, .9999) * w)]))
+            vf = {}
+            for poly in me.polygons:
+                for v in poly.vertices: vf.setdefault(v, []).append(poly.index)
+            edge = {i for i, c in enumerate(pc) if c in 'kp'}; ring = set(edge)
+            for _ in range(2):
+                nxt = set()
+                for i in ring:
+                    for v in me.polygons[i].vertices: nxt.update(vf[v])
+                ring |= nxt
+            band = Image.new('L', (w, h), 0); dr = ImageDraw.Draw(band); n = 0
+            for poly in me.polygons:
+                if poly.index in ring and pc[poly.index] == 's' and poly.index not in edge:
+                    dr.polygon([(uv.data[li].uv[0] * w, (1 - uv.data[li].uv[1]) * h) for li in poly.loop_indices], fill=255, outline=255); n += 1
+            sw = (sat < .10) & (mx > .62)
+            rgb[sw] = rgb[sw] * np.array(tint, np.float32)
+            bm = (np.asarray(band, np.float32) / 255) * sw
+            rgb *= (1 - rib * bm)[..., None]
+            px[..., :3] = rgb
+            name = img.name.rsplit('.', 1)[0] + '_knit'
+            im = bpy.data.images.new(name, w, h, alpha=False); im.pixels.foreach_set(px[::-1].ravel())
+            im.filepath_raw = f'{P.TRIPO}/{name}.png'; im.file_format = 'PNG'; im.save()
+            src.image = im
+            print(f'sweater: {ob.name} {int(sw.mean() * 1000) / 10}% sweater texels, {n} rib faces')
+
 def palm_to(rig, side, target, limit=100.0):
     """Turn the forearm (hand roll) so the palm faces the world point `target` as far as the forearm axis allows.
     `limit` caps the total twist (deg); the default is the anatomical range, a bent arm held in front of the body can

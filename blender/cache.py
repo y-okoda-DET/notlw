@@ -35,7 +35,7 @@ def _image(h, im, skip):
     if im.name in skip: h.update(b'skip'); return
     h.update(f'{im.name}|{im.source}|{im.size[:]}|{im.colorspace_settings.name}|{im.alpha_mode}'.encode())
     fp = bpy.path.abspath(im.filepath_raw or im.filepath) if (im.filepath_raw or im.filepath) else ''
-    made_here = fp.startswith((f'{P.KF}/export_tex/', f'{P.TRIPO}/')) and fp.endswith(('_tinted.png', '_bake.png', '_socks.png'))
+    made_here = fp.startswith((f'{P.KF}/export_tex/', f'{P.TRIPO}/')) and fp.endswith(('_tinted.png', '_bake.png', '_socks.png', '_knit.png'))
     if fp and os.path.exists(fp) and not im.is_dirty and not im.packed_file and not made_here:
         h.update(_file_hash(fp).encode())   # a file on disk (assets, prep results): its bytes
     elif im.has_data or im.source == 'GENERATED' or made_here:   # made during this export: the PNG bytes differ run to run, the pixels do not
