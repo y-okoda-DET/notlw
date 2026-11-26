@@ -29,6 +29,8 @@ uniform float dodge_target = 0.30; // the mean it aims for, before the shoulder
 uniform float dodge_max = 1.8;
 uniform vec2 slip = vec2(0.0);     // 段階1 扉の場面: the second plate slips off register while Mio says nothing (px at 1080)
 uniform float face_grain = 1.0;    // 試作289：肌の上で粒を弱める仕組み。ユーザー「前の方がいい」（2026-11-25 20:43）で 1.0（弱めない）に戻した
+uniform float cloth_blue = 0.0;    // 試作293（レビュー 2026-11-26 直し1「ろうそくの真琴が裸に見える」）: the night print gives pale things lit by a warm
+                                   // light (a white sweater, white paint: warm 0.45..0.66) a light blue screen, so they part from skin (warm 0.70+)
 uniform float show_skin = 0.0;     // check: tints what is read as skin    // 試作289（感想282 5-5）: the grain left on lit skin (1 = as everywhere else)
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -107,6 +109,16 @@ float skin(vec2 uv) {
 	float order = step(c.b, c.g) * step(c.g, c.r);
 	return order * smoothstep(0.04, 0.12, warm) * (1.0 - smoothstep(0.24, 0.34, warm)) * smoothstep(0.25, 0.5, L);
 }
+// 試作293 pale and lit by a warm light, and not skin: measured on 1時 (candle): sweater 0.57..0.60, white cabinet 0.64, skin 0.70..0.72, wood 0.95+
+float cloth(vec2 uv) {
+	// lod 1.5: a far, small figure keeps its edges (the cuff, the neckline); the dimmer side of the sweater still counts (L from 0.18)
+	vec3 c = textureLod(screen_tex, uv, 1.5).rgb;
+	float mx = max(max(c.r, c.g), c.b) + 1e-4;
+	float L = luma(c);
+	float warm = (c.r - c.b) / mx;
+	float order = step(c.b, c.g) * step(c.g, c.r);
+	return order * smoothstep(0.40, 0.50, warm) * (1.0 - smoothstep(0.64, 0.69, warm)) * smoothstep(0.18, 0.32, L);
+}
 // the printer dodges: the gain of this part of the sheet, from a very soft copy of the frame (no halo at an edge)
 float dodge_gain(vec2 uv, float g) {
 	if (look < 0.5 || look > 1.5 || dodge <= 0.0) return g;
@@ -148,9 +160,11 @@ void fragment() {
 			cell = max(mix(cell_px, edge_cell_px, smoothstep(0.12, 0.62, length(q))) * k, 3.0);
 		}
 		vec2 cov = cover(SCREEN_UV, g);
+		float cl = (cloth_blue > 0.0 && look > 0.5 && look < 1.5) ? cloth(SCREEN_UV) * cloth_blue : 0.0;
+		cov.x = max(cov.x, cl * 0.26);   // a light blue screen on it
 		vec2 mis = vec2(-3.0, 2.0) * k + slip * k + (vec2(hash(vec2(frame, 1.7)), hash(vec2(frame, 9.1))) - 0.5) * 3.0 * k;
 		vec2 uvb = SCREEN_UV - mis / res;
-		float covb = cover(uvb, g).y;
+		float covb = cover(uvb, g).y * (1.0 - 0.25 * cl);   // and less of the warm plate: a pale thing, not skin
 		// grain the size of a dot, re-drawn every print
 		float sk = skin(SCREEN_UV);
 		float gk = mix(1.0, face_grain, sk);

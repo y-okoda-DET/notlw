@@ -1174,15 +1174,33 @@ class FaceLight extends SpotLight3D:
 # check stills only: --skipto=<s> draws the scene small until t_now reaches s; --faceshot=<png> saves one frame 1.6 s into
 # the first line's face light (or where it would be, with --noface) and quits
 var skip_to := -1.0
+var shot_at := -1.0   # --shotat=<s> --faceshot=<png>: the same still at a set time (scenes with no face light)
+func _save_shot(out: String):
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out); print("STORY faceshot ", out)
+	if "--clothab" in OS.get_cmdline_user_args() and main.riso != null:
+		# and the same frame printed with cloth_blue on (before / after in one run)
+		for k in [[1.0, "_b"], [2.0, "_c"]]:
+			main.riso.set_shader_parameter("cloth_blue", k[0])
+			for i in 3: await RenderingServer.frame_post_draw
+			var ob: String = out.get_basename() + k[1] + ".png"
+			get_viewport().get_texture().get_image().save_png(ob); print("STORY faceshot ", ob)
+	get_tree().quit()
 func _enter_tree():
+	var shot_out := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--skipto="): skip_to = float(a.substr(9))
+		if a.begins_with("--shotat="): shot_at = float(a.substr(9))
+		if a.begins_with("--faceshot="): shot_out = a.substr(11)
+	if shot_at > 0.0 and shot_out != "":
+		get_tree().process_frame.connect(func():
+			if shot_at > 0.0 and t_now >= shot_at: shot_at = -1.0; _save_shot(shot_out))
 	if skip_to > 0.0:
 		# the 3D drawn at a fifth of the size until then (the walking needs every frame; the drawing of them is what costs)
 		get_tree().process_frame.connect(func():
 			if skip_to > 0.0:
-				var fast := t_now < skip_to
-				get_viewport().scaling_3d_scale = 0.2 if fast else 1.0
+				var fast := t_now < skip_to and not "--skipslow" in OS.get_cmdline_user_args()   # --skipslow: only the small 3D (the 1時 walk breaks at 8x)
+				get_viewport().scaling_3d_scale = 0.2 if t_now < skip_to else 1.0
 				# and faster, with the physics stepped as finely as before (big steps broke the walking)
 				Engine.time_scale = 8.0 if fast else 1.0
 				Engine.physics_ticks_per_second = 480 if fast else 60
@@ -1192,11 +1210,9 @@ var line_light: FaceLight
 func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
 	_line_face_off()
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--faceshot="):
+		if a.begins_with("--faceshot=") and not " --shotat=" in " " + " ".join(OS.get_cmdline_user_args()):
 			var out := a.substr(11)
-			get_tree().create_timer(1.6).timeout.connect(func():
-				await RenderingServer.frame_post_draw
-				get_viewport().get_texture().get_image().save_png(out); print("STORY faceshot ", out); get_tree().quit())
+			get_tree().create_timer(1.6).timeout.connect(func(): _save_shot(out))
 	if "--noface" in OS.get_cmdline_user_args(): return   # check stills: the same moment without it (before / after)
 	if src == null or not main.S.has(k + "_node"): print("STORY line_face %s: no source or rig" % k); return
 	var sks: Array = main.S[k + "_node"].find_children("*", "Skeleton3D", true, false)
@@ -1213,6 +1229,8 @@ func _line_face(k: String, src: Node3D, col: Color, energy: float, rng := 2.4):
 	var tw0 := create_tween(); tw0.set_parallel(true)
 	tw0.tween_property(player, "yaw", player.yaw + wrapf(atan2(-to.x, -to.z) - player.yaw, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)
 	tw0.tween_property(player, "pitch", asin(clampf(to.normalized().y, -1.0, 1.0)), 0.9).set_trans(Tween.TRANS_SINE)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--facemul="): energy *= float(a.substr(10))   # check stills: try a weaker / stronger light
 	create_tween().tween_property(f, "light_energy", energy, 0.6).set_trans(Tween.TRANS_SINE)
 	print("STORY line_face %s head=%s cam=%s" % [k, hp, (player.get_node("Head/Camera") as Node3D).global_position])
 func _line_face_off():

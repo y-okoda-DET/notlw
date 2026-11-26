@@ -60,7 +60,7 @@ def build():
     n.location = (*St.NATSUKI_D, 0); face(n, CAM[:2]); n.rotation_euler.z += math.radians(-10)
     k = C.make_tripo('kiryu')[0]; k.location = (*St.KIRYU_D, 0); k.rotation_euler.z = math.radians(205 - 180 + 8)   # squarely behind the camera, which points at yaw 205
     t = C.make_tripo('taiga')[0]; t.location = (*St.TAIGA_D, Hm.ZG); face(t, (DC - .56, 3.0))
-    m = C.make_tripo('makoto')[0]; C.socks(m); m.location = (*St.MAKOTO_D, 0); face(m, St.NATSUKI_D)
+    m = C.make_tripo('makoto')[0]; C.socks(m); C.sweater(m); m.location = (*St.MAKOTO_D, 0); face(m, St.NATSUKI_D)
     bpy.context.view_layer.update()
     # the reflector, held as in the reference photos: in front of her belly, its face toward Natsuki's face (so it
     # leans back toward Makoto by the angle up to that face), hands at the side edges low down, elbows bent at her sides

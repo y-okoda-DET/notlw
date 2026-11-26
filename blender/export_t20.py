@@ -61,6 +61,7 @@ def build():
     n = C.make_tripo('natsuki_s', label='natsuki')[0]
     for ob in n.children_recursive: ob.name = ob.name.replace('natsuki_s_', 'natsuki_')
     rigs = {'natsuki': n, 'kiryu': C.make_tripo('kiryu')[0], 'taiga': C.make_tripo('taiga')[0], 'makoto': C.make_tripo('makoto')[0]}
+    C.sweater(rigs['makoto'])   # 2026-11-26: the same grey sweater as at dusk
     for key, rig in rigs.items():
         rig.location = (0, 0, 0); rig.rotation_euler = (0, 0, 0)
         S[key + '_ph'] = C.phone(f'{key}_t20phone', lib.kelvin(8500), 5)
