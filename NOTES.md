@@ -712,3 +712,10 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 第11章のテレビの「ひび」は、Tripo のテクスチャだけでなく形そのものの凹みが光で線になっていた。無地の色にしても残る。光を当てない（unshaded）無地でも残った。本当の原因は殻の薄いすき間：表からだと奥の暗がりが線に見える。cull を切って（裏も描く）消えた。
 - 2026-11-25（試作291）：git worktree（/tmp など）で build.sh を回すと、godot/assets の書き出し済みの物（夜・家の glb、git に無い）が無いので、FAST SCENES=dusk でも anatomy.py が「Please select a file」で落ちる。書き出しはいつも /home/user/notlw（書き出し済みの assets がある所）で。
 - 2026-11-25（試作291）：確認の静止画で、自動で歩く場面（1時・4時）を --fixed-fps 2〜4 で撮ると、歩きが進まず台詞まで行かない。24 fps のまま --skipto=<秒>（その秒まで 3D を 1/5 の大きさで描く）と --faceshot=<png>（台詞の顔の灯の 1.6 秒後を1枚保存して終わる）で撮る（/home/claude/work/face291.sh）。
+
+## 真琴のセーターを肌から分ける（2026-11-26、入口）
+- ろうそくの暖かい光では、白いセーターも肌も刷りの橙一色になり「裸に見える」（レビュー 2026-11-26 直し1）。顔の光を弱めても変わらない。
+- 刷りの側で色から服を当てる（riso2.gdshader cloth_blue）と、照らされた白い壁・戸棚にも青が乗る。やめた（既定 0 のまま残してある）。
+- モデルの側：blender/tools/makoto_sweater_try.py が makoto.glb の体のテクスチャで、彩度の低い明るい所（セーター）を暗く冷たい灰色にし、肌・ズボンの面に形でつながるセーターの面（2輪）に濃い帯（襟ぐり・袖口・裾）を塗る。試しは blender/tools/makoto_sweater_overlay.sh で overlay に置いて撮る。本採用ならビルドの chars.py（socks の後）に入れる。
+- 確認の静止画：--shotat=<秒>（顔の光のない場面）、--skipslow（1時は 8 倍速の早送りで歩きが崩れる）、split pck（FAST でない版）は overlay で読めないので FAST の pck に重ねる。
+

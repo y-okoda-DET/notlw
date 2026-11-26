@@ -111,12 +111,13 @@ float skin(vec2 uv) {
 }
 // 試作293 pale and lit by a warm light, and not skin: measured on 1時 (candle): sweater 0.57..0.60, white cabinet 0.64, skin 0.70..0.72, wood 0.95+
 float cloth(vec2 uv) {
-	vec3 c = textureLod(screen_tex, uv, 2.5).rgb;
+	// lod 1.5: a far, small figure keeps its edges (the cuff, the neckline); the dimmer side of the sweater still counts (L from 0.18)
+	vec3 c = textureLod(screen_tex, uv, 1.5).rgb;
 	float mx = max(max(c.r, c.g), c.b) + 1e-4;
 	float L = luma(c);
 	float warm = (c.r - c.b) / mx;
 	float order = step(c.b, c.g) * step(c.g, c.r);
-	return order * smoothstep(0.40, 0.50, warm) * (1.0 - smoothstep(0.64, 0.69, warm)) * smoothstep(0.30, 0.45, L);
+	return order * smoothstep(0.40, 0.50, warm) * (1.0 - smoothstep(0.64, 0.69, warm)) * smoothstep(0.18, 0.32, L);
 }
 // the printer dodges: the gain of this part of the sheet, from a very soft copy of the frame (no halo at an edge)
 float dodge_gain(vec2 uv, float g) {
