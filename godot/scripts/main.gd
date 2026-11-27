@@ -188,6 +188,7 @@ func _ready():
 	if ARGS.has("minicam"): _minicam_dbg()
 	if SCENE == "house":
 		_house_state(); _lights_house()
+		_night_ground()
 		if _stand_gone():
 			for mi in S.env_node.find_children("*", "MeshInstance3D", true, false):
 				for pre in ["fresnel", "fres_lens", "barndoor", "yoke", "csarm", "cscol", "csleg"]:
@@ -1264,6 +1265,10 @@ func _window_glass():
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.roughness = 0.08; m.metallic_specular = 0.6
+	# 2026-11-27（ユーザー「窓の白い光なんだろう？光源がわからない」, 試作295 夕方の居間）: a lamp in the room made a hard white
+	# spot on each pane (its highlight in the glass), away from the lamp and reading as a light outside. The glass keeps its
+	# reflections of the room and the sky, but no hard highlight from the lamps
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	# years of dust and dried rain on the outside: streaks running down, thicker toward the sill (a noise stretched
 	# tall, through a ramp from clear to grey film)
 	var nz := FastNoiseLite.new(); nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH; nz.frequency = 0.03; nz.fractal_octaves = 4; nz.seed = 7
@@ -2063,7 +2068,11 @@ func _shadow_budget(dt: float):
 	# living room's lamp was past the budget but in sight through the door, so it kept its light without its shadow and lit
 	# the hall through the walls (brightness 95); a step on (5.5) it went out of sight and out (45). At dusk the daylight
 	# is the light: a lamp past the budget is out whether seen or not, and the lamps in sight take the shadows first
-	var dusk_cut: bool = TIME == "dusk" and not ARGS.has("duskleak")
+	# 2026-11-27（ユーザー赤字 #34「ここライトが点いたり消えたりするのやめる」、行きの車から家を見る所）: from the car the house's lamps
+	# went in and out of the budget and of sight (the rays through the windows) every few metres. Seen from outside, every lamp
+	# stays lit (its light through a wall falls only in rooms nobody is in)
+	var outside: bool = play == "ch1car"
+	var dusk_cut: bool = TIME == "dusk" and not ARGS.has("duskleak") and not outside
 	var space0 := get_world_3d().direct_space_state
 	if dusk_cut and space0:
 		for c in cand:
@@ -2076,7 +2085,7 @@ func _shadow_budget(dt: float):
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
 	# a lamp the eye cannot see (the house's walls between, by a ray) is put out (its cull mask) until it is near again;
 	# one in sight keeps its light, without the shadow
-	var space := get_world_3d().direct_space_state if not ARGS.has("leak") else null
+	var space := get_world_3d().direct_space_state if not ARGS.has("leak") and not outside else null
 	# 試作232（ユーザー「場所によって光が変わる」、23時の台所、4度目）: one ray to the lamp was stopped by a person (Makoto
 	# before the candle) or a door's edge, and the kitchen went from candlelight to blue with a step. The rays pass people,
 	# go to the lamp and to four points round it at half its reach (the light it throws, not the flame alone), and a lamp
@@ -2128,6 +2137,29 @@ func trees_far(d: float):
 	tree_far = d
 	for g in get_tree().root.find_children("ext_sugi*", "GeometryInstance3D", true, false):
 		(g as GeometryInstance3D).visibility_range_end = d
+
+# 2026-11-27（ユーザー赤字 #451・#472・#528「地面、雪が積もっているように見える」、2時の監督・去年の21時半と2時）: under the car's
+# lamps and the camera's light the wet ground and its leaves printed as bare paper. In the night times outside they are a
+# darker earth and dull (no wet shine)
+const GROUND_DARK_TIMES := ["t02", "y21", "y02"]
+func _night_ground():
+	if not TIME in GROUND_DARK_TIMES and not ARGS.has("darkground"): return
+	var done := {}; var n := 0
+	for mi in S.env_node.find_children("ext_*", "MeshInstance3D", true, false):
+		var nm := String(mi.name)
+		if not (nm.contains("ground") or nm.contains("litter") or nm.contains("gravel")): continue
+		var m3 := mi as MeshInstance3D
+		for i in m3.get_surface_override_material_count():
+			var m: Material = m3.get_active_material(i)
+			if m is StandardMaterial3D:
+				if not done.has(m):
+					var d := (m as StandardMaterial3D).duplicate() as StandardMaterial3D
+					d.albedo_color = d.albedo_color * Color(0.5, 0.47, 0.42); d.roughness = 0.97; d.metallic_specular = 0.15
+					done[m] = d
+				m3.set_surface_override_material(i, done[m]); n += 1
+			elif m is ShaderMaterial and not done.has(m):
+				print("night ground: ", nm, " is a ShaderMaterial (", (m as ShaderMaterial).shader.resource_path, ")"); done[m] = m
+	print("night ground: %d surfaces darker" % n)
 
 func _quality(high: bool):
 	quality_high = high

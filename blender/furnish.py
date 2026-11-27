@@ -70,7 +70,7 @@ def mats(M):
     M['cabinet'] = mat_basic('cabinet', (.66, .63, .54), .5)   # painted cream (the painted-wood image is blue-grey: it turned the kitchen cold)
     M['steel'] = mat_basic('steel', (.6, .6, .6), .3, metal=1)
     M['fridge'] = mat_basic('fridge', (.78, .78, .74), .35)
-    M['paperbag'] = mat_basic('paperbag', (.5, .36, .22), .9)
+    M['paperbag'] = mat_basic('paperbag', (.42, .3, .18), .9)
     M['onion'] = mat_basic('onion', (.62, .38, .18), .5)
     M['potato'] = mat_basic('potato', (.55, .43, .27), .85)
     M['carrot'] = mat_basic('carrot', (.8, .3, .06), .6)
@@ -79,6 +79,21 @@ def mats(M):
     M['plastic'] = mat_basic('plastic', (.08, .08, .085), .4)
     M['shade'] = mat_basic('shade', (.9, .82, .65), .6, emit=lib.kelvin(2700), estr=4)
     M['shade_off'] = mat_basic('shade_off', (.75, .7, .6), .6)
+    # 試作297（赤字 #12「この中が空洞になっていてさみしい…パントリーにしようか」）: the pantry's shelves and stores
+    M['leek'] = mat_basic('leek', (.86, .86, .78), .5)
+    M['leekg'] = mat_basic('leekg', (.2, .38, .12), .5)
+    M['milk'] = mat_basic('milk', (.9, .9, .88), .5)
+    M['loaf'] = mat_basic('loaf', (.62, .4, .18), .8)
+    M['shelfwood'] = mat_image('shelfwood', tex_path('ph/oak_veneer_01_diff'), rough=.7, coords='UV', bump=.05, tint=(.62, .52, .4))
+    M['can_r'] = mat_basic('can_r', (.62, .12, .08), .4, metal=.3)
+    M['can_g'] = mat_basic('can_g', (.18, .36, .16), .4, metal=.3)
+    M['can_y'] = mat_basic('can_y', (.78, .62, .12), .4, metal=.3)
+    M['jar'] = mat_basic('jar', (.55, .32, .12), .15)
+    M['lid'] = mat_basic('lid', (.75, .7, .55), .35, metal=.6)
+    M['sack'] = mat_basic('sack', (.82, .78, .68), .95)
+    M['pet'] = mat_basic('pet', (.7, .78, .82), .1)
+    M['box_r'] = mat_basic('box_r', (.7, .2, .12), .7)
+    M['box_b'] = mat_basic('box_b', (.2, .32, .55), .7)
 
 # ---------------------------------------------------------------- 居間 (plan x 0..4, y 0..4.6)
 def living(M):
@@ -294,7 +309,19 @@ def kitchen(M):
         box('furn_fridgegap', 9.36, 4.33, 9.89, 4.34, 1.15, 1.16, M['plastic'])
         box('furn_fridgehandle', 9.37, 4.34, 9.40, 4.36, .6, 1.05, M['steel'])
     # the curry things on the north counter: a paper bag, onions, potatoes, carrots, the roux; the rice cooker
-    box('furn_bag', 6.3, 7.5, 6.62, 7.72, .862, 1.2, M['paperbag'])
+    # 試作297（赤字 #17「箱にしか見えない。もう少し実在感のあるなにかに」）: the paper bag was a closed block. An open kraft bag,
+    # its walls 1 cm, the mouth rolled down once, the shopping standing up out of it: leeks, a loaf, a milk carton
+    bx0, by0, bx1, by1, bz0, bz1 = 6.3, 7.5, 6.62, 7.72, .862, 1.17
+    box('furn_bag', bx0, by0, bx1, by0 + .01, bz0, bz1, M['paperbag']); box('furn_bag', bx0, by1 - .01, bx1, by1, bz0, bz1 - .012, M['paperbag'])
+    box('furn_bag', bx0, by0, bx0 + .01, by1, bz0, bz1 - .006, M['paperbag']); box('furn_bag', bx1 - .01, by0, bx1, by1, bz0, bz1, M['paperbag'])
+    box('furn_bag', bx0, by0, bx1, by1, bz0, bz0 + .01, M['paperbag'])
+    for (ax0, ay0, ax1, ay1) in ((bx0, by0, bx1, by0 + .012), (bx0, by1 - .012, bx1, by1), (bx0, by0 + .018, bx0 + .012, by1 - .018), (bx1 - .012, by0 + .018, bx1, by1 - .018)):
+        box('furn_bagroll', ax0 - .006, ay0 - (.006 if ay1 - ay0 < .02 else 0), ax1 + .006, ay1 + (.006 if ay1 - ay0 < .02 else 0), bz1 - .03, bz1 + .004, M['paperbag'])   # the rolled mouth
+    for i, (x, y, h) in enumerate(((6.38, 7.66, .40), (6.42, 7.62, .44), (6.36, 7.59, .37))):   # leeks: white stalk, green tops
+        cyl('furn_leek', x, y, bz0 + .01, bz0 + h, .014, M['leek'], 10)
+        o = cyl('furn_leektop', x, y, bz0 + h, bz0 + h + .16, .016, M['leekg'], 10); o.rotation_euler = (.12 * (i - 1), .1, 0)
+    box('furn_milk', 6.5, 7.62, 6.57, 7.69, bz0 + .01, bz0 + .25, M['milk'])
+    prim('uv_sphere', 'furn_loaf', loc=(X(6.5), Y(7.55), bz1 - .01), scale=(.08, .045, .045), rot=(0, .35, 0), mat=M['loaf'], segments=14, ring_count=8)
     for i, (x, y) in enumerate(((6.8, 7.5), (6.88, 7.62), (6.74, 7.66))):
         prim('uv_sphere', 'furn_onion', loc=(X(x), Y(y), .9), scale=(.04, .04, .036), mat=M['onion'], segments=12, ring_count=8)
     for i, (x, y) in enumerate(((7.95, 7.5), (8.05, 7.56), (7.98, 7.64), (8.1, 7.45))):
@@ -307,6 +334,68 @@ def kitchen(M):
     cyl('furn_kcord', 7.9, 5.6, 2.0, H4.H1, .006, M['plastic'], 6)
     cyl('furn_kshade', 7.9, 5.6, 1.88, 2.02, .16, M['shade'], 24)
     lib.point('lamp_kitchen', (X(7.9), Y(5.6), 1.84), 60, k=2900, radius=.08)
+
+# ---------------------------------------------------------------- パントリー (plan x 8.6..10, y 6.6..8; door on x 8.6 at y 6.62..7.3)
+# 試作297（赤字 #12）: it was empty. Open shelves on the east wall (what the door looks at) and the north wall, a family's
+# stores for a summer at the house: tins, jars, boxes, bottled water, a rice sack, onions in a net on the floor. The south
+# wall stays clear: the door swings back against it.
+def pantry(M):
+    def shelves(x0, y0, x1, y1, along):
+        for z in (.32, .74, 1.16, 1.58, 1.98):
+            box('furn_pshelf', x0, y0, x1, y1, z - .025, z, M['shelfwood'])
+        ends = ((x0, x0 + .025), (x1 - .025, x1)) if along == 'x' else ((y0, y0 + .025), (y1 - .025, y1))
+        for a, b in ends:
+            if along == 'x': box('furn_pupright', a, y0, b, y1, 0, 2.0, M['shelfwood'])
+            else: box('furn_pupright', x0, a, x1, b, 0, 2.0, M['shelfwood'])
+        collide(x0, y0, x1, y1, 0, 2.0)
+    ex0, ex1 = 9.6, 9.9                 # east run: along y
+    shelves(ex0, 6.72, ex1, 7.9, 'y')
+    nx0, nx1, ny0, ny1 = 8.72, 9.58, 7.62, 7.9   # north run: along x
+    shelves(nx0, ny0, nx1, ny1, 'x')
+    import random
+    rnd = random.Random(297)
+    def row_cans(xs, y, z, mats_):   # a row of tins along x (north run)
+        for i, x in enumerate(xs):
+            cyl('furn_can', x, y, z, z + .11, .037, mats_[i % len(mats_)], 14)
+    def col_cans(x, ys, z, mats_):   # along y (east run)
+        for i, y in enumerate(ys):
+            cyl('furn_can', x, y, z, z + .11, .037, mats_[i % len(mats_)], 14)
+    # east run, shelf by shelf (z = shelf top)
+    col_cans(9.72, [6.82 + i * .08 for i in range(6)], .32, [M['can_r'], M['can_r'], M['can_g']])
+    col_cans(9.8, [6.86 + i * .08 for i in range(4)], .32, [M['can_y']])
+    for i, y in enumerate((7.45, 7.6, 7.75)):
+        box('furn_pbox', 9.66, y - .06, 9.86, y + .06, .32, .32 + .22 + .03 * (i % 2), [M['box_r'], M['box_b'], M['paperbag']][i])
+    for i in range(5):   # jars of jam and pickles
+        y = 6.84 + i * .1
+        cyl('furn_jar', 9.74, y, .74, .87, .042, M['jar'], 14); cyl('furn_jarlid', 9.74, y, .87, .89, .044, M['lid'], 14)
+    for i in range(3):
+        box('furn_pbox', 9.66, 7.38 + i * .17 - .07, 9.86, 7.38 + i * .17 + .07, .74, .74 + .26, [M['box_b'], M['roux'], M['box_r']][i])
+    for i in range(6):   # 2 L water
+        x = 9.68 + (i % 2) * .12; y = 6.85 + (i // 2) * .12
+        cyl('furn_pet', x, y, 1.16, 1.46, .05, M['pet'], 12)
+    for i in range(4):
+        box('furn_pbox', 9.65, 7.3 + i * .14 - .06, 9.85, 7.3 + i * .14 + .06, 1.16, 1.16 + .16 + .04 * (i % 2), M['paperbag'])
+    col_cans(9.75, [6.85 + i * .09 for i in range(8)], 1.58, [M['can_g'], M['can_y'], M['can_r']])
+    box('furn_pbox', 9.64, 7.6, 9.88, 7.85, 1.98, 2.2, M['paperbag'])   # a carton on top
+    # north run
+    row_cans([8.82 + i * .08 for i in range(5)], 7.76, .32, [M['can_y'], M['can_g']])
+    for i in range(3):
+        box('furn_pbox', 9.22 + i * .11 - .045, 7.68, 9.22 + i * .11 + .045, 7.86, .32, .32 + .24, [M['box_r'], M['box_b'], M['box_r']][i])
+    for i in range(6):
+        x = 8.82 + i * .12
+        cyl('furn_jar', x, 7.76, .74, .9, .045, M['jar'], 14); cyl('furn_jarlid', x, 7.76, .9, .92, .047, M['lid'], 14)
+    for i in range(4):
+        box('furn_pbox', 8.85 + i * .18 - .07, 7.68, 8.85 + i * .18 + .07, 7.86, 1.16, 1.16 + .2 + .03 * (i % 2), [M['paperbag'], M['box_b']][i % 2])
+    row_cans([8.82 + i * .085 for i in range(9)], 7.76, 1.58, [M['can_r'], M['can_y'], M['can_g'], M['can_r']])
+    # the floor: a rice sack against the north run, onions in a net, a crate of potatoes
+    soft('furn_ricesack', 8.75, 7.18, 9.15, 7.55, 0, .42, M['sack'], r=.06, puff=.04, tilt=.05)
+    for i in range(7):
+        prim('uv_sphere', 'furn_onion', loc=(X(9.38 + rnd.uniform(-.06, .06)), Y(7.4 + rnd.uniform(-.06, .06)), .04 + .05 * (i // 4)),
+             scale=(.042, .042, .038), mat=M['onion'], segments=12, ring_count=8)
+    box('furn_crate', 9.22, 6.75, 9.52, 7.0, 0, .2, M['shelfwood'])
+    for i in range(6):
+        prim('uv_sphere', 'furn_potato', loc=(X(9.28 + (i % 3) * .09), Y(6.82 + (i // 3) * .1), .21), scale=(.042, .03, .028), rot=(0, 0, i), mat=M['potato'], segments=10, ring_count=6)
+    collide(8.72, 7.15, 9.58, 7.6, 0, .45)
 
 def counter(M, x0, y0, x1, y1, wall):
     box('furn_cab', x0, y0 + (.05 if wall == 'n' else 0), x1, y1 - (.05 if wall == 's' else 0), .1, .82, M['cabinet'])
@@ -344,5 +433,5 @@ def counter(M, x0, y0, x1, y1, wall):
 
 def furnish(M):
     COL.clear(); mats(M)
-    living(M); dining(M); kitchen(M)
+    living(M); dining(M); kitchen(M); pantry(M)
     return list(COL)

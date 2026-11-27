@@ -1192,8 +1192,14 @@ func _enter_tree():
 		if a.begins_with("--skipto="): skip_to = float(a.substr(9))
 		if a.begins_with("--shotat="): shot_at = float(a.substr(9))
 		if a.begins_with("--faceshot="): shot_out = a.substr(11)
+	var shot_cam := []   # check stills: --shotcam=x,z,yaw,pitch puts the camera (the player) there for the last second before --shotat
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shotcam="): shot_cam = Array(a.substr(10).split(",")).map(func(x): return float(x))
 	if shot_at > 0.0 and shot_out != "":
 		get_tree().process_frame.connect(func():
+			if shot_cam.size() == 4 and shot_at > 0.0 and t_now >= shot_at - 1.0:
+				player.global_position = Vector3(shot_cam[0], player.global_position.y, shot_cam[1])
+				player.yaw = deg_to_rad(shot_cam[2]); player.pitch = deg_to_rad(shot_cam[3]); player.move_enabled = false
 			if shot_at > 0.0 and t_now >= shot_at: shot_at = -1.0; _save_shot(shot_out))
 	if skip_to > 0.0:
 		# the 3D drawn at a fifth of the size until then (the walking needs every frame; the drawing of them is what costs)

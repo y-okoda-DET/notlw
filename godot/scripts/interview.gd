@@ -73,6 +73,7 @@ static func flag(n: String) -> bool:
 
 func _ready():
 	var args := OS.get_cmdline_user_args()
+	_mio_adj_args()
 	demo = "--demo" in args or "--demoslow" in args; only = "--ivonly" in args
 	demo_k = 40.0 if "--demo" in args else 1.0
 	demo_lie = "--ivlie" in args
@@ -265,9 +266,37 @@ func _people():
 	if ppl.has("kikite"): _pencil(ppl.kikite)
 	for k in ppl: _pose(ppl[k], 0.0)
 
+# 試作297（赤字 #28「このへんが気になる」, circled: the two points where the cardigan meets the white collar by the neck):
+# the generated cardigan stands up in two little navy ears at the collar's outer corners (|x| 3.5–10 cm, up to 1.274 m
+# in the rest form while the collar's top is at about 1.255). They are pressed down to the collar's height here, on
+# the body's own vertices (bind space: glTF y-up), before anything poses it.
+var COLLAR_FIX := 1.0
+func _collar_fix(root: Node):
+	for mi in root.find_children("kikite_body*", "MeshInstance3D", true, false):
+		var am := (mi as MeshInstance3D).mesh as ArrayMesh
+		if am == null: continue
+		var nm := ArrayMesh.new(); var moved := 0
+		for si in am.get_surface_count():
+			var arr := am.surface_get_arrays(si)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var top := am.get_aabb().end.y; var c0 := top - 0.024   # the ears' tips are the body's top; the collar's top 2.4 cm under (3 cm bared the neck's foot)
+			for i in v.size():
+				var q := v[i]
+				var ax := absf(q.x)
+				if q.y > c0 and ax > 0.032 and ax < 0.11:
+					var w := clampf((ax - 0.032) / 0.012, 0.0, 1.0) * clampf((0.11 - ax) / 0.015, 0.0, 1.0) * COLLAR_FIX
+					v[i] = Vector3(q.x, lerpf(q.y, c0 + (q.y - c0) * 0.15, w), q.z); moved += 1
+			arr[Mesh.ARRAY_VERTEX] = v
+			var bs := am.surface_get_blend_shape_arrays(si)
+			nm.add_surface_from_arrays(am.surface_get_primitive_type(si), arr, bs, {}, am.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+			nm.surface_set_material(si, am.surface_get_material(si))
+		(mi as MeshInstance3D).mesh = nm
+		print("COLLAR_FIX moved ", moved)
+
 func _person(key: String, file: String, rest_form: String, facing: float) -> Dictionary:
 	var root: Node3D = (load(A + file) as PackedScene).instantiate(); add_child(root)
 	_two_sided(root)
+	if key == "kikite" and COLLAR_FIX > 0.0: _collar_fix(root)
 	var sk: Skeleton3D = root.find_children("*", "Skeleton3D", true, false)[0]
 	var ap: AnimationPlayer = root.find_children("*", "AnimationPlayer", true, false)[0]
 	var forms := {}
@@ -298,6 +327,12 @@ func _person(key: String, file: String, rest_form: String, facing: float) -> Dic
 		var gb: Basis = (sk.global_transform.basis.orthonormalized() * sk.get_bone_global_pose(bi).basis.orthonormalized()).inverse()
 		p.axes[bi] = [(gb * Vector3.RIGHT).normalized(), (gb * Vector3.UP).normalized(), (gb * Vector3(0, 0, facing)).normalized()]
 	return p
+
+var MIO_ADJ := [-4.0, 4.0, 3.0]   # clavicles about the facing axis (deg), neck and head up (deg); --mioadj=a,b,c for checks
+func _mio_adj_args():
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--collarfix="): COLLAR_FIX = float(a.substr(12))
+		if a.begins_with("--mioadj="): MIO_ADJ = Array(a.substr(9).split(",")).map(func(v): return float(v))
 
 func _form_bone(p: Dictionary, form: String, bi: int) -> Array:
 	var f: Dictionary = p.forms.get(form, {})
@@ -354,6 +389,11 @@ func _pose(p: Dictionary, dt: float):
 	_turn(p, x, "neck_01", 0, f * pitch * 0.35); _turn(p, x, "head", 0, f * pitch * 0.65)
 	_turn(p, x, "neck_01", 1, yaw * 0.4); _turn(p, x, "head", 1, yaw * 0.6)
 	_turn(p, x, "spine_01", 2, 0.6 * _wob(t * 0.5, 7.0))   # the weight shifting on the knees
+	if p.key == "mio" or p.key == "kikite":
+		# 試作297（赤字 #28: the shot is the interviewer's, q_聞き手_口元; both sit the same way, so both)（赤字 #28「このへんが気になる」: her shoulders' tops by the neck, and the collar under her chin): the shoulders
+		# let down a little (the clip held them up into two points by the collar), the chin lifted off the collar
+		_turn(p, x, "clavicle_l", 2, MIO_ADJ[0]); _turn(p, x, "clavicle_r", 2, -MIO_ADJ[0])
+		_turn(p, x, "neck_01", 0, -f * MIO_ADJ[1]); _turn(p, x, "head", 0, -f * MIO_ADJ[2])
 	# the pen: writing is small turns of the wrist, a stop is the hand lifted off the page and held
 	if String(p.pen) != "" and p.has("pen_hand"):
 		p.pen_t = float(p.pen_t) + dt
@@ -1064,14 +1104,11 @@ func _card_on_table():
 	print("IV meishi")
 	_cut("名刺")
 	_form("kikite", "stroke", 0.8)
+	# 2026-11-27（ユーザー赤字 #432「名刺を投げるアニメーションはやめたい。やるなら机の上に置いた名刺を示すとか」）: the card is
+	# already on the table in front of Mio; her hand goes out to it and rests by it a moment (it no longer slides)
 	meishi.visible = true
-	var from := b2g(MEISHI_FROM); var to := b2g(MEISHI_DOWN)
-	var t := 0.0
-	while t < 1.6:
-		await get_tree().process_frame
-		t += get_process_delta_time() * demo_k
-		var k := clampf((t - 0.3) / 1.1, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)
-		meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(lerpf(-10.0, 4.0, k))), from.lerp(to, k))
+	meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), b2g(MEISHI_DOWN))
+	await _hold(1.6)
 	_form("kikite", "seiza", 1.0)
 	await _hold(1.2)
 

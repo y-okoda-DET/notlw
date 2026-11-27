@@ -24,6 +24,7 @@ const OPEN_DEG := 74.0
 const SIDE_GLASS := [4.14, 0.005, 1.08]   # plan: the sidelight's glass west of the door (x 4.03..4.24), the hall's face
 const LANTERN_E := 0.2
 
+var gen_far_db := -11.0   # 2026-11-27: the generator heard clearly from the first frame until it stops (sound.gd)
 var L0 := []
 var l0 := 0
 var can_stand := false
@@ -98,6 +99,20 @@ func _front_door_mine():
 	if front_leaf == null and main.door_pivot:
 		for mi in main.door_pivot.find_children("door_front*", "MeshInstance3D", true, false):
 			if not String(mi.name).contains("knob") and not String(mi.name).contains("glass"): front_leaf = mi; break
+	# 2026-11-27（ユーザー赤字 #5「ここの縦の白い線トル」）: between the leaf's edges and the frame a hair of the dawn outside showed
+	# as a white line down the jamb. A dark stop strip on each side of the shut leaf, on the frame (it does not turn with it)
+	if front_leaf is MeshInstance3D and main.door_pivot:
+		var lb: AABB = front_leaf.global_transform * front_leaf.get_aabb()
+		var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.07, 0.06, 0.05); dm.roughness = 0.9
+		var wide_x := lb.size.x > lb.size.z
+		for side in [-1.0, 1.0]:
+			var st := MeshInstance3D.new(); var bm := BoxMesh.new(); st.mesh = bm; st.material_override = dm; st.name = "door_stop"
+			var c := lb.get_center()
+			if wide_x:
+				bm.size = Vector3(0.022, lb.size.y, lb.size.z + 0.03); c.x += side * (lb.size.x * 0.5 + 0.011)
+			else:
+				bm.size = Vector3(lb.size.x + 0.03, lb.size.y, 0.022); c.z += side * (lb.size.z * 0.5 + 0.011)
+			main.add_child(st); st.global_position = c
 	# 試作127（ユーザー「手形がここにある。」、B1 手形は消す：3時半に夏希は勝手口から入った。玄関の窓の手形はそれと合わない）
 	# _hand()
 	if "--c0dbg" in OS.get_cmdline_user_args():
@@ -161,7 +176,11 @@ func _settle():
 func _pool():
 	var h := _nhead(); h.y = 0.0
 	var rng := RandomNumberGenerator.new(); rng.seed = 5
-	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.13, 0.006, 0.006); mat.roughness = 0.1; mat.metallic_specular = 0.85
+	# 試作297（赤字 #2「血溜まりが影に見える」）: it was near black (.13), and the print read it as a shadow. Red enough that the
+	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it)
+	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.4, 0.03, 0.02); mat.roughness = 0.06; mat.metallic_specular = 1.0
+	mat.emission_enabled = true; mat.emission = Color(0.72, 0.08, 0.02)   # (0.34 was too dark to be "lit": it printed blue, lost in the floor) the night print gives orange only to what is warm and lit: the red is made to stand in its own light
+	mat.clearcoat_enabled = true; mat.clearcoat = 1.0; mat.clearcoat_roughness = 0.02
 	for i in 7:
 		var mi := MeshInstance3D.new(); var cm := CylinderMesh.new()
 		var r := rng.randf_range(0.10, 0.22) * (1.0 if i == 0 else 0.8)

@@ -162,13 +162,20 @@ func _process(dt):
 			g_was = g.duplicate()
 		var on := _gen_running()
 		if on:
+			var fresh := not loops.has("generator_far")
 			var near := _loop("generator", -6.0, _gen_at())
 			var far := _loop("generator_far", -60.0)
 			if pl and near and far:
 				var y: float = pl.global_position.y
 				var cellar := y < -1.0
-				near.set("volume_db", lerpf(near.get("volume_db"), -6.0 if cellar else -40.0, minf(1.0, dt * 3.0)))
-				far.set("volume_db", lerpf(far.get("volume_db"), -60.0 if cellar else (-18.0 if y < 1.5 else -28.0), minf(1.0, dt * 3.0)))
+				# 序章 (ユーザー 2026-11-27「一番最初、発電機の音が頭から入っているようにしたい」): the story can ask for it louder
+				# (gen_far_db), and when the loop is new it is there at once, not faded in: it has been running all night
+				var far_db: float = -60.0 if cellar else (-18.0 if y < 1.5 else -28.0)
+				var st2 = main.story
+				if not cellar and st2 != null and is_instance_valid(st2) and "gen_far_db" in st2: far_db = float(st2.gen_far_db)
+				var k := 1.0 if fresh else minf(1.0, dt * 3.0)
+				near.set("volume_db", lerpf(near.get("volume_db"), -6.0 if cellar else -40.0, k))
+				far.set("volume_db", lerpf(far.get("volume_db"), far_db, k))
 		elif gen_was:
 			_stop("generator"); _stop("generator_far"); one(self, "generator_stop", -5.0, _gen_at())
 		gen_was = on

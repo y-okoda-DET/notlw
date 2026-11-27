@@ -12,11 +12,19 @@ def still(sec, **f): return [dict(f, hold=round(sec * FPS))]
 CAMS = json.load(open(os.path.join(HERE, 'cameras.json')))
 def cam(name, sec, **over):
     c = dict(CAMS[name]); c.update(over); return still(sec, loc=c['loc'], at=c['at'], lens=c['lens'], shift_y=c.get('shift_y', 0.0), hide=tuple(c.get('hide', ())))
+def edge(sec, loc, lens, who=(0.0, 0.92), k=0.62, z_at=-0.06):
+    """試作297：聞き手（who）を画の左の端に置く据えのカメラ。左右の画角の半分の k だけ右を向く（長いレンズほど少し）"""
+    th_s = math.atan2(who[0] - loc[0], who[1] - loc[1])
+    th = th_s + k * math.atan(18.0 / lens)
+    return still(sec, loc=loc, at=[loc[0] + math.sin(th), loc[1] + math.cos(th), loc[2] + z_at], lens=lens, shift_y=0.0, hide=('mio',))
 TAPE = [-0.10, 0.43, 0.35]; REC = [-0.057, 0.029, 0.364]; FIST = [-0.09, -0.47, 0.33]; TEA_I = [0.58, 0.28, 0.38]
 SHOTS = {
  # 証言 二（決まった形）：聞き手の顎で切った正面 → 長い問いの間 T1 ゆっくり寄る → 澪の正面
- 'a_聞き手_顎': cam('k3b_聞き手_顎', 1.5),
- 'b_T1_寄る': seg(48, dict(loc=[0, -0.50, 0.50], at=[0, 0.92, 0.50], lens=40.0, shift_y=0.015), dict(loc=[0, 0.12, 0.50], at=[0, 0.92, 0.50], lens=40.0, shift_y=0.015), e=lambda t: t, hide=('mio',)),
+ # 試作297（赤字 #25「この2枚、ちょっと絵に工夫が無い。カメラに角度つける？…ゴダール的にしてみるとか？」）：正面・真ん中をやめる。
+ # 聞き手を斜め前から、画の左の端に寄せ（体の半分は枠の外）、右の三分の二は障子の白い余白（字幕はそこに乗る）。顔は今までどおり
+ # 顎で切って見せない。長い問いの間は、ゆっくり寄る代わりに、同じ向きのまま3回ぶつ切りに寄る（ゴダールのジャンプカット）
+ 'a_聞き手_顎': edge(1.5, [0.45, -0.25, 0.70], 40.0),
+ 'b_T1_寄る': edge(1.3, [0.43, -0.12, 0.70], 50.0) + edge(1.3, [0.41, -0.02, 0.71], 62.0) + edge(1.4, [0.39, 0.08, 0.72], 80.0),
  'c_澪_正面': cam('k4_澪_口元', 1.5),
  # やり取りを N3 振り が運ぶ：机の真ん中から 澪→聞き手 へ一気に振って、相手の正面で止まる
  'd_N3_振り': (still(0.8, loc=[0, 0.10, 0.56], at=[0, -0.72, 0.56], lens=32.0, shift_y=0.0, hide=()) +

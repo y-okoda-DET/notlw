@@ -34,6 +34,7 @@ if [[ " $SCENES " == *" dusk "* ]]; then
   python3 denoise_lm.py -- $RULES/assets/dusk/lightmap.exr >> $W/export${N}d.log 2>&1
   python3 export_t20.py >> $W/export${N}d.log 2>&1 || { echo T20_FAIL >> $L; exit 1; }   # 試作91: the people of 第2章 at 20:00 (movement only)
   python3 export_walk.py >> $W/export${N}d.log 2>&1 || { echo WALK_FAIL >> $L; exit 1; }   # 試作92: the walk, the stairs and the turns (Mixamo, 段階2/mixamo/) on the four
+  python3 export_zwalk.py >> $W/export${N}d.log 2>&1 || { echo ZWALK_FAIL >> $L; exit 1; }   # 試作297: 第4章の夏希のゾンビ歩き（段階2/mixamo/zombie_pack/、ユーザーの Mixamo）
   python3 export_talk.py >> $W/export${N}d.log 2>&1 || { echo TALK_FAIL >> $L; exit 1; }   # 2026-11-14: standing, sitting, talking, crouching (Mixamo) on the four
   python3 export_ch7.py >> $W/export${N}d.log 2>&1 || { echo CH7_FAIL >> $L; exit 1; }   # 2026-11-19 第7章: Mio's body and walk (assets/dusk/mio*)
   PEOPLE=1 python3 export_ch7.py >> $W/export${N}d.log 2>&1 || { echo CH7P_FAIL >> $L; exit 1; }   # 第7章 only: the four's clips (<k>_c7)

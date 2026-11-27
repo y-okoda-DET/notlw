@@ -250,7 +250,7 @@ def under_stair(M):
     # the cellar door's wall (plan y 5.6), full height under the landing; door leaf hung in build_house4
     wall_v4(M, ('X', 5.6, x0 - .04, 6.0 - T / 2, [(5.12, 5.93)], [], 0), 0.0, H1, SILL1, WH1)
     # a hand-written note on the cellar door (hall side)
-    nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['地下', '発電機']), rough=.8, bump=0)
+    nt = mat_image('note4', Hm.note_tex(f'{P.KF}/note_basement.png', ['BACKUP', 'GENERATOR']), rough=.8, bump=0)
     # faces the lobby (plan +y, Blender -Y), where the bulb is and where you read it from (it faced into the door before)
     # 試作127（ユーザー「変なところに張り紙があります」）: named 'note', it was joined into the lightmapped static mesh and
     # stayed in the doorway when the door swung: 'cellar_note' is kept out of the join (NO_LM) and turns with the leaf
@@ -302,9 +302,10 @@ def build_house4(M, floors=('1F', '2F', 'B1')):
             'front': door_leaf(M, 'X', 0, 4.45, 5.55, ZG, hinge='lo', name='door_front', h=2.0 - ZG),
             'back': door_leaf(M, 'Y', 10, 4.4, 5.35, 0, hinge='lo', name='door_back'),
             'cellar': door_leaf(M, 'X', 5.6, 5.12, 5.93, 0, hinge='hi', name='door_cellar'),
+            # 2026-11-27（ユーザー赤字 #4「ここの扉、他の扉とそろえる」）: the study's fusuma is a door like the others (locked: doors.gd)
+            'study': door_leaf(M, 'Y', 6, 1.6, 2.45, 0, name='door_study'),
         }
         a['doors']['front'].name = 'door_pivot'   # Godot finds the front door by this name (the knocks shake it)
-        fusuma(M, 6, 1.6, 2.45)
         lobby_lamp(M)
         genkan_fit(M)
         note = under_stair(M)
@@ -383,7 +384,7 @@ def prune(box, keep=('ext_',), drop=()):
     print('prune: removed', gone)
 
 COLLIDE = ('wallcore', 'floor1', 'genkan', 'shoecab', 'door_living', 'door_dining', 'door_kitchen', 'door_toilet',
-           'door_pantry', 'door_cellar', 'door_front', 'door_back', 'fusuma', 'agarikamachi', 'floor2', 'floorB', 'door2_')
+           'door_pantry', 'door_cellar', 'door_front', 'door_back', 'door_study', 'fusuma', 'agarikamachi', 'floor2', 'floorB', 'door2_')
 def colliders(stair_block=True):
     """Axis-aligned boxes for the player (Blender centre + size), from the built meshes; the staircase is one block
     (no climbing; the whole house passes stair_block=False and climbs on rooms2.climb_boxes), the genkan step a ramp

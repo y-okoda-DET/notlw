@@ -301,7 +301,9 @@ func _place_one():
 	_hide("taiga")
 	_put("makoto", MK_ONE, _face(MK_ONE, [5.7, 6.2])); main.set_stand("makoto", "talk/idle", 0.0)
 	mk_at = "one"; mk_going = ""
-	_put("kiryu", KR_ONE, _face(KR_ONE, [4.9, 8.0]), F2); main.set_stand("kiryu", "talk/idle", 0.0)
+	# 2026-11-27（ユーザー赤字 #200「壁に向かって何をしているのかが謎。最初から正面向いているでいいかな？」）: he faces the stair
+	# head, where Mio comes up (it was the window wall)
+	_put("kiryu", KR_ONE, _face(KR_ONE, [5.5, 5.7]), F2); main.set_stand("kiryu", "talk/idle", 0.0)
 
 # the small camera on the handrail, recording (2026-11-15: always there by 20:00)
 func _night_cam():
@@ -980,6 +982,7 @@ func _trace_start(gq: Dictionary):
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
 	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false, "along_x": along_x}
+	if gq.key != "g5": _multi_start(gq, mi, along_x)
 	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
 	# the close shot: a set camera a little off the gap's face, slightly from above and from the side the strip starts on
@@ -997,12 +1000,13 @@ func _trace_start(gq: Dictionary):
 	cc.look_at_from_position(eye, mid, Vector3.UP)
 	cc.make_current()
 	trace["cc"] = cc
-	note_lb.text = T("［Ｅ（押したまま）　貼る］")
+	note_lb.text = T("［Ｅ（押したまま）　貼る］") if gq.key == "g5" else T("［マウス　ずらす　　Ｅ（押したまま）　引き出す、離して　切る］")
 
 # holding E (or the left button) lays the strip at an even pace; the gap's wind thins as it goes
 func _trace_tick(dt: float):
 	if trace.is_empty(): return
 	var held: bool = bool(trace.hold) or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if trace.has("cover"): _multi_tick(dt, held); return
 	if not held: return
 	var gq: Dictionary = trace.gq
 	var step := dt / (TRACE_SECS * (2.0 if gq.key == "g5" else 1.0))
@@ -1029,9 +1033,93 @@ func _trace_end():
 	(player.get_node("Head/Camera") as Camera3D).make_current()
 	player.look_enabled = true; player.move_enabled = true; note_lb.text = ""
 	(trace.mi as Node).queue_free()
+	if trace.has("roll") and is_instance_valid(trace.roll): (trace.roll as Node).queue_free()
+	var strips: Array = trace.get("strips", [])
 	trace = {}
+	if not strips.is_empty():   # her own strips stay (the neat one _seal lays is hidden under them)
+		_seal_done(gq)
+		if gq.tape is Node3D: (gq.tape as Node3D).visible = false
+		wind_dim[gq.key] = 0.6
+		return
 	wind_dim[gq.key] = 0.6   # what is left of its wind fades from where the strip left it
 	_seal_done(gq)
+
+# 試作297（赤字 #11「テープのミニゲーム、なんか別の形のほうがいいかな……一列だけ貼って終わりっていうのも冷める」）:
+# a gap is not one strip. The roll is held to the boards (the mouse moves it along the gap, left and right); holding Ｅ pulls
+# tape off it, letting go tears it (a short strip, laid a little crooked, each the other way: the crossed, hurried tape of a
+# boarded window). Where the gap is still open the wind still comes through and Makoto's flame still leans; three or four
+# strips close it. No failing (a strip over one already there only thickens it).
+const MULTI_BINS := 12
+const STRIP_MAX := 0.15        # metres one pull gives at most
+const STRIP_SECS := 0.55       # holding, a full strip
+func _multi_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
+	mi.visible = false
+	var cover := []; cover.resize(MULTI_BINS); cover.fill(0.0)
+	trace["cover"] = cover; trace["u"] = 0.15; trace["strips"] = []; trace["cur"] = null; trace["was"] = false; trace["len"] = 0.0
+	var roll := MeshInstance3D.new(); var rm := TorusMesh.new(); rm.inner_radius = 0.022; rm.outer_radius = 0.034; roll.mesh = rm
+	var m := StandardMaterial3D.new(); m.albedo_color = Color(0.72, 0.72, 0.7); m.roughness = 0.5; roll.material_override = m
+	roll.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(roll)
+	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
+	trace["roll"] = roll
+
+func _gap_point(gq: Dictionary, u: float) -> Vector3:
+	var along := Vector3(1, 0, 0) if trace.along_x else Vector3(0, 0, 1)
+	return (gq.at as Vector3) + Vector3(gq.n[0] * 0.012, 0.0, gq.n[1] * 0.012) + along * (u - 0.5) * 0.34
+
+func _multi_tick(dt: float, held: bool):
+	var gq: Dictionary = trace.gq
+	var cover: Array = trace.cover
+	if bool(trace.hold):   # the run: the roll to the first open place
+		var first := 0
+		while first < MULTI_BINS and float(cover[first]) >= 1.0: first += 1
+		var want: float = clampf((float(first) + 0.05) / MULTI_BINS, 0.0, 1.0)   # (a strip covers from the bin it starts in: +0.08 started past the open bin, and the run never closed it)
+		if trace.cur == null: trace.u = move_toward(float(trace.u), want, dt * 1.2)
+		held = trace.cur != null or absf(float(trace.u) - want) < 0.02
+		if trace.cur != null and float(trace.len) >= STRIP_MAX: held = false
+	elif trace.cur == null:
+		trace.u = clampf(float(trace.u) + Input.get_last_mouse_velocity().x * dt * 0.0012, 0.0, 1.0)
+	var at := _gap_point(gq, float(trace.u))
+	(trace.roll as Node3D).global_position = at + Vector3(gq.n[0] * 0.03, -0.035, gq.n[1] * 0.03)
+	if held and trace.cur == null:   # a new strip from the roll
+		var st := MeshInstance3D.new(); var bm := BoxMesh.new()
+		bm.size = Vector3(1.0, 0.048, 0.003) if trace.along_x else Vector3(0.003, 0.048, 1.0); st.mesh = bm
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(0.74, 0.74, 0.72).darkened(randf() * 0.06); m.roughness = 0.5; m.metallic = 0.1
+		st.material_override = m; st.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(st)
+		var n_strip: int = (trace.strips as Array).size()
+		var tilt: float = deg_to_rad([14.0, -11.0, 7.0, -16.0, 4.0][n_strip % 5] + randf_range(-3.0, 3.0))
+		st.set_meta("u0", float(trace.u)); st.set_meta("tilt", tilt)
+		trace.cur = st; trace.len = 0.0
+		Sound.one(self, "ch3_tape", -12.0, gq.at)
+	if trace.cur != null:
+		var st: MeshInstance3D = trace.cur
+		if held:
+			trace.len = minf(STRIP_MAX, float(trace.len) + dt * STRIP_MAX / STRIP_SECS)
+			trace.snd = float(trace.snd) + dt
+			if float(trace.snd) > 0.12:
+				trace.snd = 0.0
+				var pl := Sound.one(self, "ch3_tape", -17.0, gq.at)
+				if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = randf_range(0.95, 1.15)
+		var u0: float = st.get_meta("u0"); var L: float = maxf(0.004, float(trace.len))
+		var c := _gap_point(gq, u0) + (Vector3(1, 0, 0) if trace.along_x else Vector3(0, 0, 1)) * L * 0.5
+		var axis := Vector3(float(gq.n[0]), 0.0, float(gq.n[1])).normalized()
+		st.global_transform = Transform3D(Basis(axis, float(st.get_meta("tilt"))) * Basis.from_scale(Vector3(L, 1, 1) if trace.along_x else Vector3(1, 1, L)), c)
+		trace.u = clampf(u0 + L / 0.34, 0.0, 1.0)
+		if not held or float(trace.len) >= STRIP_MAX:   # torn off
+			Sound.one(self, "ch3_tape", -7.0, gq.at)
+			var a := int(floor(u0 * MULTI_BINS)); var b := int(ceil((u0 + L / 0.34) * MULTI_BINS))
+			for i in range(maxi(0, a), mini(MULTI_BINS, b)): cover[i] = 1.0
+			(trace.strips as Array).append(st); trace.cur = null
+	var k := 0.0
+	for v in cover: k += float(v)
+	k /= MULTI_BINS
+	var wp: AudioStreamPlayer3D = gq.player
+	if wp: wp.volume_db = lerpf(-6.0, -30.0, k)
+	if k >= 0.99 and trace.cur == null: _trace_end()
+	if not trace.has("shot"):   # --tapeshot=png: a still mid-game (the check only)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--tapeshot=") and k > 0.3 and trace.cur != null and float(trace.len) > 0.09:
+				trace["shot"] = true
+				get_viewport().get_texture().get_image().save_png(a.substr(11)); print("TAPESHOT ", a.substr(11)); get_tree().create_timer(0.3).timeout.connect(get_tree().quit)
 
 func _press_seal():
 	var gq := _near_gap()

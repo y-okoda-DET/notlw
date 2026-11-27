@@ -48,6 +48,7 @@ func setup(m):
 		if key == "door_front" and ST.get("boards", false): locked = "開かない。"   # 試作281（ユーザー「開かない、外から誰かが押さえているは変。トル」）
 		elif key == "door_back" and ST.get("boards", false): locked = "開かない。"   # 2026-11-16（docs/資料/夏希をゾンビに見せる証拠_2026-11-16.md）: 3:30 she comes in by this door
 		elif key == "door_barred" and absf(cur) < 0.3: locked = "開かない。"   # shut from 0:00 (Taiga behind it); open before
+		elif key == "door_study": locked = "鍵がかかっていて、開かない。"   # 2026-11-27（ユーザー赤字 #4）: the owner's study, kept locked (it was a fusuma)
 		var rest := 0.0
 		if piv == main.door_pivot: rest = float(main.S.get("door_rot", 0.0)) - deg_to_rad(float(ST.get("front", 0)))
 		doors[mi] = {"pivot": piv, "rest": rest, "open": cur, "is_open": absf(cur - rest) > 0.3, "locked": locked, "key": key, "box": bx, "body": sb}

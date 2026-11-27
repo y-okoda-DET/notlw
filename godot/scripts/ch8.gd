@@ -55,6 +55,7 @@ var zoom_want := -1.0          # the operator's own zoom (the car: in on her, th
 var zoom_v := 0.0
 var zoom_snd_t := 0.0
 var cam_light: OmniLight3D
+var nat_calm: Node = null
 var nat_face: OmniLight3D
 var nat_line_i := 0
 var nat_was_speaking := false
@@ -1439,6 +1440,10 @@ func _process(dt):
 			nat_was_speaking = speaking
 			var want: String = (["talk/talk_a", "talk/argue", "talk/talk_b"][nat_line_i % 3]) if speaking else ("talk/think" if nat_line_i % 2 == 0 else "talk/idle")
 			if nap.has_animation(want) and nap.current_animation != want: nap.play(want, 0.5)
+			if nat_calm == null:   # 試作297（赤字 #23）: the sway kept, at about half
+				var sk8: Skeleton3D = (main.S.natsuki_node as Node).find_children("*", "Skeleton3D", true, false)[0]
+				nat_calm = load("res://scripts/calm.gd").new(); nat_calm.k = 0.55; sk8.add_child(nat_calm)
+			nat_calm.active = true
 			# her face: the camera's lamp, as far as it reaches her (it lit the ground and left her a shape against the car)
 			if nat_face == null:
 				nat_face = OmniLight3D.new(); nat_face.light_color = Color(1.0, 0.86, 0.68); nat_face.omni_range = 1.1; nat_face.omni_attenuation = 1.2
@@ -1448,7 +1453,8 @@ func _process(dt):
 			var hd: Vector3 = main._rig_of("natsuki").global_position + Vector3(0, 1.45, 0)
 			nat_face.global_position = hd + (_cam().global_position - hd).normalized() * 0.6
 			nat_face.light_energy = move_toward(nat_face.light_energy, 0.9 * cam_light.light_energy / 0.55, dt)
-	elif nat_face and nat_face.light_energy > 0.0:
+	if stage != "car" and nat_calm: nat_calm.active = false
+	if stage != "car" and nat_face and nat_face.light_energy > 0.0:
 		nat_face.light_energy = move_toward(nat_face.light_energy, 0.0, dt)
 	if stage == "door": _dflow_tick(dt)
 	if stage == "fall": _fall_tick(dt)
