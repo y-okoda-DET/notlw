@@ -12,6 +12,7 @@ git clone --depth 1 https://github.com/y-okoda-DET/notlw /home/claude/notlw   # 
 ```
 pip install --break-system-packages bpy==5.2.3 numpy scipy pillow fonttools matplotlib "opencv-python-headless<5"
 ```
+コンタクトシートの PDF（godot/check/contact/sheet.py、2026-11-27 から）には `reportlab` も要る：`pip install --break-system-packages reportlab`。
 `bpy` は Blender 5.2.3 を Python から使うための本体（約 400MB）。Python 3.13 が必要（bpy 5.2 の wheel は cp313 だけ）。
 opencv（`import cv2`）は prep が顔の絵を変形するのに使う。入れ忘れると prep が全員、最後の数十秒で落ちる（2026-10-30 の検証で起きた）。
 書き出しのログに出る `ERROR Draco is not available` `MeshOptimizer is not available` `CUEW initialization failed` は無害（使っていない）。
@@ -92,6 +93,7 @@ bash /home/claude/kf/build.sh 0                         # 試作0として書き
 tripo/ の `*_prep.blend` と `*_headtex_*.png` は prep で作り直される。リポジトリには段階0（試作17）の時点のものを入れてある。
 
 新しい試作は `bash /home/claude/kf/build.sh <番号>`。先に /home/claude/build/hajimeni<番号>.txt を書いておく（zip に「はじめに.txt」として入る）。
+いまの書き出しは pck が3つ（RULES.pck 本体・RULES_house.pck 家まるごと・RULES_iv.pck 証言の部屋）、zip も3つ（試作231 から）。上の「できたと判定する基準」の close.py の画は段階0（試作17）のときの夜の場面で、いまの遊びの流れは確かめない。流れは `bash godot/check/playthrough.sh <RULES.pck>` が「通し ○」になることで見る（docs/手順_確認.md）。
 人物だけを直したときの速い確認：`SKIP_LM=1 python3 export_godot.py`（光の焼き込みを飛ばす。小道具が動いたら `ENV=1` も）→ Godot の取り込み → close.py。
 close.py は書き出した pck から撮る（`PCK=...`）。pck がまだないときは pck なしでプロジェクトから撮れる（途中確認だけに使う。ユーザーに見せる画は pck から）。
 確認画や作業ログは /home/claude/work に出す（リポジトリに入れない）。
