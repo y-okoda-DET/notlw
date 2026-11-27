@@ -22,7 +22,7 @@ pdfmetrics.registerFont(TTFont('JP', '/usr/share/fonts/opentype/ipafont-gothic/i
 
 # 章の並び（scripts/order.gd、main.gd の PLAY_TIME）と名前（story/*.txt の頭）
 CHAP = [
-    ('ch0', '序章「夜明け」'), ('ch1car', '第1章 行きの車'), ('ch1', '第1章「定点」〜第2章「籠城」'), ('h21', '第2章 21時・22時'),
+    ('ch0', '序章「夜明け」'), ('ch1car', '第1章 行きの車'), ('ch1', '第1章「定点」'), ('house-t20', '第2章「籠城」20時'), ('h21', '第2章 21時・22時'),
     ('door', '第2章 23時 扉'), ('ch3', '第3章「隔離」'), ('ch4', '第4章「戻ってきたもの」'), ('ch5', '第5章「地下」'),
     ('ch6', '第6章「片づけ」'), ('i1', '証言 一'), ('ch8', '監督（二時）'), ('i2', '証言 二'), ('ch7', '第7章「去年の夏」'),
     ('ch7n', '第7章「去年の夏」'), ('ch7b', '第7章「去年の夏」'), ('i3', '証言 三'), ('ch11', '第11章「再生」'),
@@ -52,7 +52,7 @@ print('撮った %d 枚 → 残した %d 枚' % (len(rows), len(kept)))
 # 章ごとに分ける（同じ章が二度に分かれて出てきたら、続き番号で別の束）
 groups = []
 for r in kept:
-    key = r['chapter']
+    key = r['chapter'] if r['chapter'] else 'house-' + r['time']   # 第1章の停電のあと（20時の第2章）は play が空
     if not groups or groups[-1][0] != key: groups.append((key, []))
     groups[-1][1].append(r)
 
