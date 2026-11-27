@@ -178,7 +178,8 @@ func _pool():
 	var rng := RandomNumberGenerator.new(); rng.seed = 5
 	# 試作297（赤字 #2「血溜まりが影に見える」）: it was near black (.13), and the print read it as a shadow. Red enough that the
 	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it), and its edge a darker, raised rim
-	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.34, 0.03, 0.02); mat.roughness = 0.06; mat.metallic_specular = 1.0
+	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.5, 0.05, 0.03); mat.roughness = 0.06; mat.metallic_specular = 1.0
+	mat.emission_enabled = true; mat.emission = Color(0.16, 0.012, 0.004)   # the print's orange needs the red to stand above the dark
 	mat.clearcoat_enabled = true; mat.clearcoat = 1.0; mat.clearcoat_roughness = 0.02
 	var rim := StandardMaterial3D.new(); rim.albedo_color = Color(0.16, 0.012, 0.01); rim.roughness = 0.2; rim.metallic_specular = 0.9
 	for i in 7:

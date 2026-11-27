@@ -53,7 +53,7 @@ func _ready():
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	main.phones(false)   # 2026-11-14（ユーザー「スマホは持たない」）
 	_table_radio()
-	_table_candle()
+	if not "--nocandle" in OS.get_cmdline_user_args(): _table_candle()
 	demo21 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo_on = demo21
 	for a in OS.get_cmdline_user_args():
@@ -97,11 +97,11 @@ func _table_candle():
 	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
 	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; tcandle_flame.add_child(f)
 	tcandle_light = OmniLight3D.new(); tcandle_light.light_color = Color(1.0, 0.66, 0.34); tcandle_light.light_energy = 0.36
-	tcandle_light.omni_range = 3.2; tcandle_light.omni_attenuation = 1.2; tcandle_light.shadow_enabled = true
+	tcandle_light.omni_range = 4.2; tcandle_light.omni_attenuation = 1.0; tcandle_light.shadow_enabled = true
 	tcandle_light.light_volumetric_fog_energy = 0.2; tcandle_light.position.y = 0.15
 	c.add_child(tcandle_light)
 	add_child(c)
-	c.global_position = gp(1.95, 1.55, 0.40)
+	c.global_position = gp(2.18, 2.0, 0.40)   # the hall end of the table: it reaches out of the door a little (#120)
 
 static func fps_load(file: String):
 	D.load_all()

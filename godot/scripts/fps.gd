@@ -30,6 +30,30 @@ const WEAPON_AT := [4.16, 2.62]                   # the tripod, moved from the g
 const DOOR_OPEN := 88.0                           # as Kiryu left it open at two (scene.json state.t02.front)
 const HEAD_R := 0.14
 const REACH := 1.75                               # eye to her head: the tripod's length and an arm
+# 試作297（赤字 #15「もういっそのことがっつりゾンビみたいに歩かせるってのはどう？…歩き方がぎこちない」）: her walk is the user's
+# Mixamo zombie walk (blender/export_zwalk.py: the whole body, the arms too), in place of the 20:00 people's walk with the
+# phone's arm. --zwalk=1 (default: the arms hanging forward, the feet dragged) | 2 (the arms up before her) | 0 (as before)
+var nwalk_speed := 1.14 / 1.25   # the clip's own metres a second, for the feet to keep to the ground
+func _zombie_walk():
+	var which := "zwalk"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--zwalk="): which = {"0": "", "1": "zwalk", "2": "zwalk2"}.get(a.substr(8), "zwalk")
+	var p := "res://assets/dusk/natsuki_zwalk.glb"
+	if which == "" or not ResourceLoader.exists(p) or not nap.has_animation_library("walk"): return
+	var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/zwalk.json"))
+	if not j is Dictionary or not j.has(which): return
+	var mv: Node = (load(p) as PackedScene).instantiate()
+	var src: AnimationPlayer = mv.find_children("*", "AnimationPlayer", true, false)[0]
+	for nm in src.get_animation_list():
+		if String(nm).get_slice("_rig_", 1) != which: continue
+		var an: Animation = src.get_animation(nm).duplicate(); an.loop_mode = Animation.LOOP_LINEAR
+		var lib: AnimationLibrary = nap.get_animation_library("walk")
+		if lib.has_animation("walk"): lib.remove_animation("walk")
+		lib.add_animation("walk", an)
+		nwalk_speed = float(j[which].speed)
+		print("FPS natsuki zombie walk ", which, " speed ", nwalk_speed)
+	mv.free()
+
 const NSPEED := 0.36                              # m/s: she drags herself in
 # where she comes: [plan x, y, z, the second she goes on from there]. The last is where she stops in the canonical
 # night (the tape); played, the last is a metre short of wherever Mio stands when she sets off for it.
@@ -158,6 +182,7 @@ func _stage():
 	nap = nat.find_children("*", "AnimationPlayer", true, false)[0]
 	nhead = nsk.find_bone("head")
 	nap.stop(); nsk.reset_bone_poses()
+	_zombie_walk()
 	if "--d4bones" in OS.get_cmdline_user_args():
 		for i in nsk.get_bone_count(): print("BONE %d %s parent=%d rest=%s" % [i, nsk.get_bone_name(i), nsk.get_bone_parent(i), nsk.get_bone_global_rest(i).origin])
 		for mi in nat.find_children("*", "MeshInstance3D", true, false): print("MESH %s xf=%s surf=%d aabb=%s" % [mi.name, (mi as MeshInstance3D).global_transform, (mi as MeshInstance3D).mesh.get_surface_count(), (mi as MeshInstance3D).get_aabb()])
@@ -531,7 +556,7 @@ func _night(dt: float):
 			_sway(dt)
 		"walk":
 			if not nwalk:
-				nwalk = true; nap.play("walk/walk", 0.4); nap.speed_scale = NSPEED / 1.14 * 1.25   # the feet a little quicker than the ground: she does not stride
+				nwalk = true; nap.play("walk/walk", 0.4); nap.speed_scale = NSPEED / nwalk_speed   # the feet a little quicker than the ground: she does not stride
 			var to := _npoint(ni)
 			var p := nrig.global_position
 			var seg := to - p
