@@ -1087,6 +1087,9 @@ class ReachIK extends SkeletonModifier3D:
 	var arm_out := deg_to_rad(-10.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
 	var grip := 1.0
 	var talk_w := 0.0
+	var off_back := 0.04   # the wrist back from the rim along the forearm, and out from the wheel's middle (m)
+	var off_out := 0.0
+	var curl := [0.7, 0.8, 0.5]
 	var talk_t := 0.0
 	var spine0 := -1
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
@@ -1103,6 +1106,8 @@ class ReachIK extends SkeletonModifier3D:
 		for u in OS.get_cmdline_user_args():   # check stills: --natpose=lean,armout,grip (degrees, degrees, 0..1)
 			if u.begins_with("--natpose="):
 				var v := u.substr(10).split(","); lean = deg_to_rad(float(v[0])); arm_out = deg_to_rad(float(v[1])); grip = float(v[2])
+				if v.size() >= 5: off_back = float(v[3]); off_out = float(v[4])
+				if v.size() >= 6: curl = [float(v[5]), float(v[5]) * 1.1, float(v[5]) * 0.7]
 		for s in ["l", "r"]:
 			var fl := []
 			for f in ["index", "middle", "ring", "pinky", "thumb"]:
@@ -1140,7 +1145,7 @@ class ReachIK extends SkeletonModifier3D:
 			# the palm on the rim from outside it (the wrist back from the rim along the forearm, out from the wheel's middle)
 			var sh_w: Vector3 = sk.global_transform * sk.get_bone_global_pose(arm[0]).origin
 			var out_w: Vector3 = (rim_w - ctr_w).normalized()
-			var tgt_w: Vector3 = rim_w + (sh_w - rim_w).normalized() * (0.055 * grip) + out_w * (0.025 * grip) + wheel.global_basis.z * 0.02 * (1.0 - grip)
+			var tgt_w: Vector3 = rim_w + (sh_w - rim_w).normalized() * (off_back * grip) + out_w * (off_out * grip) + wheel.global_basis.z * 0.02 * (1.0 - grip)
 			var pole_w: Vector3 = tgt_w + car_basis * Vector3(side * 0.30, -0.45, 0.25)
 			# the arm turned out: the pole (the elbow's side) swung down about the shoulder-to-hand line
 			var axis_w := (tgt_w - sh_w).normalized()
@@ -1194,7 +1199,6 @@ class ReachIK extends SkeletonModifier3D:
 		palm = fdir.cross(across).normalized() * float(arm[3])
 		# the sign that closes the fingers toward the palm
 		var sgn := 1.0 if across.cross(fdir).dot(palm) > 0.0 else -1.0
-		var curl := [0.9, 1.0, 0.6]
 		for fi in 4:
 			for j in fl[fi].size():
 				var bi: int = fl[fi][j]
