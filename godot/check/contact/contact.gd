@@ -4,6 +4,7 @@ extends Node
 #   --contact=<dir>     <dir>/0000.png … と <dir>/shots.tsv（1枚1行：番号 時計 章 時刻 理由 位置名 カメラ）
 #   --cevery=3          N 秒ごと（ゲームの時計。--frameclock の秒）
 #   --cdelay=0.35       カットを見つけてから撮るまでの秒（フェードやカメラの落ち着き待ち）
+#   --cstill=12         カメラが動いていない間は、この秒数ごとにしか撮らない（止まって喋る所）
 #   --cfast=2           ゲームを1コマあたり2倍の速さで進める（通す時間がおよそ半分。撮る画は変わらない。PV の clip.gd と同じ）
 # カットの見つけ方：使うカメラが替わった／場面が替わった／1コマでカメラが 0.5m か 20度より大きく跳んだ／
 #                   画面いっぱいの紙（章のカード、暗転の紙）が出た・消えた
@@ -12,6 +13,7 @@ var t := 0.0; var next_periodic := 0.0; var full := Vector2i(1920, 1080)
 var prev_cam: Camera3D; var prev_xf := Transform3D(); var prev_scene: Node; var prev_card := false
 var due := -1.0; var due_why := ""; var rec := -1; var n := 0; var f := 0
 var tsv: FileAccess
+var still := 12.0; var last_xf := Transform3D(); var last_shot := -99.0   # --cstill=12: a camera that has not moved is shot again only after this many seconds
 var fast := 1.0   # --cfast=2: the game runs twice as fast per frame (half the frames to go through; contact.sh makes main.gd's frame clock follow)
 var layers: Array = []
 
@@ -23,12 +25,13 @@ func _ready():
 		if x.begins_with("--cevery="): every = float(x.substr(9))
 		if x.begins_with("--cdelay="): delay = float(x.substr(9))
 		if x.begins_with("--cfast="): fast = float(x.substr(8))
+		if x.begins_with("--cstill="): still = float(x.substr(9))
 	DirAccess.make_dir_recursive_absolute(dir)
 	tsv = FileAccess.open(dir + "/shots.tsv", FileAccess.WRITE)
 	tsv.store_line("n\tclock\tchapter\ttime\twhy\tname\tcam")
 	full = get_window().size
 	var w := get_window()
-	if DisplayServer.get_name() != "headless": w.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS; w.content_scale_size = full
+	if DisplayServer.get_name() != "headless": w.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS; w.content_scale_size = Vector2i(1920, 1080)   # the type laid out as on a 1920x1080 screen, whatever size it is drawn at
 	_small(true)
 	get_tree().node_added.connect(func(k: Node): if k is CanvasLayer: layers.append(k))
 	for l in get_tree().root.find_children("*", "CanvasLayer", true, false): layers.append(l)
@@ -118,9 +121,16 @@ func _process(dt: float):
 				cs = "%.2f,%.2f,%.2f,%.0f,%.0f,%.0f" % [o.x, o.y, o.z, r.y, r.x, cam.fov]
 			tsv.store_line("%d\t%.1f\t%s\t%s\t%s\t%s\t%s" % [n, t, ch[0], ch[1], due_why, _name(cam, ch), cs]); tsv.flush()
 			print("CONTACT %d t=%.1f %s %s %s ms=%d" % [n, t, ch[0], ch[1], due_why, Time.get_ticks_msec()])
+			if cam: last_xf = cam.global_transform
+			last_shot = t
 			n += 1; rec = -1; due = -1.0; _small(true)
 		return
-	if due < 0.0 and t >= next_periodic: due = t; due_why = "%s秒" % str(every)
+	if due < 0.0 and t >= next_periodic:
+		# 止まって喋る所：カメラが前に撮ったときから動いていなければ、still 秒たつまで撮らない（描くのが一番重いので、撮る前に間引く）
+		var moved := cam == null or cam.global_transform.origin.distance_to(last_xf.origin) > 0.08 \
+			or cam.global_transform.basis.get_rotation_quaternion().angle_to(last_xf.basis.get_rotation_quaternion()) > deg_to_rad(3.0)
+		if moved or t - last_shot >= still: due = t; due_why = "%s秒" % str(every)
+		else: next_periodic = t + every
 	if due >= 0.0 and t >= due:
 		next_periodic = t + every   # the next periodic one counts from this shot (a cut resets it)
 		rec = 0; _small(false)
