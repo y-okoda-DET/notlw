@@ -345,6 +345,13 @@ func _inside():
 	# three bent strips, and carries what a roof has: the visors flat against it on their hinges, a dome lamp, two grab handles
 	var liner2 := _mat(Color(0.50, 0.49, 0.46), 1.0)
 	_box(inn, Vector3(1.60, 0.012, 1.50), Vector3(0, 1.352, 0.56), liner2, Vector3.ZERO, "roof")
+	# 試作297（赤字 #6「削れてしまってる」, #27: looking up and left, the trees showed where the roof's front corner should be):
+	# the lining began at z -.19 and the bent strips are narrower than the cabin, so over the front doors' corners there was
+	# nothing between the A pillar and the lining. A shell over the whole cabin, just above the lining, and the rails along
+	# the side windows' tops close it (the shell is seen only where the lining does not reach)
+	_box(inn, Vector3(1.76, 0.02, 1.90), Vector3(0, 1.372, 0.50), liner2, Vector3.ZERO, "roof_shell")
+	for sx in [-1.0, 1.0]:
+		_box(inn, Vector3(0.06, 0.07, 1.75), Vector3(sx * 0.775, 1.335, 0.47), liner2, Vector3.ZERO, "roof_rail")
 	var bend := [[1.352, -0.19], [1.348, -0.25], [1.338, -0.29], [1.322, -0.32], [1.30, -0.335]]
 	for i in bend.size() - 1:
 		_slab(inn, Vector3(0, bend[i][0], bend[i][1]), Vector3(0, bend[i + 1][0], bend[i + 1][1]), 1.46 - 0.03 * i, 0.012, liner2, "roof_bend")
@@ -724,7 +731,7 @@ func _title():
 		title_freeze = TextureRect.new(); title_freeze.set_anchors_preset(Control.PRESET_FULL_RECT); title_freeze.visible = false
 		title_freeze.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; title_freeze.stretch_mode = TextureRect.STRETCH_SCALE
 		title_freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_freeze)
-		title_cover = ColorRect.new(); title_cover.color = Color(0.03, 0.13, 0.13, 1);   # the print's own deep teal, not a screen black title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+		title_cover = ColorRect.new(); title_cover.color = Color(0.03, 0.13, 0.13, 1); title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)   # the print's own deep teal, not a screen black
 		title_cover.visible = false; title_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_cover)
 	if title_mode == "full":
 		# (1) the picture cut to black and the name filling it, at once, on a hit; four seconds; cut back to the house
