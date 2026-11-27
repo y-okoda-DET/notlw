@@ -1066,7 +1066,7 @@ func _do(what: String):
 			main.walk_to("makoto", [[at0[0], at0[1], 0.0]], func():
 				main.set_stand("makoto", "talk/idle", 0.6)
 				var r := _rig("makoto")
-				if is_instance_valid(mk_palm): mk_palm.queue_free()
+				_palm_free(mk_palm)
 				mk_palm = _palm(r, pb), _face(at0, bp))
 		"wait_board":
 			hold = true; talk_with = ""
@@ -1396,11 +1396,23 @@ func _palm(r: Node3D, at: Vector3) -> Node:
 	var rc: Node = load("res://scripts/reach.gd").new()
 	rc.side = "l"   # (the phone, its light on, is in her right)
 	var b := r.global_basis
-	rc.target = at
-	rc.pole = b * Vector3(1.0, -1.0, 0.2)
+	# 試作297（赤字 #16「腕が変に感じる。首周りも変」）: the palm went to the board's middle, over her head, the arm straight up;
+	# now at her shoulder's height on the board (a palm laid flat, the elbow bent and down). And the phone hand, which the
+	# idle left up under her chin, comes down to her chest, its light on the floor before the board
+	rc.target = Vector3(at.x, clampf(at.y, 1.05, 1.22), at.z)
+	rc.pole = b * Vector3(1.0, -1.4, -0.2)
 	sk.add_child(rc)
 	create_tween().tween_property(rc, "w", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
+	var rp: Node = load("res://scripts/reach.gd").new()
+	rp.side = "r"; rp.target = r.global_transform * Vector3(-0.10, 0.98, 0.20); rp.pole = b * Vector3(-1.0, -1.0, -0.3)
+	sk.add_child(rp); rc.set_meta("pair", rp)
+	create_tween().tween_property(rp, "w", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
 	return rc
+
+func _palm_free(rc: Node):
+	if not is_instance_valid(rc): return
+	if rc.has_meta("pair") and is_instance_valid(rc.get_meta("pair")): (rc.get_meta("pair") as Node).queue_free()
+	rc.queue_free()
 
 func _board_near(to: Vector3) -> Vector3:
 	var best := to; var bd := 99.0
@@ -1416,7 +1428,8 @@ func _palm_off():
 	var rc := mk_palm; mk_palm = null
 	var tw := create_tween()
 	tw.tween_property(rc, "w", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(rc.queue_free)
+	if rc.has_meta("pair") and is_instance_valid(rc.get_meta("pair")): create_tween().tween_property(rc.get_meta("pair"), "w", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func(): _palm_free(rc))
 
 func _wb_near() -> bool:
 	# (review: from where she stands at the back door the board was in reach, and the E that moves the lines on ended
@@ -1824,4 +1837,4 @@ func _mk_shift():
 
 
 func _exit_tree():
-	if is_instance_valid(mk_palm): mk_palm.queue_free()   # (on Makoto's own skeleton, which outlives the chapter)
+	_palm_free(mk_palm)   # (on Makoto's own skeleton, which outlives the chapter)

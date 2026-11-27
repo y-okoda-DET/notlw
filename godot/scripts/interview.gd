@@ -73,6 +73,7 @@ static func flag(n: String) -> bool:
 
 func _ready():
 	var args := OS.get_cmdline_user_args()
+	_mio_adj_args()
 	demo = "--demo" in args or "--demoslow" in args; only = "--ivonly" in args
 	demo_k = 40.0 if "--demo" in args else 1.0
 	demo_lie = "--ivlie" in args
@@ -299,6 +300,11 @@ func _person(key: String, file: String, rest_form: String, facing: float) -> Dic
 		p.axes[bi] = [(gb * Vector3.RIGHT).normalized(), (gb * Vector3.UP).normalized(), (gb * Vector3(0, 0, facing)).normalized()]
 	return p
 
+var MIO_ADJ := [-4.0, 4.0, 3.0]   # clavicles about the facing axis (deg), neck and head up (deg); --mioadj=a,b,c for checks
+func _mio_adj_args():
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--mioadj="): MIO_ADJ = Array(a.substr(9).split(",")).map(func(v): return float(v))
+
 func _form_bone(p: Dictionary, form: String, bi: int) -> Array:
 	var f: Dictionary = p.forms.get(form, {})
 	var sk: Skeleton3D = p.sk
@@ -354,6 +360,11 @@ func _pose(p: Dictionary, dt: float):
 	_turn(p, x, "neck_01", 0, f * pitch * 0.35); _turn(p, x, "head", 0, f * pitch * 0.65)
 	_turn(p, x, "neck_01", 1, yaw * 0.4); _turn(p, x, "head", 1, yaw * 0.6)
 	_turn(p, x, "spine_01", 2, 0.6 * _wob(t * 0.5, 7.0))   # the weight shifting on the knees
+	if p.key == "mio":
+		# 試作297（赤字 #28「このへんが気になる」: her shoulders' tops by the neck, and the collar under her chin): the shoulders
+		# let down a little (the clip held them up into two points by the collar), the chin lifted off the collar
+		_turn(p, x, "clavicle_l", 2, MIO_ADJ[0]); _turn(p, x, "clavicle_r", 2, -MIO_ADJ[0])
+		_turn(p, x, "neck_01", 0, -f * MIO_ADJ[1]); _turn(p, x, "head", 0, -f * MIO_ADJ[2])
 	# the pen: writing is small turns of the wrist, a stop is the hand lifted off the page and held
 	if String(p.pen) != "" and p.has("pen_hand"):
 		p.pen_t = float(p.pen_t) + dt
@@ -1064,14 +1075,11 @@ func _card_on_table():
 	print("IV meishi")
 	_cut("名刺")
 	_form("kikite", "stroke", 0.8)
+	# 2026-11-27（ユーザー赤字 #432「名刺を投げるアニメーションはやめたい。やるなら机の上に置いた名刺を示すとか」）: the card is
+	# already on the table in front of Mio; her hand goes out to it and rests by it a moment (it no longer slides)
 	meishi.visible = true
-	var from := b2g(MEISHI_FROM); var to := b2g(MEISHI_DOWN)
-	var t := 0.0
-	while t < 1.6:
-		await get_tree().process_frame
-		t += get_process_delta_time() * demo_k
-		var k := clampf((t - 0.3) / 1.1, 0.0, 1.0); k = k * k * (3.0 - 2.0 * k)
-		meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(lerpf(-10.0, 4.0, k))), from.lerp(to, k))
+	meishi.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), b2g(MEISHI_DOWN))
+	await _hold(1.6)
 	_form("kikite", "seiza", 1.0)
 	await _hold(1.2)
 

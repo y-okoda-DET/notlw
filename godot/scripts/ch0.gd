@@ -99,6 +99,20 @@ func _front_door_mine():
 	if front_leaf == null and main.door_pivot:
 		for mi in main.door_pivot.find_children("door_front*", "MeshInstance3D", true, false):
 			if not String(mi.name).contains("knob") and not String(mi.name).contains("glass"): front_leaf = mi; break
+	# 2026-11-27（ユーザー赤字 #5「ここの縦の白い線トル」）: between the leaf's edges and the frame a hair of the dawn outside showed
+	# as a white line down the jamb. A dark stop strip on each side of the shut leaf, on the frame (it does not turn with it)
+	if front_leaf is MeshInstance3D and main.door_pivot:
+		var lb: AABB = front_leaf.global_transform * front_leaf.get_aabb()
+		var dm := StandardMaterial3D.new(); dm.albedo_color = Color(0.07, 0.06, 0.05); dm.roughness = 0.9
+		var wide_x := lb.size.x > lb.size.z
+		for side in [-1.0, 1.0]:
+			var st := MeshInstance3D.new(); var bm := BoxMesh.new(); st.mesh = bm; st.material_override = dm; st.name = "door_stop"
+			var c := lb.get_center()
+			if wide_x:
+				bm.size = Vector3(0.022, lb.size.y, lb.size.z + 0.03); c.x += side * (lb.size.x * 0.5 + 0.011)
+			else:
+				bm.size = Vector3(lb.size.x + 0.03, lb.size.y, 0.022); c.z += side * (lb.size.z * 0.5 + 0.011)
+			main.add_child(st); st.global_position = c
 	# 試作127（ユーザー「手形がここにある。」、B1 手形は消す：3時半に夏希は勝手口から入った。玄関の窓の手形はそれと合わない）
 	# _hand()
 	if "--c0dbg" in OS.get_cmdline_user_args():
@@ -162,7 +176,11 @@ func _settle():
 func _pool():
 	var h := _nhead(); h.y = 0.0
 	var rng := RandomNumberGenerator.new(); rng.seed = 5
-	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.13, 0.006, 0.006); mat.roughness = 0.1; mat.metallic_specular = 0.85
+	# 試作297（赤字 #2「血溜まりが影に見える」）: it was near black (.13), and the print read it as a shadow. Red enough that the
+	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it), and its edge a darker, raised rim
+	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.34, 0.03, 0.02); mat.roughness = 0.06; mat.metallic_specular = 1.0
+	mat.clearcoat_enabled = true; mat.clearcoat = 1.0; mat.clearcoat_roughness = 0.02
+	var rim := StandardMaterial3D.new(); rim.albedo_color = Color(0.16, 0.012, 0.01); rim.roughness = 0.2; rim.metallic_specular = 0.9
 	for i in 7:
 		var mi := MeshInstance3D.new(); var cm := CylinderMesh.new()
 		var r := rng.randf_range(0.10, 0.22) * (1.0 if i == 0 else 0.8)
@@ -173,6 +191,10 @@ func _pool():
 		var off := Vector3(rng.randf_range(-0.16, 0.16), 0.003, rng.randf_range(-0.16, 0.16)) if i > 0 else Vector3(0, 0.003, 0)
 		mi.global_position = h + off
 		mi.scale = Vector3(1.0, 1.0, rng.randf_range(0.7, 1.3)); mi.rotation.y = rng.randf_range(0.0, PI)
+		var rm := MeshInstance3D.new(); var rc := CylinderMesh.new()   # the rim: a hair wider and lower, so only its edge shows
+		rc.top_radius = r + 0.008; rc.bottom_radius = r + 0.01; rc.height = cm.height; rc.radial_segments = 20; rc.rings = 1
+		rm.mesh = rc; rm.material_override = rim; rm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; rm.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		mi.add_child(rm); rm.position.y = -0.0006
 
 # ---------------------------------------------------------------- the car: two lamps that come up the drive and stop
 const CAR_FROM := [13.0, -16.0, 0.75]   # plan: down the forest road, out of sight

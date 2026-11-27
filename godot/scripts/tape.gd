@@ -96,7 +96,9 @@ var credits: Label
 var credits_y0 := 0.0
 # the end roll: no picture, the names going up over black, and the one music from outside the story (決定事項 2026-11-13:
 # 「音楽の冗談」をエンドロールで加工なしで流す。sound/credits_joke.ogg = the user's Menuetto, its first minute)
-const CREDITS_TEXT := "RULES\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nDIRECTOR\n○○\n\nSCRIPT\n○○\n\nART\n○○\n\nSOUND\n○○\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\nSOUND EFFECTS\nOtoLogic\n\n\n\n\n(placeholder)"
+# 2026-11-27（ユーザー赤字 #599「タイトルは『NIGHT OF THE LIVING WITNESS』で。あと、入れられるクレジット入れておいて」）: the credits
+# docs/素材とアドオン.md asks for or allows (the staff names are left out until the user gives them)
+const CREDITS_TEXT := "NIGHT OF THE LIVING WITNESS\n\n\n\n澪\n\n夏希\n\n桐生\n\n真琴\n\n大河\n\n陽太\n\n\n\n\nMUSIC\nW. A. Mozart\nEin musikalischer Spass K.522\nII. Menuetto\n\n\n\nSOUND EFFECTS\nOtoLogic\nPixabay\nKrotos\nParallel Minds\nOpenTracks\n\n\n\nVOICE\nVOICEVOX:青山龍星\nVOICEVOX:冥鳴ひまり\n\n\n\nTEXTURES & MODELS\nPoly Haven\nambientCG\n\nMOTION\nMixamo\n\n\n\nFONTS\nShippori Mincho B1\nBIZ UDMincho\nDotGothic16\nYomogi\nNoto CJK\nAnton\nSIL Open Font License 1.1\n\n\n\nMADE WITH\nGodot Engine\nBlender"
 func _credits():
 	var cl := CanvasLayer.new(); cl.layer = 23; add_child(cl)
 	credits = Label.new(); credits.text = CREDITS_TEXT; credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -469,10 +471,22 @@ void fragment() {
 			c = r4.a * mix(bcol, bhi, clamp(L * rk * 30.0, 0.0, 1.0)) * (0.7 + 0.3 * edge);
 			if (bmode > 2.5) {   // 試作262: between A and C. Her shape faint, the face's lights held down (no lit half), the eyes' and nose's shadow
 				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
-				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
-				float inside = step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
-				vec3 g = f * fk3; g = g / (1.0 + g * fsh);              // the shoulder: a lit cheek does not go bright
+				// 試作297（赤字 #29「この映り込み不自然すぎる」）: it read as a lit photo pasted in the glass, cut straight across
+				// the chest. Now: softer (a few taps: the thick glass blurs what it gives back), a faint second image a little
+				// above (the tube's two surfaces), fading out downward and at the sides instead of a cut, dimmer, and the
+				// glass's own sheen (a broad pale streak from the door) over it
+				vec3 f = vec3(0.0);
+				for (int i = 0; i < 5; i++) {
+					vec2 o = vec2(float(i % 3) - 1.0, float(i / 3) - 0.5) * 0.004;
+					f += texture(face_tex, vec2(1.0 - fu.x, fu.y) + o).rgb;
+				}
+				f /= 5.0;
+				f += 0.28 * texture(face_tex, vec2(1.0 - fu.x, fu.y - 0.012)).rgb;
+				float inside = smoothstep(0.0, 0.12, fu.x) * smoothstep(1.0, 0.88, fu.x) * smoothstep(0.0, 0.05, fu.y) * smoothstep(0.98, 0.62, fu.y);
+				vec3 g = f * fk3 * 0.7; g = g / (1.0 + g * fsh);              // the shoulder: a lit cheek does not go bright
+				float sheen = exp(-pow((UV.x - 0.78 + 0.35 * (UV.y - 0.5)) / 0.07, 2.0)) * (1.0 - smoothstep(0.1, 0.9, UV.y));
 				c = (vec3(0.006, 0.010, 0.022) + g * inside) * r4.a * (0.6 + 0.4 * edge);
+				c = c * (0.75 + 0.25 * edge) + vec3(0.020, 0.024, 0.030) * sheen + vec3(0.004, 0.005, 0.007) * edge;
 			} else if (bmode > 1.5) {
 				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
 				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;

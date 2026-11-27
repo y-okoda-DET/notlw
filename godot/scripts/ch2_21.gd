@@ -53,6 +53,7 @@ func _ready():
 		if is_instance_valid(e[0]): (e[0] as Node3D).visible = false
 	main.phones(false)   # 2026-11-14（ユーザー「スマホは持たない」）
 	_table_radio()
+	_table_candle()
 	demo21 = "--demo" in OS.get_cmdline_user_args() or DEMO_HOUSE
 	demo_on = demo21
 	for a in OS.get_cmdline_user_args():
@@ -75,6 +76,32 @@ func _table_radio():
 	table_radio_snd.unit_size = 1.6; table_radio_snd.max_db = -6.0
 	add_child(table_radio_snd); table_radio_snd.global_position = radio.global_position + Vector3(0, 0.1, 0)
 	table_radio_snd.play()
+
+# 試作297（赤字 #9/#10「机の上にロウソクか何か置いて、もうちょっとだけ明るく」「#110で足した明かりがこっちにも多少届くように」）:
+# a candle on a saucer on the low table, the projector end away from the radio; a little more energy and reach than
+# ch3's hand-held one, so the sofa side and the #120 view both catch some of it
+var tcandle_light: OmniLight3D
+var tcandle_flame: Node3D
+func _table_candle():
+	var c := Node3D.new(); c.name = "ch2_table_candle"
+	var stick := MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.012; cm.bottom_radius = 0.013; cm.height = 0.10
+	stick.mesh = cm; var wm := StandardMaterial3D.new(); wm.albedo_color = Color(0.92, 0.9, 0.84); wm.roughness = 0.6
+	stick.material_override = wm; stick.position.y = 0.055; c.add_child(stick)
+	var saucer := MeshInstance3D.new(); var sm := CylinderMesh.new(); sm.top_radius = 0.05; sm.bottom_radius = 0.045; sm.height = 0.01
+	saucer.mesh = sm; var sw := StandardMaterial3D.new(); sw.albedo_color = Color(0.85, 0.84, 0.8); saucer.material_override = sw
+	saucer.position.y = 0.005; c.add_child(saucer)
+	tcandle_flame = Node3D.new(); tcandle_flame.position.y = 0.105; c.add_child(tcandle_flame)
+	var f := MeshInstance3D.new(); var fm := SphereMesh.new(); fm.radius = 0.007; fm.height = 0.028
+	f.mesh = fm; f.position.y = 0.013
+	var fmat := StandardMaterial3D.new(); fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
+	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; tcandle_flame.add_child(f)
+	tcandle_light = OmniLight3D.new(); tcandle_light.light_color = Color(1.0, 0.66, 0.34); tcandle_light.light_energy = 0.36
+	tcandle_light.omni_range = 3.2; tcandle_light.omni_attenuation = 1.2; tcandle_light.shadow_enabled = true
+	tcandle_light.light_volumetric_fog_energy = 0.2; tcandle_light.position.y = 0.15
+	c.add_child(tcandle_light)
+	add_child(c)
+	c.global_position = gp(1.95, 1.55, 0.40)
 
 static func fps_load(file: String):
 	D.load_all()
@@ -161,6 +188,9 @@ func _look_from(a: Array, b: Array):
 
 func _process(dt):
 	t_now += dt
+	if tcandle_light:
+		tcandle_flame.basis = Basis(Vector3.RIGHT, 0.05 * sin(t_now * 13.0))
+		tcandle_light.light_energy = 0.36 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3)
 	if card_t > 0.0:
 		card_t -= dt
 		card.visible = true; player.move_enabled = false; player.look_enabled = false

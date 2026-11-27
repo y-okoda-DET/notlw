@@ -918,7 +918,7 @@ void fragment() {
 	m = max(m, cap(q, vec2(0.215, 0.105), vec2(0.245, 0.14), 0.012));   // the thumb, on the other side
 	m = max(m, cap(q, vec2(0.0, 0.105), vec2(0.02, 0.118), 0.012));
 	float n = vn(q * 220.0) * 0.6 + vn(q * 600.0) * 0.4;
-	float blood = smoothstep(0.0, 0.3, m + (n - 0.5) * 0.9) * stain;
+	float blood = smoothstep(0.05, 0.55, m + (n - 0.5) * 1.5) * stain * (0.35 + 0.4 * n);   // 2026-11-27 赤字 #413: thinner, patchy
 	float mm = m + (n - 0.5) * 0.4;
 	float halo = smoothstep(-1.1, -0.3, mm) * stain;
 	float ring = smoothstep(-1.2, -0.8, mm) * (1.0 - smoothstep(-0.55, -0.15, mm)) * stain;   // the edge the water carried it to
@@ -963,14 +963,16 @@ void fragment() {
 	m = max(m, cap(q, vec2(0.215, 0.105), vec2(0.245, 0.14), 0.012));
 	m = max(m, cap(q, vec2(0.0, 0.105), vec2(0.02, 0.118), 0.012));
 	float n = vn(q * 220.0) * 0.6 + vn(q * 600.0) * 0.4;
-	float blood = smoothstep(0.0, 0.3, m + (n - 0.5) * 0.9) * on;
+	// 2026-11-27（ユーザー赤字 #413「もう少し自然に。たとえば薄くするとか」）: thinner, broken by the weave (a dried smear, not four
+	// solid black bars): less of it, patchy, and the cloth's own grain shows through
+	float blood = smoothstep(0.05, 0.55, m + (n - 0.5) * 1.5) * on * (0.35 + 0.4 * n);
 	float mm = m + (n - 0.5) * 0.4;
 	float halo = smoothstep(-1.1, -0.3, mm) * on;
 	float ring = smoothstep(-1.2, -0.8, mm) * (1.0 - smoothstep(-0.55, -0.15, mm)) * on;
 	c = mix(c, c * 0.62, wet * halo);
 	c = mix(c, c * vec3(0.62, 0.42, 0.30), halo * wash * 0.45);
 	c = mix(c, c * vec3(0.30, 0.15, 0.10), ring * wash * 0.95);
-	c = mix(c, vec3(0.035, 0.006, 0.006), blood * (1.0 - smoothstep(0.15, 0.95, wash)));   // dried, on dark grey wool: near black (a rust was the lit sleeve's own tone in the print, and was not seen)
+	c = mix(c, c * vec3(0.28, 0.12, 0.10), blood * (1.0 - smoothstep(0.15, 0.95, wash)));   // (2026-11-27: darkens the cloth, its weave kept) dried, on dark grey wool: near black (a rust was the lit sleeve's own tone in the print, and was not seen)
 	ALBEDO = c; ROUGHNESS = 0.92; SPECULAR = 0.15;
 }
 """
@@ -2046,7 +2048,9 @@ func _case6():
 	case_lid = Node3D.new(); case6.add_child(case_lid); case_lid.position = Vector3(0.056, -0.0155, 0)
 	var lid := _box_mesh(Vector3(0.112, 0.003, 0.078), card, 0.9); case_lid.add_child(lid); lid.position = Vector3(-0.056, 0, 0)
 	var lab := _box_mesh(Vector3(0.080, 0.0005, 0.030), Color(0.95, 0.94, 0.90), 0.9); case_lid.add_child(lab); lab.position = Vector3(-0.056, -0.0018, -0.008)
-	var t := _text3("上映用", 0.00034, Color(0.08, 0.10, 0.2)); case_lid.add_child(t)
+	# 2026-11-27（ユーザー赤字 #407「ここ手書きのほうがいいかなあ？」）: Natsuki's own hand (証言二「『上映用』、夏希さんの字」); ui/label_jouei.png
+	var t := Sprite3D.new(); t.texture = load("res://ui/label_jouei.png"); t.pixel_size = 0.00019; t.shaded = false; t.double_sided = false
+	t.render_priority = 1; case_lid.add_child(t)
 	t.position = Vector3(-0.056, -0.0023, -0.008); t.basis = Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, PI / 2.0)
 	hand_l.add_child(case6); case6.transform = _held("case"); case6.visible = false
 	for mi in main.S.env_node.find_children("tapebox*", "MeshInstance3D", true, false): box_env.append(mi)

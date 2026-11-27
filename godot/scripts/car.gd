@@ -72,6 +72,13 @@ var mirror_mesh: MeshInstance3D
 var title_layer: CanvasLayer
 var title_rect: TextureRect
 var title_t := -1.0
+# 試作297（赤字 #7「他の案も見たい。（1）全画面にドーン、（2）タランティーノならどうするか」）: --titlemode=full | qt to see
+# them; "" is the title as it was (low over the dashboard, fading in on the house)
+var title_mode := ""
+var title_cover: ColorRect
+var title_freeze: TextureRect
+var title_music: Node
+var title_vol := {}
 var black: ColorRect
 var focus_k := ""
 var looked_at := {}
@@ -489,8 +496,8 @@ func _tape(inn: Node3D):
 	tape_node.position = TAPE_AT if dash_top_y < 0.0 else Vector3(TAPE_AT.x, dash_top_y + 0.009, TAPE_AT.z); tape_node.rotation = Vector3(0, 0.35, 0)
 	_box(tape_node, Vector3(0.095, 0.016, 0.062), Vector3.ZERO, _mat(Color(0.08, 0.08, 0.085), 0.4), Vector3.ZERO, "shell")
 	_box(tape_node, Vector3(0.06, 0.002, 0.03), Vector3(0, 0.0085, 0.006), _mat(Color(0.93, 0.92, 0.86), 0.9), Vector3.ZERO, "label")
-	var l := Label3D.new(); l.text = "上映用"; l.font = Type.say(); l.font_size = 64; l.pixel_size = 0.00028
-	l.modulate = Color(0.12, 0.16, 0.45); l.outline_size = 0; l.shaded = true
+	# 2026-11-27（ユーザー赤字 #407）: her hand, not type (ui/label_jouei.png)
+	var l := Sprite3D.new(); l.texture = load("res://ui/label_jouei.png"); l.pixel_size = 0.00016; l.shaded = true
 	l.rotation = Vector3(-PI / 2, 0, 0); l.position = Vector3(0, 0.0098, 0.006)
 	tape_node.add_child(l)
 
@@ -710,6 +717,25 @@ func _title():
 	var h := vs.y * 0.34
 	title_rect.offset_left = -h * 0.5; title_rect.offset_right = h * 0.5; title_rect.offset_top = vs.y * 0.10; title_rect.offset_bottom = vs.y * 0.10 + h
 	title_rect.modulate = Color(1, 1, 1, 0); title_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--titlemode="): title_mode = a.substr(12)
+	if title_mode != "":
+		title_freeze = TextureRect.new(); title_freeze.set_anchors_preset(Control.PRESET_FULL_RECT); title_freeze.visible = false
+		title_freeze.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; title_freeze.stretch_mode = TextureRect.STRETCH_SCALE
+		title_freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_freeze)
+		title_cover = ColorRect.new(); title_cover.color = Color(0, 0, 0, 1); title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+		title_cover.visible = false; title_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_cover)
+	if title_mode == "full":
+		# (1) the picture cut to black and the name filling it, at once, on a hit; four seconds; cut back to the house
+		var hf := vs.y * 0.86
+		title_rect.offset_left = -hf * 0.5; title_rect.offset_right = hf * 0.5; title_rect.offset_top = -hf * 0.5; title_rect.offset_bottom = hf * 0.5
+	elif title_mode == "qt":
+		# (2) the moment she sees the house held as a still, and the name slammed on it big, yellow, low on the left, over a
+		# jaunty record put on loud (the credits' Mozart, 音楽の冗談): the music is the joke the night is about to make
+		var hq := vs.y * 0.62
+		title_rect.anchor_left = 0.0; title_rect.anchor_right = 0.0
+		title_rect.offset_left = vs.x * 0.05; title_rect.offset_right = vs.x * 0.05 + hq; title_rect.offset_top = vs.y * 0.5 - hq * 0.62; title_rect.offset_bottom = vs.y * 0.5 + hq * 0.38
+		title_rect.self_modulate = Color(1.0, 0.84, 0.12)
 	title_layer.add_child(title_rect)
 
 func _black():
@@ -832,7 +858,30 @@ func _looking_at_house() -> bool:
 
 func _title_tick(dt: float):
 	if title_t < 0.0: return
+	var t0 := title_t
 	title_t += dt
+	if t0 < 1.2 and title_t >= 1.2:   # check stills: --titleshot=<png>, 1.2 s into the title
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--titleshot="): _save_shot(a.substr(12))
+	if title_mode == "full" or title_mode == "qt":
+		var hold := 4.0 if title_mode == "full" else 5.0
+		if t0 == 0.0:
+			if title_mode == "full":
+				title_cover.visible = true
+				for k in ["car_gravel", "car_drive", "car_idle"]:
+					if loops.has(k): title_vol[k] = (loops[k] as AudioStreamPlayer).volume_db; (loops[k] as AudioStreamPlayer).volume_db = -80.0
+				_one("hit", 0.0)
+			else:
+				var img := get_viewport().get_texture().get_image()
+				title_freeze.texture = ImageTexture.create_from_image(img); title_freeze.visible = true
+				if not "--nosound" in OS.get_cmdline_user_args():
+					title_music = Sound.one(self, "credits_joke", -2.0)
+			title_rect.modulate.a = 1.0
+		if t0 < hold and title_t >= hold:
+			title_rect.modulate.a = 0.0; title_cover.visible = false; title_freeze.visible = false
+			if is_instance_valid(title_music): title_music.queue_free()
+			for k in title_vol: (loops[k] as AudioStreamPlayer).volume_db = title_vol[k]
+		return
 	var a := clampf(title_t / 1.6, 0.0, 1.0) * clampf((8.2 - title_t) / 1.8, 0.0, 1.0)
 	title_rect.modulate.a = a
 

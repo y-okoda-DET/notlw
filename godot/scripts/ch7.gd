@@ -1157,7 +1157,7 @@ func _lunge():
 		tw.tween_callback(func(): _hand_away(h, 0.8))
 
 # ================================================================ his watch (the chapter's clock: 右クリック, held)
-# a cheap digital watch on the left wrist. Seven-segment digits made of small bars; at 2:00 the light's button turns them green
+# a cheap watch on the left wrist (analog since 2026-11-27); at 2:00 the light's button turns its face green
 const SEG := {"0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc", "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abcdfg"}
 func _watch():
 	if hand_l == null: return
@@ -1168,14 +1168,22 @@ func _watch():
 	var blackm := StandardMaterial3D.new(); blackm.albedo_color = Color(0.05, 0.05, 0.055); blackm.roughness = 0.6
 	var strap := MeshInstance3D.new(); var sm := BoxMesh.new(); sm.size = Vector3(0.07, 0.006, 0.022); strap.mesh = sm; strap.material_override = blackm; watch.add_child(strap)
 	var body := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.032, 0.011, 0.044); body.mesh = bm; body.material_override = blackm; body.position.y = 0.005; watch.add_child(body)
-	# 試作281: its long side along the arm, as the digits read (holder below): the time sat cut off at the edge
-	var face := MeshInstance3D.new(); var fm := QuadMesh.new(); fm.size = Vector2(0.024, 0.038); face.mesh = fm
-	seg_mat = StandardMaterial3D.new(); seg_mat.albedo_color = Color(0.56, 0.6, 0.5); seg_mat.roughness = 0.4
-	face.material_override = seg_mat; face.rotation.x = -PI / 2.0; face.position.y = 0.0108; watch.add_child(face)
+	# 2026-11-27（ユーザー赤字 #542「時計、アナログに」）: a round face, two hands and the hour marks. The face is the pale stuff
+	# that glows green when he presses the light at night (seg_mat, as the digits' face was)
+	var ring := MeshInstance3D.new(); var rm := CylinderMesh.new(); rm.top_radius = 0.019; rm.bottom_radius = 0.019; rm.height = 0.009
+	ring.mesh = rm; ring.material_override = blackm; ring.position.y = 0.006; watch.add_child(ring)
+	var face := MeshInstance3D.new(); var fm := CylinderMesh.new(); fm.top_radius = 0.0158; fm.bottom_radius = 0.0158; fm.height = 0.001; face.mesh = fm
+	seg_mat = StandardMaterial3D.new(); seg_mat.albedo_color = Color(0.86, 0.85, 0.78); seg_mat.roughness = 0.4
+	face.material_override = seg_mat; face.position.y = 0.0106; watch.add_child(face)
 	var dark := StandardMaterial3D.new(); dark.albedo_color = Color(0.06, 0.07, 0.06); dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var holder := Node3D.new(); holder.position.y = 0.011; holder.rotation.y = PI / 2.0; watch.add_child(holder)   # read along the arm
+	var holder := Node3D.new(); holder.position.y = 0.0113; holder.rotation.y = PI / 2.0; watch.add_child(holder)   # 12 toward the hand
 	holder.set_meta("mat", dark)
-	watch.set_meta("digits", holder)
+	for k in 12:   # the hour marks (the quarters longer)
+		var a := TAU * k / 12.0; var ln := 0.0034 if k % 3 == 0 else 0.0018
+		var mk := MeshInstance3D.new(); var mq := BoxMesh.new(); mq.size = Vector3(0.0011 if k % 3 == 0 else 0.0007, 0.0002, ln); mk.mesh = mq
+		mk.material_override = dark; mk.position = Vector3(sin(a), 0, -cos(a)) * (0.0142 - ln / 2.0); mk.rotation.y = -a; holder.add_child(mk)
+	var hands := Node3D.new(); hands.name = "hands"; holder.add_child(hands)
+	watch.set_meta("digits", hands)
 	for mi in watch.find_children("*", "MeshInstance3D", true, false): (mi as MeshInstance3D).layers = 2 | 16; (mi as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_watch_set()
 	# 2026-11-19（ユーザー「ここの黒いのはとって」）: on the wrist the whole time it was a black block in every shot of the hands.
@@ -1184,31 +1192,20 @@ func _watch():
 
 func _watch_set():
 	if watch == null: return
-	var holder: Node3D = watch.get_meta("digits")
-	for c in holder.get_children(): holder.remove_child(c); c.queue_free()
-	var text := "%d:%02d" % [hour, minute]
-	var w := 0.0060; var hgt := 0.0112; var th := 0.0017   # 試作281（ユーザー「時計、もうちょっと」）: bolder digits, read through the print
-	var x := -0.5 * (text.length() - 1) * (w + 0.0022)
-	for ch in text:
-		if ch == ":":
-			for dy in [-0.002, 0.002]:
-				var d := MeshInstance3D.new(); var q := BoxMesh.new(); q.size = Vector3(th, 0.0002, th); d.mesh = q
-				d.material_override = holder.get_meta("mat"); d.position = Vector3(x, 0, dy); holder.add_child(d)
-		else:
-			var on: String = SEG[ch]
-			var bars := {"a": [0, -hgt / 2.0, true], "g": [0, 0, true], "d": [0, hgt / 2.0, true],
-				"f": [-w / 2.0, -hgt / 4.0, false], "b": [w / 2.0, -hgt / 4.0, false], "e": [-w / 2.0, hgt / 4.0, false], "c": [w / 2.0, hgt / 4.0, false]}
-			for k in bars:
-				if not on.contains(k): continue
-				var s := MeshInstance3D.new(); var q2 := BoxMesh.new()
-				q2.size = Vector3(w - th, 0.0002, th) if bars[k][2] else Vector3(th, 0.0002, hgt / 2.0 - th)
-				s.mesh = q2; s.material_override = holder.get_meta("mat"); s.position = Vector3(x + bars[k][0], 0, bars[k][1]); holder.add_child(s)
-		x += w + 0.0022
-	for mi in holder.get_children(): (mi as MeshInstance3D).layers = 2 | 16
+	var hands: Node3D = watch.get_meta("digits")
+	for c in hands.get_children(): hands.remove_child(c); c.queue_free()
+	var mat: Material = (hands.get_parent() as Node3D).get_meta("mat")
+	for h in [[(hour % 12 + minute / 60.0) / 12.0, 0.0085, 0.0016], [minute / 60.0, 0.0128, 0.0011]]:
+		var a: float = TAU * float(h[0])
+		var pv := Node3D.new(); pv.rotation.y = -a; hands.add_child(pv)
+		var m := MeshInstance3D.new(); var q := BoxMesh.new(); q.size = Vector3(h[2], 0.0003, h[1]); m.mesh = q
+		m.material_override = mat; m.position = Vector3(0, 0.0002, -float(h[1]) / 2.0 + 0.0015); m.layers = 2 | 16; pv.add_child(m)
+	var pin := MeshInstance3D.new(); var pq := CylinderMesh.new(); pq.top_radius = 0.0012; pq.bottom_radius = 0.0012; pq.height = 0.0008
+	pin.mesh = pq; pin.material_override = mat; pin.layers = 2 | 16; hands.add_child(pin)
 
-const WATCH_Z := 0.0
+const WATCH_Z := 0.014   # 2026-11-27（赤字 #542「手の方に寄ってるからすこし左にずらしもしたい」）: a little up the wrist, off the hand
 # 試作232: at -0.17 the hand stood at the picture's foot, the face cut off by the frame's edge (y02). Up into the lower third
-const WATCH_POS := Vector3(-0.02, -0.075, -0.25)   # 試作281: nearer the eye, the face bigger in the frame
+const WATCH_POS := Vector3(-0.035, -0.075, -0.25)   # 試作281: nearer the eye, the face bigger in the frame
 const WATCH_DEG := Vector3(0, -82, -58)
 func _watch_show(on: bool):
 	if watch == null or watch_up == on: return
