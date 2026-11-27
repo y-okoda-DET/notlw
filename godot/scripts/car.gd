@@ -953,6 +953,9 @@ func _nat_glance():
 	var tx := String(cur.get("text", ""))
 	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 2.6
 	elif tx.contains("澪"): glance_at = "mio"; glance_t = 3.6
+	# 2026-11-27（ユーザー「話してる感じもまだ出てないな」）: at the start of each of her lines she looks at Mio a moment, then back
+	# to the road (the nod alone, 3°, did not read from the side)
+	elif glance_t <= 0.0: glance_at = "mio"; glance_t = 1.3
 
 func _nat_look_tick(dt: float):
 	if nat_ik == null: return
@@ -1089,6 +1092,8 @@ class ReachIK extends SkeletonModifier3D:
 	var off_out := 0.0
 	var off_z := 0.02     # toward her (the wheel's +z)
 	var palm_in := 0.5    # the palm's turn to the wheel's middle (0: straight at the dash)
+	var hand_deg := 80.0  # where on the ring (0: the top). 11-27（ユーザー「掴む位置がちょっと変」）: nine and three, on the outside of the rim (58° and the ring as WHEEL_R put the hands inside the Tripo rim)
+	var rim_k := 1.12     # the Tripo ring against WHEEL_R (measured on the stills, 11-27)
 	var curl := [0.4, 0.44, 0.28]   # (11-27: more closed read as claws hooked on the rim's inside; the wrist on the rim, the fingers laid round it)
 	var talk_t := 0.0
 	var spine0 := -1
@@ -1109,6 +1114,7 @@ class ReachIK extends SkeletonModifier3D:
 				if v.size() >= 5: off_back = float(v[3]); off_out = float(v[4])
 				if v.size() >= 6: curl = [float(v[5]), float(v[5]) * 1.1, float(v[5]) * 0.7]
 				if v.size() >= 8: off_z = float(v[6]); palm_in = float(v[7])
+				if v.size() >= 10: hand_deg = float(v[8]); rim_k = float(v[9])
 		for s in ["l", "r"]:
 			var fl := []
 			for f in ["index", "middle", "ring", "pinky", "thumb"]:
@@ -1140,8 +1146,8 @@ class ReachIK extends SkeletonModifier3D:
 		for arm in arms:
 			var side: float = arm[3]
 			# the rig's left is the car's... the hands at ten (left) and two (right) of the ring, a little in front of it
-			var ang := deg_to_rad(58.0) * side
-			var rim_w: Vector3 = wheel.global_transform * Vector3(sin(ang) * WHEEL_R, cos(ang) * WHEEL_R * 0.92, 0.0)
+			var ang := deg_to_rad(hand_deg) * side
+			var rim_w: Vector3 = wheel.global_transform * Vector3(sin(ang) * WHEEL_R * rim_k, cos(ang) * WHEEL_R * 0.92 * rim_k, 0.0)
 			var ctr_w: Vector3 = wheel.global_transform * Vector3.ZERO
 			# the palm on the rim from outside it (the wrist back from the rim along the forearm, out from the wheel's middle)
 			var sh_w: Vector3 = sk.global_transform * sk.get_bone_global_pose(arm[0]).origin
@@ -1163,8 +1169,8 @@ class ReachIK extends SkeletonModifier3D:
 			var nod := Quaternion.IDENTITY
 			if talk_w > 0.0:
 				talk_t += get_process_delta_time() if is_inside_tree() else 0.016
-				var a := (0.6 * sin(talk_t * 5.1) + 0.4 * sin(talk_t * 8.3 + 1.3)) * 0.05 * talk_w
-				var b := sin(talk_t * 2.3) * 0.03 * talk_w
+				var a := (0.6 * sin(talk_t * 5.1) + 0.4 * sin(talk_t * 8.3 + 1.3)) * 0.09 * talk_w
+				var b := sin(talk_t * 2.3) * 0.05 * talk_w
 				nod = Quaternion(ax_r, a) * Quaternion(Vector3.UP, b)
 			sk.set_bone_global_pose(head, Transform3D(Basis(nod * q) * gh.basis, gh.origin))
 	func _look_q(sk: Skeleton3D, inv: Transform3D) -> Quaternion:
