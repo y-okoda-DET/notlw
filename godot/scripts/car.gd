@@ -72,6 +72,7 @@ var mirror_mesh: MeshInstance3D
 var title_layer: CanvasLayer
 var title_rect: TextureRect
 var title_t := -1.0
+const TITLE_LOOK := 4.5   # s of the house before the full-screen name ("full")
 # 試作297（赤字 #7「他の案も見たい。（1）全画面にドーン、（2）タランティーノならどうするか」）: --titlemode=full | qt to see
 # them; "" is the title as it was (low over the dashboard, fading in on the house)
 var title_mode := ""
@@ -827,7 +828,7 @@ func _drive(dt: float):
 				tw0.tween_callback(func(): _clear_box(tes_box); tes_box.modulate.a = 1.0)
 		"title":
 			v = move_toward(v, 0.0 if d > d_end - 1.0 else 0.6, dt * 0.5)
-			if t_stage > 9.5:
+			if t_stage > (12.5 if title_mode == "full" else 9.5):   # (full: the house held, the name, then the house again)
 				stage = "out"; t_stage = 0.0
 				var tw := create_tween(); tw.tween_property(black, "color:a", 1.0, 1.6)
 				_loop_to("car_gravel", -60.0, 1.4); _loop_to("car_drive", -60.0, 1.4); _loop_to("car_idle", -60.0, 1.4)
@@ -869,12 +870,16 @@ func _title_tick(dt: float):
 	if title_t < 0.0: return
 	var t0 := title_t
 	title_t += dt
-	if t0 < 1.2 and title_t >= 1.2:   # check stills: --titleshot=<png>, 1.2 s into the title
+	var shot_at := 1.2 + (TITLE_LOOK if title_mode == "full" else 0.0)
+	if t0 < shot_at and title_t >= shot_at:   # check stills: --titleshot=<png>, 1.2 s into the name
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--titleshot="): _save_shot(a.substr(12))
 	if title_mode == "full" or title_mode == "qt":
-		var hold := 4.0 if title_mode == "full" else 5.0
-		if t0 == 0.0:
+		# 2026-11-28（ユーザー「一回、建物をじっくり見せたあとに案1＋打撃音のパターンを映像で見てみたい」）: in "full" the house
+		# is held for TITLE_LOOK s first (the car creeping, nothing on the screen), then the hit and the name
+		var look := TITLE_LOOK if title_mode == "full" else 0.0
+		var hold := look + (4.0 if title_mode == "full" else 5.0)
+		if t0 <= look and title_t > look:
 			if title_mode == "full":
 				title_cover.visible = true
 				for k in ["car_gravel", "car_drive", "car_idle"]:
@@ -1095,7 +1100,10 @@ func _jump_stop():
 
 func _jump_gap():
 	_jump(999.0)
-	stage = "drive_on"; t_stage = 0.0; d = d_reveal - 0.5; v = 0.6
+	var back := 0.5
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--cargapback="): back = float(a.substr(13))   # check movies: from this many metres before the gap
+	stage = "drive_on"; t_stage = 0.0; d = d_reveal - back; v = 0.6 if back < 1.0 else 1.2
 	li = LINES.size(); si = STOP_LINES.size(); cur = {}; _clear_box(lines_box)
 	_drive(0.0)
 
