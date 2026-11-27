@@ -5,7 +5,7 @@
 #   例：bash godot/check/contact/contact.sh $WORK/pck295/RULES_proto295 p295
 #       python3 godot/check/contact/sheet.py $WORK/contact/p295 /mnt/project-files/コンタクトシート/試作295
 #   出力：$WORK/contact/<名前>/0000.png …、shots.tsv、ログは $WORK/contact/<名前>.log（最後に == DONE）
-#   CFAST=3（ゲームを1コマで3倍進める）、CSTILL=12、CEVERY=3（秒ごと）、RES=1280x720（字の並びは 1920x1080 のまま縮めて描く。描く重さが半分以下）、TMO（秒、既定 4時間）
+#   CFAST=1（2や3にすると第3章のテープ替えで通しが止まった。撮らない間はもう軽いので速めない）、CSTILL=12、CEVERY=3（秒ごと）、RES=1280x720（字の並びは 1920x1080 のまま縮めて描く。描く重さが半分以下）、TMO（秒、既定 4時間）
 # pck のスクリプトをいまのリポジトリの物で重ねる（overlay.sh）。pck を書き出した版のリポジトリで回すこと（ずれると画が変わる）。
 set -u
 . "$(dirname "$0")/../../../blender/paths.sh"
@@ -31,7 +31,7 @@ if '_pv_clk' not in s:
 open(p,'w').write(s)
 PY
 cd /tmp
-timeout ${TMO:-14400} xvfb-run -a -s "-screen 0 ${RES:-1280x720}x24" $GODOT --path $O --windowed --resolution ${RES:-1280x720} --fixed-fps 24 --quit-after ${QA:-90000} -- \
-  --basepack=$P/RULES.pck --housepack=$P/RULES_house.pck --demo --demoquit --frameclock --contact=$OUT --cevery=${CEVERY:-3} --cfast=${CFAST:-3} --cstill=${CSTILL:-12} "$@" > $WORK/contact/$N.log 2>&1
+timeout ${TMO:-14400} xvfb-run -a -s "-screen 0 ${RES:-1280x720}x24" $GODOT --path $O --windowed --resolution ${RES:-1280x720} --fixed-fps 24 --quit-after ${QA:-150000} -- \
+  --basepack=$P/RULES.pck --housepack=$P/RULES_house.pck --demo --demoquit --frameclock --contact=$OUT --cevery=${CEVERY:-3} --cfast=${CFAST:-1} --cstill=${CSTILL:-12} "$@" > $WORK/contact/$N.log 2>&1
 echo "撮った枚数 $(ls $OUT/*.png 2>/dev/null | wc -l)、通しの最後：$(grep -a 'DEMO DONE' $WORK/contact/$N.log | tail -1)、エラー $(grep -ac 'SCRIPT ERROR' $WORK/contact/$N.log)"
 echo "== DONE $N"
