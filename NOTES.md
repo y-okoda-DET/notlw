@@ -719,3 +719,8 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - モデルの側：blender/tools/makoto_sweater_try.py が makoto.glb の体のテクスチャで、彩度の低い明るい所（セーター）を暗く冷たい灰色にし、肌・ズボンの面に形でつながるセーターの面（2輪）に濃い帯（襟ぐり・袖口・裾）を塗る。試しは blender/tools/makoto_sweater_overlay.sh で overlay に置いて撮る。本採用ならビルドの chars.py（socks の後）に入れる。
 - 確認の静止画：--shotat=<秒>（顔の光のない場面）、--skipslow（1時は 8 倍速の早送りで歩きが崩れる）、split pck（FAST でない版）は overlay で読めないので FAST の pck に重ねる。
 
+
+## コンタクトシートの撮影が重かったわけ（2026-11-27、godot/check/contact/）
+- 窓のある Godot（xvfb ＋ llvmpipe）で `RenderingServer.render_loop_enabled = false`（や `--disable-render-loop`）にしても、家の中では毎コマ描かれていた（Performance の描画コール数が 5000 前後で動き、llvmpipe のスレッドが回り続けた。1コマ 1秒以上。headless なら同じ所が 0.01秒）。
+- 撮らない間は `get_viewport().disable_3d = true` にし、SubViewport を `UPDATE_DISABLED` にすると、1コマ 0.03秒ほどに落ちた（第3章の 720コマ：4分 → 23秒）。撮る直前に戻し、4コマ描いてから保存する（2〜12コマで画は変わらなかった。違いは動きだけ）。
+- PV の clip.gd（/mnt/project-files/PV/作り方/）も同じ理由で重かったはず。長く撮るなら同じ直しを入れる。
