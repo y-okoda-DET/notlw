@@ -726,3 +726,4 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - 窓のある Godot（xvfb ＋ llvmpipe）で `RenderingServer.render_loop_enabled = false`（や `--disable-render-loop`）にしても、家の中では毎コマ描かれていた（Performance の描画コール数が 5000 前後で動き、llvmpipe のスレッドが回り続けた。1コマ 1秒以上。headless なら同じ所が 0.01秒）。
 - 撮らない間は `get_viewport().disable_3d = true` にし、SubViewport を `UPDATE_DISABLED` にすると、1コマ 0.03秒ほどに落ちた（第3章の 720コマ：4分 → 23秒）。撮る直前に戻し、4コマ描いてから保存する（2〜12コマで画は変わらなかった。違いは動きだけ）。
 - PV の clip.gd（/mnt/project-files/PV/作り方/）も同じ理由で重かったはず。長く撮るなら同じ直しを入れる。
+- 2026-11-28（試作297〜298）：コンタクトシートの demo では証言の場面が早送りされ、撮れる画は「札を受けたときの止め画」（RECEIVE、k3*）などになる。赤字の画がどのカットか、shots.tsv のカメラとカット名で確かめてから直すこと（証言二 #505/506 を a/b のカットと取り違えた）。テープの遊びの自動の通しは、ロールを「最初の空いた区画」の頭に合わせないと、区画の途中から貼り始めて永久に閉じない。夜の刷りで血を赤く出すには、暗い赤ではなく emission で「明るい暖色」にする（0.34 では青に落ちた）。
