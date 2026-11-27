@@ -719,3 +719,5 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 - モデルの側：blender/tools/makoto_sweater_try.py が makoto.glb の体のテクスチャで、彩度の低い明るい所（セーター）を暗く冷たい灰色にし、肌・ズボンの面に形でつながるセーターの面（2輪）に濃い帯（襟ぐり・袖口・裾）を塗る。試しは blender/tools/makoto_sweater_overlay.sh で overlay に置いて撮る。本採用ならビルドの chars.py（socks の後）に入れる。
 - 確認の静止画：--shotat=<秒>（顔の光のない場面）、--skipslow（1時は 8 倍速の早送りで歩きが崩れる）、split pck（FAST でない版）は overlay で読めないので FAST の pck に重ねる。
 
+- 2026-11-27（試作296）車の確認の静止画は `--cart=<秒> --shotat=<cart+5>`。shotat が cart より小さいと、飛んだ直後の1コマ（カメラが置かれる前）が撮れて、床や天井の変な画になる。夏希の握りは car.gd ReachIK._grip（指の骨 index/middle/ring/pinky/thumb_0N_l/r。掌の向きは指の方向×指の付け根の並び、左手は符号が逆）。確かめの引数 `--natpose=背の傾き°,腕の外旋°,握り0..1[,手首を縁から戻すm,外へm,指の曲げ]`。
+- 窓ガラス（main.gd winglass）は specular を切る。ランプの照り返しが1枚ごとに白い丸になり、光源の分からない白い光に見えた（試作295）。
