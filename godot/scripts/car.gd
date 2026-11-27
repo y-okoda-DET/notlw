@@ -1085,15 +1085,15 @@ class ReachIK extends SkeletonModifier3D:
 	# 2026-11-27: back against the seat (spine_01 leans back), the arms turned out (the elbows down), the hands round the rim
 	# with the thumbs inside it, the head nodding while she talks
 	var lean := deg_to_rad(8.0)
-	var arm_out := deg_to_rad(-10.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
+	var arm_out := deg_to_rad(-20.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
 	var grip := 1.0
 	var talk_w := 0.0
 	var off_back := 0.0   # the wrist back from the rim along the forearm, and out from the wheel's middle (m)
 	var off_out := 0.0
 	var off_z := 0.02     # toward her (the wheel's +z)
 	var palm_in := 0.5    # the palm's turn to the wheel's middle (0: straight at the dash)
-	var hand_deg := 80.0  # where on the ring (0: the top). 11-27（ユーザー「掴む位置がちょっと変」）: nine and three, on the outside of the rim (58° and the ring as WHEEL_R put the hands inside the Tripo rim)
-	var rim_k := 1.12     # the Tripo ring against WHEEL_R (measured on the stills, 11-27)
+	var hand_deg := 68.0  # where on the ring (0: the top). 11-27（ユーザー「掴む位置がちょっと変」）: on the outside of the rim; 15時43分（「両腕とももう少し内側に」）80° → 68°, the elbows in (arm_out -20°) (58° and the ring as WHEEL_R put the hands inside the Tripo rim)
+	var rim_k := 1.06     # the Tripo ring against WHEEL_R (measured on the stills, 11-27)
 	var curl := [0.4, 0.44, 0.28]   # (11-27: more closed read as claws hooked on the rim's inside; the wrist on the rim, the fingers laid round it)
 	var talk_t := 0.0
 	var spine0 := -1
