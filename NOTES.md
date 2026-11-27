@@ -721,3 +721,8 @@ house4.stairs_up の handrail は真ん中（z 2.295）が plan y 4.215（Y() �
 
 - 2026-11-27（試作296）車の確認の静止画は `--cart=<秒> --shotat=<cart+5>`。shotat が cart より小さいと、飛んだ直後の1コマ（カメラが置かれる前）が撮れて、床や天井の変な画になる。夏希の握りは car.gd ReachIK._grip（指の骨 index/middle/ring/pinky/thumb_0N_l/r。掌の向きは指の方向×指の付け根の並び、左手は符号が逆）。確かめの引数 `--natpose=背の傾き°,腕の外旋°,握り0..1[,手首を縁から戻すm,外へm,指の曲げ]`。
 - 窓ガラス（main.gd winglass）は specular を切る。ランプの照り返しが1枚ごとに白い丸になり、光源の分からない白い光に見えた（試作295）。
+
+## コンタクトシートの撮影が重かったわけ（2026-11-27、godot/check/contact/）
+- 窓のある Godot（xvfb ＋ llvmpipe）で `RenderingServer.render_loop_enabled = false`（や `--disable-render-loop`）にしても、家の中では毎コマ描かれていた（Performance の描画コール数が 5000 前後で動き、llvmpipe のスレッドが回り続けた。1コマ 1秒以上。headless なら同じ所が 0.01秒）。
+- 撮らない間は `get_viewport().disable_3d = true` にし、SubViewport を `UPDATE_DISABLED` にすると、1コマ 0.03秒ほどに落ちた（第3章の 720コマ：4分 → 23秒）。撮る直前に戻し、4コマ描いてから保存する（2〜12コマで画は変わらなかった。違いは動きだけ）。
+- PV の clip.gd（/mnt/project-files/PV/作り方/）も同じ理由で重かったはず。長く撮るなら同じ直しを入れる。
