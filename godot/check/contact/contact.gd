@@ -13,6 +13,7 @@ var t := 0.0; var next_periodic := 0.0; var full := Vector2i(1920, 1080)
 var prev_cam: Camera3D; var prev_xf := Transform3D(); var prev_scene: Node; var prev_card := false
 var due := -1.0; var due_why := ""; var rec := -1; var n := 0; var f := 0
 var tsv: FileAccess
+var warm := 4   # --cwarm=4: frames drawn before the one saved (the fog and the exposure settle over a few frames)
 var still := 12.0; var last_xf := Transform3D(); var last_shot := -99.0   # --cstill=12: a camera that has not moved is shot again only after this many seconds
 var fast := 1.0   # --cfast=2: the game runs twice as fast per frame (half the frames to go through; contact.sh makes main.gd's frame clock follow)
 var layers: Array = []
@@ -25,6 +26,7 @@ func _ready():
 		if x.begins_with("--cevery="): every = float(x.substr(9))
 		if x.begins_with("--cdelay="): delay = float(x.substr(9))
 		if x.begins_with("--cfast="): fast = float(x.substr(8))
+		if x.begins_with("--cwarm="): warm = int(x.substr(8))
 		if x.begins_with("--cstill="): still = float(x.substr(9))
 	DirAccess.make_dir_recursive_absolute(dir)
 	tsv = FileAccess.open(dir + "/shots.tsv", FileAccess.WRITE)
@@ -39,6 +41,14 @@ func _ready():
 func _small(on: bool):
 	if DisplayServer.get_name() != "headless": get_window().size = Vector2i(full.x / 10, full.y / 10) if on else full
 	RenderingServer.render_loop_enabled = not on
+	# 描かない設定だけでは家の中で毎コマ描かれていた（llvmpipe が回り続け、1コマ 1秒以上）。3D を切り、SubViewport も止める
+	get_viewport().disable_3d = on
+	for v in get_tree().root.find_children("*", "SubViewport", true, false):
+		if on:
+			if not v.has_meta("contact_mode"): v.set_meta("contact_mode", v.render_target_update_mode)
+			v.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		elif v.has_meta("contact_mode"):
+			v.render_target_update_mode = v.get_meta("contact_mode"); v.remove_meta("contact_mode")
 	Engine.time_scale = fast
 	Engine.max_physics_steps_per_frame = maxi(8, int(ceil(fast * 60.0 / 24.0)) + 2)
 
@@ -111,7 +121,9 @@ func _process(dt: float):
 	# shooting: grow the window and draw, save the third frame (the first ones can still be the small window's)
 	if rec >= 0:
 		rec += 1
-		if rec >= 3:
+		if OS.get_cmdline_user_args().has("--cwarmtest") and rec in [2, 3, 6, 12]:
+			get_viewport().get_texture().get_image().save_png("%s/%04d_w%d.png" % [dir, n, rec])
+		if rec >= warm:
 			var ch := _chapter()
 			var img := get_viewport().get_texture().get_image()
 			img.save_png("%s/%04d.png" % [dir, n])
