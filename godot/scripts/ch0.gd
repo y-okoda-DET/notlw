@@ -24,6 +24,7 @@ const OPEN_DEG := 74.0
 const SIDE_GLASS := [4.14, 0.005, 1.08]   # plan: the sidelight's glass west of the door (x 4.03..4.24), the hall's face
 const LANTERN_E := 0.2
 
+var gen_far_db := -11.0   # 2026-11-27: the generator heard clearly from the first frame until it stops (sound.gd)
 var L0 := []
 var l0 := 0
 var can_stand := false

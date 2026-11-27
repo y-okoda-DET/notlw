@@ -710,10 +710,22 @@ func _nat_looked() -> bool:
 	return to.length() < 3.4 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(36.0)
 
 const CELLAR_FOOT := [5.5, 2.6, -2.35]   # the foot of the cellar stair (plan, height): Makoto's torch on the floor, Taiga's shoe past it
-func _cellar_looked(deg := 18.0) -> bool:
+# 2026-11-27（ユーザー「三脚や夏希などの選択肢が出てこない」, 試作295 4時半）: she stood 2.0 m from the door's point, beside the
+# stairwell, looking down at its foot (25° off): the look did not count (1.4 m, 18°) and the chapter waited with nothing to
+# press. Now from 2.4 m and 26°
+func _cellar_looked(deg := 26.0) -> bool:
 	var to: Vector3 = gp(CELLAR_FOOT[0], CELLAR_FOOT[1], CELLAR_FOOT[2]) - _cam().global_position
 	var p: Vector3 = player.global_position
-	return player.global_position.y > -0.4 and to.length() < 6.2 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(deg) and Vector2(p.x - gp(5.5, 5.9, 0.0).x, p.z - gp(5.5, 5.9, 0.0).z).length() < 1.4
+	return player.global_position.y > -0.4 and to.length() < 6.2 and (-_cam().global_basis.z).angle_to(to) < deg_to_rad(deg) and Vector2(p.x - gp(5.5, 5.9, 0.0).x, p.z - gp(5.5, 5.9, 0.0).z).length() < 2.4
+
+# 2026-11-27: after the look down, the step down is offered from anywhere near the cellar door looking at the stair (it was
+# only within 1.4 m and 30° of its foot: the player who had stepped back saw nothing to press. Her place in 試作295: 2.0 m off, 56° from the stair)
+func _cellar_near() -> bool:
+	var p: Vector3 = player.global_position
+	var d := Vector2(p.x - gp(5.5, 5.9, 0.0).x, p.z - gp(5.5, 5.9, 0.0).z).length()
+	var f := -_cam().global_basis.z
+	var a := minf(f.angle_to(gp(5.5, 4.6, -0.6) - _cam().global_position), f.angle_to(gp(CELLAR_FOOT[0], CELLAR_FOOT[1], CELLAR_FOOT[2]) - _cam().global_position))
+	return p.y > -0.4 and d < 2.6 and a < deg_to_rad(55.0)
 
 var shoe6: MeshInstance3D
 var cel_torch6: SpotLight3D
@@ -753,9 +765,10 @@ func _start6_tick(_dt: float):
 			if _cellar_looked():
 				stage = "peek2"
 				_tes6(String(B("六.地下.見下ろす")[0].text))
+				_set_mission(String(B("六.地下.目当て")[0].get("mission", "")))   # 2026-11-27（ユーザー「三脚や夏希などの選択肢が出てこない」, 試作295）: what to do next was not said
 			elif demo6: _demo_cellar()
 		"peek2":
-			note_lb.text = T(String(D.lines("六.地下.下りる")[0])) if _cellar_looked(30.0) else ""
+			note_lb.text = T(String(D.lines("六.地下.下りる")[0])) if _cellar_near() else ""
 			if demo6 and _cellar_looked(30.0): _after(1.5, func(): if stage == "peek2": _press6())
 
 var demo_pk := 0.0
@@ -867,7 +880,7 @@ func _press6():
 	if act != "": _act_press(); return
 	if stage == "free" and not tgt.is_empty(): (tgt.press as Callable).call()
 	if stage == "call" and _nat_looked(): stage = "call_talk"; note_lb.text = ""; _start(B("六.始まり").slice(1))
-	elif stage == "peek2" and _cellar_looked(30.0): stage = "down"; note_lb.text = ""; _start(B("六.地下.下りる").slice(1))
+	elif stage == "peek2" and _cellar_near(): stage = "down"; note_lb.text = ""; _set_mission(""); _start(B("六.地下.下りる").slice(1))
 
 func _holding() -> bool:
 	return hold_demo or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)

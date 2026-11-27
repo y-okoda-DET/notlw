@@ -1264,6 +1264,10 @@ func _window_glass():
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.roughness = 0.08; m.metallic_specular = 0.6
+	# 2026-11-27（ユーザー「窓の白い光なんだろう？光源がわからない」, 試作295 夕方の居間）: a lamp in the room made a hard white
+	# spot on each pane (its highlight in the glass), away from the lamp and reading as a light outside. The glass keeps its
+	# reflections of the room and the sky, but no hard highlight from the lamps
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	# years of dust and dried rain on the outside: streaks running down, thicker toward the sill (a noise stretched
 	# tall, through a ramp from clear to grey film)
 	var nz := FastNoiseLite.new(); nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH; nz.frequency = 0.03; nz.fractal_octaves = 4; nz.seed = 7
