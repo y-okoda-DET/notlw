@@ -1115,6 +1115,11 @@ func _multi_tick(dt: float, held: bool):
 	var wp: AudioStreamPlayer3D = gq.player
 	if wp: wp.volume_db = lerpf(-6.0, -30.0, k)
 	if k >= 0.99 and trace.cur == null: _trace_end()
+	if not trace.has("shot"):   # --tapeshot=png: a still mid-game (the check only)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--tapeshot=") and k > 0.3 and trace.cur != null and float(trace.len) > 0.09:
+				trace["shot"] = true
+				get_viewport().get_texture().get_image().save_png(a.substr(11)); print("TAPESHOT ", a.substr(11)); get_tree().create_timer(0.3).timeout.connect(get_tree().quit)
 
 func _press_seal():
 	var gq := _near_gap()

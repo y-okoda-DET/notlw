@@ -266,9 +266,37 @@ func _people():
 	if ppl.has("kikite"): _pencil(ppl.kikite)
 	for k in ppl: _pose(ppl[k], 0.0)
 
+# 試作297（赤字 #28「このへんが気になる」, circled: the two points where the cardigan meets the white collar by the neck):
+# the generated cardigan stands up in two little navy ears at the collar's outer corners (|x| 3.5–10 cm, up to 1.274 m
+# in the rest form while the collar's top is at about 1.255). They are pressed down to the collar's height here, on
+# the body's own vertices (bind space: glTF y-up), before anything poses it.
+var COLLAR_FIX := 1.0
+func _collar_fix(root: Node):
+	for mi in root.find_children("kikite_body*", "MeshInstance3D", true, false):
+		var am := (mi as MeshInstance3D).mesh as ArrayMesh
+		if am == null: continue
+		var nm := ArrayMesh.new(); var moved := 0
+		for si in am.get_surface_count():
+			var arr := am.surface_get_arrays(si)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var top := am.get_aabb().end.y; var c0 := top - 0.024   # the ears' tips are the body's top; the collar's top 2.4 cm under (3 cm bared the neck's foot)
+			for i in v.size():
+				var q := v[i]
+				var ax := absf(q.x)
+				if q.y > c0 and ax > 0.032 and ax < 0.11:
+					var w := clampf((ax - 0.032) / 0.012, 0.0, 1.0) * clampf((0.11 - ax) / 0.015, 0.0, 1.0) * COLLAR_FIX
+					v[i] = Vector3(q.x, lerpf(q.y, c0 + (q.y - c0) * 0.15, w), q.z); moved += 1
+			arr[Mesh.ARRAY_VERTEX] = v
+			var bs := am.surface_get_blend_shape_arrays(si)
+			nm.add_surface_from_arrays(am.surface_get_primitive_type(si), arr, bs, {}, am.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+			nm.surface_set_material(si, am.surface_get_material(si))
+		(mi as MeshInstance3D).mesh = nm
+		print("COLLAR_FIX moved ", moved)
+
 func _person(key: String, file: String, rest_form: String, facing: float) -> Dictionary:
 	var root: Node3D = (load(A + file) as PackedScene).instantiate(); add_child(root)
 	_two_sided(root)
+	if key == "kikite" and COLLAR_FIX > 0.0: _collar_fix(root)
 	var sk: Skeleton3D = root.find_children("*", "Skeleton3D", true, false)[0]
 	var ap: AnimationPlayer = root.find_children("*", "AnimationPlayer", true, false)[0]
 	var forms := {}
@@ -303,6 +331,7 @@ func _person(key: String, file: String, rest_form: String, facing: float) -> Dic
 var MIO_ADJ := [-4.0, 4.0, 3.0]   # clavicles about the facing axis (deg), neck and head up (deg); --mioadj=a,b,c for checks
 func _mio_adj_args():
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--collarfix="): COLLAR_FIX = float(a.substr(12))
 		if a.begins_with("--mioadj="): MIO_ADJ = Array(a.substr(9).split(",")).map(func(v): return float(v))
 
 func _form_bone(p: Dictionary, form: String, bi: int) -> Array:
@@ -360,8 +389,8 @@ func _pose(p: Dictionary, dt: float):
 	_turn(p, x, "neck_01", 0, f * pitch * 0.35); _turn(p, x, "head", 0, f * pitch * 0.65)
 	_turn(p, x, "neck_01", 1, yaw * 0.4); _turn(p, x, "head", 1, yaw * 0.6)
 	_turn(p, x, "spine_01", 2, 0.6 * _wob(t * 0.5, 7.0))   # the weight shifting on the knees
-	if p.key == "mio":
-		# 試作297（赤字 #28「このへんが気になる」: her shoulders' tops by the neck, and the collar under her chin): the shoulders
+	if p.key == "mio" or p.key == "kikite":
+		# 試作297（赤字 #28: the shot is the interviewer's, q_聞き手_口元; both sit the same way, so both)（赤字 #28「このへんが気になる」: her shoulders' tops by the neck, and the collar under her chin): the shoulders
 		# let down a little (the clip held them up into two points by the collar), the chin lifted off the collar
 		_turn(p, x, "clavicle_l", 2, MIO_ADJ[0]); _turn(p, x, "clavicle_r", 2, -MIO_ADJ[0])
 		_turn(p, x, "neck_01", 0, -f * MIO_ADJ[1]); _turn(p, x, "head", 0, -f * MIO_ADJ[2])

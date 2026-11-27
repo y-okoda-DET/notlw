@@ -720,21 +720,23 @@ func _title():
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--titlemode="): title_mode = a.substr(12)
 	if title_mode != "":
+		title_layer.layer = 20   # over the lines' box and the notes
 		title_freeze = TextureRect.new(); title_freeze.set_anchors_preset(Control.PRESET_FULL_RECT); title_freeze.visible = false
 		title_freeze.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; title_freeze.stretch_mode = TextureRect.STRETCH_SCALE
 		title_freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_freeze)
-		title_cover = ColorRect.new(); title_cover.color = Color(0, 0, 0, 1); title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+		title_cover = ColorRect.new(); title_cover.color = Color(0.03, 0.13, 0.13, 1);   # the print's own deep teal, not a screen black title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
 		title_cover.visible = false; title_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_cover)
 	if title_mode == "full":
 		# (1) the picture cut to black and the name filling it, at once, on a hit; four seconds; cut back to the house
 		var hf := vs.y * 0.86
+		title_rect.self_modulate = Color(0.94, 0.91, 0.83)   # the paper
 		title_rect.offset_left = -hf * 0.5; title_rect.offset_right = hf * 0.5; title_rect.offset_top = -hf * 0.5; title_rect.offset_bottom = hf * 0.5
 	elif title_mode == "qt":
 		# (2) the moment she sees the house held as a still, and the name slammed on it big, yellow, low on the left, over a
 		# jaunty record put on loud (the credits' Mozart, 音楽の冗談): the music is the joke the night is about to make
 		var hq := vs.y * 0.62
 		title_rect.anchor_left = 0.0; title_rect.anchor_right = 0.0
-		title_rect.offset_left = vs.x * 0.05; title_rect.offset_right = vs.x * 0.05 + hq; title_rect.offset_top = vs.y * 0.5 - hq * 0.62; title_rect.offset_bottom = vs.y * 0.5 + hq * 0.38
+		title_rect.offset_left = vs.x * 0.05; title_rect.offset_right = vs.x * 0.05 + hq; title_rect.offset_bottom = vs.y * 0.44; title_rect.offset_top = vs.y * 0.44 - hq   # (the anchors are the middle of the screen)
 		title_rect.self_modulate = Color(1.0, 0.84, 0.12)
 	title_layer.add_child(title_rect)
 

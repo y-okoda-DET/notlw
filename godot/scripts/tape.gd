@@ -484,9 +484,9 @@ void fragment() {
 				f += 0.28 * texture(face_tex, vec2(1.0 - fu.x, fu.y - 0.012)).rgb;
 				float inside = smoothstep(0.0, 0.12, fu.x) * smoothstep(1.0, 0.88, fu.x) * smoothstep(0.0, 0.05, fu.y) * smoothstep(0.98, 0.62, fu.y);
 				vec3 g = f * fk3 * 0.7; g = g / (1.0 + g * fsh);              // the shoulder: a lit cheek does not go bright
-				float sheen = exp(-pow((UV.x - 0.78 + 0.35 * (UV.y - 0.5)) / 0.07, 2.0)) * (1.0 - smoothstep(0.1, 0.9, UV.y));
+				float sheen = exp(-pow((UV.x - 0.80 + 0.30 * (UV.y - 0.5)) / 0.12, 2.0)) * (1.0 - smoothstep(0.0, 0.8, UV.y));
 				c = (vec3(0.006, 0.010, 0.022) + g * inside) * r4.a * (0.6 + 0.4 * edge);
-				c = c * (0.75 + 0.25 * edge) + vec3(0.020, 0.024, 0.030) * sheen + vec3(0.004, 0.005, 0.007) * edge;
+				c = c * (0.6 + 0.25 * edge) + vec3(0.007, 0.008, 0.010) * sheen + vec3(0.004, 0.005, 0.007) * edge;
 			} else if (bmode > 1.5) {
 				vec2 fu = (vec2(1.0 - ru.x, ru.y) - fc) * fsc + fp;
 				vec3 f = texture(face_tex, vec2(1.0 - fu.x, fu.y)).rgb;
@@ -752,6 +752,10 @@ func _room_tick(dt: float):
 				if not pan_cam.current: pan_cam.current = true; print("STORY ch11 pan cam")
 				var pk := smoothstep(11.5, 16.0, end_t2)
 				pan_cam.global_transform = Transform3D(Basis(Vector3.UP, _pan_yaw(pk)) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), ROOM + PAN_AT)
+			for a in OS.get_cmdline_user_args():   # check stills: --d11shot=<seconds after the tape>:<png>
+				if a.begins_with("--d11shot=") and not has_meta("shot_done"):
+					var q := a.substr(10).split(":")
+					if end_t2 >= float(q[0]): set_meta("shot_done", true); _save_shot(q[1])
 			if refl == "e":
 				# 2026-11-19 21時（ユーザー「映りこませる画面、いまより+1秒、ディゾルブも+1秒、テレビ側から澪を捉えたショットは+2秒。
 				# そこからエンドロール。仮の文字を1分流して。音（音楽の冗談）を入れて」）

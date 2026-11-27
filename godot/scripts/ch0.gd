@@ -177,11 +177,10 @@ func _pool():
 	var h := _nhead(); h.y = 0.0
 	var rng := RandomNumberGenerator.new(); rng.seed = 5
 	# 試作297（赤字 #2「血溜まりが影に見える」）: it was near black (.13), and the print read it as a shadow. Red enough that the
-	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it), and its edge a darker, raised rim
-	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.5, 0.05, 0.03); mat.roughness = 0.06; mat.metallic_specular = 1.0
-	mat.emission_enabled = true; mat.emission = Color(0.16, 0.012, 0.004)   # the print's orange needs the red to stand above the dark
+	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it)
+	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.4, 0.03, 0.02); mat.roughness = 0.06; mat.metallic_specular = 1.0
+	mat.emission_enabled = true; mat.emission = Color(0.34, 0.03, 0.006)   # the night print gives orange only to what is warm and lit: the red is made to stand in its own light
 	mat.clearcoat_enabled = true; mat.clearcoat = 1.0; mat.clearcoat_roughness = 0.02
-	var rim := StandardMaterial3D.new(); rim.albedo_color = Color(0.16, 0.012, 0.01); rim.roughness = 0.2; rim.metallic_specular = 0.9
 	for i in 7:
 		var mi := MeshInstance3D.new(); var cm := CylinderMesh.new()
 		var r := rng.randf_range(0.10, 0.22) * (1.0 if i == 0 else 0.8)
@@ -192,10 +191,6 @@ func _pool():
 		var off := Vector3(rng.randf_range(-0.16, 0.16), 0.003, rng.randf_range(-0.16, 0.16)) if i > 0 else Vector3(0, 0.003, 0)
 		mi.global_position = h + off
 		mi.scale = Vector3(1.0, 1.0, rng.randf_range(0.7, 1.3)); mi.rotation.y = rng.randf_range(0.0, PI)
-		var rm := MeshInstance3D.new(); var rc := CylinderMesh.new()   # the rim: a hair wider and lower, so only its edge shows
-		rc.top_radius = r + 0.008; rc.bottom_radius = r + 0.01; rc.height = cm.height; rc.radial_segments = 20; rc.rings = 1
-		rm.mesh = rc; rm.material_override = rim; rm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; rm.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		mi.add_child(rm); rm.position.y = -0.0006
 
 # ---------------------------------------------------------------- the car: two lamps that come up the drive and stop
 const CAR_FROM := [13.0, -16.0, 0.75]   # plan: down the forest road, out of sight

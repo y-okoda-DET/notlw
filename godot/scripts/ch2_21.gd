@@ -96,12 +96,17 @@ func _table_candle():
 	var fmat := StandardMaterial3D.new(); fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
 	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; tcandle_flame.add_child(f)
-	tcandle_light = OmniLight3D.new(); tcandle_light.light_color = Color(1.0, 0.66, 0.34); tcandle_light.light_energy = 0.36
-	tcandle_light.omni_range = 4.2; tcandle_light.omni_attenuation = 1.0; tcandle_light.shadow_enabled = true
+	tcandle_light = OmniLight3D.new(); tcandle_light.light_color = Color(1.0, 0.66, 0.34); tcandle_light.light_energy = 0.12
+	tcandle_light.omni_range = 3.8; tcandle_light.omni_attenuation = 1.3; tcandle_light.shadow_enabled = true
 	tcandle_light.light_volumetric_fog_energy = 0.2; tcandle_light.position.y = 0.15
 	c.add_child(tcandle_light)
 	add_child(c)
-	c.global_position = gp(2.18, 2.0, 0.40)   # the hall end of the table: it reaches out of the door a little (#120)
+	c.global_position = gp(2.18, 2.0, 0.40)
+	# (#120, the hall) what the candle gives through the open living-room door: a faint warm spill on the hall's floor and
+	# its near wall (the candle itself, behind the wall, cannot reach there in the engine's light: one bounce, stood in for)
+	var sp := OmniLight3D.new(); sp.light_color = Color(1.0, 0.7, 0.4); sp.light_energy = 0.05; sp.omni_range = 2.6
+	sp.omni_attenuation = 1.6; sp.shadow_enabled = false; sp.light_volumetric_fog_energy = 0.0; sp.light_specular = 0.0
+	add_child(sp); sp.global_position = gp(4.25, 3.5, 0.8)   # the hall end of the table: it reaches out of the door a little (#120)
 
 static func fps_load(file: String):
 	D.load_all()
@@ -190,7 +195,7 @@ func _process(dt):
 	t_now += dt
 	if tcandle_light:
 		tcandle_flame.basis = Basis(Vector3.RIGHT, 0.05 * sin(t_now * 13.0))
-		tcandle_light.light_energy = 0.36 + 0.04 * sin(t_now * 17.0) + 0.025 * sin(t_now * 5.3)
+		tcandle_light.light_energy = 0.12 + 0.015 * sin(t_now * 17.0) + 0.01 * sin(t_now * 5.3)
 	if card_t > 0.0:
 		card_t -= dt
 		card.visible = true; player.move_enabled = false; player.look_enabled = false
