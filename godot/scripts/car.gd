@@ -515,7 +515,7 @@ func _phone(inn: Node3D):
 # winding road, her place the arrow at the bottom
 func _map_image() -> Image:
 	var W := 128; var H := 276
-	var im := Image.create(W, H, false, Image.FORMAT_RGB8); im.fill(Color(0.36, 0.37, 0.38))   # (the night look of a map app: on the print a pale map was only white)
+	var im := Image.create(W, H, false, Image.FORMAT_RGB8); im.fill(Color(0.14, 0.15, 0.16))   # (the night look of a map app: on the print a pale map was only white)
 	var dot := func(x: float, y: float, r: float, c: Color):
 		for yy in range(int(y - r), int(y + r) + 1):
 			for xx in range(int(x - r), int(x + r) + 1):
@@ -524,18 +524,16 @@ func _map_image() -> Image:
 		for i in pts.size() - 1:
 			var a: Vector2 = pts[i]; var b: Vector2 = pts[i + 1]; var n := int(a.distance_to(b)) + 1
 			for k in n + 1: dot.call(lerpf(a.x, b.x, float(k) / n), lerpf(a.y, b.y, float(k) / n), r, c)
-	# the hills
-	for g in [[30, 70, 34], [100, 130, 40], [20, 190, 30], [96, 230, 26], [60, 40, 22]]: dot.call(g[0], g[1], g[2], Color(0.27, 0.36, 0.28))
-	# the river and the roads
-	line.call([Vector2(0, 150), Vector2(40, 160), Vector2(70, 150), Vector2(128, 172)], 2.5, Color(0.25, 0.38, 0.55))
-	line.call([Vector2(0, 250), Vector2(128, 238)], 3.5, Color(0.80, 0.80, 0.78))
-	line.call([Vector2(104, 276), Vector2(98, 200), Vector2(118, 120)], 2.5, Color(0.80, 0.80, 0.78))
-	# the way: up from her place, the bends of the mountain road, to the house (the pin)
-	var way := [Vector2(64, 262), Vector2(62, 232), Vector2(74, 214), Vector2(52, 196), Vector2(76, 176), Vector2(50, 156), Vector2(72, 132), Vector2(56, 108), Vector2(70, 84), Vector2(64, 64)]
-	line.call(way, 4.5, Color(0.92, 0.92, 0.90)); line.call(way, 3.0, Color(0.25, 0.55, 1.0))
-	dot.call(64, 56, 6.0, Color(0.85, 0.22, 0.18)); dot.call(64, 56, 2.2, Color(1, 1, 1))
-	# her place: a white ring and the arrow
-	dot.call(64, 262, 7.0, Color(1, 1, 1)); dot.call(64, 262, 5.0, Color(0.20, 0.45, 0.95))
+	# (an independent look at 試作296: one thin line read as a graph, not a map. Few things, thick: blocks of green, a grid of
+	# roads, the route in blue, her place and the pin big)
+	for g in [[24, 60, 30], [108, 110, 34], [18, 200, 28], [110, 236, 22]]: dot.call(g[0], g[1], g[2], Color(0.17, 0.27, 0.18))
+	line.call([Vector2(0, 150), Vector2(128, 172)], 5.0, Color(0.16, 0.26, 0.42))
+	for y in [46, 120, 214]: line.call([Vector2(0, y), Vector2(128, y + 8)], 3.5, Color(0.6, 0.6, 0.58))
+	for x in [28, 100]: line.call([Vector2(x, 20), Vector2(x + 6, 276)], 3.5, Color(0.6, 0.6, 0.58))
+	var way := [Vector2(64, 258), Vector2(64, 222), Vector2(84, 196), Vector2(48, 168), Vector2(80, 134), Vector2(50, 100), Vector2(66, 66)]
+	line.call(way, 7.0, Color(0.85, 0.92, 1.0)); line.call(way, 4.5, Color(0.45, 0.75, 1.0))
+	dot.call(66, 52, 10.0, Color(0.88, 0.22, 0.18)); dot.call(66, 52, 4.0, Color(1, 1, 1))
+	dot.call(64, 258, 11.0, Color(1, 1, 1)); dot.call(64, 258, 8.0, Color(0.25, 0.55, 1.0))
 	# the strip at the top (the time is the label over it)
 	for y in 22:
 		for x in W: im.set_pixel(x, y, Color(0.08, 0.08, 0.10))
@@ -821,7 +819,7 @@ func _drive(dt: float):
 	tf.basis = tf.basis * Basis.from_euler(Vector3(pitch * 0.02, 0.0, roll * 0.02))
 	tf.origin += tf.basis.y * (bump * 0.004 * gravel)
 	car.global_transform = tf
-	if wheel: wheel.rotation = Vector3(WHEEL_TILT, 0, 0); wheel.rotate_object_local(Vector3(0, 0, 1), steer * (0.15 if tripo_dash else 1.0))
+	if wheel: wheel.rotation = Vector3(WHEEL_TILT, 0, 0); wheel.rotate_object_local(Vector3(0, 0, 1), steer * (0.3 if tripo_dash else 1.0))   # (the Tripo wheel does not turn; this node carries her hands round the rim on the bends: ユーザー 11-27「ハンドルを切っているように」)
 	if nat_ik: nat_ik.wheel = wheel; _nat_look_tick(dt)
 	_place_people()
 	_follow()
@@ -1087,9 +1085,11 @@ class ReachIK extends SkeletonModifier3D:
 	var arm_out := deg_to_rad(-10.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
 	var grip := 1.0
 	var talk_w := 0.0
-	var off_back := 0.04   # the wrist back from the rim along the forearm, and out from the wheel's middle (m)
+	var off_back := 0.0   # the wrist back from the rim along the forearm, and out from the wheel's middle (m)
 	var off_out := 0.0
-	var curl := [0.7, 0.8, 0.5]
+	var off_z := 0.02     # toward her (the wheel's +z)
+	var palm_in := 0.5    # the palm's turn to the wheel's middle (0: straight at the dash)
+	var curl := [0.4, 0.44, 0.28]   # (11-27: more closed read as claws hooked on the rim's inside; the wrist on the rim, the fingers laid round it)
 	var talk_t := 0.0
 	var spine0 := -1
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
@@ -1108,6 +1108,7 @@ class ReachIK extends SkeletonModifier3D:
 				var v := u.substr(10).split(","); lean = deg_to_rad(float(v[0])); arm_out = deg_to_rad(float(v[1])); grip = float(v[2])
 				if v.size() >= 5: off_back = float(v[3]); off_out = float(v[4])
 				if v.size() >= 6: curl = [float(v[5]), float(v[5]) * 1.1, float(v[5]) * 0.7]
+				if v.size() >= 8: off_z = float(v[6]); palm_in = float(v[7])
 		for s in ["l", "r"]:
 			var fl := []
 			for f in ["index", "middle", "ring", "pinky", "thumb"]:
@@ -1145,13 +1146,13 @@ class ReachIK extends SkeletonModifier3D:
 			# the palm on the rim from outside it (the wrist back from the rim along the forearm, out from the wheel's middle)
 			var sh_w: Vector3 = sk.global_transform * sk.get_bone_global_pose(arm[0]).origin
 			var out_w: Vector3 = (rim_w - ctr_w).normalized()
-			var tgt_w: Vector3 = rim_w + (sh_w - rim_w).normalized() * (off_back * grip) + out_w * (off_out * grip) + wheel.global_basis.z * 0.02 * (1.0 - grip)
+			var tgt_w: Vector3 = rim_w + (sh_w - rim_w).normalized() * (off_back * grip) + out_w * (off_out * grip) + wheel.global_basis.z * (off_z * grip + 0.02 * (1.0 - grip))
 			var pole_w: Vector3 = tgt_w + car_basis * Vector3(side * 0.30, -0.45, 0.25)
 			# the arm turned out: the pole (the elbow's side) swung down about the shoulder-to-hand line
 			var axis_w := (tgt_w - sh_w).normalized()
 			pole_w = tgt_w + Basis(axis_w, -side * arm_out) * (pole_w - tgt_w)
 			_two_bone(sk, arm[0], arm[1], arm[2], inv * tgt_w, inv * pole_w)
-			if grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * 0.5 - wheel.global_basis.z * 0.85)).normalized())
+			if grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * palm_in - wheel.global_basis.z)).normalized())
 		if head >= 0 and look_road != Vector3.ZERO:
 			var q := _look_q(sk, inv)
 			if neck >= 0:
