@@ -53,7 +53,7 @@ print('撮った %d 枚 → 残した %d 枚' % (len(rows), len(kept)))
 groups = []
 for r in kept:
     key = r['chapter'] if r['chapter'] else 'house-' + r['time']   # 第1章の停電のあと（20時の第2章）は play が空
-    if not groups or groups[-1][0] != key: groups.append((key, []))
+    if not groups or TITLE.get(groups[-1][0], groups[-1][0]) != TITLE.get(key, key): groups.append((key, []))   # 第7章の3つの時刻は1本に
     groups[-1][1].append(r)
 
 W, H = landscape(A4); M = 22; G = 10; COLS, ROWS = 3, 2
@@ -77,8 +77,8 @@ for gi, (key, rs) in enumerate(groups):
         for j, r in enumerate(rs[p * 6:(p + 1) * 6]):
             col, row = j % COLS, j // COLS
             x = M + col * (cw + G); ytop = H - M - 26 - row * (ch_ + G)
-            img = Image.open(os.path.join(SRC, '%04d.png' % int(r['n']))).convert('RGB').resize((1280, 720), Image.LANCZOS)
-            bio = io.BytesIO(); img.save(bio, 'JPEG', quality=85); bio.seek(0)
+            img = Image.open(os.path.join(SRC, '%04d.png' % int(r['n']))).convert('RGB').resize((1024, 576), Image.LANCZOS)
+            bio = io.BytesIO(); img.save(bio, 'JPEG', quality=75)   # 1280/85 だと全章で 358MB。1024/75 で約4割; bio.seek(0)
             c.drawImage(ImageReader(bio), x, ytop - ih, cw, ih)
             c.setStrokeGray(0.7); c.setLineWidth(0.4); c.rect(x, ytop - ch_, cw, ch_)
             c.setFillGray(0); c.setFont(JP, 7.5)
