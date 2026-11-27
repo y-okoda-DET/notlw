@@ -4,6 +4,7 @@ extends Node
 #   --contact=<dir>     <dir>/0000.png … と <dir>/shots.tsv（1枚1行：番号 時計 章 時刻 理由 位置名 カメラ）
 #   --cevery=3          N 秒ごと（ゲームの時計。--frameclock の秒）
 #   --cdelay=0.35       カットを見つけてから撮るまでの秒（フェードやカメラの落ち着き待ち）
+#   --cfast=2           ゲームを1コマあたり2倍の速さで進める（通す時間がおよそ半分。撮る画は変わらない。PV の clip.gd と同じ）
 # カットの見つけ方：使うカメラが替わった／場面が替わった／1コマでカメラが 0.5m か 20度より大きく跳んだ／
 #                   画面いっぱいの紙（章のカード、暗転の紙）が出た・消えた
 var dir := "/tmp/contact"; var every := 3.0; var delay := 0.35
@@ -11,6 +12,7 @@ var t := 0.0; var next_periodic := 0.0; var full := Vector2i(1920, 1080)
 var prev_cam: Camera3D; var prev_xf := Transform3D(); var prev_scene: Node; var prev_card := false
 var due := -1.0; var due_why := ""; var rec := -1; var n := 0; var f := 0
 var tsv: FileAccess
+var fast := 1.0   # --cfast=2: the game runs twice as fast per frame (half the frames to go through; contact.sh makes main.gd's frame clock follow)
 var layers: Array = []
 
 func _ready():
@@ -20,6 +22,7 @@ func _ready():
 		if x.begins_with("--contact="): dir = x.substr(10)
 		if x.begins_with("--cevery="): every = float(x.substr(9))
 		if x.begins_with("--cdelay="): delay = float(x.substr(9))
+		if x.begins_with("--cfast="): fast = float(x.substr(8))
 	DirAccess.make_dir_recursive_absolute(dir)
 	tsv = FileAccess.open(dir + "/shots.tsv", FileAccess.WRITE)
 	tsv.store_line("n\tclock\tchapter\ttime\twhy\tname\tcam")
@@ -33,6 +36,8 @@ func _ready():
 func _small(on: bool):
 	if DisplayServer.get_name() != "headless": get_window().size = Vector2i(full.x / 10, full.y / 10) if on else full
 	RenderingServer.render_loop_enabled = not on
+	Engine.time_scale = fast
+	Engine.max_physics_steps_per_frame = maxi(8, int(ceil(fast * 60.0 / 24.0)) + 2)
 
 # the game's main node (main.gd) under the boot, or the chapter node itself (interview, stand-in card)
 func _chapter_node() -> Node:
@@ -81,6 +86,8 @@ func _name(cam: Camera3D, ch: Array) -> String:
 func _process(dt: float):
 	t += dt
 	f += 1
+	if f % 48 == 0 and OS.get_cmdline_user_args().has("--cperf"):
+		print("CPERF f=%d ms=%d proc=%.1f phys=%.1f nav=%.1f objs=%d nodes=%d draw=%d" % [f, Time.get_ticks_msec(), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0, Performance.get_monitor(Performance.OBJECT_COUNT), Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
 	var cam := get_viewport().get_camera_3d()
 	var scene := get_tree().current_scene
 	# looking for cuts (every frame: cheap)
