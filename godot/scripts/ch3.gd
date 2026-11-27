@@ -1072,7 +1072,7 @@ func _multi_tick(dt: float, held: bool):
 	if bool(trace.hold):   # the run: the roll to the first open place
 		var first := 0
 		while first < MULTI_BINS and float(cover[first]) >= 1.0: first += 1
-		var want: float = clampf((float(first) + 0.5) / MULTI_BINS + 0.08, 0.0, 1.0)
+		var want: float = clampf((float(first) + 0.05) / MULTI_BINS, 0.0, 1.0)   # (a strip covers from the bin it starts in: +0.08 started past the open bin, and the run never closed it)
 		if trace.cur == null: trace.u = move_toward(float(trace.u), want, dt * 1.2)
 		held = trace.cur != null or absf(float(trace.u) - want) < 0.02
 		if trace.cur != null and float(trace.len) >= STRIP_MAX: held = false

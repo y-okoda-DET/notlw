@@ -179,7 +179,7 @@ func _pool():
 	# 試作297（赤字 #2「血溜まりが影に見える」）: it was near black (.13), and the print read it as a shadow. Red enough that the
 	# print lays its orange in it, wet (a clearcoat: the lamps and the dawn catch on it)
 	var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.4, 0.03, 0.02); mat.roughness = 0.06; mat.metallic_specular = 1.0
-	mat.emission_enabled = true; mat.emission = Color(0.34, 0.03, 0.006)   # the night print gives orange only to what is warm and lit: the red is made to stand in its own light
+	mat.emission_enabled = true; mat.emission = Color(0.72, 0.08, 0.02)   # (0.34 was too dark to be "lit": it printed blue, lost in the floor) the night print gives orange only to what is warm and lit: the red is made to stand in its own light
 	mat.clearcoat_enabled = true; mat.clearcoat = 1.0; mat.clearcoat_roughness = 0.02
 	for i in 7:
 		var mi := MeshInstance3D.new(); var cm := CylinderMesh.new()
