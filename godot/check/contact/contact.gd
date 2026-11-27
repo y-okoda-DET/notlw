@@ -33,7 +33,7 @@ func _ready():
 	tsv.store_line("n\tclock\tchapter\ttime\twhy\tname\tcam")
 	full = get_window().size
 	var w := get_window()
-	if DisplayServer.get_name() != "headless": w.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS; w.content_scale_size = Vector2i(1920, 1080)   # the type laid out as on a 1920x1080 screen, whatever size it is drawn at
+	if DisplayServer.get_name() != "headless": w.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS; w.content_scale_size = full   # 2026-11-27: 1920x1080 に固定すると、窓の大きさで真ん中を決める章カードが左上にずれた（ユーザーの赤字）。窓と同じ大きさの画面として並べる
 	_small(true)
 	get_tree().node_added.connect(func(k: Node): if k is CanvasLayer: layers.append(k))
 	for l in get_tree().root.find_children("*", "CanvasLayer", true, false): layers.append(l)
