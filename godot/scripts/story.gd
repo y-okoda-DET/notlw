@@ -2727,7 +2727,11 @@ func _ham_pose():
 	if ham_st == "raise" and ham_hold > HAM_GOOD[1]: shake = minf(1.0, (ham_hold - HAM_GOOD[1]) * 1.4)
 	var wob := Vector3(sin(ham_t * 41.0), sin(ham_t * 33.0 + 1.0), 0.0) * 0.006 * shake
 	var fc: Vector3 = ham.get_meta("face", Vector3.ZERO)
-	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * (elbow + fc) + wob)
+	# 2026-11-28（試作298の感想18「釘の頭と金槌が当たってない」）: the grip is set back by -elbow - fc, so the face sits at the
+	# pivot's -elbow; the pivot went at nail_head + elbow + fc, and the face landed fc off the head (3.5 cm up, 3.7 cm into the
+	# board: HAMDBG). The pivot (her elbow) at nail_head + elbow puts the face's middle on the head
+	var piv := nail_head + b * (elbow + (fc if "--hamold" in OS.get_cmdline_user_args() else Vector3.ZERO)) + wob
+	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), piv)
 	(ham.get_meta("grip") as Node3D).position = -elbow - fc
 
 func _ham_tick(dt: float):

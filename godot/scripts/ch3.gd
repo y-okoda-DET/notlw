@@ -1102,18 +1102,31 @@ func _seam_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
 	var lo := -0.17; var hi := 0.17
 	# the window's boards round the gap give the seam's two ends (env.glb board_*, the wall's axis)
 	var found := false
+	var nn := Vector3(float(gq.n[0]), 0.0, float(gq.n[1]))
+	var abs_ := []
+	var face := -99.0
 	for b in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
 		var m := b as MeshInstance3D
 		if String(m.name).begins_with("board_cellar") or not m.is_visible_in_tree(): continue
 		var ab: AABB = m.global_transform * m.get_aabb()
 		var bc := ab.get_center()
 		if Vector2(bc.x - c.x, bc.z - c.z).length() > 0.9 or absf(bc.y - c.y) > 0.9: continue
+		abs_.append(ab)
+		face = maxf(face, maxf((ab.position - c).dot(nn), (ab.end - c).dot(nn)))   # the boards' inside face
 		var a0: float = (ab.position - c).dot(axis); var a1: float = (ab.end - c).dot(axis)
 		if not found: lo = minf(a0, a1); hi = maxf(a0, a1); found = true
 		else: lo = minf(lo, minf(a0, a1)); hi = maxf(hi, maxf(a0, a1))
 	if not found or hi - lo < 0.3: lo = -0.3; hi = 0.3
 	lo += 0.02; hi -= 0.02
-	var off := Vector3(gq.n[0] * 0.012, 0.0, gq.n[1] * 0.012)
+	# the slit itself: between two boards one above the other, the one nearest the wind's place (what the eye sees as the gap)
+	abs_.sort_custom(func(p, q): return (p as AABB).get_center().y < (q as AABB).get_center().y)
+	var best := 99.0; var cy0 := c.y
+	for i in abs_.size() - 1:
+		var y0: float = (abs_[i] as AABB).end.y; var y1: float = (abs_[i + 1] as AABB).position.y
+		if y1 - y0 < 0.003 or y1 - y0 > 0.12: continue
+		var ym := (y0 + y1) * 0.5
+		if absf(ym - cy0) < best and absf(ym - cy0) < 0.5: best = absf(ym - cy0); c.y = ym
+	var off := nn * ((face + 0.004) if face > -50.0 else 0.012)
 	trace["seam"] = true; trace["s0"] = c + off + axis * lo; trace["s1"] = c + off + axis * hi
 	trace["seam_len"] = hi - lo; trace["at"] = 0.0; trace["strips"] = []; trace["cur"] = null
 	var roll := MeshInstance3D.new(); var rm := TorusMesh.new(); rm.inner_radius = 0.022; rm.outer_radius = 0.034; roll.mesh = rm
@@ -1122,7 +1135,7 @@ func _seam_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
 	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
 	trace["roll"] = roll
 	# the wind's sound sits at the open part's middle (where the flame leans)
-	print("STORY seam %s len=%.2f" % [gq.key, hi - lo])
+	print("STORY seam %s len=%.2f y=%.2f slit=%.2f boards=%d" % [gq.key, hi - lo, c.y, best, abs_.size()])
 
 func _seam_tick(dt: float, held: bool):
 	var gq: Dictionary = trace.gq
@@ -1137,8 +1150,8 @@ func _seam_tick(dt: float, held: bool):
 	(trace.roll as Node3D).global_position = p + Vector3(gq.n[0] * 0.03, -0.035, gq.n[1] * 0.03)
 	if held and trace.cur == null:   # a new strip, from where the last one was cut
 		var st := MeshInstance3D.new(); var bm := BoxMesh.new()
-		bm.size = Vector3(1.0, 0.048, 0.003) if trace.along_x else Vector3(0.003, 0.048, 1.0); st.mesh = bm
-		var m := StandardMaterial3D.new(); m.albedo_color = Color(0.74, 0.74, 0.72).darkened(randf() * 0.05); m.roughness = 0.5; m.metallic = 0.1
+		bm.size = Vector3(1.0, 0.05, 0.002) if trace.along_x else Vector3(0.002, 0.05, 1.0); st.mesh = bm
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(0.86, 0.86, 0.83).darkened(randf() * 0.04); m.roughness = 0.45; m.metallic = 0.05
 		st.material_override = m; st.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(st)
 		st.set_meta("a0", maxf(0.0, float(trace.at) - 0.015))   # a little over the last one's end
 		st.set_meta("tilt", deg_to_rad(randf_range(-1.2, 1.2)))
