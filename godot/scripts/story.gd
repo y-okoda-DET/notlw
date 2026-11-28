@@ -2738,7 +2738,14 @@ func _ham_tick(dt: float):
 		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	var fa := _arg_f("--hamang=", -1.0)   # stills only: the hammer held at this angle (0 = on the nail)
-	if fa >= 0.0: ham_ang = fa; _ham_pose(); return
+	if fa >= 0.0:
+		ham_ang = fa; _ham_pose()
+		if not has_meta("hamdbg") and not ham_nails.is_empty():   # stills only: where the face lands against the nail's head
+			set_meta("hamdbg", true)
+			var g: Node3D = ham.get_meta("grip")
+			var nl: Dictionary = ham_nails[mini(ham_hits, 2)]
+			print("HAMDBG face=%s head=%s nail_node=%s out=%s" % [g.global_transform * (ham.get_meta("face") as Vector3), (nl.at as Vector3) + ham_out * 0.04, (nl.n as Node3D).global_position, ham_out])
+		return
 	if demo_on or "--hamlast" in OS.get_cmdline_user_args(): held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
 		"ready":

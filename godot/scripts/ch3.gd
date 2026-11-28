@@ -1006,16 +1006,18 @@ func _trace_start(gq: Dictionary):
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
 	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false, "along_x": along_x}
-	if gq.key != "g5": _multi_start(gq, mi, along_x)
+	if gq.key != "g5":
+		if "--tapeold" in OS.get_cmdline_user_args(): _multi_start(gq, mi, along_x)
+		else: _seam_start(gq, mi, along_x)
 	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
 	# the close shot: a set camera a little off the gap's face, slightly from above and from the side the strip starts on
 	var n3 := Vector3(float(gq.n[0]), 0.0, float(gq.n[1]))
 	if n3.length() < 0.1: n3 = (player.global_position - (gq.at as Vector3)) * Vector3(1, 0, 1)
 	n3 = n3.normalized()
-	var mid: Vector3 = mi.global_position
+	var mid: Vector3 = mi.global_position if not trace.has("seam") else (trace.s0 as Vector3).lerp(trace.s1 as Vector3, 0.5)
 	var side := n3.cross(Vector3.UP).normalized()
-	var dist := 1.25 if gq.key == "g5" else 0.62
+	var dist := 1.25 if gq.key == "g5" else (0.62 if not trace.has("seam") else maxf(0.62, float(trace.seam_len) * 0.95))
 	var cc := Camera3D.new(); cc.fov = 50.0; cc.near = 0.02
 	add_child(cc)
 	var eye: Vector3 = mid + n3 * dist + Vector3.UP * (0.0 if gq.key == "g5" else 0.16) - side * dist * 0.25
@@ -1024,12 +1026,13 @@ func _trace_start(gq: Dictionary):
 	cc.look_at_from_position(eye, mid, Vector3.UP)
 	cc.make_current()
 	trace["cc"] = cc
-	note_lb.text = T("［Ｅ（押したまま）　貼る］") if gq.key == "g5" else T("［マウス　ずらす　　Ｅ（押したまま）　引き出す、離して　切る］")
+	note_lb.text = T("［Ｅ（押したまま）　貼る］") if gq.key == "g5" or trace.has("seam") else T("［マウス　ずらす　　Ｅ（押したまま）　引き出す、離して　切る］")
 
 # holding E (or the left button) lays the strip at an even pace; the gap's wind thins as it goes
 func _trace_tick(dt: float):
 	if trace.is_empty(): return
 	var held: bool = bool(trace.hold) or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if trace.has("seam"): _seam_tick(dt, held); return
 	if trace.has("cover"): _multi_tick(dt, held); return
 	if not held: return
 	var gq: Dictionary = trace.gq
@@ -1085,6 +1088,88 @@ func _multi_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
 	roll.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(roll)
 	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
 	trace["roll"] = roll
+
+# 2026-11-28（試作298の感想24「板にテープ貼るミニゲーム、案がほしい」、案を決めた）: a gap is the whole seam between the window's
+# frame and its boards, end to end (60-90 cm), as the back door's edge is: what made that one feel done was that the tape
+# closed the door's whole gap. Holding Ｅ runs the roll along the seam in one strip; letting go cuts it there, and the next
+# press goes on from that end. The wind and Makoto's flame stay with what is still open. Done, one line runs end to end.
+# (--tapeold: 試作297's short crossed strips, to compare)
+const SEAM_SPEED := 0.32       # metres a second, holding
+func _seam_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
+	mi.visible = false
+	var axis := Vector3(1, 0, 0) if along_x else Vector3(0, 0, 1)
+	var c: Vector3 = gq.at
+	var lo := -0.17; var hi := 0.17
+	# the window's boards round the gap give the seam's two ends (env.glb board_*, the wall's axis)
+	var found := false
+	for b in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+		var m := b as MeshInstance3D
+		if String(m.name).begins_with("board_cellar") or not m.is_visible_in_tree(): continue
+		var ab: AABB = m.global_transform * m.get_aabb()
+		var bc := ab.get_center()
+		if Vector2(bc.x - c.x, bc.z - c.z).length() > 0.9 or absf(bc.y - c.y) > 0.9: continue
+		var a0: float = (ab.position - c).dot(axis); var a1: float = (ab.end - c).dot(axis)
+		if not found: lo = minf(a0, a1); hi = maxf(a0, a1); found = true
+		else: lo = minf(lo, minf(a0, a1)); hi = maxf(hi, maxf(a0, a1))
+	if not found or hi - lo < 0.3: lo = -0.3; hi = 0.3
+	lo += 0.02; hi -= 0.02
+	var off := Vector3(gq.n[0] * 0.012, 0.0, gq.n[1] * 0.012)
+	trace["seam"] = true; trace["s0"] = c + off + axis * lo; trace["s1"] = c + off + axis * hi
+	trace["seam_len"] = hi - lo; trace["at"] = 0.0; trace["strips"] = []; trace["cur"] = null
+	var roll := MeshInstance3D.new(); var rm := TorusMesh.new(); rm.inner_radius = 0.022; rm.outer_radius = 0.034; roll.mesh = rm
+	var rmat := StandardMaterial3D.new(); rmat.albedo_color = Color(0.72, 0.72, 0.7); rmat.roughness = 0.5; roll.material_override = rmat
+	roll.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(roll)
+	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
+	trace["roll"] = roll
+	# the wind's sound sits at the open part's middle (where the flame leans)
+	print("STORY seam %s len=%.2f" % [gq.key, hi - lo])
+
+func _seam_tick(dt: float, held: bool):
+	var gq: Dictionary = trace.gq
+	var L: float = trace.seam_len
+	var s0: Vector3 = trace.s0; var s1: Vector3 = trace.s1
+	var dir := (s1 - s0).normalized()
+	if bool(trace.hold):   # the run: one stop halfway (cut, a breath, on again), as a hand does
+		held = true
+		if float(trace.at) > 0.45 * L and not trace.has("paused"): trace["paused"] = 0.5
+		if trace.has("paused") and float(trace.paused) > 0.0: trace.paused = float(trace.paused) - dt; held = false
+	var p := s0 + dir * float(trace.at)
+	(trace.roll as Node3D).global_position = p + Vector3(gq.n[0] * 0.03, -0.035, gq.n[1] * 0.03)
+	if held and trace.cur == null:   # a new strip, from where the last one was cut
+		var st := MeshInstance3D.new(); var bm := BoxMesh.new()
+		bm.size = Vector3(1.0, 0.048, 0.003) if trace.along_x else Vector3(0.003, 0.048, 1.0); st.mesh = bm
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(0.74, 0.74, 0.72).darkened(randf() * 0.05); m.roughness = 0.5; m.metallic = 0.1
+		st.material_override = m; st.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(st)
+		st.set_meta("a0", maxf(0.0, float(trace.at) - 0.015))   # a little over the last one's end
+		st.set_meta("tilt", deg_to_rad(randf_range(-1.2, 1.2)))
+		trace.cur = st
+		Sound.one(self, "ch3_tape", -12.0, p)
+	if trace.cur != null:
+		var st: MeshInstance3D = trace.cur
+		if held:
+			trace.at = minf(L, float(trace.at) + dt * SEAM_SPEED)
+			trace.snd = float(trace.snd) + dt
+			if float(trace.snd) > 0.12:
+				trace.snd = 0.0
+				var pl := Sound.one(self, "ch3_tape", -17.0, p)
+				if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = randf_range(0.95, 1.15)
+		var a0: float = st.get_meta("a0"); var len := maxf(0.004, float(trace.at) - a0)
+		var axis_n := Vector3(float(gq.n[0]), 0.0, float(gq.n[1])).normalized()
+		st.global_transform = Transform3D(Basis(axis_n, float(st.get_meta("tilt"))) * Basis.from_scale(Vector3(len, 1, 1) if trace.along_x else Vector3(1, 1, len)), s0 + dir * (a0 + len * 0.5))
+		if not held or float(trace.at) >= L:   # cut
+			Sound.one(self, "ch3_tape", -7.0, p)
+			(trace.strips as Array).append(st); trace.cur = null
+	var k: float = float(trace.at) / L
+	var wp: AudioStreamPlayer3D = gq.player
+	if wp:
+		wp.volume_db = lerpf(-6.0, -30.0, k)
+		wp.global_position = s0 + dir * lerpf(float(trace.at), L, 0.5)   # the wind from what is still open
+	if k >= 0.999 and trace.cur == null: _trace_end()
+	if not trace.has("shot"):   # --tapeshot=png: a still mid-game (the check only)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--tapeshot=") and k > 0.6 and trace.cur != null:
+				trace["shot"] = true
+				get_viewport().get_texture().get_image().save_png(a.substr(11)); print("TAPESHOT ", a.substr(11)); get_tree().create_timer(0.3).timeout.connect(get_tree().quit)
 
 func _gap_point(gq: Dictionary, u: float) -> Vector3:
 	var along := Vector3(1, 0, 0) if trace.along_x else Vector3(0, 0, 1)

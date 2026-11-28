@@ -1182,6 +1182,7 @@ class ReachIK extends SkeletonModifier3D:
 	var point_w := 0.0
 	var point_at := Vector3.ZERO
 	var spine0 := -1
+	var clav_k := 0.0 if "--noclav" in OS.get_cmdline_user_args() else 0.3   # the collarbone's share of the reach (#7), forward only
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
 	func setup():
 		var sk := get_skeleton()
@@ -1212,7 +1213,7 @@ class ReachIK extends SkeletonModifier3D:
 		print("CAR natsuki fingers ", fingers)
 		for s in ["l", "r"]:
 			var a := sk.find_bone("upperarm_" + s); var b := sk.find_bone("lowerarm_" + s); var c := sk.find_bone("hand_" + s)
-			if a >= 0 and b >= 0 and c >= 0: arms.append([a, b, c, -1.0 if s == "l" else 1.0])
+			if a >= 0 and b >= 0 and c >= 0: arms.append([a, b, c, -1.0 if s == "l" else 1.0, sk.find_bone("clavicle_" + s)])
 	func _process_modification():
 		var sk := get_skeleton()
 		if sk == null or wheel == null or not is_instance_valid(wheel): return
@@ -1234,6 +1235,17 @@ class ReachIK extends SkeletonModifier3D:
 			var ang := deg_to_rad(hand_deg) * side
 			var rim_w: Vector3 = wheel.global_transform * Vector3(sin(ang) * WHEEL_R * rim_k, cos(ang) * WHEEL_R * 0.92 * rim_k, 0.0)
 			var ctr_w: Vector3 = wheel.global_transform * Vector3.ZERO
+			# 2026-11-28（ユーザー試作298 #7「服の脇の部分の変なの」）: the upper arm alone lifted to the wheel pulled the sweater's
+			# armpit into a hard fold. The collarbone takes a share of the reach first (forward and a little up), as a shoulder does
+			if clav_k > 0.0 and arm.size() > 4 and int(arm[4]) >= 0:
+				var cb: int = arm[4]
+				var gc := sk.get_bone_global_pose(cb)
+				var sh0: Vector3 = sk.get_bone_global_pose(arm[0]).origin
+				var want: Vector3 = inv * (wheel.global_transform * Vector3(sin(deg_to_rad(hand_deg) * side) * WHEEL_R, 0.0, 0.0))
+				want.y = sh0.y   # forward only: lifted, the shoulder read as a shrug
+				var q := Quaternion((sh0 - gc.origin).normalized(), (want - gc.origin).normalized())
+				var cang := minf(q.get_angle() * clav_k, deg_to_rad(16.0))
+				if q.get_angle() > 0.001: sk.set_bone_global_pose(cb, Transform3D(Basis(Quaternion(q.get_axis().normalized(), cang)) * gc.basis, gc.origin))
 			# the palm on the rim from outside it (the wrist back from the rim along the forearm, out from the wheel's middle)
 			var sh_w: Vector3 = sk.global_transform * sk.get_bone_global_pose(arm[0]).origin
 			var out_w: Vector3 = (rim_w - ctr_w).normalized()
