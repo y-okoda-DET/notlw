@@ -71,6 +71,23 @@ func _ready():
 	player.global_position = gp(SIT_AT[0], SIT_AT[1], 0.0)
 	player.eye_height = SIT_EYE; player.get_node("Head").position.y = SIT_EYE
 	player.yaw = deg_to_rad(172.0); player.pitch = deg_to_rad(-22.0)   # up the hall, at what is on the floor before her; the door (and the car's lamps) behind her
+	# 2026-11-28（試作298の感想1「夏希が写っていない」）: 172/-22 showed only her foot at the frame's edge. She looks at Natsuki
+	# herself: between her hips and her head, where she lies (the same few degrees of the hall; the door still behind her)
+	var ARGS0 := {}
+	for a in OS.get_cmdline_user_args(): if a.begins_with("--c0her="): ARGS0["c0her"] = float(a.substr(8))
+	if not ("--c0oldlook" in OS.get_cmdline_user_args()):
+		if nsk.has_method("force_update_all_bone_transforms"): nsk.force_update_all_bone_transforms()
+		var pb := nsk.find_bone("pelvis")
+		if pb >= 0:
+			var aim: Vector3 = ((nsk.global_transform * nsk.get_bone_global_pose(pb).origin) * 0.6 + _nhead() * 0.4)
+			var to: Vector3 = aim - (player.global_position + Vector3(0, SIT_EYE, 0))
+			player.yaw = atan2(-to.x, -to.z); player.pitch = clampf(asin(clampf(to.normalized().y, -1.0, 1.0)), deg_to_rad(-40.0), deg_to_rad(-12.0))
+			print("C0LOOK yaw=%.0f pitch=%.0f" % [rad_to_deg(player.yaw), rad_to_deg(player.pitch)])
+			# and she is seen: in the print her dark clothes on the dark boards were one black shape (a beam, not a person).
+			# The first grey of the dawn through the door's glass falls on her, softly, no shadow of its own
+			var gl := OmniLight3D.new(); gl.name = "c0_on_her"; gl.light_color = Color(0.78, 0.84, 0.95)
+			gl.light_energy = float(ARGS0.get("c0her", 0.35)); gl.omni_range = 1.5; gl.omni_attenuation = 1.2; gl.shadow_enabled = false; gl.light_specular = 0.15
+			main.add_child(gl); gl.global_position = aim + Vector3(0.0, 0.85, 0.0)
 	mio_shadow.scale = Vector3(1.0, SIT_EYE / STAND_EYE, 1.0)          # her shadow from the lantern is a sitting one
 	_foot.call_deferred("マウス 見る　　Ｆ１２ 画面の保存　Ｅｓｃ マウス解放")
 	_car()
