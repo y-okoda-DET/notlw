@@ -40,8 +40,8 @@ GENKAN_SCANS = {'genkan_mat': (.2, 4.55, 0), 'genkan_shoe1': (-.28, 5.14, 90 - 1
 STEP = H4.F2 / H4.NSTEP
 # 試作277（ユーザー「傘の取っ手が壁にのめり込んでる」）: the scan is .30 wide (x -.15..+.15) and the wall's face is .06 in: .2 put
 # the handles 1cm into it. At .3 they clear it by 9cm
-MORE_SCANS = {'genkan_umbrella': (St.HALL[0] + .3, 5.15, Hm.ZG + .002, 0),
-              'hall_slippers': (.42, 4.70, .005, -90 - 130),
+# 2026-11-28（試作298の感想2「傘立てが変」）: the scanned stand printed as a pale see-through blob. A built one now (genkan_props4)
+MORE_SCANS = {'hall_slippers': (.42, 4.70, .005, -90 - 130),
               'hall_backpack': (.93, 4.66, 0, 0),
               'stair_snacks': (.86, 3.355, 2 * STEP, 8),
               'stair_mugs': (.48, 3.36, 2 * STEP, -20)}
@@ -109,13 +109,59 @@ def genkan_props4(M, shoes=4, umbrellas=6):
     tp = tape_roll('scan_tape_pack', .049, .040, .036, mat_basic('tape_pack', (.62, .42, .10), .2), mat_basic('tape_core', (.55, .42, .28), .8),
                    _clear_mat())
     tp.location = (.62, 3.12, 3 * STEP + .018); tp.rotation_euler.z = .4
-    if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'scans', 'genkan_umbrella.glb')):
-        return   # the scanned stand and umbrellas take the place of the box ones
-    prim('cylinder', 'ustand', loc=(ux, uy, Hm.ZG + .22), vertices=16, radius=.09, depth=.44, mat=M['black'])
-    for i in range(umbrellas):
-        a = i / umbrellas * math.tau
-        D.cyl_between('umb', (ux + math.cos(a) * .04, uy + math.sin(a) * .04, Hm.ZG + .05), (ux + math.cos(a) * .1, uy + math.sin(a) * .1, Hm.ZG + .95), .03, M['umb'], 8)
-        D.cyl_between('uh', (ux + math.cos(a) * .1, uy + math.sin(a) * .1, Hm.ZG + .95), (ux + math.cos(a) * .12, uy + math.sin(a) * .12, Hm.ZG + 1.06), .009, M['white'], 6)
+    umbrella_stand(ux + .1, uy, Hm.ZG, min(umbrellas, 4))
+
+def umbrella_stand(ux, uy, z0, n=4):
+    """2026-11-28（感想2）: an old enamelled tin stand, dark green with a rolled rim, and a few long umbrellas furled in it:
+    each a fluted cone of cloth (eight folds) tied near the top, the ferrule, and a crook handle of wood"""
+    import bmesh
+    from mathutils import Vector, Matrix
+    tin = mat_basic('ustand_tin', (.12, .2, .16), .35, metal=.3)
+    rim = mat_basic('ustand_rim', (.5, .48, .42), .3, metal=.8)
+    cloths = [mat_basic('umb_navy', (.07, .09, .16), .7), mat_basic('umb_clear', (.62, .64, .6), .3),
+              mat_basic('umb_red', (.42, .07, .06), .7), mat_basic('umb_black', (.05, .05, .05), .6)]
+    wood = mat_basic('umb_wood', (.3, .18, .09), .5)
+    o = prim('cylinder', 'ustand', loc=(ux, uy, z0 + .23), vertices=24, radius=.105, depth=.46, mat=tin)
+    prim('torus', 'ustand_rim', loc=(ux, uy, z0 + .46), major_radius=.105, minor_radius=.008, major_segments=24, minor_segments=8, mat=rim)
+    prim('torus', 'ustand_foot', loc=(ux, uy, z0 + .01), major_radius=.104, minor_radius=.01, major_segments=24, minor_segments=8, mat=rim)
+    import random as R
+    R.seed(28)
+    for i in range(n):
+        a = i / n * math.tau + .4
+        base = Vector((ux + math.cos(a) * .035, uy + math.sin(a) * .035, z0 + .03))
+        top = Vector((ux + math.cos(a) * .085 + R.uniform(-.01, .01), uy + math.sin(a) * .085, z0 + .86 + R.uniform(-.05, .03)))
+        d = (top - base); L = d.length; d.normalize()
+        # the furled canopy: a fluted spindle, widest a third of the way down from the top
+        me = bpy.data.meshes.new('umb'); bm = bmesh.new()
+        rings = []
+        for k in range(9):
+            t = k / 8.0
+            r = .006 + .026 * math.sin(math.pi * min(1.0, t * 1.15)) ** .8 if t < .97 else .006
+            ring = []
+            for j in range(16):
+                ang = j / 16 * math.tau
+                rr = r * (1.0 if j % 2 == 0 else .72)   # the folds
+                ring.append(bm.verts.new((math.cos(ang) * rr, math.sin(ang) * rr, .1 + t * (L - .16))))
+            rings.append(ring)
+        for k in range(8):
+            for j in range(16):
+                bm.faces.new((rings[k][j], rings[k][(j + 1) % 16], rings[k + 1][(j + 1) % 16], rings[k + 1][j]))
+        bm.to_mesh(me); bm.free()
+        ob = bpy.data.objects.new(f'umb_{i}', me); bpy.context.collection.objects.link(ob)
+        ob.data.materials.append(cloths[i % len(cloths)])
+        q = Vector((0, 0, 1)).rotation_difference(d)
+        ob.matrix_world = Matrix.Translation(base) @ q.to_matrix().to_4x4()
+        for pl in ob.data.polygons: pl.use_smooth = True
+        D.cyl_between('umb_shaft', base, base + d * .1, .004, rim, 6)                 # the ferrule
+        D.cyl_between('umb_tie', base + d * (L * .62), base + d * (L * .64), .02, cloths[i % len(cloths)], 10)   # the strap
+        hb = base + d * (L - .06)
+        D.cyl_between('umb_stem', hb, hb + d * .08, .006, rim, 6)
+        # the crook: a half torus, turned to face out of the stand
+        cr = prim('torus', f'umb_crook_{i}', loc=hb + d * .08 + Vector((math.cos(a), math.sin(a), 0)) * .035, major_radius=.035, minor_radius=.008,
+                  major_segments=16, minor_segments=6, mat=wood)
+        bm2 = bmesh.new(); bm2.from_mesh(cr.data)
+        bmesh.ops.delete(bm2, geom=[v for v in bm2.verts if v.co.y < 0.0], context='VERTS'); bm2.to_mesh(cr.data); bm2.free()
+        cr.rotation_euler = (math.pi / 2, 0, a)
 
 def build():
     lib.reset()

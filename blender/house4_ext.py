@@ -335,10 +335,12 @@ def mats(M):
     if 'ext_ground' not in M:
         # 試作277（ユーザー「外、雪道に見える」）：地面が明るく、刷りで紙の白になっていた。濡れた暗い土と落ち葉の色へ下げ、
         # 夜は濡れて照り返す（白く残るのは照り返しだけ）
-        M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.34, .3, .25), rough=.6 if TIME == 'night' else .95)
-        M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.38, .31, .24), rough=.7 if TIME == 'night' else .95,
+        # 2026-11-28（試作298の感想34「外の地面が雪に見える」、3度目）: from the car at dusk the forest floor still printed pale grey.
+        # A third darker and warmer (brown earth and dead needles, not grey); the gravel a little darker too
+        M['ext_ground'] = X.ph_mat('ext_ground', 'forest_ground_04', tint=(.24, .2, .15), rough=.6 if TIME == 'night' else .95)
+        M['ext_litter'] = X.ph_mat('ext_litter', 'forest_leaves_03', tint=(.3, .2, .12), rough=.7 if TIME == 'night' else .95,
                                    alpha_fn=lambda rng, S: (X.tileable_noise(rng, S, S * 220 // 2048) + .5 * X.tileable_noise(rng, S, S * 40 // 2048) > .15).astype(np.float32), seed=2)
-        M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.32, .31, .3), rough=.95)
+        M['ext_gravel'] = X.ph_mat('ext_gravel', 'gravel_floor', tint=(.27, .26, .25), rough=.95)
         if TIME != 'night':
             for k in ('ext_ground', 'ext_litter', 'ext_gravel'): X.add_fill(M[k], .05)
     if 'ext_sky' not in M:

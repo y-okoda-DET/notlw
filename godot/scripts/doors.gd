@@ -50,6 +50,9 @@ func setup(m):
 		elif key == "door_barred" and absf(cur) < 0.3: locked = "開かない。"   # shut from 0:00 (Taiga behind it); open before
 		elif key == "door_study": locked = "鍵がかかっていて、開かない。"   # 2026-11-27（ユーザー赤字 #4）: the owner's study, kept locked (it was a fusuma)
 		var rest := 0.0
+		# 2026-11-28（ユーザー試作298 #29「扉が開かない設定なのに、中が丸見え」、2時の廊下）: the plans left the study's door open at
+		# some hours. It is locked all night: shut whatever the plans say
+		if key == "door_study" and absf(cur) > 0.01: piv.rotation.y = 0.0; cur = 0.0
 		if piv == main.door_pivot: rest = float(main.S.get("door_rot", 0.0)) - deg_to_rad(float(ST.get("front", 0)))
 		doors[mi] = {"pivot": piv, "rest": rest, "open": cur, "is_open": absf(cur - rest) > 0.3, "locked": locked, "key": key, "box": bx, "body": sb}
 		# 試作97 (ユーザー「半開きみたいになっているのが変に感じた」): a door left ajar in the plans stood half open all night,

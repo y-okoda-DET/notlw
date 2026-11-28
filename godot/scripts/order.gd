@@ -41,6 +41,7 @@ static func go(from: Node, cur: String):
 static func start(from: Node, name: String):
 	var tree := from.get_tree()
 	print("ORDER ", name)
+	if name.begins_with("i") or STAND_IN.has(name): load("res://scripts/title.gd").save_progress(name)   # house chapters save in main.to_chapter
 	if name.begins_with("i") and ready_to_play(name):
 		_cover(from)
 		_to_node(tree, load("res://scripts/interview.gd"), {"which": int(name.substr(1))})
