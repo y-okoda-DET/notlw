@@ -1137,6 +1137,11 @@ func _process(dt):
 			if is_instance_valid(COVER): COVER.queue_free()
 			COVER = null
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
+	for a in OS.get_cmdline_user_args():   # check stills: --putme=x,z,yaw,pitch holds Mio there (the F12 name's numbers)
+		if a.begins_with("--putme=") and player:
+			var v := a.substr(8).split(",")
+			player.global_position = Vector3(float(v[0]), player.global_position.y, float(v[1])); player.velocity = Vector3.ZERO
+			player.yaw = deg_to_rad(float(v[2])); player.pitch = deg_to_rad(float(v[3]))
 	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
 	# counted from this scene's start (the playthrough goes from scene to scene)
@@ -2136,7 +2141,10 @@ func _shadow_budget(dt: float):
 		l.shadow_enabled = i < shadow_n
 		if not l.has_meta("mask"): l.set_meta("mask", l.light_cull_mask)
 		var on := true
-		if i >= shadow_n and dusk_cut: on = false
+		# 2026-11-28（試作298の感想8「ここだと暗いけど、ここだと明るい。後者に合わせて」、夕方の食堂）: from the living room the
+		# dining room's lamp, in sight through the door, was the fifth and went out: the room was dark from there and lit inside
+		# it. At dusk the lamps in sight (the ray found them) all keep their light and their shadow; only the unseen ones go out
+		if i >= shadow_n and dusk_cut: on = float(cand[i][0]) < 500.0 and not ARGS.has("duskcut4"); l.shadow_enabled = on
 		elif i >= shadow_n and space:
 			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
 			var r2: float = (l.omni_range if l is OmniLight3D else l.spot_range) * 0.5

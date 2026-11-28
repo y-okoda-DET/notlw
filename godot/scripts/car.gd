@@ -1182,7 +1182,7 @@ class ReachIK extends SkeletonModifier3D:
 	var point_w := 0.0
 	var point_at := Vector3.ZERO
 	var spine0 := -1
-	var clav_k := 0.0 if "--noclav" in OS.get_cmdline_user_args() else 0.3   # the collarbone's share of the reach (#7), forward only
+	var clav_k := 0.3 if "--clav" in OS.get_cmdline_user_args() else 0.0   # the collarbone's share of the reach (#7, tried: the dark mark under her arm is in the sweater's texture, not the bend. Off)
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
 	func setup():
 		var sk := get_skeleton()
