@@ -80,6 +80,8 @@ const TITLE_LOOK := 4.5   # s of the house before the full-screen name ("full")
 # and the name on the print's teal, and from there straight to the chapter's card (no return to the car).
 # --titlemode=full (the house, the name, the house again: the 11-28 movie) | qt | old (low over the dashboard, as before)
 var title_mode := "stop"
+const CAR_STOP_SHORT := 1.0     # "stop": metres short of d_end where she stops (--gapstop: at the gap, as 11-28 案2)
+var ARGS_GAPSTOP := "--gapstop" in OS.get_cmdline_user_args()
 var title_cover: ColorRect
 var title_freeze: TextureRect
 var title_music: Node
@@ -816,9 +818,19 @@ func _drive(dt: float):
 			v = 0.0
 		"drive_on":
 			var want2 := 2.4
-			if d > d_reveal - 7.0: want2 = lerpf(2.4, 0.55, clampf((d - (d_reveal - 7.0)) / 7.0, 0.0, 1.0))
+			# 2026-11-28（ユーザー「オープニングからアヴァンの流れは残す。家には前みたいに寄ってから、に」）: "stop" drives on past
+			# the gap and brakes to a stop short of the porch (d_end - CAR_STOP_SHORT), as near as the old creep came; then the house
+			var stop_end := title_mode == "stop" and not ARGS_GAPSTOP
+			if stop_end:
+				var to_end := d_end - CAR_STOP_SHORT - d
+				want2 = minf(want2, sqrt(maxf(to_end, 0.0) * 2.0 * 0.5))
+			elif d > d_reveal - 7.0: want2 = lerpf(2.4, 0.55, clampf((d - (d_reveal - 7.0)) / 7.0, 0.0, 1.0))
 			v = move_toward(v, want2, dt * 0.9)
-			if d >= d_reveal:
+			if stop_end:
+				if d >= d_end - CAR_STOP_SHORT - 0.05 or (d >= d_end - CAR_STOP_SHORT - 0.6 and v < 0.12):
+					v = 0.0; stage = "gap"; t_stage = 0.0
+					print("CAR gap t=%.1f d=%.1f" % [t_now, d])
+			elif d >= d_reveal:
 				stage = "gap"; t_stage = 0.0
 				print("CAR gap t=%.1f" % t_now)
 		"gap":
