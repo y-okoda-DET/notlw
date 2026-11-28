@@ -5,6 +5,7 @@
 extends Node3D
 const Type = preload("res://scripts/type.gd")
 const Order = preload("res://scripts/order.gd")   # 後半の並び（2026-11-19）
+const Title = preload("res://scripts/title.gd")   # タイトル画面（2026-11-28）
 
 var CARD_TIME := 3.2
 const LOOP := 20.0
@@ -135,10 +136,21 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	# 証言と、まだ無い章の仮のカードを直に開く（--play=i1|i2|i3|ch8。開発と確認用。scripts/order.gd）
+	# タイトル画面（2026-11-28）：ゲームを引数なしで始めたとき（と --titlescreen）だけ。決めると title_go へ
+	if SCENES_RUN == 1:
+		Title._apply_vol()
+		var tp := Title._prefs()
+		if tp.has("q") and not SET.has("q"): SET["q"] = bool(tp.q)
+		var ua := Array(OS.get_cmdline_user_args())
+		var bare := ua.filter(func(x): return not (x.begins_with("--basepack=") or x.begins_with("--housepack="))).is_empty()
+		if bare or ua.has("--titlescreen") or ua.any(func(x): return x.begins_with("--titleshot=")):
+			set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
+			var tn: Node = Title.new(); tn.main = self; tn.name = "Title"; add_child(tn); return
 	if NEXT_PLAY == "" and SCENES_RUN == 1 and Order.direct(String(ARGS.get("play", ""))):
 		set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
 		Order.start.call_deferred(self, String(ARGS.play)); return
-	var start: bool = SCENE == "" and SCENES_RUN == 1   # ステップ E: the game itself begins (not N, not a reload)
+	var start: bool = SCENE == "" and (SCENES_RUN == 1 or TITLE_GO)   # ステップ E: the game itself begins (not N, not a reload; or はじめる on the title)
+	TITLE_GO = false
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
 	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
 	# with the people and the few things only that chapter has brought in from the old scenes' files (_ch1_set, _door_set).
@@ -883,6 +895,8 @@ func _save_settings():
 	SET["ht"] = ht_mode
 	SET["print"] = print_on
 	SET["q"] = quality_high
+	var tp := Title._prefs()
+	if tp.get("q", true) != quality_high: tp["q"] = quality_high; Title._save_prefs(tp)   # the title's 設定 follows Q too
 
 func _restore_settings():
 	trees_far(TREE_FAR_HIGH)
@@ -1963,6 +1977,14 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
+static var TITLE_GO := false   # はじめる on the title screen: the reload begins the game as a bare start did
+
+# the title screen's choice (title.gd): "" = はじめる (序章), else the chapter last reached (user://progress.json)
+func title_go(cont: String):
+	if cont == "":
+		TITLE_GO = true; get_tree().reload_current_scene(); return
+	if cont == "door": to_night(true); return
+	Order.start(self, cont)
 const PLAY_TIME := {"ch0": "t0430", "ch1car": "dusk", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch8": "t02", "ch11": "t0330", "ch7": "dusk", "ch7n": "y21", "ch7b": "y02"}
 # 後半の章の終わり：並び（scripts/order.gd の LATE_ORDER）の次へ。まだ無い章は仮のカード
 func next_chapter(cur: String):
@@ -1971,6 +1993,7 @@ func next_chapter(cur: String):
 
 func to_chapter(p: String):
 	_save_settings()
+	Title.save_progress(p)
 	_cover()
 	SCENE = "house"; NEXT_PLAY = p
 	get_tree().reload_current_scene()
@@ -1986,6 +2009,7 @@ static var COVER: CanvasLayer = null
 
 func to_night(from_story := false):
 	_save_settings()
+	if from_story: Title.save_progress("door")
 	_cover()
 	SCENE = "night"
 	FROM_STORY = from_story

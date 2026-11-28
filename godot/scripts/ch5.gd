@@ -611,7 +611,7 @@ func _candle():
 	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
 	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; flame.add_child(f)
 	candle_light = OmniLight3D.new(); candle_light.light_color = Color(1.0, 0.66, 0.34); candle_light.light_energy = 0.26
-	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = true
+	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = not ("--nocshadow" in OS.get_cmdline_user_args())   # 2026-11-28 第6章の頭の崩れを切り分ける
 	candle_light.light_volumetric_fog_energy = 0.2; candle_light.position.y = 0.16
 	candle.add_child(candle_light)
 	candle.visible = false
