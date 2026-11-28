@@ -75,7 +75,11 @@ var title_t := -1.0
 const TITLE_LOOK := 4.5   # s of the house before the full-screen name ("full")
 # 試作297（赤字 #7「他の案も見たい。（1）全画面にドーン、（2）タランティーノならどうするか」）: --titlemode=full | qt to see
 # them; "" is the title as it was (low over the dashboard, fading in on the house)
-var title_mode := ""
+# 2026-11-28（ユーザー「前の題名映像候補も残しておいて、新しく作ったものに差し替え。車が止まって、建物を映してちょっと待って
+# タイトルバック→章カード、って流れで」）: "stop" is the title now: the car stops at the gap, the house held TITLE_LOOK s, the hit
+# and the name on the print's teal, and from there straight to the chapter's card (no return to the car).
+# --titlemode=full (the house, the name, the house again: the 11-28 movie) | qt | old (low over the dashboard, as before)
+var title_mode := "stop"
 var title_cover: ColorRect
 var title_freeze: TextureRect
 var title_music: Node
@@ -727,6 +731,7 @@ func _title():
 	title_rect.modulate = Color(1, 1, 1, 0); title_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--titlemode="): title_mode = a.substr(12)
+	if title_mode == "old": title_mode = ""
 	if title_mode != "":
 		title_layer.layer = 20   # over the lines' box and the notes
 		title_freeze = TextureRect.new(); title_freeze.set_anchors_preset(Control.PRESET_FULL_RECT); title_freeze.visible = false
@@ -734,7 +739,7 @@ func _title():
 		title_freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_freeze)
 		title_cover = ColorRect.new(); title_cover.color = Color(0.03, 0.13, 0.13, 1); title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)   # the print's own deep teal, not a screen black
 		title_cover.visible = false; title_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_cover)
-	if title_mode == "full":
+	if title_mode == "full" or title_mode == "stop":
 		# (1) the picture cut to black and the name filling it, at once, on a hit; four seconds; cut back to the house
 		var hf := vs.y * 0.86
 		title_rect.self_modulate = Color(0.94, 0.91, 0.83)   # the paper
@@ -818,7 +823,7 @@ func _drive(dt: float):
 				print("CAR gap t=%.1f" % t_now)
 		"gap":
 			# the car creeps at the gap until she looks at the house (the camera is not taken: the light ahead draws her)
-			v = move_toward(v, 0.45, dt * 0.6)
+			v = move_toward(v, 0.0 if title_mode == "stop" else 0.45, dt * (0.9 if title_mode == "stop" else 0.6))
 			if _looking_at_house() and t_stage > 0.4:
 				stage = "title"; t_stage = 0.0; title_t = 0.0
 				print("CAR title t=%.1f" % t_now)
@@ -827,8 +832,12 @@ func _drive(dt: float):
 				var tw0 := create_tween(); tw0.tween_property(tes_box, "modulate:a", 0.0, 0.8)
 				tw0.tween_callback(func(): _clear_box(tes_box); tes_box.modulate.a = 1.0)
 		"title":
-			v = move_toward(v, 0.0 if d > d_end - 1.0 else 0.6, dt * 0.5)
-			if t_stage > (12.5 if title_mode == "full" else 9.5):   # (full: the house held, the name, then the house again)
+			v = move_toward(v, 0.0 if (d > d_end - 1.0 or title_mode == "stop") else 0.6, dt * 0.5)
+			if title_mode == "stop" and t_stage > TITLE_LOOK + 4.6:   # the name has gone: on the teal, straight to the chapter's card
+				stage = "done"; black.color.a = 1.0
+				if demo_car: print("DEMO car done t=%.1f fails=%d" % [t_now, demo_fails])
+				get_tree().create_timer(0.6).timeout.connect(_to_dusk)
+			elif title_mode != "stop" and t_stage > (12.5 if title_mode == "full" else 9.5):   # (full: the house held, the name, then the house again)
 				stage = "out"; t_stage = 0.0
 				var tw := create_tween(); tw.tween_property(black, "color:a", 1.0, 1.6)
 				_loop_to("car_gravel", -60.0, 1.4); _loop_to("car_drive", -60.0, 1.4); _loop_to("car_idle", -60.0, 1.4)
@@ -870,17 +879,18 @@ func _title_tick(dt: float):
 	if title_t < 0.0: return
 	var t0 := title_t
 	title_t += dt
-	var shot_at := 1.2 + (TITLE_LOOK if title_mode == "full" else 0.0)
+	var big := title_mode == "full" or title_mode == "stop"
+	var shot_at := 1.2 + (TITLE_LOOK if big else 0.0)
 	if t0 < shot_at and title_t >= shot_at:   # check stills: --titleshot=<png>, 1.2 s into the name
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--titleshot="): _save_shot(a.substr(12))
-	if title_mode == "full" or title_mode == "qt":
+	if big or title_mode == "qt":
 		# 2026-11-28（ユーザー「一回、建物をじっくり見せたあとに案1＋打撃音のパターンを映像で見てみたい」）: in "full" the house
 		# is held for TITLE_LOOK s first (the car creeping, nothing on the screen), then the hit and the name
-		var look := TITLE_LOOK if title_mode == "full" else 0.0
-		var hold := look + (4.0 if title_mode == "full" else 5.0)
+		var look := TITLE_LOOK if big else 0.0
+		var hold := look + (4.0 if big else 5.0)
 		if t0 <= look and title_t > look:
-			if title_mode == "full":
+			if big:
 				title_cover.visible = true
 				for k in ["car_gravel", "car_drive", "car_idle"]:
 					if loops.has(k): title_vol[k] = (loops[k] as AudioStreamPlayer).volume_db; (loops[k] as AudioStreamPlayer).volume_db = -80.0
@@ -891,7 +901,9 @@ func _title_tick(dt: float):
 				if not "--nosound" in OS.get_cmdline_user_args():
 					title_music = Sound.one(self, "credits_joke", -2.0)
 			title_rect.modulate.a = 1.0
-		if t0 < hold and title_t >= hold:
+		if t0 < hold and title_t >= hold and title_mode == "stop":   # the name goes; the teal stays to the card
+			create_tween().tween_property(title_rect, "modulate:a", 0.0, 0.5)
+		elif t0 < hold and title_t >= hold:
 			title_rect.modulate.a = 0.0; title_cover.visible = false; title_freeze.visible = false
 			if is_instance_valid(title_music): title_music.queue_free()
 			for k in title_vol: (loops[k] as AudioStreamPlayer).volume_db = title_vol[k]
