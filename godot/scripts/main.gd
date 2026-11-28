@@ -1137,6 +1137,13 @@ func _process(dt):
 			COVER = null
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
 	for a in OS.get_cmdline_user_args():   # check stills: --putme=x,z,yaw,pitch holds Mio there (the F12 name's numbers)
+		if a.begins_with("--whereis=") and t > 1.0 and not ARGS.has("whereis_done"):   # 確認用：名前に含む mesh の位置（Godot の座標）
+			ARGS["whereis_done"] = true
+			for mi in find_children("*", "MeshInstance3D", true, false):
+				for k in a.substr(10).split(","):
+					if String(mi.name).contains(k):
+						var bb: AABB = mi.global_transform * mi.get_aabb()
+						print("WHEREIS %s %s c=%s" % [k, mi.name, bb.get_center()])
 		if a.begins_with("--putme=") and player:
 			var v := a.substr(8).split(",")
 			player.global_position = Vector3(float(v[0]), float(v[4]) if v.size() > 4 else player.global_position.y, float(v[1])); player.velocity = Vector3.ZERO
