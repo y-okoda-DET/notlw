@@ -193,6 +193,14 @@ static func _load_file(file: String):
 func _face(from: Array, to: Array) -> float:
 	return atan2(to[0] - from[0], to[1] - from[1])
 
+# a person turns on the spot to a plan point (their feet stay)
+func _turn_plan(k: String, to: Array, sec := 0.8):
+	var r: Node3D = main._rig_of(k)
+	if r == null: return
+	var d: Vector3 = gp(to[0], to[1], 0.0) - r.global_position
+	var yaw := atan2(d.x, d.z)
+	create_tween().tween_property(r, "rotation:y", r.rotation.y + wrapf(yaw - r.rotation.y, -PI, PI), sec).set_trans(Tween.TRANS_SINE)
+
 func _put(k: String, at: Array, yaw: float, z := 0.0):
 	if main.S.has(k + "_node"):
 		main.place_person(k, [at[0] - 4.8, 6.3 - at[1], z], yaw)
@@ -564,7 +572,11 @@ func _do(what: String):
 			if main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("screen", true, false) as Node3D
 			if ph == null and main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("kphone", true, false) as Node3D
 			# he steps out of the cellar doorway's shadow toward Mio as he offers himself (from her place the jamb hid his head)
-			main.walk_to("taiga", [[5.0, 5.4, 0.0]], func(): pass, _face([5.0, 5.4], MIO0))
+			# 2026-11-28（ユーザー試作298 #22「大河が壁をすり抜けてくる。桐生の方に一歩踏み出して、桐生も大河の方を向く」）: the step to
+			# 5.0, 5.4 crossed the cellar wall's line (y 5.6) left of its door. A step toward Kiryu now, on his own side of it,
+			# and Kiryu turns to him
+			main.walk_to("taiga", [[4.99, 5.91, 0.0]], func(): pass, _face([4.99, 5.91], AT0.kiryu))
+			_turn_plan("kiryu", [4.99, 5.91])
 			_line_face("taiga", ph, Color(0.82, 0.88, 1.0), 1.6, 3.0)
 		"face_makoto": _line_face("makoto", candle, Color(1.0, 0.68, 0.36), 0.9)
 		"taiga_arm":
@@ -621,7 +633,13 @@ func _do(what: String):
 			player.global_position = gp(MIO_WAIT[0], MIO_WAIT[1], 0.0); player.velocity = Vector3.ZERO
 			player.get_node("Head").rotation.z = 0.0
 			_look_from(MIO_WAIT, TAKE_AT, STAND_EYE, 1.45)
-			_put("kiryu", TAKE_AT, _face(TAKE_AT, MIO_WAIT)); main.set_stand("kiryu", "talk/idle", 0.0)
+			# 2026-11-28（ユーザー試作298 #27「階段から瞬間移動してきたのかと思ってしまう」）: he was put by the tripod as the cut
+			# came. He comes up out of the cellar door with her and walks down the hall to the tripod, in her sight
+			if "--kiryuput" in OS.get_cmdline_user_args():
+				_put("kiryu", TAKE_AT, _face(TAKE_AT, MIO_WAIT)); main.set_stand("kiryu", "talk/idle", 0.0)
+			else:
+				_put("kiryu", [5.3, 5.25], _face([5.3, 5.25], TAKE_AT)); main.set_stand("kiryu", "talk/idle", 0.0)
+				main.walk_to("kiryu", [[5.2, 4.2, 0.0], [TAKE_AT[0], TAKE_AT[1], 0.0]], Callable(), _face(TAKE_AT, MIO_WAIT))
 		"shake":
 			var y0: float = player.yaw
 			var tw := create_tween()
@@ -1189,7 +1207,10 @@ func _up_tick(_dt: float):
 # it shows the room behind her as a grey haze and never her. The first time she stands at it and looks in, someone crosses
 # the room behind her in the glass (Kiryu, sealing the tub's window), one board of the floor sounds; she turns and it is him.
 const WASH_MIRROR := [6.085, 5.30, 1.40]   # its middle (z above F2)
-const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.7, 5.95]]
+# 2026-11-28（ユーザー試作298 #25「振り返ったら桐生が消えていた」）: the way ended at 8.7, 5.95, behind the bath's partition
+# (x 8.0, its opening y 5.4..6.4): she turned and he was gone. He stops in the opening now, turned to her for his line, then
+# back to the tub's window, taping it (the scare stays; what he was doing is in sight)
+const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.15, 5.9]]
 var pose_dbg := []
 var wm_vp: SubViewport
 var wm_cam: Camera3D
@@ -1254,7 +1275,11 @@ func _wash_mirror_tick():
 			tl.omni_range = 2.6; tl.shadow_enabled = false; tl.position = Vector3(0.25, 1.0, -0.3); r.add_child(tl)
 		var pts := []
 		for p in WASH_PATH.slice(1): pts.append([p[0], p[1], F2])
-		main.walk_to("kiryu", pts, Callable(), _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
+		main.walk_to("kiryu", pts, func():
+			get_tree().create_timer(4.5).timeout.connect(func():
+				_turn_plan("kiryu", [9.9, 6.6], 1.0)
+				for i in 3: get_tree().create_timer(1.6 + 1.3 * i).timeout.connect(func(): Sound.one(self, "ch3_tape", -14.0, gp(9.4, 6.3, F2 + 1.4))))
+			, _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
 	get_tree().create_timer(0.9).timeout.connect(func():
 		Sound.one(self, "creak2", -4.0, gp(7.4, 6.2, F2 + 0.1))
 		if mode == FREE and stage in ["up", "back"]: _start(B("二階.鏡")))   # (not over a talk begun in that second)

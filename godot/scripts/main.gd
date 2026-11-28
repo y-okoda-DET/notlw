@@ -1221,12 +1221,24 @@ func _camcorder_lcd():
 	var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
 	if nrm.size() > 0 and n.dot(gt.basis * nrm[0]) < 0: n = -n
 	var up := Vector3.UP - n * n.dot(Vector3.UP); up = up.normalized()
+	# 2026-11-28（ユーザー試作298 #23時「カメラのモニター内の要素がはみ出る」）: the mean of the vertices is not the screen's middle
+	# (more of them on one side), and the counter ran off its right edge onto the body. The middle of the screen's own box in its
+	# plane, and the type sized to fit 80% of its width
+	var rt := up.cross(n)
+	var lo := Vector2(INF, INF); var hi := Vector2(-INF, -INF)
+	for v in vs:
+		var w: Vector3 = gt * v - ctr
+		lo = Vector2(minf(lo.x, w.dot(rt)), minf(lo.y, w.dot(up))); hi = Vector2(maxf(hi.x, w.dot(rt)), maxf(hi.y, w.dot(up)))
+	ctr += rt * (lo.x + hi.x) * 0.5 + up * (lo.y + hi.y) * 0.5
+	var scr_w := hi.x - lo.x; var scr_h := hi.y - lo.y
 	var lab := Label3D.new()
 	lab.font = Type.cam(); lab.pixel_size = 0.000125; lab.font_size = 48; lab.outline_size = 0   # the camera's own type (DotGothic16 at three times its grid)
 	lab.modulate = Color(0.92, 0.92, 0.88); lab.shaded = false; lab.double_sided = false
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_child(lab)
-	lab.global_transform = Transform3D(Basis(up.cross(n), up, n), ctr + n * 0.0015 + up * 0.016)
+	var tw_px: float = Type.cam().get_string_size("● REC  0:00:00", HORIZONTAL_ALIGNMENT_LEFT, -1, 48).x
+	if tw_px > 0.0 and scr_w > 0.01: lab.pixel_size = minf(0.000125, scr_w * 0.8 / tw_px)
+	lab.global_transform = Transform3D(Basis(rt, up, n), ctr + n * 0.0015 + up * minf(0.016, scr_h * 0.3))
 	var base: float = {"night": 2465.0, "dusk": 252.0}.get(SCENE, 0.0)
 	if SCENE == "house": base = {"dusk": 252.0, "t20": 1000.0, "t23": 2465.0, "t02": 3757.0, "t0330": 4438.0, "t0430": 4880.0}.get(TIME, 0.0)
 	var t := [base]
