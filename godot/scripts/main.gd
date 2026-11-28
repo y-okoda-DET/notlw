@@ -136,14 +136,13 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	# 証言と、まだ無い章の仮のカードを直に開く（--play=i1|i2|i3|ch8。開発と確認用。scripts/order.gd）
-	# タイトル画面（2026-11-28）：ゲームを引数なしで始めたとき（と --titlescreen）だけ。決めると title_go へ
+	# タイトル画面（2026-11-28）：--titlescreen のときだけ（ユーザー 11-28 15時17分「タイトルメニュー画面は別スレッドで検討を重ねてから渡す。今回作ったものは使いません」。引数なしの起動は前のとおり）
 	if SCENES_RUN == 1:
 		Title._apply_vol()
 		var tp := Title._prefs()
 		if tp.has("q") and not SET.has("q"): SET["q"] = bool(tp.q)
 		var ua := Array(OS.get_cmdline_user_args())
-		var bare := ua.filter(func(x): return not (x.begins_with("--basepack=") or x.begins_with("--housepack="))).is_empty()
-		if bare or ua.has("--titlescreen") or ua.any(func(x): return x.begins_with("--titleshot=")):
+		if ua.has("--titlescreen") or ua.any(func(x): return x.begins_with("--titleshot=")):
 			set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
 			var tn: Node = Title.new(); tn.main = self; tn.name = "Title"; add_child(tn); return
 	if NEXT_PLAY == "" and SCENES_RUN == 1 and Order.direct(String(ARGS.get("play", ""))):
