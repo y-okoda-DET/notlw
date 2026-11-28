@@ -2120,7 +2120,17 @@ func _shadow_budget(dt: float):
 			var lc: Light3D = c[1]
 			var to0 := lc.global_position + (e - lc.global_position).normalized() * minf(0.4, e.distance_to(lc.global_position) * 0.5)
 			var q0 := PhysicsRayQueryParameters3D.create(e, to0); q0.collide_with_areas = false
-			if not space0.intersect_ray(q0).is_empty() and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
+			var seen0 := space0.intersect_ray(q0).is_empty()
+			# 2026-11-28（感想8）: one ray to the lamp itself caught the door's head from the living room, and the dining room went
+			# dark. As at night: the lamp, or the light it throws (four points round it at half its reach, on its side of the walls)
+			if not seen0 and not ARGS.has("duskcut4"):
+				var r0: float = (lc.omni_range if lc is OmniLight3D else lc.spot_range) * 0.5
+				for off in [Vector3(r0, 0, 0), Vector3(-r0, 0, 0), Vector3(0, 0, r0), Vector3(0, 0, -r0)]:
+					var ql0 := PhysicsRayQueryParameters3D.create(lc.global_position, to0 + off); ql0.collide_with_areas = false
+					if not space0.intersect_ray(ql0).is_empty(): continue
+					var qe := PhysicsRayQueryParameters3D.create(e, to0 + off); qe.collide_with_areas = false
+					if space0.intersect_ray(qe).is_empty(): seen0 = true; break
+			if not seen0 and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
 		cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
