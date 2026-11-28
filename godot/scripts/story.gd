@@ -441,6 +441,9 @@ func _fit_lines():
 			if lines_box.get_child(k).has_meta("choice"): break
 			after += 1
 		if c0.has_meta("choice") and after <= 1: break
+		# 2026-11-28（ユーザー試作298 #3「この直前、台詞が表示されていない」、行きの車の「澪。ちょっとだけ、いい？」）: three answers
+		# fill the three lines and pushed out the question they answer. The line just before the answers stays while they are open
+		if not c0.has_meta("choice") and lines_box.get_child_count() > 1 and lines_box.get_child(1).has_meta("choice") and after == 0: break
 		lines_box.remove_child(c0); c0.queue_free()
 	for i in range(lines_box.get_child_count()):   # the line before fades back
 		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
@@ -1740,8 +1743,15 @@ func _take_radio():
 	tune = (STATIONS[0][0] - AM_LO) / (AM_HI - AM_LO)
 	items.erase("radio")
 	_radio_power(true)
+	_torches(false)
 	talk_with = ""
 	_start(B("ラジオ.取る"))
+
+# 2026-11-28（ユーザー試作298 #15「ラジオを聞いている間はスマホを懐中電灯代わりにするライトはなしで」）: while she listens, the
+# others' phones are screens only (their torches off); on again when she puts it down
+func _torches(on: bool):
+	for e in main.torches:
+		if is_instance_valid(e[0]): (e[0] as SpotLight3D).visible = on
 
 func _radio_tick(dt):
 	bc_t += dt
@@ -2310,7 +2320,7 @@ const CELLAR_WIN := [10.0, 6.45, -1.4]     # plan: the cellar's window in the ea
 
 func _boards_start():
 	hs = 5; ch2 = false
-	holding_radio = false; radio_up = false; player.look_enabled = true
+	holding_radio = false; radio_up = false; player.look_enabled = true; _torches(true)
 	_radio_rest()
 	items.erase("radio")
 	var found := []

@@ -1571,7 +1571,11 @@ func _board_off():
 	if cwin_light: create_tween().tween_property(cwin_light, "light_energy", 0.35 * boards_off, 0.6)
 	# out here the window's lines are the cellar's: the stair's steps go by unheard
 	while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): below_i += 1
-	if boards_off >= 4: below_i = BELOW.size()
+	if boards_off >= 4:
+		below_i = BELOW.size()
+		# 2026-11-28（ユーザー試作298 #31「板を外したあとも左上に表記が残る。扉を選ぶと『まずはテープ』と出るが、テープの窓は残っていない」）:
+		# the four boards are off: the errand at the top left goes, and the cellar door says what the tape's way says at its end
+		_set_mission(""); _cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")
 	var q: Array = B("外.板." + ["一", "二", "三", "四"][boards_off - 1])
 	if boards_off == 3: get_tree().create_timer(3.6).timeout.connect(func(): gen_want = -7.0; mk_fell = true)   # (the fall at the end of 外.板.三)
 	if mk_fell: q = q.filter(func(e): return not String(e.get("who", "")).begins_with("真琴") and not String(e.get("note", "")).contains("咳"))   # she fell already (地下.四): only the generator

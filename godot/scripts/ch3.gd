@@ -417,7 +417,11 @@ func _candle_tick(dt: float):
 			sk.add_child(rc); candle_hands.append(rc)
 	if candle_hands.size() == 2:
 		var b := r.global_basis
-		candle_hands[0].offset = b * Vector3(-0.03, -0.03, -0.06)   # right: under the saucer, the near side
+		# 2026-11-28（ユーザー試作298 #26「真琴の右手は下からお皿を支えて」）: the wrist below the saucer's near edge, the palm up
+		# under it (reach.gd palm_up); it held the saucer's rim from the side
+		candle_hands[0].offset = b * Vector3(-0.01, -0.055, -0.07)   # right: under the saucer, the near side
+		candle_hands[0].palm_up = not "--nopalmup" in OS.get_cmdline_user_args()
+		candle_hands[0].palm_sign = _arg_f("--palmsign=", 1.0)
 		candle_hands[1].offset = b * Vector3(0.06, 0.03, -0.02)     # left: cupped at its side
 		candle_hands[0].pole = b * Vector3(-1.0, -1.0, -0.3); candle_hands[1].pole = b * Vector3(1.0, -1.0, -0.3)
 	# 試作127（ユーザー「ろうそくの炎が傾くってのは目に見えない＆重くなる原因になるのではないかと懸念」）: no lean to the
@@ -769,7 +773,9 @@ func _strike_nail():
 func _cam_near() -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := fixed_cam.global_position - cam.global_position
-	return _aim_ok(to, 1.9, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
+	# 2026-11-28（ユーザー試作298 #23「テープ替え、もう少し近づいてからでないとアクションできないように」）: 1.9 m let her start it
+	# from across the landing. Within an arm and a step now
+	return _aim_ok(to, 1.15, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
 
 func _tape_tick():
 	if mode != FREE: return
