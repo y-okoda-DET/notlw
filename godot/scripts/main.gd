@@ -1140,7 +1140,7 @@ func _process(dt):
 	for a in OS.get_cmdline_user_args():   # check stills: --putme=x,z,yaw,pitch holds Mio there (the F12 name's numbers)
 		if a.begins_with("--putme=") and player:
 			var v := a.substr(8).split(",")
-			player.global_position = Vector3(float(v[0]), player.global_position.y, float(v[1])); player.velocity = Vector3.ZERO
+			player.global_position = Vector3(float(v[0]), float(v[4]) if v.size() > 4 else player.global_position.y, float(v[1])); player.velocity = Vector3.ZERO
 			player.yaw = deg_to_rad(float(v[2])); player.pitch = deg_to_rad(float(v[3]))
 	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
@@ -1275,6 +1275,9 @@ func _wear():
 	var tex := {}
 	for d in S.wear:
 		var k: String = d.k
+		# 2026-11-28（試作298の感想10「床、変な汚れに見える」、二階）: the worn path through a doorway is wood worn pale on the
+		# boards downstairs; on the upstairs carpet the same image read as a dark spill. Not on the upper floor
+		if k == "floor" and float(d.c[2]) > 2.0 and not ARGS.has("wearup"): continue
 		if not tex.has(k): tex[k] = load("res://assets/wear/%s.png" % k)
 		var dc := Decal.new()
 		dc.texture_albedo = tex[k]

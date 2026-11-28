@@ -45,6 +45,15 @@ def soft(name, x0, y0, x1, y1, z0, z1, mat, r=.04, puff=0.0, tilt=0.0, uv=1.0):
     lib.uv_box(o, uv)
     return o
 
+def bevel(o, r, seg=2):
+    """Soften a block's edges (bmesh, no modifier; the cube's mesh is unit, the object scaled): r in metres."""
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    sc = o.scale; k = max(1e-4, min(sc.x, sc.y, sc.z))
+    bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(r / k, .45), segments=seg, affect='EDGES', profile=.5)
+    bm.to_mesh(o.data); bm.free()
+    return o
+
 def collide(x0, y0, x1, y1, z0, z1):
     COL.append(dict(c=[round((X(x0) + X(x1)) / 2, 3), round((Y(y0) + Y(y1)) / 2, 3), round((z0 + z1) / 2, 3)],
                     s=[round(abs(x1 - x0), 3), round(abs(y1 - y0), 3), round(z1 - z0, 3)]))
@@ -354,45 +363,63 @@ def pantry(M):
     shelves(nx0, ny0, nx1, ny1, 'x')
     import random
     rnd = random.Random(297)
+    # 2026-11-28（試作298の感想16「blender 特有の箱にしか見えない」）: a tin is a printed paper band between two steel rims, a box
+    # has softened edges and its printed face, a bottle has a shoulder, a neck and a cap. Same places, same sizes
+    lab = [mat_basic('plabel_w', (.86, .83, .74), .7), mat_basic('plabel_y', (.85, .72, .3), .7), mat_basic('plabel_b', (.5, .62, .75), .7)]
+    def tin(x, y, z, m, h=.11, r=.037):
+        cyl('furn_can', x, y, z + .006, z + h - .006, r, m, 14)
+        cyl('furn_canrim', x, y, z, z + .006, r + .002, M['steel'], 14)
+        cyl('furn_canrim', x, y, z + h - .006, z + h, r + .002, M['steel'], 14)
+        cyl('furn_canlab', x, y, z + h * .35, z + h * .62, r + .0012, lab[int(rnd.random() * 3)], 14)
+    def carton(name, x0, y0, x1, y1, z0, z1, m, face):
+        o = box(name, x0, y0, x1, y1, z0, z1, m); bevel(o, .006)
+        # the printed panel on the face that looks out of the shelf (face: 'w' for the east run, 's' for the north run)
+        w0, w1, h0, h1 = .2, .8, .3, .75
+        if face == 'w': box(name + 'lab', x0 - .002, y0 + (y1 - y0) * w0, x0, y0 + (y1 - y0) * w1, z0 + (z1 - z0) * h0, z0 + (z1 - z0) * h1, lab[int(rnd.random() * 3)])
+        else: box(name + 'lab', x0 + (x1 - x0) * w0, y0 - .002, x0 + (x1 - x0) * w1, y0, z0 + (z1 - z0) * h0, z0 + (z1 - z0) * h1, lab[int(rnd.random() * 3)])
+    def bottle(x, y, z):
+        cyl('furn_pet', x, y, z, z + .22, .05, M['pet'], 12)
+        prim('cone', 'furn_petshoulder', loc=(X(x), Y(y), z + .25), radius1=.05, radius2=.016, depth=.06, vertices=12, mat=M['pet'])
+        cyl('furn_petneck', x, y, z + .28, z + .3, .016, M['pet'], 10)
+        cyl('furn_petcap', x, y, z + .3, z + .318, .017, lab[2], 10)
+        cyl('furn_petlab', x, y, z + .08, z + .15, .0512, lab[0], 12)
     def row_cans(xs, y, z, mats_):   # a row of tins along x (north run)
-        for i, x in enumerate(xs):
-            cyl('furn_can', x, y, z, z + .11, .037, mats_[i % len(mats_)], 14)
+        for i, x in enumerate(xs): tin(x, y, z, mats_[i % len(mats_)])
     def col_cans(x, ys, z, mats_):   # along y (east run)
-        for i, y in enumerate(ys):
-            cyl('furn_can', x, y, z, z + .11, .037, mats_[i % len(mats_)], 14)
+        for i, y in enumerate(ys): tin(x, y, z, mats_[i % len(mats_)])
     # east run, shelf by shelf (z = shelf top)
     col_cans(9.72, [6.82 + i * .08 for i in range(6)], .32, [M['can_r'], M['can_r'], M['can_g']])
     col_cans(9.8, [6.86 + i * .08 for i in range(4)], .32, [M['can_y']])
     for i, y in enumerate((7.45, 7.6, 7.75)):
-        box('furn_pbox', 9.66, y - .06, 9.86, y + .06, .32, .32 + .22 + .03 * (i % 2), [M['box_r'], M['box_b'], M['paperbag']][i])
+        carton('furn_pbox', 9.66, y - .06, 9.86, y + .06, .32, .32 + .22 + .03 * (i % 2), [M['box_r'], M['box_b'], M['paperbag']][i], 'w')
     for i in range(5):   # jars of jam and pickles
         y = 6.84 + i * .1
         cyl('furn_jar', 9.74, y, .74, .87, .042, M['jar'], 14); cyl('furn_jarlid', 9.74, y, .87, .89, .044, M['lid'], 14)
     for i in range(3):
-        box('furn_pbox', 9.66, 7.38 + i * .17 - .07, 9.86, 7.38 + i * .17 + .07, .74, .74 + .26, [M['box_b'], M['roux'], M['box_r']][i])
+        carton('furn_pbox', 9.66, 7.38 + i * .17 - .07, 9.86, 7.38 + i * .17 + .07, .74, .74 + .26, [M['box_b'], M['roux'], M['box_r']][i], 'w')
     for i in range(6):   # 2 L water
         x = 9.68 + (i % 2) * .12; y = 6.85 + (i // 2) * .12
-        cyl('furn_pet', x, y, 1.16, 1.46, .05, M['pet'], 12)
+        bottle(x, y, 1.16)
     for i in range(4):
-        box('furn_pbox', 9.65, 7.3 + i * .14 - .06, 9.85, 7.3 + i * .14 + .06, 1.16, 1.16 + .16 + .04 * (i % 2), M['paperbag'])
+        carton('furn_pbox', 9.65, 7.3 + i * .14 - .06, 9.85, 7.3 + i * .14 + .06, 1.16, 1.16 + .16 + .04 * (i % 2), M['paperbag'], 'w')
     col_cans(9.75, [6.85 + i * .09 for i in range(8)], 1.58, [M['can_g'], M['can_y'], M['can_r']])
-    box('furn_pbox', 9.64, 7.6, 9.88, 7.85, 1.98, 2.2, M['paperbag'])   # a carton on top
+    carton('furn_pbox', 9.64, 7.6, 9.88, 7.85, 1.98, 2.2, M['paperbag'], 'w')   # a carton on top
     # north run
     row_cans([8.82 + i * .08 for i in range(5)], 7.76, .32, [M['can_y'], M['can_g']])
     for i in range(3):
-        box('furn_pbox', 9.22 + i * .11 - .045, 7.68, 9.22 + i * .11 + .045, 7.86, .32, .32 + .24, [M['box_r'], M['box_b'], M['box_r']][i])
+        carton('furn_pbox', 9.22 + i * .11 - .045, 7.68, 9.22 + i * .11 + .045, 7.86, .32, .32 + .24, [M['box_r'], M['box_b'], M['box_r']][i], 's')
     for i in range(6):
         x = 8.82 + i * .12
         cyl('furn_jar', x, 7.76, .74, .9, .045, M['jar'], 14); cyl('furn_jarlid', x, 7.76, .9, .92, .047, M['lid'], 14)
     for i in range(4):
-        box('furn_pbox', 8.85 + i * .18 - .07, 7.68, 8.85 + i * .18 + .07, 7.86, 1.16, 1.16 + .2 + .03 * (i % 2), [M['paperbag'], M['box_b']][i % 2])
+        carton('furn_pbox', 8.85 + i * .18 - .07, 7.68, 8.85 + i * .18 + .07, 7.86, 1.16, 1.16 + .2 + .03 * (i % 2), [M['paperbag'], M['box_b']][i % 2], 's')
     row_cans([8.82 + i * .085 for i in range(9)], 7.76, 1.58, [M['can_r'], M['can_y'], M['can_g'], M['can_r']])
     # the floor: a rice sack against the north run, onions in a net, a crate of potatoes
     soft('furn_ricesack', 8.75, 7.18, 9.15, 7.55, 0, .42, M['sack'], r=.06, puff=.04, tilt=.05)
     for i in range(7):
         prim('uv_sphere', 'furn_onion', loc=(X(9.38 + rnd.uniform(-.06, .06)), Y(7.4 + rnd.uniform(-.06, .06)), .04 + .05 * (i // 4)),
              scale=(.042, .042, .038), mat=M['onion'], segments=12, ring_count=8)
-    box('furn_crate', 9.22, 6.75, 9.52, 7.0, 0, .2, M['shelfwood'])
+    o = box('furn_crate', 9.22, 6.75, 9.52, 7.0, 0, .2, M['shelfwood']); bevel(o, .008)
     for i in range(6):
         prim('uv_sphere', 'furn_potato', loc=(X(9.28 + (i % 3) * .09), Y(6.82 + (i // 3) * .1), .21), scale=(.042, .03, .028), rot=(0, 0, i), mat=M['potato'], segments=10, ring_count=6)
     collide(8.72, 7.15, 9.58, 7.6, 0, .45)

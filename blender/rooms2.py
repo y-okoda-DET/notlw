@@ -18,7 +18,7 @@ from mathutils import Vector
 import lib, house4 as H4, cloth, lived
 from lib import prim, mat_basic, mat_image, tex_path
 import furnish as F
-from furnish import box, cyl, legs, collide
+from furnish import box, cyl, legs, collide, soft
 
 X, Y = H4.X, H4.Y
 F2, ZB, H1, H2 = H4.F2, H4.ZB, H4.H1, H4.H2
@@ -428,7 +428,8 @@ def upstairs(M):
     box('bath_floor', 6.06, 4.26, 9.94, 7.94, z, z + .015, M['bathtile'], 1.0)
     # 試作231（ユーザー「壁がカビだらけに見える」）: the tile picture stretched up the 2 m partition read as mould in the print.
     # A plain painted board (the floor keeps its tiles)
-    M['bathwall'] = mat_basic('bathwall', (.8, .82, .8), .45)
+    # 2026-11-28（試作298の感想11「浴室の壁、つくりものっぽい。白でなく黒で」）: the partition boards painted black, a little sheen
+    M['bathwall'] = mat_basic('bathwall', (.045, .045, .05), .35)
     box('bath_part', 8.0, 4.26, 8.06, 5.4, z + .015, z + 2.0, M['bathwall'], col=True)
     box('bath_part', 8.0, 6.4, 8.06, 7.94, z + .015, z + 2.0, M['bathwall'], col=True)
     # 2026-11-18 the user's Tripo tub (tiled outside, blue enamel in; front -Y in Blender): 1.32 x .79 x .58 in the NE corner
@@ -440,9 +441,27 @@ def upstairs(M):
         box('bath_water', 8.58, 6.68, 9.86, 7.86, z + .5, z + .505, M['glass'])
     box('bath_stool', 8.9, 5.6, 9.2, 5.9, z, z + .22, M['plastic'])
     cyl('bath_shower', 9.9, 6.0, z + 1.0, z + 1.9, .012, M['steel'], 8)
-    box('wash_basin', 6.1, 4.9, 6.65, 5.7, z, z + .82, M['cabinet'], col=True)
-    box('wash_top', 6.08, 4.88, 6.68, 5.72, z + .82, z + .86, M['enamel'])
-    box('wash_mirror', 6.07, 4.95, 6.09, 5.65, z + 1.05, z + 1.75, M['mirror'])
+    # 2026-11-28（試作298の感想12「箱にしか見えない。洗面台の色が変」）: an old vanity: a cream cabinet on a dark plinth, two doors
+    # with a gap and pulls, a rounded white counter with the basin sunk in it, the tap, the mirror in a frame
+    M['vanity'] = mat_basic('vanity', (.74, .71, .64), .45)
+    M['vanity_dk'] = mat_basic('vanity_dk', (.12, .11, .1), .6)
+    box('wash_plinth', 6.12, 4.94, 6.6, 5.66, z, z + .08, M['vanity_dk'])
+    o = box('wash_basin', 6.1, 4.9, 6.62, 5.7, z + .08, z + .8, M['vanity'], col=True); apply_bevel(o, .01, 2)
+    collide(6.1, 4.9, 6.68, 5.7, z, z + .86)
+    box('wash_doorgap', 6.62, 5.296, 6.627, 5.304, z + .12, z + .76, M['vanity_dk'])
+    box('wash_doorgap', 6.62, 4.94, 6.627, 5.66, z + .755, z + .76, M['vanity_dk'])
+    for yy in (5.24, 5.36):
+        box('wash_pull', 6.625, yy - .006, 6.645, yy + .006, z + .62, z + .72, M['steel'])
+    o = box('wash_top', 6.08, 4.88, 6.7, 5.72, z + .8, z + .86, M['enamel']); apply_bevel(o, .02, 3)
+    M['basin_in'] = mat_basic('basin_in', (.5, .52, .52), .2)
+    cyl('wash_bowl', 6.4, 5.3, z + .861, z + .863, .17, M['basin_in'], 28)            # the basin's hollow, a shade darker than the top
+    prim('torus', 'wash_bowlrim', loc=(X(6.4), Y(5.3), z + .866), major_radius=.178, minor_radius=.01, major_segments=28, minor_segments=6, mat=M['enamel'])
+    cyl('wash_drain', 6.4, 5.3, z + .863, z + .865, .02, M['steel'], 10)
+    cyl('wash_tap', 6.15, 5.3, z + .86, z + 1.02, .014, M['steel'], 10)
+    o = prim('cylinder', 'wash_spout', loc=(X(6.22), Y(5.3), z + 1.01), rot=(0, math.pi / 2, 0), scale=(.011, .011, .08), mat=M['steel'], vertices=10)
+    for yy in (5.18, 5.42): cyl('wash_knob', 6.13, yy, z + .86, z + .9, .02, M['steel'], 8)
+    box('wash_mirrorframe', 6.065, 4.92, 6.085, 5.68, z + 1.02, z + 1.78, M['vanity_dk'])
+    box('wash_mirror', 6.07, 4.95, 6.095, 5.65, z + 1.05, z + 1.75, M['mirror'])
     # 試作127（ユーザー「扉に謎のオブジェクトが突き抜けている」）: the machine stood in the bathroom door's swing (hinge at
     # y 7.55, the leaf sweeps x 6..6.85): it is along the north wall now, under the towels, clear of the leaf
     wm = F.tripo_prop('washer', (X(7.3), Y(7.6), z), math.pi, .9, name='wash_machine')   # 2026-11-18 the user's Tripo machine, its front to the room
@@ -475,8 +494,10 @@ def upstairs(M):
     box('bath_hungtowel', 7.988, 6.48, 7.996, 6.88, z + 1.66, z + 2.0, M['towel'])
     box('bath_hungtowel', 8.064, 6.48, 8.072, 6.88, z + 1.74, z + 2.0, M['towel'])
     box('bath_hungtowel', 7.988, 6.48, 8.072, 6.88, z + 2.0, z + 2.008, M['towel'])
-    o = box('wash_basket', 7.66, 7.22, 7.98, 7.56, z, z + .3, M['basket']); apply_bevel(o, .02)
-    o = box('wash_basket_clothes', 7.69, 7.25, 7.95, 7.53, z + .3, z + .36, M['coat']); apply_bevel(o, .03)
+    # (感想12「洗濯機の横も」): a round wicker basket, wider at the rim, with the clothes heaped over it (was two boxes)
+    o = prim('cone', 'wash_basket', loc=(X(7.82), Y(7.39), z + .15), radius1=.13, radius2=.165, depth=.3, vertices=20, mat=M['basket'])
+    prim('torus', 'wash_basketrim', loc=(X(7.82), Y(7.39), z + .3), major_radius=.165, minor_radius=.012, major_segments=20, minor_segments=6, mat=M['basket'])
+    soft('wash_basket_clothes', 7.68, 7.25, 7.96, 7.53, z + .26, z + .38, M['coat'], r=.05, puff=.04)
     cyl('wash_cup', 6.3, 5.0, z + .86, z + .96, .035, M['bottle_w'], 12)
     for i in range(3): cyl(f'wash_brush_{i}', 6.29 + i * .012, 5.0 + (i - 1) * .01, z + .9, z + 1.07, .004, M['plastic'] if i % 2 else M['canred'], 6)
     o = box('wash_pouch', 6.2, 5.38, 6.4, 5.6, z + .86, z + .95, M['bagnavy']); apply_bevel(o, .03)
