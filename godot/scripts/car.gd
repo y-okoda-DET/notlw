@@ -1014,11 +1014,12 @@ var glance_t := 0.0
 var glance_at := ""
 func _nat_glance():
 	var tx := String(cur.get("text", ""))
-	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 2.6
+	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 3.2
 	elif tx.contains("澪"): glance_at = "mio"; glance_t = 3.6
-	# 2026-11-27（ユーザー「話してる感じもまだ出てないな」）: at the start of each of her lines she looks at Mio a moment, then back
-	# to the road (the nod alone, 3°, did not read from the side)
-	elif glance_t <= 0.0: glance_at = "mio"; glance_t = 1.3
+	# 2026-11-27（ユーザー「話してる感じもまだ出てないな」）: at the start of each of her lines she looked at Mio a moment.
+	# 2026-11-28（ユーザー試作298 #5「こちらを向いて話しかけられるのを繰り返すと違和感。シートに背中を付けているように」）: only when
+	# she calls Mio by name, and at the tape; the other lines she says to the road (the nod and a tenth of a turn)
+	elif glance_t <= 0.0 and "--natglance" in OS.get_cmdline_user_args(): glance_at = "mio"; glance_t = 1.3
 
 func _nat_look_tick(dt: float):
 	if nat_ik == null: return
@@ -1026,7 +1027,9 @@ func _nat_look_tick(dt: float):
 	# 2026-11-27（ユーザー「横から夏希を見ているとき、喋っているように見せたい」）: while she talks her head goes a little to
 	# Mio (a fifth of the way) and nods with the words (ReachIK talk_w)
 	var talking: bool = main.talk_now == "natsuki"
-	var want := 1.0 if glance_t > 0.0 else (0.2 if talking else 0.0)
+	var want := 1.0 if glance_t > 0.0 else (0.1 if talking else 0.0)
+	nat_ik.point_w = move_toward(nat_ik.point_w, 1.0 if (glance_at == "tape" and glance_t > 0.0) else 0.0, dt * 2.2)
+	nat_ik.point_at = tape_node.global_position if tape_node else Vector3.ZERO
 	if talking and glance_t <= 0.0: glance_at = "mio"
 	nat_ik.look_w = move_toward(nat_ik.look_w, want, dt * 1.4)
 	nat_ik.talk_w = move_toward(nat_ik.talk_w, 1.0 if talking else 0.0, dt * 3.0)
@@ -1150,7 +1153,7 @@ class ReachIK extends SkeletonModifier3D:
 	var face_v := Vector3.ZERO    # the face's forward in the head bone's frame
 	# 2026-11-27: back against the seat (spine_01 leans back), the arms turned out (the elbows down), the hands round the rim
 	# with the thumbs inside it, the head nodding while she talks
-	var lean := deg_to_rad(8.0)
+	var lean := deg_to_rad(14.0)   # 2026-11-28（ユーザー試作298 #5「シートに背中を付けているように」）: 8° still sat her off the back
 	var arm_out := deg_to_rad(-20.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
 	var grip := 1.0
 	var talk_w := 0.0
@@ -1162,6 +1165,10 @@ class ReachIK extends SkeletonModifier3D:
 	var rim_k := 1.06     # the Tripo ring against WHEEL_R (measured on the stills, 11-27)
 	var curl := [0.4, 0.44, 0.28]   # (11-27: more closed read as claws hooked on the rim's inside; the wrist on the rim, the fingers laid round it)
 	var talk_t := 0.0
+	# 2026-11-28（ユーザー試作298 #6「テープを『それ撮ってきた』と示すとき、指で指すとかのモーション」）: her left hand (Mio's side)
+	# leaves the wheel and points at the tape on the dash: point_w 0..1, point_at in the world
+	var point_w := 0.0
+	var point_at := Vector3.ZERO
 	var spine0 := -1
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
 	func setup():
@@ -1223,8 +1230,15 @@ class ReachIK extends SkeletonModifier3D:
 			# the arm turned out: the pole (the elbow's side) swung down about the shoulder-to-hand line
 			var axis_w := (tgt_w - sh_w).normalized()
 			pole_w = tgt_w + Basis(axis_w, -side * arm_out) * (pole_w - tgt_w)
+			var pw := point_w if side < 0.0 and point_at != Vector3.ZERO else 0.0
+			if pw > 0.0:
+				var e := pw * pw * (3.0 - 2.0 * pw)
+				var pt_w: Vector3 = sh_w + (point_at - sh_w).normalized() * 0.47
+				tgt_w = tgt_w.lerp(pt_w, e)
+				pole_w = pole_w.lerp(pt_w + car_basis * Vector3(0.05, -0.5, 0.15), e)
 			_two_bone(sk, arm[0], arm[1], arm[2], inv * tgt_w, inv * pole_w)
-			if grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * palm_in - wheel.global_basis.z)).normalized())
+			if pw > 0.5: _point(sk, arm, inv * point_at, (pw - 0.5) * 2.0)
+			elif grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * palm_in - wheel.global_basis.z)).normalized())
 		if head >= 0 and look_road != Vector3.ZERO:
 			var q := _look_q(sk, inv)
 			if neck >= 0:
@@ -1286,6 +1300,31 @@ class ReachIK extends SkeletonModifier3D:
 			var q := Quaternion((tip - g.origin).normalized(), want.normalized())
 			var qa := clampf(q.get_angle(), 0.0, 0.9) * grip
 			if q.get_angle() > 0.001: sk.set_bone_global_pose(th[0], Transform3D(Basis(Quaternion(q.get_axis().normalized(), qa)) * g.basis, g.origin))
+	# the hand off the wheel, pointing: the fingers' line turned to the thing, the index straight, the other three closed
+	func _point(sk: Skeleton3D, arm: Array, at: Vector3, k: float):
+		var fl: Array = fingers.get(arm[3], [])
+		if fl.size() < 5 or fl[1].is_empty() or fl[3].is_empty(): return
+		var hb: int = arm[2]
+		var gh := sk.get_bone_global_pose(hb)
+		var fdir := (sk.get_bone_global_pose(fl[0][0]).origin - gh.origin).normalized()
+		var q := Quaternion(fdir, (at - gh.origin).normalized())
+		var qa := clampf(q.get_angle(), 0.0, 0.8) * k
+		if q.get_angle() > 0.001: sk.set_bone_global_pose(hb, Transform3D(Basis(Quaternion(q.get_axis().normalized(), qa)) * gh.basis, gh.origin))
+		gh = sk.get_bone_global_pose(hb)
+		var k0 := sk.get_bone_global_pose(fl[0][0]).origin; var k3 := sk.get_bone_global_pose(fl[3][0]).origin
+		var across := (k3 - k0).normalized()
+		fdir = (sk.get_bone_global_pose(fl[1][0]).origin - gh.origin).normalized()
+		var palm: Vector3 = fdir.cross(across).normalized() * float(arm[3])
+		var sgn := 1.0 if across.cross(fdir).dot(palm) > 0.0 else -1.0
+		for fi in [1, 2, 3]:
+			for j in fl[fi].size():
+				var bi: int = fl[fi][j]
+				var g := sk.get_bone_global_pose(bi)
+				sk.set_bone_global_pose(bi, Transform3D(Basis(across, sgn * [1.3, 1.5, 1.0][j] * k) * g.basis, g.origin))
+		var th: Array = fl[4]
+		for j in th.size():
+			var g := sk.get_bone_global_pose(th[j])
+			sk.set_bone_global_pose(th[j], Transform3D(Basis(across, sgn * 0.35 * k) * g.basis, g.origin))
 	func _two_bone(sk: Skeleton3D, a: int, b: int, c: int, t: Vector3, pole: Vector3):
 		var ga := sk.get_bone_global_pose(a); var gb := sk.get_bone_global_pose(b); var gc := sk.get_bone_global_pose(c)
 		var A := ga.origin; var Bp := gb.origin; var C := gc.origin

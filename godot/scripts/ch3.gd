@@ -1210,7 +1210,7 @@ const WASH_MIRROR := [6.085, 5.30, 1.40]   # its middle (z above F2)
 # 2026-11-28（ユーザー試作298 #25「振り返ったら桐生が消えていた」）: the way ended at 8.7, 5.95, behind the bath's partition
 # (x 8.0, its opening y 5.4..6.4): she turned and he was gone. He stops in the opening now, turned to her for his line, then
 # back to the tub's window, taping it (the scare stays; what he was doing is in sight)
-const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.15, 5.9]]
+const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.2, 5.6]]   # (at the opening's south side: the way into the bath, y 6.2, stays clear)
 var pose_dbg := []
 var wm_vp: SubViewport
 var wm_cam: Camera3D
