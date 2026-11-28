@@ -614,6 +614,11 @@ func _candle():
 	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = not ("--nocshadow" in OS.get_cmdline_user_args())   # 2026-11-28 第6章の頭の崩れを切り分ける
 	candle_light.light_volumetric_fog_energy = 0.2; candle_light.position.y = 0.16
 	candle.add_child(candle_light)
+	# 2026-11-28（試作298の感想33「第6章の頭、夏希まわりの描画が崩れまくってる」）: looking down, the light 16cm over the dish
+	# threw the dish, the candle and the hand that holds them across the floor and her as big black wedges. They cast none for it now
+	if not ("--oldcshadow" in OS.get_cmdline_user_args()):
+		for mi in [stick, saucer, rim]: (mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if "shadow_caster_mask" in candle_light: candle_light.set("shadow_caster_mask", 0xFFFFF & ~2)   # the hands (layer 2, ch6.gd _mk_hand)
 	candle.visible = false
 	add_child(candle)
 

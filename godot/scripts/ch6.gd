@@ -165,6 +165,11 @@ func _exit_tree():
 # ---------------------------------------------------------------- the candle (ch5's, with the hand it is in and the dawn)
 func _candle_tick(dt: float):
 	if not candle.visible: return
+	# 2026-11-28（試作298の感想33「夏希まわりの描画が崩れまくってる」）: the candle held 40cm before her threw her shadow body
+	# (the capsules a hand's breadth behind the flame) over the whole floor as black wedges. In her hand it does not throw it;
+	# set down, it does (and its own dish and the hands never: ch5.gd _candle)
+	if "shadow_caster_mask" in candle_light and not ("--oldcshadow" in OS.get_cmdline_user_args()):
+		candle_light.set("shadow_caster_mask", 0xFFFFF & ~2 & ~(1 << 19) if candle_held else 0xFFFFF & ~2)
 	if candle_held:
 		var cam := _cam()
 		var p: Vector3 = cam.global_position + Basis(Vector3.UP, player.yaw) * candle_off_now
@@ -626,10 +631,25 @@ func _body_shadow():
 		mi.position = spec[1]; mi.scale = spec[2] if not (mi.mesh is CapsuleMesh) else Vector3(spec[2].x, spec[2].y / (1.0 if spec[2].y < 0.5 else 2.0), spec[2].z)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		if not ("--oldcshadow" in OS.get_cmdline_user_args()): mi.layers = 1 << 19   # its own layer: the candle in her hand does not throw it (_candle_tick)
 		body_sh.add_child(mi)
+	# the house's lamps never throw it either: the crew's lamp on the floor by Natsuki threw these capsules over her as black wedges
+	if not ("--oldcshadow" in OS.get_cmdline_user_args()):
+		for l in main.find_children("*", "Light3D", true, false):
+			if l.get_parent() != candle and "shadow_caster_mask" in l: l.set("shadow_caster_mask", int(l.get("shadow_caster_mask")) & ~(1 << 19))
 
 func _process(dt):
 	t_now += dt; t_stage += dt
+	if t_now < 1.0:   # check stills: --hide=a,b hides the nodes of those names (to find what throws a shadow)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--hide="):
+				for nm in a.substr(7).split(","):
+					for n in get_tree().root.find_children(nm, "", true, false): if n is Node3D: (n as Node3D).visible = false
+	if t_now < 5.0 and t_now + dt >= 5.0 and "--lights" in OS.get_cmdline_user_args():
+		for l in get_tree().root.find_children("*", "Light3D", true, false):
+			var lt := l as Light3D
+			if lt.is_visible_in_tree() and lt.shadow_enabled and lt.light_energy > 0.0 and (lt is DirectionalLight3D or lt.global_position.distance_to(player.global_position) < 4.0):
+				print("LIGHT ", lt.get_path(), " e=", lt.light_energy, " d=", lt.global_position.distance_to(player.global_position))
 	# (試作277) the sleeve's continuation only while the hand is out at arm's length: near the eye its tube would pass the camera
 	for hh in [hand_l, hand_r]:
 		if hh and is_instance_valid(hh):
