@@ -226,6 +226,20 @@ func _items():
 	add.call("fixedcam", [-0.60, 3.85, 0.30], 0.18, "take", "小さいカメラ")
 	add.call("radio", [RADIO_AT[0], RADIO_AT[1], RADIO_AT[2] + 0.07], 0.16, "look", "ラジオ")
 	if main.SCENE == "house": add.call("guestbook", GB_AT, 0.16, "look", "宿帳")
+	# 2026-11-28（ユーザー試作298 #9「鹿の剥製、ストーブ、映写機、スクリーン、それぞれEで…テキストは任せます」）: the living room's
+	# things, where the house has them (their meshes' middles)
+	if main.SCENE == "house":
+		_mesh_look("deer", "furn_deer", 0.3, "鹿の剥製"); _mesh_look("stove", "furn_stove", 0.35, "ストーブ")
+		_mesh_look("proj", "furn_proj", 0.2, "映写機"); _mesh_look("screen", "furn_screen", 0.5, "スクリーン")
+
+# a thing to look at, where the house's mesh of that name is (the middle of its box). Nothing when the house has none
+func _mesh_look(key: String, prefix: String, r: float, name: String):
+	if main.S.get("env_node") == null: return
+	var found: Array = main.S.env_node.find_children(prefix + "*", "MeshInstance3D", true, false)
+	if found.is_empty(): print("STORY look %s: no %s" % [key, prefix]); return
+	var bb: AABB = (found[0] as MeshInstance3D).global_transform * (found[0] as MeshInstance3D).get_aabb()
+	for mi in found.slice(1): bb = bb.merge((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb())
+	items[key] = {"pos": bb.get_center(), "r": r, "kind": "look", "name": name}
 
 # 2026-11-20 練り直し（ユーザー 12時56分）：玄関の靴箱の上の宿帳。去年の八月の頁が開きやすい（何度も開かれた癖）。
 # 澪が見て「閉じて、棚に戻す」を選べば消える（guestbook_hidden）。見なかった・そのままにした人には、真琴が先に読んでいる（【真琴.宿帳】）
@@ -441,6 +455,9 @@ func _fit_lines():
 			if lines_box.get_child(k).has_meta("choice"): break
 			after += 1
 		if c0.has_meta("choice") and after <= 1: break
+		# 2026-11-28（ユーザー試作298 #3「この直前、台詞が表示されていない」、行きの車の「澪。ちょっとだけ、いい？」）: three answers
+		# fill the three lines and pushed out the question they answer. The line just before the answers stays while they are open
+		if not c0.has_meta("choice") and lines_box.get_child_count() > 1 and lines_box.get_child(1).has_meta("choice") and after == 0: break
 		lines_box.remove_child(c0); c0.queue_free()
 	for i in range(lines_box.get_child_count()):   # the line before fades back
 		(lines_box.get_child(i) as Control).modulate.a = 1.0 if i == lines_box.get_child_count() - 1 else 0.45
@@ -978,6 +995,10 @@ func _conversation(key: String) -> Array:
 		"note": return B("調べる.貼り紙")
 		"shoes": return B("調べる.靴")
 		"radio": return B("調べる.ラジオ")
+		"deer": return B("調べる.鹿")
+		"stove": return B("調べる.ストーブ")
+		"proj": return B("調べる.映写機")
+		"screen": return B("調べる.スクリーン")
 		"guestbook":
 			items.erase("guestbook"); focus = ""   # one look: the page is read once
 			return B("宿帳.見る")
@@ -1740,8 +1761,15 @@ func _take_radio():
 	tune = (STATIONS[0][0] - AM_LO) / (AM_HI - AM_LO)
 	items.erase("radio")
 	_radio_power(true)
+	_torches(false)
 	talk_with = ""
 	_start(B("ラジオ.取る"))
+
+# 2026-11-28（ユーザー試作298 #15「ラジオを聞いている間はスマホを懐中電灯代わりにするライトはなしで」）: while she listens, the
+# others' phones are screens only (their torches off); on again when she puts it down
+func _torches(on: bool):
+	for e in main.torches:
+		if is_instance_valid(e[0]): (e[0] as SpotLight3D).visible = on
 
 func _radio_tick(dt):
 	bc_t += dt
@@ -1959,6 +1987,8 @@ func _house_ready():
 	look.call("h_tape", g([0.35, 4.10, 0.0]), 0.16, "床のテープ")
 	look.call("h_shoes", g([0.30, 5.55, -0.12]), 0.35, "靴")
 	look.call("h_fridge", g([4.55, 2.3, 1.1]), 0.35, "冷蔵庫")
+	# 2026-11-28（ユーザー試作298 #13・#14）: upstairs the tub and the washing machine, and the water tank on the landing
+	_mesh_look("h_bath", "bath_tub", 0.45, "浴槽"); _mesh_look("h_washer", "wash_machine", 0.35, "洗濯機"); _mesh_look("h_tank", "polytank_landing", 0.2, "ポリタンク")
 	main.TALK = {}
 	main.generator(false)
 	if main.env: main.env.tonemap_exposure = 0.0
@@ -2180,7 +2210,7 @@ func _gen_flicker():
 		tw.tween_method(func(x): l.set_meta("e", e * x), 0.2, 1.0, 0.8)
 
 func _house_conv(key: String, n: int) -> Array:
-	var looks := {"h_fres": "照明", "h_cam": "桐生のカメラ", "h_tape": "床のテープ", "h_shoes": "靴", "h_fridge": "冷蔵庫"}
+	var looks := {"h_fres": "照明", "h_cam": "桐生のカメラ", "h_tape": "床のテープ", "h_shoes": "靴", "h_fridge": "冷蔵庫", "h_bath": "浴槽", "h_washer": "洗濯機", "h_tank": "ポリタンク"}
 	if looks.has(key): return B("20時.見る." + looks[key])
 	match key:
 		"kiryu":
@@ -2258,6 +2288,7 @@ func _reach(k: String, to: Node3D, fallback: Vector3) -> Node:
 func _front_open_by(k: String, then: Callable, zb := -0.18):
 	if main.door_pivot == null: then.call(0.0); return
 	var rest: float = main.door_pivot.rotation.y
+	_porch_light(rest)
 	var at := [5.3, 0.62, zb]
 	main.walk_to(k, [at], func():
 		var rig: Node3D = main._rig_of(k)
@@ -2277,6 +2308,20 @@ func _front_open_by(k: String, then: Callable, zb := -0.18):
 			if main.S.has(k + "_col"): (main.S[k + "_col"] as Node3D).global_position = rig.global_position
 			rc.queue_free(); then.call(rest)),
 		atan2(0.0, -1.0))
+# 2026-11-28（ユーザー試作298 #20「扉が閉まっている状態で夏希が外に出ていく」、#28 桐生も）: the door did open, but at night the
+# opening was as dark as the leaf, and she went out into black that read as the shut door. The storm's grey night comes in
+# through the opening as far as the door is open (the porch side; none while it is shut), and the one going out is a shape
+# against it
+var porch: OmniLight3D
+func _porch_light(rest: float):
+	if porch != null or "--noporch" in OS.get_cmdline_user_args(): return
+	porch = OmniLight3D.new(); porch.name = "porch_night"; porch.light_color = Color(0.62, 0.72, 0.9); porch.light_energy = 0.0
+	porch.omni_range = 3.2; porch.omni_attenuation = 1.2; porch.shadow_enabled = true; porch.light_specular = 0.05
+	main.add_child(porch); porch.global_position = gp(5.0, -0.9, 1.6)
+	get_tree().process_frame.connect(func():
+		if not is_instance_valid(porch) or main.door_pivot == null: return
+		porch.light_energy = 0.9 * clampf(absf(wrapf(main.door_pivot.rotation.y - rest, -PI, PI)) / deg_to_rad(45.0), 0.0, 1.0))
+
 func _helpers_tick():
 	if helpers_pending.is_empty(): return
 	var cam: Camera3D = player.get_node("Head/Camera")
@@ -2310,7 +2355,7 @@ const CELLAR_WIN := [10.0, 6.45, -1.4]     # plan: the cellar's window in the ea
 
 func _boards_start():
 	hs = 5; ch2 = false
-	holding_radio = false; radio_up = false; player.look_enabled = true
+	holding_radio = false; radio_up = false; player.look_enabled = true; _torches(true)
 	_radio_rest()
 	items.erase("radio")
 	var found := []
@@ -2682,7 +2727,11 @@ func _ham_pose():
 	if ham_st == "raise" and ham_hold > HAM_GOOD[1]: shake = minf(1.0, (ham_hold - HAM_GOOD[1]) * 1.4)
 	var wob := Vector3(sin(ham_t * 41.0), sin(ham_t * 33.0 + 1.0), 0.0) * 0.006 * shake
 	var fc: Vector3 = ham.get_meta("face", Vector3.ZERO)
-	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), nail_head + b * (elbow + fc) + wob)
+	# 2026-11-28（試作298の感想18「釘の頭と金槌が当たってない」）: the grip is set back by -elbow - fc, so the face sits at the
+	# pivot's -elbow; the pivot went at nail_head + elbow + fc, and the face landed fc off the head (3.5 cm up, 3.7 cm into the
+	# board: HAMDBG). The pivot (her elbow) at nail_head + elbow puts the face's middle on the head
+	var piv := nail_head + b * (elbow + (fc if "--hamold" in OS.get_cmdline_user_args() else Vector3.ZERO)) + wob
+	ham.global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(ham_ang)), piv)
 	(ham.get_meta("grip") as Node3D).position = -elbow - fc
 
 func _ham_tick(dt: float):
@@ -2693,7 +2742,14 @@ func _ham_tick(dt: float):
 		ham_cam.global_transform = Transform3D(Basis(), fp + ham_out * 0.2 - ham_side * 0.16 + Vector3.UP * 0.04).looking_at(fp, Vector3.UP)
 	var held: bool = Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	var fa := _arg_f("--hamang=", -1.0)   # stills only: the hammer held at this angle (0 = on the nail)
-	if fa >= 0.0: ham_ang = fa; _ham_pose(); return
+	if fa >= 0.0:
+		ham_ang = fa; _ham_pose()
+		if not has_meta("hamdbg") and not ham_nails.is_empty():   # stills only: where the face lands against the nail's head
+			set_meta("hamdbg", true)
+			var g: Node3D = ham.get_meta("grip")
+			var nl: Dictionary = ham_nails[mini(ham_hits, 2)]
+			print("HAMDBG face=%s head=%s nail_node=%s out=%s" % [g.global_transform * (ham.get_meta("face") as Vector3), (nl.at as Vector3) + ham_out * 0.04, (nl.n as Node3D).global_position, ham_out])
+		return
 	if demo_on or "--hamlast" in OS.get_cmdline_user_args(): held = ham_st in ["ready", "raise"] and fmod(ham_t, 1.3) < 0.62
 	match ham_st:
 		"ready":

@@ -5,6 +5,7 @@
 extends Node3D
 const Type = preload("res://scripts/type.gd")
 const Order = preload("res://scripts/order.gd")   # 後半の並び（2026-11-19）
+const Title = preload("res://scripts/title.gd")   # タイトル画面（2026-11-28）
 
 var CARD_TIME := 3.2
 const LOOP := 20.0
@@ -135,10 +136,20 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	# 証言と、まだ無い章の仮のカードを直に開く（--play=i1|i2|i3|ch8。開発と確認用。scripts/order.gd）
+	# タイトル画面（2026-11-28）：--titlescreen のときだけ（ユーザー 11-28 15時17分「タイトルメニュー画面は別スレッドで検討を重ねてから渡す。今回作ったものは使いません」。引数なしの起動は前のとおり）
+	if SCENES_RUN == 1:
+		Title._apply_vol()
+		var tp := Title._prefs()
+		if tp.has("q") and not SET.has("q"): SET["q"] = bool(tp.q)
+		var ua := Array(OS.get_cmdline_user_args())
+		if ua.has("--titlescreen") or ua.any(func(x): return x.begins_with("--titleshot=")):
+			set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
+			var tn: Node = Title.new(); tn.main = self; tn.name = "Title"; add_child(tn); return
 	if NEXT_PLAY == "" and SCENES_RUN == 1 and Order.direct(String(ARGS.get("play", ""))):
 		set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
 		Order.start.call_deferred(self, String(ARGS.play)); return
-	var start: bool = SCENE == "" and SCENES_RUN == 1   # ステップ E: the game itself begins (not N, not a reload)
+	var start: bool = SCENE == "" and (SCENES_RUN == 1 or TITLE_GO)   # ステップ E: the game itself begins (not N, not a reload; or はじめる on the title)
+	TITLE_GO = false
 	if SCENE == "": SCENE = "dusk"   # 段階1: the game begins with 第1章 (N still switches)
 	# 試作97 (ステップ C): one stage. 第1章 is played in the whole house at 17:30 and the door in the whole house at 23:00,
 	# with the people and the few things only that chapter has brought in from the old scenes' files (_ch1_set, _door_set).
@@ -883,6 +894,8 @@ func _save_settings():
 	SET["ht"] = ht_mode
 	SET["print"] = print_on
 	SET["q"] = quality_high
+	var tp := Title._prefs()
+	if tp.get("q", true) != quality_high: tp["q"] = quality_high; Title._save_prefs(tp)   # the title's 設定 follows Q too
 
 func _restore_settings():
 	trees_far(TREE_FAR_HIGH)
@@ -1123,6 +1136,11 @@ func _process(dt):
 			if is_instance_valid(COVER): COVER.queue_free()
 			COVER = null
 	var t: float = Time.get_ticks_msec() / 1000.0 - t0
+	for a in OS.get_cmdline_user_args():   # check stills: --putme=x,z,yaw,pitch holds Mio there (the F12 name's numbers)
+		if a.begins_with("--putme=") and player:
+			var v := a.substr(8).split(",")
+			player.global_position = Vector3(float(v[0]), float(v[4]) if v.size() > 4 else player.global_position.y, float(v[1])); player.velocity = Vector3.ZERO
+			player.yaw = deg_to_rad(float(v[2])); player.pitch = deg_to_rad(float(v[3]))
 	_shadow_budget(dt)
 	# a movie, or an unattended run without a screen (--frameclock, godot --headless --fixed-fps 24): the clock is the frames,
 	# counted from this scene's start (the playthrough goes from scene to scene)
@@ -1221,12 +1239,24 @@ func _camcorder_lcd():
 	var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
 	if nrm.size() > 0 and n.dot(gt.basis * nrm[0]) < 0: n = -n
 	var up := Vector3.UP - n * n.dot(Vector3.UP); up = up.normalized()
+	# 2026-11-28（ユーザー試作298 #23時「カメラのモニター内の要素がはみ出る」）: the mean of the vertices is not the screen's middle
+	# (more of them on one side), and the counter ran off its right edge onto the body. The middle of the screen's own box in its
+	# plane, and the type sized to fit 80% of its width
+	var rt := up.cross(n)
+	var lo := Vector2(INF, INF); var hi := Vector2(-INF, -INF)
+	for v in vs:
+		var w: Vector3 = gt * v - ctr
+		lo = Vector2(minf(lo.x, w.dot(rt)), minf(lo.y, w.dot(up))); hi = Vector2(maxf(hi.x, w.dot(rt)), maxf(hi.y, w.dot(up)))
+	ctr += rt * (lo.x + hi.x) * 0.5 + up * (lo.y + hi.y) * 0.5
+	var scr_w := hi.x - lo.x; var scr_h := hi.y - lo.y
 	var lab := Label3D.new()
 	lab.font = Type.cam(); lab.pixel_size = 0.000125; lab.font_size = 48; lab.outline_size = 0   # the camera's own type (DotGothic16 at three times its grid)
 	lab.modulate = Color(0.92, 0.92, 0.88); lab.shaded = false; lab.double_sided = false
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_child(lab)
-	lab.global_transform = Transform3D(Basis(up.cross(n), up, n), ctr + n * 0.0015 + up * 0.016)
+	var tw_px: float = Type.cam().get_string_size("● REC  0:00:00", HORIZONTAL_ALIGNMENT_LEFT, -1, 48).x
+	if tw_px > 0.0 and scr_w > 0.01: lab.pixel_size = minf(0.000125, scr_w * 0.8 / tw_px)
+	lab.global_transform = Transform3D(Basis(rt, up, n), ctr + n * 0.0015 + up * minf(0.016, scr_h * 0.3))
 	var base: float = {"night": 2465.0, "dusk": 252.0}.get(SCENE, 0.0)
 	if SCENE == "house": base = {"dusk": 252.0, "t20": 1000.0, "t23": 2465.0, "t02": 3757.0, "t0330": 4438.0, "t0430": 4880.0}.get(TIME, 0.0)
 	var t := [base]
@@ -1244,6 +1274,9 @@ func _wear():
 	var tex := {}
 	for d in S.wear:
 		var k: String = d.k
+		# 2026-11-28（試作298の感想10「床、変な汚れに見える」、二階）: the worn path through a doorway is wood worn pale on the
+		# boards downstairs; on the upstairs carpet the same image read as a dark spill. Not on the upper floor
+		if k == "floor" and float(d.c[2]) > 2.0 and not ARGS.has("wearup"): continue
 		if not tex.has(k): tex[k] = load("res://assets/wear/%s.png" % k)
 		var dc := Decal.new()
 		dc.texture_albedo = tex[k]
@@ -1951,6 +1984,14 @@ func _door_set():
 
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
+static var TITLE_GO := false   # はじめる on the title screen: the reload begins the game as a bare start did
+
+# the title screen's choice (title.gd): "" = はじめる (序章), else the chapter last reached (user://progress.json)
+func title_go(cont: String):
+	if cont == "":
+		TITLE_GO = true; get_tree().reload_current_scene(); return
+	if cont == "door": to_night(true); return
+	Order.start(self, cont)
 const PLAY_TIME := {"ch0": "t0430", "ch1car": "dusk", "ch1": "dusk", "h21": "t20", "ch3": "t23", "ch4": "t0330", "ch5": "t0330", "ch6": "t0430", "ch8": "t02", "ch11": "t0330", "ch7": "dusk", "ch7n": "y21", "ch7b": "y02"}
 # 後半の章の終わり：並び（scripts/order.gd の LATE_ORDER）の次へ。まだ無い章は仮のカード
 func next_chapter(cur: String):
@@ -1959,6 +2000,7 @@ func next_chapter(cur: String):
 
 func to_chapter(p: String):
 	_save_settings()
+	Title.save_progress(p)
 	_cover()
 	SCENE = "house"; NEXT_PLAY = p
 	get_tree().reload_current_scene()
@@ -1974,6 +2016,7 @@ static var COVER: CanvasLayer = null
 
 func to_night(from_story := false):
 	_save_settings()
+	if from_story: Title.save_progress("door")
 	_cover()
 	SCENE = "night"
 	FROM_STORY = from_story
@@ -2079,7 +2122,17 @@ func _shadow_budget(dt: float):
 			var lc: Light3D = c[1]
 			var to0 := lc.global_position + (e - lc.global_position).normalized() * minf(0.4, e.distance_to(lc.global_position) * 0.5)
 			var q0 := PhysicsRayQueryParameters3D.create(e, to0); q0.collide_with_areas = false
-			if not space0.intersect_ray(q0).is_empty() and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
+			var seen0 := space0.intersect_ray(q0).is_empty()
+			# 2026-11-28（感想8）: one ray to the lamp itself caught the door's head from the living room, and the dining room went
+			# dark. As at night: the lamp, or the light it throws (four points round it at half its reach, on its side of the walls)
+			if not seen0 and not ARGS.has("duskcut4"):
+				var r0: float = (lc.omni_range if lc is OmniLight3D else lc.spot_range) * 0.5
+				for off in [Vector3(r0, 0, 0), Vector3(-r0, 0, 0), Vector3(0, 0, r0), Vector3(0, 0, -r0)]:
+					var ql0 := PhysicsRayQueryParameters3D.create(lc.global_position, to0 + off); ql0.collide_with_areas = false
+					if not space0.intersect_ray(ql0).is_empty(): continue
+					var qe := PhysicsRayQueryParameters3D.create(e, to0 + off); qe.collide_with_areas = false
+					if space0.intersect_ray(qe).is_empty(): seen0 = true; break
+			if not seen0 and c[1] != lights.get("fresnel_key"): c[0] += 1000.0
 		cand.sort_custom(func(a, b): return a[0] < b[0])
 	# 試作125 (ユーザー「壁を通って明るくなってるやつ、他にもないか点検して」): a lamp left without its shadow lights
 	# through walls and floors (the lowest quality, with one shadow, lit every room about half again). Past the budget,
@@ -2100,7 +2153,10 @@ func _shadow_budget(dt: float):
 		l.shadow_enabled = i < shadow_n
 		if not l.has_meta("mask"): l.set_meta("mask", l.light_cull_mask)
 		var on := true
-		if i >= shadow_n and dusk_cut: on = false
+		# 2026-11-28（試作298の感想8「ここだと暗いけど、ここだと明るい。後者に合わせて」、夕方の食堂）: from the living room the
+		# dining room's lamp, in sight through the door, was the fifth and went out: the room was dark from there and lit inside
+		# it. At dusk the lamps in sight (the ray found them) all keep their light and their shadow; only the unseen ones go out
+		if i >= shadow_n and dusk_cut: on = float(cand[i][0]) < 500.0 and not ARGS.has("duskcut4"); l.shadow_enabled = on
 		elif i >= shadow_n and space:
 			var to := l.global_position + (e - l.global_position).normalized() * minf(0.4, e.distance_to(l.global_position) * 0.5)   # short of the lamp: not its own shade's or table's column
 			var r2: float = (l.omni_range if l is OmniLight3D else l.spot_range) * 0.5

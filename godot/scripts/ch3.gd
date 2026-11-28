@@ -193,6 +193,14 @@ static func _load_file(file: String):
 func _face(from: Array, to: Array) -> float:
 	return atan2(to[0] - from[0], to[1] - from[1])
 
+# a person turns on the spot to a plan point (their feet stay)
+func _turn_plan(k: String, to: Array, sec := 0.8):
+	var r: Node3D = main._rig_of(k)
+	if r == null: return
+	var d: Vector3 = gp(to[0], to[1], 0.0) - r.global_position
+	var yaw := atan2(d.x, d.z)
+	create_tween().tween_property(r, "rotation:y", r.rotation.y + wrapf(yaw - r.rotation.y, -PI, PI), sec).set_trans(Tween.TRANS_SINE)
+
 func _put(k: String, at: Array, yaw: float, z := 0.0):
 	if main.S.has(k + "_node"):
 		main.place_person(k, [at[0] - 4.8, 6.3 - at[1], z], yaw)
@@ -417,7 +425,11 @@ func _candle_tick(dt: float):
 			sk.add_child(rc); candle_hands.append(rc)
 	if candle_hands.size() == 2:
 		var b := r.global_basis
-		candle_hands[0].offset = b * Vector3(-0.03, -0.03, -0.06)   # right: under the saucer, the near side
+		# 2026-11-28（ユーザー試作298 #26「真琴の右手は下からお皿を支えて」）: the wrist below the saucer's near edge, the palm up
+		# under it (reach.gd palm_up); it held the saucer's rim from the side
+		candle_hands[0].offset = b * Vector3(-0.01, -0.055, -0.07)   # right: under the saucer, the near side
+		candle_hands[0].palm_up = not "--nopalmup" in OS.get_cmdline_user_args()
+		candle_hands[0].palm_sign = _arg_f("--palmsign=", 1.0)
 		candle_hands[1].offset = b * Vector3(0.06, 0.03, -0.02)     # left: cupped at its side
 		candle_hands[0].pole = b * Vector3(-1.0, -1.0, -0.3); candle_hands[1].pole = b * Vector3(1.0, -1.0, -0.3)
 	# 試作127（ユーザー「ろうそくの炎が傾くってのは目に見えない＆重くなる原因になるのではないかと懸念」）: no lean to the
@@ -560,7 +572,11 @@ func _do(what: String):
 			if main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("screen", true, false) as Node3D
 			if ph == null and main.S.has("kiryu_node"): ph = main.S.kiryu_node.find_child("kphone", true, false) as Node3D
 			# he steps out of the cellar doorway's shadow toward Mio as he offers himself (from her place the jamb hid his head)
-			main.walk_to("taiga", [[5.0, 5.4, 0.0]], func(): pass, _face([5.0, 5.4], MIO0))
+			# 2026-11-28（ユーザー試作298 #22「大河が壁をすり抜けてくる。桐生の方に一歩踏み出して、桐生も大河の方を向く」）: the step to
+			# 5.0, 5.4 crossed the cellar wall's line (y 5.6) left of its door. A step toward Kiryu now, on his own side of it,
+			# and Kiryu turns to him
+			main.walk_to("taiga", [[4.99, 5.91, 0.0]], func(): pass, _face([4.99, 5.91], AT0.kiryu))
+			_turn_plan("kiryu", [4.99, 5.91])
 			_line_face("taiga", ph, Color(0.82, 0.88, 1.0), 1.6, 3.0)
 		"face_makoto": _line_face("makoto", candle, Color(1.0, 0.68, 0.36), 0.9)
 		"taiga_arm":
@@ -617,7 +633,13 @@ func _do(what: String):
 			player.global_position = gp(MIO_WAIT[0], MIO_WAIT[1], 0.0); player.velocity = Vector3.ZERO
 			player.get_node("Head").rotation.z = 0.0
 			_look_from(MIO_WAIT, TAKE_AT, STAND_EYE, 1.45)
-			_put("kiryu", TAKE_AT, _face(TAKE_AT, MIO_WAIT)); main.set_stand("kiryu", "talk/idle", 0.0)
+			# 2026-11-28（ユーザー試作298 #27「階段から瞬間移動してきたのかと思ってしまう」）: he was put by the tripod as the cut
+			# came. He comes up out of the cellar door with her and walks down the hall to the tripod, in her sight
+			if "--kiryuput" in OS.get_cmdline_user_args():
+				_put("kiryu", TAKE_AT, _face(TAKE_AT, MIO_WAIT)); main.set_stand("kiryu", "talk/idle", 0.0)
+			else:
+				_put("kiryu", [5.3, 5.25], _face([5.3, 5.25], TAKE_AT)); main.set_stand("kiryu", "talk/idle", 0.0)
+				main.walk_to("kiryu", [[5.2, 4.2, 0.0], [TAKE_AT[0], TAKE_AT[1], 0.0]], Callable(), _face(TAKE_AT, MIO_WAIT))
 		"shake":
 			var y0: float = player.yaw
 			var tw := create_tween()
@@ -769,7 +791,9 @@ func _strike_nail():
 func _cam_near() -> bool:
 	var cam: Camera3D = player.get_node("Head/Camera")
 	var to := fixed_cam.global_position - cam.global_position
-	return _aim_ok(to, 1.9, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
+	# 2026-11-28（ユーザー試作298 #23「テープ替え、もう少し近づいてからでないとアクションできないように」）: 1.9 m let her start it
+	# from across the landing. Within an arm and a step now
+	return _aim_ok(to, 1.15, 24.0)   # 試作281: 1.7 m and 18° were narrow (story.gd _aim_ok)
 
 func _tape_tick():
 	if mode != FREE: return
@@ -982,16 +1006,18 @@ func _trace_start(gq: Dictionary):
 	if gq.key == "g5": bm.size = Vector3(0.003, 1.86, 0.065); mi.global_position = gp(9.977, 5.318, 0.97)
 	mi.scale = Vector3(0.02, 1, 1) if along_x and gq.key != "g5" else (Vector3(1, 0.02, 1) if gq.key == "g5" else Vector3(1, 1, 0.02))
 	trace = {"gq": gq, "mi": mi, "p": 0.0, "snd": 0.0, "hold": false, "along_x": along_x}
-	if gq.key != "g5": _multi_start(gq, mi, along_x)
+	if gq.key != "g5":
+		if "--tapeold" in OS.get_cmdline_user_args(): _multi_start(gq, mi, along_x)
+		else: _seam_start(gq, mi, along_x)
 	player.look_enabled = false; player.move_enabled = false
 	Sound.one(self, "ch3_tape", -10.0, gq.at)
 	# the close shot: a set camera a little off the gap's face, slightly from above and from the side the strip starts on
 	var n3 := Vector3(float(gq.n[0]), 0.0, float(gq.n[1]))
 	if n3.length() < 0.1: n3 = (player.global_position - (gq.at as Vector3)) * Vector3(1, 0, 1)
 	n3 = n3.normalized()
-	var mid: Vector3 = mi.global_position
+	var mid: Vector3 = mi.global_position if not trace.has("seam") else (trace.s0 as Vector3).lerp(trace.s1 as Vector3, 0.5)
 	var side := n3.cross(Vector3.UP).normalized()
-	var dist := 1.25 if gq.key == "g5" else 0.62
+	var dist := 1.25 if gq.key == "g5" else (0.62 if not trace.has("seam") else maxf(0.62, float(trace.seam_len) * 0.95))
 	var cc := Camera3D.new(); cc.fov = 50.0; cc.near = 0.02
 	add_child(cc)
 	var eye: Vector3 = mid + n3 * dist + Vector3.UP * (0.0 if gq.key == "g5" else 0.16) - side * dist * 0.25
@@ -1000,12 +1026,13 @@ func _trace_start(gq: Dictionary):
 	cc.look_at_from_position(eye, mid, Vector3.UP)
 	cc.make_current()
 	trace["cc"] = cc
-	note_lb.text = T("［Ｅ（押したまま）　貼る］") if gq.key == "g5" else T("［マウス　ずらす　　Ｅ（押したまま）　引き出す、離して　切る］")
+	note_lb.text = T("［Ｅ（押したまま）　貼る］") if gq.key == "g5" or trace.has("seam") else T("［マウス　ずらす　　Ｅ（押したまま）　引き出す、離して　切る］")
 
 # holding E (or the left button) lays the strip at an even pace; the gap's wind thins as it goes
 func _trace_tick(dt: float):
 	if trace.is_empty(): return
 	var held: bool = bool(trace.hold) or Input.is_key_pressed(KEY_E) or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	if trace.has("seam"): _seam_tick(dt, held); return
 	if trace.has("cover"): _multi_tick(dt, held); return
 	if not held: return
 	var gq: Dictionary = trace.gq
@@ -1061,6 +1088,101 @@ func _multi_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
 	roll.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(roll)
 	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
 	trace["roll"] = roll
+
+# 2026-11-28（試作298の感想24「板にテープ貼るミニゲーム、案がほしい」、案を決めた）: a gap is the whole seam between the window's
+# frame and its boards, end to end (60-90 cm), as the back door's edge is: what made that one feel done was that the tape
+# closed the door's whole gap. Holding Ｅ runs the roll along the seam in one strip; letting go cuts it there, and the next
+# press goes on from that end. The wind and Makoto's flame stay with what is still open. Done, one line runs end to end.
+# (--tapeold: 試作297's short crossed strips, to compare)
+const SEAM_SPEED := 0.32       # metres a second, holding
+func _seam_start(gq: Dictionary, mi: MeshInstance3D, along_x: bool):
+	mi.visible = false
+	var axis := Vector3(1, 0, 0) if along_x else Vector3(0, 0, 1)
+	var c: Vector3 = gq.at
+	var lo := -0.17; var hi := 0.17
+	# the window's boards round the gap give the seam's two ends (env.glb board_*, the wall's axis)
+	var found := false
+	var nn := Vector3(float(gq.n[0]), 0.0, float(gq.n[1]))
+	var abs_ := []
+	var face := -99.0
+	for b in main.S.env_node.find_children("board_*", "MeshInstance3D", true, false):
+		var m := b as MeshInstance3D
+		if String(m.name).begins_with("board_cellar") or not m.is_visible_in_tree(): continue
+		var ab: AABB = m.global_transform * m.get_aabb()
+		var bc := ab.get_center()
+		if Vector2(bc.x - c.x, bc.z - c.z).length() > 0.9 or absf(bc.y - c.y) > 0.9: continue
+		abs_.append(ab)
+		face = maxf(face, maxf((ab.position - c).dot(nn), (ab.end - c).dot(nn)))   # the boards' inside face
+		var a0: float = (ab.position - c).dot(axis); var a1: float = (ab.end - c).dot(axis)
+		if not found: lo = minf(a0, a1); hi = maxf(a0, a1); found = true
+		else: lo = minf(lo, minf(a0, a1)); hi = maxf(hi, maxf(a0, a1))
+	if not found or hi - lo < 0.3: lo = -0.3; hi = 0.3
+	lo += 0.02; hi -= 0.02
+	# the slit itself: between two boards one above the other, the one nearest the wind's place (what the eye sees as the gap)
+	abs_.sort_custom(func(p, q): return (p as AABB).get_center().y < (q as AABB).get_center().y)
+	var best := 99.0; var cy0 := c.y
+	for i in abs_.size() - 1:
+		var y0: float = (abs_[i] as AABB).end.y; var y1: float = (abs_[i + 1] as AABB).position.y
+		if y1 - y0 < 0.003 or y1 - y0 > 0.12: continue
+		var ym := (y0 + y1) * 0.5
+		if absf(ym - cy0) < best and absf(ym - cy0) < 0.5: best = absf(ym - cy0); c.y = ym
+	var off := nn * ((face + 0.004) if face > -50.0 else 0.012)
+	trace["seam"] = true; trace["s0"] = c + off + axis * lo; trace["s1"] = c + off + axis * hi
+	trace["seam_len"] = hi - lo; trace["at"] = 0.0; trace["strips"] = []; trace["cur"] = null
+	var roll := MeshInstance3D.new(); var rm := TorusMesh.new(); rm.inner_radius = 0.022; rm.outer_radius = 0.034; roll.mesh = rm
+	var rmat := StandardMaterial3D.new(); rmat.albedo_color = Color(0.72, 0.72, 0.7); rmat.roughness = 0.5; roll.material_override = rmat
+	roll.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(roll)
+	roll.basis = Basis(Vector3.RIGHT, PI * 0.5) if along_x else Basis(Vector3.FORWARD, PI * 0.5)
+	trace["roll"] = roll
+	# the wind's sound sits at the open part's middle (where the flame leans)
+	print("STORY seam %s len=%.2f y=%.2f slit=%.2f boards=%d" % [gq.key, hi - lo, c.y, best, abs_.size()])
+
+func _seam_tick(dt: float, held: bool):
+	var gq: Dictionary = trace.gq
+	var L: float = trace.seam_len
+	var s0: Vector3 = trace.s0; var s1: Vector3 = trace.s1
+	var dir := (s1 - s0).normalized()
+	if bool(trace.hold):   # the run: one stop halfway (cut, a breath, on again), as a hand does
+		held = true
+		if float(trace.at) > 0.45 * L and not trace.has("paused"): trace["paused"] = 0.5
+		if trace.has("paused") and float(trace.paused) > 0.0: trace.paused = float(trace.paused) - dt; held = false
+	var p := s0 + dir * float(trace.at)
+	(trace.roll as Node3D).global_position = p + Vector3(gq.n[0] * 0.03, -0.035, gq.n[1] * 0.03)
+	if held and trace.cur == null:   # a new strip, from where the last one was cut
+		var st := MeshInstance3D.new(); var bm := BoxMesh.new()
+		bm.size = Vector3(1.0, 0.05, 0.002) if trace.along_x else Vector3(0.002, 0.05, 1.0); st.mesh = bm
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(0.86, 0.86, 0.83).darkened(randf() * 0.04); m.roughness = 0.45; m.metallic = 0.05
+		st.material_override = m; st.gi_mode = GeometryInstance3D.GI_MODE_DISABLED; add_child(st)
+		st.set_meta("a0", maxf(0.0, float(trace.at) - 0.015))   # a little over the last one's end
+		st.set_meta("tilt", deg_to_rad(randf_range(-1.2, 1.2)))
+		trace.cur = st
+		Sound.one(self, "ch3_tape", -12.0, p)
+	if trace.cur != null:
+		var st: MeshInstance3D = trace.cur
+		if held:
+			trace.at = minf(L, float(trace.at) + dt * SEAM_SPEED)
+			trace.snd = float(trace.snd) + dt
+			if float(trace.snd) > 0.12:
+				trace.snd = 0.0
+				var pl := Sound.one(self, "ch3_tape", -17.0, p)
+				if pl is AudioStreamPlayer3D: (pl as AudioStreamPlayer3D).pitch_scale = randf_range(0.95, 1.15)
+		var a0: float = st.get_meta("a0"); var len := maxf(0.004, float(trace.at) - a0)
+		var axis_n := Vector3(float(gq.n[0]), 0.0, float(gq.n[1])).normalized()
+		st.global_transform = Transform3D(Basis(axis_n, float(st.get_meta("tilt"))) * Basis.from_scale(Vector3(len, 1, 1) if trace.along_x else Vector3(1, 1, len)), s0 + dir * (a0 + len * 0.5))
+		if not held or float(trace.at) >= L:   # cut
+			Sound.one(self, "ch3_tape", -7.0, p)
+			(trace.strips as Array).append(st); trace.cur = null
+	var k: float = float(trace.at) / L
+	var wp: AudioStreamPlayer3D = gq.player
+	if wp:
+		wp.volume_db = lerpf(-6.0, -30.0, k)
+		wp.global_position = s0 + dir * lerpf(float(trace.at), L, 0.5)   # the wind from what is still open
+	if k >= 0.999 and trace.cur == null: _trace_end()
+	if not trace.has("shot"):   # --tapeshot=png: a still mid-game (the check only)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--tapeshot=") and k > 0.6 and trace.cur != null:
+				trace["shot"] = true
+				get_viewport().get_texture().get_image().save_png(a.substr(11)); print("TAPESHOT ", a.substr(11)); get_tree().create_timer(0.3).timeout.connect(get_tree().quit)
 
 func _gap_point(gq: Dictionary, u: float) -> Vector3:
 	var along := Vector3(1, 0, 0) if trace.along_x else Vector3(0, 0, 1)
@@ -1183,7 +1305,10 @@ func _up_tick(_dt: float):
 # it shows the room behind her as a grey haze and never her. The first time she stands at it and looks in, someone crosses
 # the room behind her in the glass (Kiryu, sealing the tub's window), one board of the floor sounds; she turns and it is him.
 const WASH_MIRROR := [6.085, 5.30, 1.40]   # its middle (z above F2)
-const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.7, 5.95]]
+# 2026-11-28（ユーザー試作298 #25「振り返ったら桐生が消えていた」）: the way ended at 8.7, 5.95, behind the bath's partition
+# (x 8.0, its opening y 5.4..6.4): she turned and he was gone. He stops in the opening now, turned to her for his line, then
+# back to the tub's window, taping it (the scare stays; what he was doing is in sight)
+const WASH_PATH := [[6.35, 7.05], [7.4, 6.2], [8.2, 5.6]]   # (at the opening's south side: the way into the bath, y 6.2, stays clear)
 var pose_dbg := []
 var wm_vp: SubViewport
 var wm_cam: Camera3D
@@ -1248,7 +1373,11 @@ func _wash_mirror_tick():
 			tl.omni_range = 2.6; tl.shadow_enabled = false; tl.position = Vector3(0.25, 1.0, -0.3); r.add_child(tl)
 		var pts := []
 		for p in WASH_PATH.slice(1): pts.append([p[0], p[1], F2])
-		main.walk_to("kiryu", pts, Callable(), _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
+		main.walk_to("kiryu", pts, func():
+			get_tree().create_timer(4.5).timeout.connect(func():
+				_turn_plan("kiryu", [9.9, 6.6], 1.0)
+				for i in 3: get_tree().create_timer(1.6 + 1.3 * i).timeout.connect(func(): Sound.one(self, "ch3_tape", -14.0, gp(9.4, 6.3, F2 + 1.4))))
+			, _face(WASH_PATH[2], [WASH_MIRROR[0] + 0.6, WASH_MIRROR[1]]))
 	get_tree().create_timer(0.9).timeout.connect(func():
 		Sound.one(self, "creak2", -4.0, gp(7.4, 6.2, F2 + 0.1))
 		if mode == FREE and stage in ["up", "back"]: _start(B("二階.鏡")))   # (not over a talk begun in that second)

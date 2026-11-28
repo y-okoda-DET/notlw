@@ -457,7 +457,12 @@ func _natsuki_cam():
 				# 試作176 A10（ユーザー「カメラが浮いている。机に置こうか」）: beside the projector it hung at the projector's top
 				# height; it sits on the low table (furnish.py furn_ltable, top .40 m)
 				for mi in main.S.env_node.find_children("furn_ltable*", "MeshInstance3D", true, false):
-					if proj != Vector3.INF: proj.y = ((mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()).end.y
+					if proj == Vector3.INF: continue
+					var tb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+					proj.y = tb.end.y
+					# 2026-11-28（ユーザー試作298 #19「カメラ、机の上に置こうかな」）: 0.32 m past the projector was over the table's edge.
+					# On the top, a hand's width in from its edges
+					proj.x = clampf(proj.x, tb.position.x + 0.1, tb.end.x - 0.1); proj.z = clampf(proj.z, tb.position.z + 0.1, tb.end.z - 0.1)
 				if proj != Vector3.INF:
 					var lo := INF
 					for c in cam_parts: lo = minf(lo, ((c[0] as MeshInstance3D).global_transform * (c[0] as MeshInstance3D).get_aabb()).position.y)

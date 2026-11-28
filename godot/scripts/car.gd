@@ -72,9 +72,16 @@ var mirror_mesh: MeshInstance3D
 var title_layer: CanvasLayer
 var title_rect: TextureRect
 var title_t := -1.0
+const TITLE_LOOK := 4.5   # s of the house before the full-screen name ("full")
 # 試作297（赤字 #7「他の案も見たい。（1）全画面にドーン、（2）タランティーノならどうするか」）: --titlemode=full | qt to see
 # them; "" is the title as it was (low over the dashboard, fading in on the house)
-var title_mode := ""
+# 2026-11-28（ユーザー「前の題名映像候補も残しておいて、新しく作ったものに差し替え。車が止まって、建物を映してちょっと待って
+# タイトルバック→章カード、って流れで」）: "stop" is the title now: the car stops at the gap, the house held TITLE_LOOK s, the hit
+# and the name on the print's teal, and from there straight to the chapter's card (no return to the car).
+# --titlemode=full (the house, the name, the house again: the 11-28 movie) | qt | old (low over the dashboard, as before)
+var title_mode := "stop"
+const CAR_STOP_SHORT := 1.0     # "stop": metres short of d_end where she stops (--gapstop: at the gap, as 11-28 案2)
+var ARGS_GAPSTOP := "--gapstop" in OS.get_cmdline_user_args()
 var title_cover: ColorRect
 var title_freeze: TextureRect
 var title_music: Node
@@ -726,6 +733,7 @@ func _title():
 	title_rect.modulate = Color(1, 1, 1, 0); title_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--titlemode="): title_mode = a.substr(12)
+	if title_mode == "old": title_mode = ""
 	if title_mode != "":
 		title_layer.layer = 20   # over the lines' box and the notes
 		title_freeze = TextureRect.new(); title_freeze.set_anchors_preset(Control.PRESET_FULL_RECT); title_freeze.visible = false
@@ -733,7 +741,7 @@ func _title():
 		title_freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_freeze)
 		title_cover = ColorRect.new(); title_cover.color = Color(0.03, 0.13, 0.13, 1); title_cover.set_anchors_preset(Control.PRESET_FULL_RECT)   # the print's own deep teal, not a screen black
 		title_cover.visible = false; title_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE; title_layer.add_child(title_cover)
-	if title_mode == "full":
+	if title_mode == "full" or title_mode == "stop":
 		# (1) the picture cut to black and the name filling it, at once, on a hit; four seconds; cut back to the house
 		var hf := vs.y * 0.86
 		title_rect.self_modulate = Color(0.94, 0.91, 0.83)   # the paper
@@ -810,14 +818,24 @@ func _drive(dt: float):
 			v = 0.0
 		"drive_on":
 			var want2 := 2.4
-			if d > d_reveal - 7.0: want2 = lerpf(2.4, 0.55, clampf((d - (d_reveal - 7.0)) / 7.0, 0.0, 1.0))
+			# 2026-11-28（ユーザー「オープニングからアヴァンの流れは残す。家には前みたいに寄ってから、に」）: "stop" drives on past
+			# the gap and brakes to a stop short of the porch (d_end - CAR_STOP_SHORT), as near as the old creep came; then the house
+			var stop_end := title_mode == "stop" and not ARGS_GAPSTOP
+			if stop_end:
+				var to_end := d_end - CAR_STOP_SHORT - d
+				want2 = minf(want2, sqrt(maxf(to_end, 0.0) * 2.0 * 0.5))
+			elif d > d_reveal - 7.0: want2 = lerpf(2.4, 0.55, clampf((d - (d_reveal - 7.0)) / 7.0, 0.0, 1.0))
 			v = move_toward(v, want2, dt * 0.9)
-			if d >= d_reveal:
+			if stop_end:
+				if d >= d_end - CAR_STOP_SHORT - 0.05 or (d >= d_end - CAR_STOP_SHORT - 0.6 and v < 0.12):
+					v = 0.0; stage = "gap"; t_stage = 0.0
+					print("CAR gap t=%.1f d=%.1f" % [t_now, d])
+			elif d >= d_reveal:
 				stage = "gap"; t_stage = 0.0
 				print("CAR gap t=%.1f" % t_now)
 		"gap":
 			# the car creeps at the gap until she looks at the house (the camera is not taken: the light ahead draws her)
-			v = move_toward(v, 0.45, dt * 0.6)
+			v = move_toward(v, 0.0 if title_mode == "stop" else 0.45, dt * (0.9 if title_mode == "stop" else 0.6))
 			if _looking_at_house() and t_stage > 0.4:
 				stage = "title"; t_stage = 0.0; title_t = 0.0
 				print("CAR title t=%.1f" % t_now)
@@ -826,8 +844,12 @@ func _drive(dt: float):
 				var tw0 := create_tween(); tw0.tween_property(tes_box, "modulate:a", 0.0, 0.8)
 				tw0.tween_callback(func(): _clear_box(tes_box); tes_box.modulate.a = 1.0)
 		"title":
-			v = move_toward(v, 0.0 if d > d_end - 1.0 else 0.6, dt * 0.5)
-			if t_stage > 9.5:
+			v = move_toward(v, 0.0 if (d > d_end - 1.0 or title_mode == "stop") else 0.6, dt * 0.5)
+			if title_mode == "stop" and t_stage > TITLE_LOOK + 4.6:   # the name has gone: on the teal, straight to the chapter's card
+				stage = "done"; black.color.a = 1.0
+				if demo_car: print("DEMO car done t=%.1f fails=%d" % [t_now, demo_fails])
+				get_tree().create_timer(0.6).timeout.connect(_to_dusk)
+			elif title_mode != "stop" and t_stage > (12.5 if title_mode == "full" else 9.5):   # (full: the house held, the name, then the house again)
 				stage = "out"; t_stage = 0.0
 				var tw := create_tween(); tw.tween_property(black, "color:a", 1.0, 1.6)
 				_loop_to("car_gravel", -60.0, 1.4); _loop_to("car_drive", -60.0, 1.4); _loop_to("car_idle", -60.0, 1.4)
@@ -869,13 +891,18 @@ func _title_tick(dt: float):
 	if title_t < 0.0: return
 	var t0 := title_t
 	title_t += dt
-	if t0 < 1.2 and title_t >= 1.2:   # check stills: --titleshot=<png>, 1.2 s into the title
+	var big := title_mode == "full" or title_mode == "stop"
+	var shot_at := 1.2 + (TITLE_LOOK if big else 0.0)
+	if t0 < shot_at and title_t >= shot_at:   # check stills: --titleshot=<png>, 1.2 s into the name
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--titleshot="): _save_shot(a.substr(12))
-	if title_mode == "full" or title_mode == "qt":
-		var hold := 4.0 if title_mode == "full" else 5.0
-		if t0 == 0.0:
-			if title_mode == "full":
+	if big or title_mode == "qt":
+		# 2026-11-28（ユーザー「一回、建物をじっくり見せたあとに案1＋打撃音のパターンを映像で見てみたい」）: in "full" the house
+		# is held for TITLE_LOOK s first (the car creeping, nothing on the screen), then the hit and the name
+		var look := TITLE_LOOK if big else 0.0
+		var hold := look + (4.0 if big else 5.0)
+		if t0 <= look and title_t > look:
+			if big:
 				title_cover.visible = true
 				for k in ["car_gravel", "car_drive", "car_idle"]:
 					if loops.has(k): title_vol[k] = (loops[k] as AudioStreamPlayer).volume_db; (loops[k] as AudioStreamPlayer).volume_db = -80.0
@@ -886,7 +913,9 @@ func _title_tick(dt: float):
 				if not "--nosound" in OS.get_cmdline_user_args():
 					title_music = Sound.one(self, "credits_joke", -2.0)
 			title_rect.modulate.a = 1.0
-		if t0 < hold and title_t >= hold:
+		if t0 < hold and title_t >= hold and title_mode == "stop":   # the name goes; the teal stays to the card
+			create_tween().tween_property(title_rect, "modulate:a", 0.0, 0.5)
+		elif t0 < hold and title_t >= hold:
 			title_rect.modulate.a = 0.0; title_cover.visible = false; title_freeze.visible = false
 			if is_instance_valid(title_music): title_music.queue_free()
 			for k in title_vol: (loops[k] as AudioStreamPlayer).volume_db = title_vol[k]
@@ -1009,11 +1038,12 @@ var glance_t := 0.0
 var glance_at := ""
 func _nat_glance():
 	var tx := String(cur.get("text", ""))
-	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 2.6
+	if tx.contains("撮ってきた"): glance_at = "tape"; glance_t = 3.2
 	elif tx.contains("澪"): glance_at = "mio"; glance_t = 3.6
-	# 2026-11-27（ユーザー「話してる感じもまだ出てないな」）: at the start of each of her lines she looks at Mio a moment, then back
-	# to the road (the nod alone, 3°, did not read from the side)
-	elif glance_t <= 0.0: glance_at = "mio"; glance_t = 1.3
+	# 2026-11-27（ユーザー「話してる感じもまだ出てないな」）: at the start of each of her lines she looked at Mio a moment.
+	# 2026-11-28（ユーザー試作298 #5「こちらを向いて話しかけられるのを繰り返すと違和感。シートに背中を付けているように」）: only when
+	# she calls Mio by name, and at the tape; the other lines she says to the road (the nod and a tenth of a turn)
+	elif glance_t <= 0.0 and "--natglance" in OS.get_cmdline_user_args(): glance_at = "mio"; glance_t = 1.3
 
 func _nat_look_tick(dt: float):
 	if nat_ik == null: return
@@ -1021,7 +1051,9 @@ func _nat_look_tick(dt: float):
 	# 2026-11-27（ユーザー「横から夏希を見ているとき、喋っているように見せたい」）: while she talks her head goes a little to
 	# Mio (a fifth of the way) and nods with the words (ReachIK talk_w)
 	var talking: bool = main.talk_now == "natsuki"
-	var want := 1.0 if glance_t > 0.0 else (0.2 if talking else 0.0)
+	var want := 1.0 if glance_t > 0.0 else (0.1 if talking else 0.0)
+	nat_ik.point_w = move_toward(nat_ik.point_w, 1.0 if (glance_at == "tape" and glance_t > 0.0) else 0.0, dt * 2.2)
+	nat_ik.point_at = tape_node.global_position if tape_node else Vector3.ZERO
 	if talking and glance_t <= 0.0: glance_at = "mio"
 	nat_ik.look_w = move_toward(nat_ik.look_w, want, dt * 1.4)
 	nat_ik.talk_w = move_toward(nat_ik.talk_w, 1.0 if talking else 0.0, dt * 3.0)
@@ -1095,7 +1127,10 @@ func _jump_stop():
 
 func _jump_gap():
 	_jump(999.0)
-	stage = "drive_on"; t_stage = 0.0; d = d_reveal - 0.5; v = 0.6
+	var back := 0.5
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--cargapback="): back = float(a.substr(13))   # check movies: from this many metres before the gap
+	stage = "drive_on"; t_stage = 0.0; d = d_reveal - back; v = 0.6 if back < 1.0 else 1.2
 	li = LINES.size(); si = STOP_LINES.size(); cur = {}; _clear_box(lines_box)
 	_drive(0.0)
 
@@ -1142,7 +1177,7 @@ class ReachIK extends SkeletonModifier3D:
 	var face_v := Vector3.ZERO    # the face's forward in the head bone's frame
 	# 2026-11-27: back against the seat (spine_01 leans back), the arms turned out (the elbows down), the hands round the rim
 	# with the thumbs inside it, the head nodding while she talks
-	var lean := deg_to_rad(8.0)
+	var lean := deg_to_rad(14.0)   # 2026-11-28（ユーザー試作298 #5「シートに背中を付けているように」）: 8° still sat her off the back
 	var arm_out := deg_to_rad(-20.0)   # (this sign: the elbows down to her sides, not out; the other dropped the near one too far)
 	var grip := 1.0
 	var talk_w := 0.0
@@ -1154,7 +1189,12 @@ class ReachIK extends SkeletonModifier3D:
 	var rim_k := 1.06     # the Tripo ring against WHEEL_R (measured on the stills, 11-27)
 	var curl := [0.4, 0.44, 0.28]   # (11-27: more closed read as claws hooked on the rim's inside; the wrist on the rim, the fingers laid round it)
 	var talk_t := 0.0
+	# 2026-11-28（ユーザー試作298 #6「テープを『それ撮ってきた』と示すとき、指で指すとかのモーション」）: her left hand (Mio's side)
+	# leaves the wheel and points at the tape on the dash: point_w 0..1, point_at in the world
+	var point_w := 0.0
+	var point_at := Vector3.ZERO
 	var spine0 := -1
+	var clav_k := 0.3 if "--clav" in OS.get_cmdline_user_args() else 0.0   # the collarbone's share of the reach (#7, tried: the dark mark under her arm is in the sweater's texture, not the bend. Off)
 	var fingers := {}   # side -> [[bone, ...] per finger]; the thumb last
 	func setup():
 		var sk := get_skeleton()
@@ -1185,7 +1225,7 @@ class ReachIK extends SkeletonModifier3D:
 		print("CAR natsuki fingers ", fingers)
 		for s in ["l", "r"]:
 			var a := sk.find_bone("upperarm_" + s); var b := sk.find_bone("lowerarm_" + s); var c := sk.find_bone("hand_" + s)
-			if a >= 0 and b >= 0 and c >= 0: arms.append([a, b, c, -1.0 if s == "l" else 1.0])
+			if a >= 0 and b >= 0 and c >= 0: arms.append([a, b, c, -1.0 if s == "l" else 1.0, sk.find_bone("clavicle_" + s)])
 	func _process_modification():
 		var sk := get_skeleton()
 		if sk == null or wheel == null or not is_instance_valid(wheel): return
@@ -1207,6 +1247,17 @@ class ReachIK extends SkeletonModifier3D:
 			var ang := deg_to_rad(hand_deg) * side
 			var rim_w: Vector3 = wheel.global_transform * Vector3(sin(ang) * WHEEL_R * rim_k, cos(ang) * WHEEL_R * 0.92 * rim_k, 0.0)
 			var ctr_w: Vector3 = wheel.global_transform * Vector3.ZERO
+			# 2026-11-28（ユーザー試作298 #7「服の脇の部分の変なの」）: the upper arm alone lifted to the wheel pulled the sweater's
+			# armpit into a hard fold. The collarbone takes a share of the reach first (forward and a little up), as a shoulder does
+			if clav_k > 0.0 and arm.size() > 4 and int(arm[4]) >= 0:
+				var cb: int = arm[4]
+				var gc := sk.get_bone_global_pose(cb)
+				var sh0: Vector3 = sk.get_bone_global_pose(arm[0]).origin
+				var want: Vector3 = inv * (wheel.global_transform * Vector3(sin(deg_to_rad(hand_deg) * side) * WHEEL_R, 0.0, 0.0))
+				want.y = sh0.y   # forward only: lifted, the shoulder read as a shrug
+				var q := Quaternion((sh0 - gc.origin).normalized(), (want - gc.origin).normalized())
+				var cang := minf(q.get_angle() * clav_k, deg_to_rad(16.0))
+				if q.get_angle() > 0.001: sk.set_bone_global_pose(cb, Transform3D(Basis(Quaternion(q.get_axis().normalized(), cang)) * gc.basis, gc.origin))
 			# the palm on the rim from outside it (the wrist back from the rim along the forearm, out from the wheel's middle)
 			var sh_w: Vector3 = sk.global_transform * sk.get_bone_global_pose(arm[0]).origin
 			var out_w: Vector3 = (rim_w - ctr_w).normalized()
@@ -1215,8 +1266,15 @@ class ReachIK extends SkeletonModifier3D:
 			# the arm turned out: the pole (the elbow's side) swung down about the shoulder-to-hand line
 			var axis_w := (tgt_w - sh_w).normalized()
 			pole_w = tgt_w + Basis(axis_w, -side * arm_out) * (pole_w - tgt_w)
+			var pw := point_w if side < 0.0 and point_at != Vector3.ZERO else 0.0
+			if pw > 0.0:
+				var e := pw * pw * (3.0 - 2.0 * pw)
+				var pt_w: Vector3 = sh_w + (point_at - sh_w).normalized() * 0.47
+				tgt_w = tgt_w.lerp(pt_w, e)
+				pole_w = pole_w.lerp(pt_w + car_basis * Vector3(0.05, -0.5, 0.15), e)
 			_two_bone(sk, arm[0], arm[1], arm[2], inv * tgt_w, inv * pole_w)
-			if grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * palm_in - wheel.global_basis.z)).normalized())
+			if pw > 0.5: _point(sk, arm, inv * point_at, (pw - 0.5) * 2.0)
+			elif grip > 0.0: _grip(sk, arm, inv * rim_w, inv * ctr_w, (inv.basis * (-out_w * palm_in - wheel.global_basis.z)).normalized())
 		if head >= 0 and look_road != Vector3.ZERO:
 			var q := _look_q(sk, inv)
 			if neck >= 0:
@@ -1278,6 +1336,31 @@ class ReachIK extends SkeletonModifier3D:
 			var q := Quaternion((tip - g.origin).normalized(), want.normalized())
 			var qa := clampf(q.get_angle(), 0.0, 0.9) * grip
 			if q.get_angle() > 0.001: sk.set_bone_global_pose(th[0], Transform3D(Basis(Quaternion(q.get_axis().normalized(), qa)) * g.basis, g.origin))
+	# the hand off the wheel, pointing: the fingers' line turned to the thing, the index straight, the other three closed
+	func _point(sk: Skeleton3D, arm: Array, at: Vector3, k: float):
+		var fl: Array = fingers.get(arm[3], [])
+		if fl.size() < 5 or fl[1].is_empty() or fl[3].is_empty(): return
+		var hb: int = arm[2]
+		var gh := sk.get_bone_global_pose(hb)
+		var fdir := (sk.get_bone_global_pose(fl[0][0]).origin - gh.origin).normalized()
+		var q := Quaternion(fdir, (at - gh.origin).normalized())
+		var qa := clampf(q.get_angle(), 0.0, 0.8) * k
+		if q.get_angle() > 0.001: sk.set_bone_global_pose(hb, Transform3D(Basis(Quaternion(q.get_axis().normalized(), qa)) * gh.basis, gh.origin))
+		gh = sk.get_bone_global_pose(hb)
+		var k0 := sk.get_bone_global_pose(fl[0][0]).origin; var k3 := sk.get_bone_global_pose(fl[3][0]).origin
+		var across := (k3 - k0).normalized()
+		fdir = (sk.get_bone_global_pose(fl[1][0]).origin - gh.origin).normalized()
+		var palm: Vector3 = fdir.cross(across).normalized() * float(arm[3])
+		var sgn := 1.0 if across.cross(fdir).dot(palm) > 0.0 else -1.0
+		for fi in [1, 2, 3]:
+			for j in fl[fi].size():
+				var bi: int = fl[fi][j]
+				var g := sk.get_bone_global_pose(bi)
+				sk.set_bone_global_pose(bi, Transform3D(Basis(across, sgn * [1.3, 1.5, 1.0][j] * k) * g.basis, g.origin))
+		var th: Array = fl[4]
+		for j in th.size():
+			var g := sk.get_bone_global_pose(th[j])
+			sk.set_bone_global_pose(th[j], Transform3D(Basis(across, sgn * 0.35 * k) * g.basis, g.origin))
 	func _two_bone(sk: Skeleton3D, a: int, b: int, c: int, t: Vector3, pole: Vector3):
 		var ga := sk.get_bone_global_pose(a); var gb := sk.get_bone_global_pose(b); var gc := sk.get_bone_global_pose(c)
 		var A := ga.origin; var Bp := gb.origin; var C := gc.origin

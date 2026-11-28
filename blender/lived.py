@@ -143,13 +143,21 @@ def kitchen(M):
         cyl('lived_kettlesoot', 8.0, 3.98, .985, 1.0, .101, M['soot'], 18)
         o = prim('cylinder', 'lived_kspout', loc=(X(7.89), Y(3.95), 1.06), rot=(0, -.9, .3), scale=(.012, .012, .07), mat=M['kettle_al'], vertices=8)
         lib.tube('lived_khandle', [(X(7.93), Y(3.98), 1.12), (X(8.0), Y(3.98), 1.2), (X(8.07), Y(3.98), 1.12)], [.007] * 3, M['plastic'], seg=6, sub=3)
-    cyl('lived_teatin', 6.8, 3.9, .862, .99, .045, M['tin'], 14)
-    cyl('lived_sake', 6.98, 3.86, .862, 1.24, .05, M['bottle'], 14)
-    cyl('lived_sakeneck', 6.98, 3.86, 1.24, 1.33, .018, M['bottle'], 10)
-    box('lived_sakelabel', 6.93, 3.912, 7.03, 3.915, .98, 1.12, M['label'])
-    for i, (x, y) in enumerate(((7.2, 3.92), (7.32, 3.96))):
-        cyl('lived_yunomi', x, y, .862, .95, .035, M['yunomi'] if i == 0 else M['yunomi2'], 14)
-    cyl('lived_yunomi', 7.2, 3.92, .95, 1.038, .035, M['yunomi2'], 14)   # stacked, as they were put away
+    # 2026-11-28（試作298の感想17「ここも箱にしか見えない」、台所の調理台）: the tea tin with its lid, the sake's isshobin with
+    # its shoulder, neck and cap and a label round it (not a card stuck on), the yunomi narrower at the foot with a dark rim
+    cyl('lived_teatin', 6.8, 3.9, .862, .975, .045, M['tin'], 18)
+    cyl('lived_teatinlid', 6.8, 3.9, .975, 1.0, .047, M['kettle_al'], 18)
+    cyl('lived_sake', 6.98, 3.86, .862, 1.17, .05, M['bottle'], 18)
+    prim('cone', 'lived_sakeshoulder', loc=(X(6.98), Y(3.86), 1.2), radius1=.05, radius2=.019, depth=.06, vertices=18, mat=M['bottle'])
+    cyl('lived_sakeneck', 6.98, 3.86, 1.23, 1.32, .018, M['bottle'], 12)
+    cyl('lived_sakecap', 6.98, 3.86, 1.32, 1.345, .02, M['label'], 12)
+    cyl('lived_sakelabel', 6.98, 3.86, .97, 1.11, .0508, M['label'], 18)
+    def yunomi(x, y, z0, m):
+        prim('cone', 'lived_yunomi', loc=(X(x), Y(y), z0 + .046), radius1=.029, radius2=.036, depth=.08, vertices=18, mat=m)
+        cyl('lived_yunomifoot', x, y, z0, z0 + .006, .026, M['soot'], 18)
+        prim('torus', 'lived_yunomirim', loc=(X(x), Y(y), z0 + .086), major_radius=.034, minor_radius=.003, major_segments=18, minor_segments=4, mat=M['soot'])
+    yunomi(7.2, 3.92, .862, M['yunomi']); yunomi(7.32, 3.96, .862, M['yunomi2'])
+    yunomi(7.2, 3.92, .93, M['yunomi2'])   # stacked, as they were put away
     # the fridge door: his notes under magnets (the crew have not touched them)
     # 2026-11-14: on the door's face (plan +y, the Tripo fridge's front at 4.325), the pot on its top (1.57)
     for (x, z, w, h, mat) in ((9.5, 1.25, .1, .14, 'screen'), (9.7, 1.18, .08, .08, 'note_y'), (9.55, .95, .12, .09, 'screen')):

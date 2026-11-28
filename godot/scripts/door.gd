@@ -58,6 +58,9 @@ func _ready():
 	if main.S.has("natsuki_node"):
 		for gi in (main.S.natsuki_node as Node).find_children("*", "GeometryInstance3D", true, false): (gi as GeometryInstance3D).visible = false
 	get_tree().create_timer(0.5).timeout.connect(func(): _face_light("taiga", 0.3, "kiryu"))   # 点検3: Kiryu holds his phone up to him: his face against the door
+	# 2026-11-28（ユーザー試作298 #21「桐生はこちらを向いているように」）: he stood behind the tripod with his back to her and spoke
+	# to her over his shoulder. The camera runs on its own; he stands beside it turned to her
+	if not "--kiryuback" in OS.get_cmdline_user_args(): get_tree().create_timer(0.3).timeout.connect(_kiryu_to_mio)
 	player.global_position = Vector3(MIO_AT[0], 0.0, -MIO_AT[1])
 	var to := g(DOOR_AT) - Vector3(MIO_AT[0], 1.52, -MIO_AT[1])
 	player.yaw = atan2(-to.x, -to.z); player.pitch = deg_to_rad(-3.0)
@@ -340,3 +343,11 @@ func _strike_walk():
 	st.w = font.get_string_size(T("ＷＡＳＤ 歩く"), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	st.size = Vector2(st.w, font.get_height(fs)); st.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	f.add_child(st)
+
+func _kiryu_to_mio():
+	var r: Node3D = main._rig_of("kiryu")
+	if r == null: return
+	var d: Vector3 = player.global_position - r.global_position
+	if Vector2(d.x, d.z).length() < 0.2: return
+	var yaw := atan2(d.x, d.z)
+	var tw := create_tween(); tw.tween_property(r, "rotation:y", r.rotation.y + wrapf(yaw - r.rotation.y, -PI, PI), 0.9).set_trans(Tween.TRANS_SINE)

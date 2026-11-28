@@ -1040,7 +1040,9 @@ func _one(e: Dictionary):
 			"cam": _still(a)
 			"hand": _form("kikite", a if a != "none" else "seiza")
 			"wait": await _hold(float(a))
-			"sound": Snd.one(self, {"決定": "iv_kettei"}.get(a, a), -6.0)
+			# 2026-11-28 (user: "証言二の選択音はなしにします"): the novel-game "decision" chime never sounds, even if a script asks for it
+			"sound":
+				if a != "決定": Snd.one(self, a, -6.0)
 			"choose_in": choose_cam = true
 			"fist":
 				if ppl.has("mio"):

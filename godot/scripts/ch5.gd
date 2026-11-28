@@ -611,9 +611,14 @@ func _candle():
 	fmat.albedo_color = Color(1.0, 0.78, 0.4); fmat.emission_enabled = true; fmat.emission = Color(1.0, 0.7, 0.3); fmat.emission_energy_multiplier = 4.0
 	f.material_override = fmat; f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; flame.add_child(f)
 	candle_light = OmniLight3D.new(); candle_light.light_color = Color(1.0, 0.66, 0.34); candle_light.light_energy = 0.26
-	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = true
+	candle_light.omni_range = 2.6; candle_light.omni_attenuation = 1.4; candle_light.shadow_enabled = not ("--nocshadow" in OS.get_cmdline_user_args())   # 2026-11-28 第6章の頭の崩れを切り分ける
 	candle_light.light_volumetric_fog_energy = 0.2; candle_light.position.y = 0.16
 	candle.add_child(candle_light)
+	# 2026-11-28（試作298の感想33「第6章の頭、夏希まわりの描画が崩れまくってる」）: looking down, the light 16cm over the dish
+	# threw the dish, the candle and the hand that holds them across the floor and her as big black wedges. They cast none for it now
+	if not ("--oldcshadow" in OS.get_cmdline_user_args()):
+		for mi in [stick, saucer, rim]: (mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if "shadow_caster_mask" in candle_light: candle_light.set("shadow_caster_mask", 0xFFFFF & ~2)   # the hands (layer 2, ch6.gd _mk_hand)
 	candle.visible = false
 	add_child(candle)
 
@@ -1571,7 +1576,11 @@ func _board_off():
 	if cwin_light: create_tween().tween_property(cwin_light, "light_energy", 0.35 * boards_off, 0.6)
 	# out here the window's lines are the cellar's: the stair's steps go by unheard
 	while below_i < BELOW.size() and int(BELOW[below_i][0]) <= _progress(): below_i += 1
-	if boards_off >= 4: below_i = BELOW.size()
+	if boards_off >= 4:
+		below_i = BELOW.size()
+		# 2026-11-28（ユーザー試作298 #31「板を外したあとも左上に表記が残る。扉を選ぶと『まずはテープ』と出るが、テープの窓は残っていない」）:
+		# the four boards are off: the errand at the top left goes, and the cellar door says what the tape's way says at its end
+		_set_mission(""); _cellar_lock("下りませんでした。真琴ちゃんが、来ないでって。")
 	var q: Array = B("外.板." + ["一", "二", "三", "四"][boards_off - 1])
 	if boards_off == 3: get_tree().create_timer(3.6).timeout.connect(func(): gen_want = -7.0; mk_fell = true)   # (the fall at the end of 外.板.三)
 	if mk_fell: q = q.filter(func(e): return not String(e.get("who", "")).begins_with("真琴") and not String(e.get("note", "")).contains("咳"))   # she fell already (地下.四): only the generator

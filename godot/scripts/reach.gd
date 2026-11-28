@@ -8,6 +8,8 @@ var target := Vector3.ZERO
 var offset := Vector3.ZERO      # added to the target (world), e.g. the palm a little off the knob
 var w := 0.0
 var pole := Vector3(0.0, -1.0, -0.4)   # where the elbow hangs (world): down and a little back
+var palm_up := false
+var palm_sign := 1.0            # which way the palm's normal comes out of the knuckles' cross (checked on a still)
 
 func _process_modification():
 	var sk := get_skeleton()
@@ -38,3 +40,18 @@ func _process_modification():
 	var hp2 := sk.get_bone_global_pose(ha).origin
 	var q2 := Quaternion((hp2 - g2.origin).normalized(), (sp + n * d - g2.origin).normalized())
 	sk.set_bone_global_pose(la, Transform3D(Basis(Quaternion().slerp(q2, w)) * g2.basis, g2.origin))
+	# 2026-11-28（ユーザー試作298 #26「真琴の右手は下からお皿を支えて」）: palm_up turns the hand about the forearm so the palm faces
+	# up (the palm's normal from the knuckles: index and pinky roots across, the middle finger's root along)
+	if palm_up:
+		var i1 := sk.find_bone("index_01_" + side); var p1 := sk.find_bone("pinky_01_" + side); var m1 := sk.find_bone("middle_01_" + side)
+		if i1 < 0 or p1 < 0 or m1 < 0: return
+		var gh := sk.get_bone_global_pose(ha)
+		var across := sk.get_bone_global_pose(i1).origin - sk.get_bone_global_pose(p1).origin
+		var along := sk.get_bone_global_pose(m1).origin - gh.origin
+		var nrm := along.cross(across).normalized() * (1.0 if side == "r" else -1.0) * palm_sign
+		var axis := along.normalized()
+		var up_l: Vector3 = (inv.basis * Vector3.UP).normalized()
+		var a0 := nrm - axis * nrm.dot(axis); var a1 := up_l - axis * up_l.dot(axis)
+		if a0.length() < 0.01 or a1.length() < 0.01: return
+		var ang := a0.normalized().signed_angle_to(a1.normalized(), axis) * w
+		sk.set_bone_global_pose(ha, Transform3D(Basis(axis, ang) * gh.basis, gh.origin))

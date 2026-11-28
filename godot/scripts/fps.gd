@@ -32,12 +32,12 @@ const HEAD_R := 0.14
 const REACH := 1.75                               # eye to her head: the tripod's length and an arm
 # 試作297（赤字 #15「もういっそのことがっつりゾンビみたいに歩かせるってのはどう？…歩き方がぎこちない」）: her walk is the user's
 # Mixamo zombie walk (blender/export_zwalk.py: the whole body, the arms too), in place of the 20:00 people's walk with the
-# phone's arm. --zwalk=1 (default: the arms hanging forward, the feet dragged) | 2 (the arms up before her) | 0 (as before)
+# phone's arm. --zwalk=1 (the arms hanging forward, the feet dragged) | 2 (the arms up before her) | 0 (default: as before)
 var nwalk_speed := 1.14 / 1.25   # the clip's own metres a second, for the feet to keep to the ground
 func _zombie_walk():
-	var which := "zwalk"
+	var which := ""   # 2026-11-28 ユーザーと決めた：前の歩き（夏希は実は生きている。あとで真相に気づいたとき、普通に歩いていたと思い出せる方）
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--zwalk="): which = {"0": "", "1": "zwalk", "2": "zwalk2"}.get(a.substr(8), "zwalk")
+		if a.begins_with("--zwalk="): which = {"0": "", "1": "zwalk", "2": "zwalk2"}.get(a.substr(8), "")
 	var p := "res://assets/dusk/natsuki_zwalk.glb"
 	if which == "" or not ResourceLoader.exists(p) or not nap.has_animation_library("walk"): return
 	var j = JSON.parse_string(FileAccess.get_file_as_string("res://assets/dusk/zwalk.json"))
