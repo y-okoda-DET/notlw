@@ -136,15 +136,15 @@ func _ready():
 		if a == "--nochars": ARGS["nochars"] = true   # the storyboard is drawn of the empty hall (ui/make_conte.py)
 		if a.begins_with("--fov="): ARGS["fov"] = float(a.substr(6))   # the storyboard's frame is shot at the small camera's angle (ui/make_conte.py)
 	# 証言と、まだ無い章の仮のカードを直に開く（--play=i1|i2|i3|ch8。開発と確認用。scripts/order.gd）
-	# タイトル画面（2026-11-28）：--titlescreen のときだけ（ユーザー 11-28 15時17分「タイトルメニュー画面は別スレッドで検討を重ねてから渡す。今回作ったものは使いません」。引数なしの起動は前のとおり）
+	# タイトル画面（2026-11-28「タイトル画面を詰める」のスレッド。ユーザー「方向性OK。打撃音は無しでいい」）：引数なしの起動と --titlescreen。
+	# 夕方の家を外から見せる（家まるごとの夕方の光、話なし）。メニューは scripts/title.gd。前の机の上のテープの箱は使わない
 	if SCENES_RUN == 1:
 		Title._apply_vol()
 		var tp := Title._prefs()
 		if tp.has("q") and not SET.has("q"): SET["q"] = bool(tp.q)
-		var ua := Array(OS.get_cmdline_user_args())
-		if ua.has("--titlescreen") or ua.any(func(x): return x.begins_with("--titleshot=")):
-			set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
-			var tn: Node = Title.new(); tn.main = self; tn.name = "Title"; add_child(tn); return
+		var ua := Array(OS.get_cmdline_user_args()).filter(func(x): return not String(x).begins_with("--basepack=") and not String(x).begins_with("--housepack="))
+		if ua.is_empty() or ua.has("--titlescreen") or ua.any(func(x): return String(x).begins_with("--titleshot=")):
+			title_on = true; SCENE = "house"; TIME = "dusk"; ARGS["nostory"] = true; CARD_TIME = 0.0
 	if NEXT_PLAY == "" and SCENES_RUN == 1 and Order.direct(String(ARGS.get("play", ""))):
 		set_process(false); set_physics_process(false); set_process_input(false); set_process_unhandled_input(false)
 		Order.start.call_deferred(self, String(ARGS.play)); return
@@ -252,6 +252,9 @@ func _ready():
 	_perf(checking0)
 	if record == "": Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	t0 = Time.get_ticks_msec() / 1000.0
+	if title_on:   # the title screen over the house (scripts/title.gd): the house's own keys are off while it is up
+		set_process_input(false); set_process_unhandled_input(false)
+		var tn: Node = Title.new(); tn.main = self; tn.name = "Title"; add_child(tn)
 
 # ------------------------------------------------------------------ world
 func _environment():
@@ -1162,7 +1165,7 @@ func _process(dt):
 	_update_faces(t, fmod(max(t - CARD_TIME, 0.0), LOOP))
 	card.visible = t < CARD_TIME
 	if foot:
-		foot.visible = t >= CARD_TIME and t < CARD_TIME + 12.0 and record == ""
+		foot.visible = t >= CARD_TIME and t < CARD_TIME + 12.0 and record == "" and not title_on
 		foot.modulate.a = clamp((CARD_TIME + 12.0 - t) / 2.0, 0.0, 1.0)
 	player.input_enabled = t > CARD_TIME - 0.4
 	var lt: float = fmod(max(t - CARD_TIME, 0.0), LOOP)
@@ -1992,9 +1995,11 @@ func _door_set():
 # ステップ D: on to a chapter that is played in the whole house at 3:30 ("ch4" | "ch11")
 static var NEXT_PLAY := ""
 static var TITLE_GO := false   # はじめる on the title screen: the reload begins the game as a bare start did
+var title_on := false         # this scene is the title screen's house (scripts/title.gd)
 
 # the title screen's choice (title.gd): "" = はじめる (序章), else the chapter last reached (user://progress.json)
 func title_go(cont: String):
+	SCENE = ""; TIME = ""   # (the title's house set them)
 	if cont == "":
 		TITLE_GO = true; get_tree().reload_current_scene(); return
 	if cont == "door": to_night(true); return
