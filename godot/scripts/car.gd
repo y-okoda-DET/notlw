@@ -1028,6 +1028,10 @@ func _radio():
 	if car_radio_on: return
 	car_radio_on = true
 	_one("car_radio", -12.0)
+	# 2026-11-28（効果音のスレッドの自前の radio_xtalk、ユーザー「こっちで作ったほうがいいと判断するものは差し替えて」）: as the
+	# station goes in the hills, another bleeds through the hiss for a few seconds and goes too
+	get_tree().create_timer(5.6).timeout.connect(func(): _loop_to("radio_xtalk", -24.0, 0.8))
+	get_tree().create_timer(9.0).timeout.connect(func(): _loop_to("radio_xtalk", -60.0, 3.0))
 
 func _blinker(n: int):
 	for i in n * 2:
